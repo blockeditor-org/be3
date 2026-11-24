@@ -58,7 +58,7 @@ use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow};
+use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
 use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
@@ -214,7 +214,7 @@ impl RootShell {
     }
 
     /// Asks the root for a frame for `time` and shows its layer list.
-    fn frame(&mut self, context: &beui::native::Context, time: Duration) {
+    fn frame(&mut self, context: &beui::native::Context, time: Duration, area: beui::Rect) {
         let Some(root) = &mut self.root else {
             return;
         };
@@ -243,6 +243,12 @@ impl RootShell {
         let request = FrameRequest {
             time: nanos(time),
             wall_clock: nanos(beui::reactive::wall_clock()),
+            utc_offset: be_host_base::platform::utc_offset(),
+            window: WindowSize {
+                width: area.width(),
+                height: area.height(),
+                pixels_per_point: context.pixels_per_point(),
+            },
         };
         let done = match root.frame(request, deadline) {
             Ok(done) => done,
@@ -362,7 +368,7 @@ impl beui::native::Program for RootShell {
         let origin = *self.time_origin.get_or_insert(now);
         let time = now.saturating_duration_since(origin);
         self.deliver_input(origin);
-        self.frame(context, time);
+        self.frame(context, time, rect);
         self.document.show(context, rect);
         // After the document, whose own requests (it hears no input, so the default cursor) the
         // root's replace.

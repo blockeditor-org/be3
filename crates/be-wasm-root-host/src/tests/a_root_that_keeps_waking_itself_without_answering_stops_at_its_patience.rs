@@ -8,6 +8,8 @@ fn a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience() {
         FrameRequest {
             time: SPINS,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now(),
     );
@@ -19,7 +21,9 @@ fn a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience() {
         root.frame(
             FrameRequest {
                 time: 1,
-                wall_clock: 0
+                wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             Instant::now() + PATIENT
         )

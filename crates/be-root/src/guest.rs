@@ -11,7 +11,7 @@ use std::{
 
 use be_lib_geometry::pos2;
 use be_lib_layers::{Area, LayerId, LayerInput, LayerList, WindowLayers};
-use be_lib_ui_types::input::{Input, Key, KeyChord, Modifiers, TouchPhase};
+use be_lib_ui_types::input::{Input, Key, KeyChord, Modifiers};
 use be_sdk_api::Fonts;
 use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedding, OwnSurface};
@@ -20,38 +20,28 @@ use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
     AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
-    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
+    CoreView, CoreWait, DiscardReason, HostedBlock, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
     InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes, NewAccount,
     Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction, ProfileRow,
-    Refusal, RoleChange, SavingState, SecretCommand, ServerAccount, SessionRow, SetAside,
-    ShareAccess, SharePreview, StatisticRow, SyncState, UnsentEdit,
+    Refusal, RoleChange, SavingState, SecretCommand, ServerAccount, SetAside,
+    ShareAccess, SharePreview, StatisticRow, SyncState, UnsentEdit, WindowSize,
     guest::{
         exports::{frames, input, paintings},
         host,
     },
 };
 use beui::icons::{
-    Glyph, ICON_LOG_OUT, ICON_MENU, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, ICON_TRASH,
+    Glyph, ICON_LOG_OUT, ICON_MENU, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, ICON_TRASH, ICON_USER_MINUS,
 };
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
+use beui::text::Phrase;
 use beui::{
     Align, Align2, Direction, Justify, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2,
 };
 
-use crate::{
-    ADD_ACCOUNT_TITLE, AGENTS_TITLE, CONTACTS_TITLE, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE,
-    DIALOG_SURFACE, DISCARD_TITLE, DISCARD_UNSENT_TITLE, FAILURE_TITLE, FORGET_ACCOUNT_TITLE,
-    INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LEAVE_TITLE, LOCK_LAYER, LOCK_SURFACE, MEMBERS_TITLE,
-    MENU_AREA, MENU_BUTTON, MENU_LAYER, MENU_ORIGIN, MENU_SURFACE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE,
-    REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCRIM_COLOR,
-    SCRIM_LAYER, SCRIM_SURFACE, SESSIONS_TITLE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE,
-    SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN,
-    STATISTICS_SURFACE, STATISTICS_TITLE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE, UNLOCK_TITLE,
-    UNSENT_TITLE,
-};
+use crate::{ADD_ACCOUNT_TITLE, AGENTS_TITLE, CONTACTS_TITLE, DIALOG_LAYER, DIALOG_SURFACE, DISCARD_TITLE, DISCARD_UNSENT_TITLE, FAILURE_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LOCK_LAYER, LOCK_SURFACE, MEMBERS_TITLE, MENU_BUTTON, MENU_LAYER, MENU_SURFACE, ONBOARDING_LAYER, ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE, REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_LAYER, STATISTICS_SURFACE, STATISTICS_TITLE, STATISTICS_WIDTH, TOAST_LAYER, TOAST_SURFACE, UNSENT_TITLE};
 
 mod dialogs;
 mod lock;
@@ -81,6 +71,8 @@ struct Root {
     /// Its menu, which beui draws, made on its first frame: what opens the block stack's
     /// dialogs and its panel, in place of be-host's own menu.
     menu: Rc<RefCell<Option<BeuiSurface>>>,
+    /// The core's view and the saving its menu shows, which the host's answers set.
+    menu_shows: Rc<Cell<Option<(Signal<CoreView>, Signal<SavingState>)>>>,
     /// Whether its menu asked to open or close the statistics panel, done with the next frame.
     statistics_asked: Rc<Cell<bool>>,
     /// The toasts that document shows, which the host's notices set.
@@ -126,8 +118,15 @@ struct Root {
     /// whether it waits for one, while that dialog asks for secrets: one request at a time, so
     /// an answer is the latest request's.
     secret_shown: Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
-    /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
-    scrim: Rc<RefCell<Option<OwnSurface>>>,
+    /// The host's window as its last frame drew it: its width and height in points and its
+    /// pixels per point, which every surface but the statistics panel fills.
+    window: Rc<Cell<Window>>,
+    /// The host's time zone as its last frame said it, in seconds east of UTC, which the lock
+    /// screen's clock shows the time at.
+    utc_offset: Rc<Cell<i32>>,
+    /// The area the toasts' document anchors them in, its whole surface, which follows the
+    /// window.
+    toast_area: Rc<Cell<Option<Signal<Rect>>>>,
     /// Its dialog, while it is open.
     dialog: Rc<RefCell<Option<Dialog>>>,
     /// What its input asked of the dialog, done with the next frame.
@@ -146,6 +145,59 @@ struct Root {
     lock: Rc<RefCell<Option<Locked>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
+}
+
+/// The host's window: its size in points and the pixels a point is drawn at.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Window {
+    width: f32,
+    height: f32,
+    pixels_per_point: f32,
+}
+
+impl Default for Window {
+    fn default() -> Self {
+        Self {
+            width: 1.0,
+            height: 1.0,
+            pixels_per_point: 1.0,
+        }
+    }
+}
+
+impl Window {
+    /// The window as `frame-request` tells it, at least a point each way.
+    fn of(size: &WindowSize) -> Self {
+        Self {
+            width: size.width.max(1.0),
+            height: size.height.max(1.0),
+            pixels_per_point: match size.pixels_per_point > 0.0 {
+                true => size.pixels_per_point,
+                false => 1.0,
+            },
+        }
+    }
+
+    /// The pixels a surface `width` by `height` points spans in it.
+    fn pixels(&self, width: f32, height: f32) -> (u32, u32) {
+        let pixels = |points: f32| ((points * self.pixels_per_point).round() as u32).max(1);
+        (pixels(width), pixels(height))
+    }
+
+    /// The pixels a surface filling it spans.
+    fn whole(&self) -> (u32, u32) {
+        self.pixels(self.width, self.height)
+    }
+
+    /// The statistics panel's width, in points: `STATISTICS_WIDTH`, or the window's if narrower.
+    fn statistics_width(&self) -> f32 {
+        STATISTICS_WIDTH.min(self.width)
+    }
+
+    /// The whole window as a rect in its points, at its top left.
+    fn rect(&self) -> Rect {
+        Rect::from_min_size(Pos2::ZERO, vec2(self.width, self.height))
+    }
 }
 
 /// The root's dialog while it is open.
@@ -221,6 +273,9 @@ enum Asking {
     Host(HostAsks),
     /// The organization's invitations.
     Invitations,
+    /// A new invite link to the organization, as be-host's Invite member makes one, shown in
+    /// the invitations' dialog.
+    Invite,
     /// The organization's members.
     Members,
     /// The organization's agents.
@@ -270,6 +325,7 @@ impl Root {
             own: Rc::default(),
             toasts: Rc::default(),
             menu: Rc::default(),
+            menu_shows: Rc::default(),
             statistics_asked: Rc::default(),
             shown: Rc::default(),
             saving: Rc::default(),
@@ -286,7 +342,9 @@ impl Root {
             resuming: Rc::default(),
             secret: Rc::default(),
             secret_shown: Rc::default(),
-            scrim: Rc::default(),
+            window: Rc::new(Cell::new(Window::default())),
+            toast_area: Rc::default(),
+            utc_offset: Rc::default(),
             dialog: Rc::default(),
             asked: Rc::default(),
             statistics: Rc::default(),
@@ -299,6 +357,47 @@ impl Root {
         }
     }
 
+    /// Lays its surfaces out in the host's window as `window` says it is now: each that fills
+    /// it, and the statistics panel at its right edge, resized at its pixels per point when it
+    /// changed.
+    fn resize(&self, window: Window) {
+        if self.window.replace(window) == window {
+            return;
+        }
+        let (whole, raster) = (window.whole(), window.pixels_per_point);
+        if let Some(own) = &mut *self.own.borrow_mut() {
+            own.resize(whole);
+            // A host that lost its device stops the root at its next frame.
+            let _ = own.fill(ROOT_COLOR);
+        }
+        let surfaces = [&self.toasts, &self.menu];
+        for surface in surfaces {
+            if let Some(surface) = &mut *surface.borrow_mut() {
+                surface.resize(whole, raster);
+            }
+        }
+        if let Some(toasts) = &mut *self.toasts.borrow_mut()
+            && let Some(area) = self.toast_area.get()
+        {
+            toasts.enter(|| area.set(window.rect()));
+        }
+        if let Some(dialog) = &mut *self.dialog.borrow_mut() {
+            dialog.surface.resize(whole, raster);
+        }
+        if let Some(accounts) = &mut *self.onboarding.borrow_mut() {
+            accounts.surface.resize(whole, raster);
+        }
+        if let Some(locked) = &mut *self.lock.borrow_mut() {
+            locked.surface.resize(whole, raster);
+        }
+        if let Some(statistics) = &mut *self.statistics.borrow_mut() {
+            statistics.resize(
+                window.pixels(window.statistics_width(), window.height),
+                raster,
+            );
+        }
+    }
+
     /// Hands beui the host's clocks for the frame, and makes its surfaces the first time: its
     /// own, filled with `ROOT_COLOR`, and its toasts, which beui draws in the host's fonts.
     async fn own(&self, time: Duration, wall_clock: Duration) -> Result<(), String> {
@@ -306,7 +405,8 @@ impl Root {
             beui.set_clock(time, wall_clock);
             return Ok(());
         }
-        let own = OwnSurface::new(ROOT_SURFACE, SIZE);
+        let window = self.window.get();
+        let own = OwnSurface::new(ROOT_SURFACE, window.whole());
         own.fill(ROOT_COLOR)?;
         let fonts = host::fonts()
             .await
@@ -319,12 +419,15 @@ impl Root {
         let waker = self.waker.clone();
         let shown = Rc::clone(&self.shown);
         let saved = Rc::clone(&self.saving);
+        let toast_area = Rc::clone(&self.toast_area);
         let toasts = BeuiSurface::new(
             &beui,
-            OwnSurface::new(TOAST_SURFACE, TOAST_AREA),
-            1.0,
+            OwnSurface::new(TOAST_SURFACE, window.whole()),
+            window.pixels_per_point,
             move || waker.wake(),
             move || {
+                let area = create_signal(window.rect());
+                toast_area.set(Some(area));
                 let toasts = create_signal(Vec::<Toast>::new());
                 shown.set(Some(toasts));
                 let saving = create_signal(SavingState {
@@ -337,7 +440,7 @@ impl Root {
                 saved.set(Some(saving));
                 view! {
                     <Root clear_color=ColorRole::None>
-                        <Notices toasts={toasts} saving={saving} />
+                        <Notices toasts={toasts} saving={saving} area={area} />
                     </Root>
                 }
             },
@@ -346,10 +449,12 @@ impl Root {
         let wakes = self.waker.clone();
         let wanted = Rc::clone(&self.wanted);
         let statistics_asked = Rc::clone(&self.statistics_asked);
+        let menu_shows = Rc::clone(&self.menu_shows);
+        let core = self.core.borrow().clone();
         let menu = BeuiSurface::new(
             &beui,
-            OwnSurface::new(MENU_SURFACE, MENU_AREA),
-            1.0,
+            OwnSurface::new(MENU_SURFACE, window.whole()),
+            window.pixels_per_point,
             move || waker.wake(),
             move || {
                 let wakes_too = wakes.clone();
@@ -361,20 +466,26 @@ impl Root {
                     statistics_asked.set(true);
                     wakes_too.wake();
                 });
+                let core = create_signal(core);
+                let saving = create_signal(SavingState {
+                    generation: 0,
+                    unsaved: false,
+                    saves: 0,
+                    unsent: 0,
+                    sync: SyncState::Saved,
+                });
+                menu_shows.set(Some((core, saving)));
                 view! {
                     <Root clear_color=ColorRole::None>
-                        <HostMenu want={want} statistics={statistics} />
+                        <HostMenu core={core} saving={saving} want={want} statistics={statistics} />
                     </Root>
                 }
             },
         )?;
         *self.menu.borrow_mut() = Some(menu);
-        let scrim = OwnSurface::new(SCRIM_SURFACE, SIZE);
-        scrim.fill(SCRIM_COLOR)?;
         // F2 opens the dialog, wherever the focus is.
         self.embedding.borrow_mut().intercept(chords(false));
         *self.own.borrow_mut() = Some(own);
-        *self.scrim.borrow_mut() = Some(scrim);
         *self.beui.borrow_mut() = Some(beui);
         *self.toasts.borrow_mut() = Some(toasts);
         be_wasm_ops::guest::spawn(self.clone().hear_notices());
@@ -405,6 +516,12 @@ impl Root {
         let mut seen = 0;
         while let Ok(saving) = host::saving(seen).await {
             seen = saving.generation;
+            if let (Some(menu), Some((_, shown))) =
+                (&mut *self.menu.borrow_mut(), self.menu_shows.get())
+            {
+                let saving = saving.clone();
+                menu.enter(|| shown.set(saving));
+            }
             if let (Some(surface), Some(shown)) =
                 (&mut *self.toasts.borrow_mut(), self.saving.get())
             {
@@ -431,6 +548,12 @@ impl Root {
         while let Ok(view) = host::core(seen).await {
             seen = view.generation;
             *self.core.borrow_mut() = view.clone();
+            if let (Some(menu), Some((shown, _))) =
+                (&mut *self.menu.borrow_mut(), self.menu_shows.get())
+            {
+                let view = view.clone();
+                menu.enter(|| shown.set(view));
+            }
             if let (Some(accounts), Some(shown)) = (
                 &mut *self.onboarding.borrow_mut(),
                 self.onboarding_shown.get(),
@@ -504,8 +627,8 @@ impl Root {
         let closes = closing.clone();
         let surface = BeuiSurface::new(
             &beui,
-            OwnSurface::new(ONBOARDING_SURFACE, SIZE),
-            1.0,
+            OwnSurface::new(ONBOARDING_SURFACE, self.window.get().whole()),
+            self.window.get().pixels_per_point,
             move || waker.wake(),
             move || {
                 let core = create_signal(core);
@@ -572,10 +695,11 @@ impl Root {
         let shown = Rc::new(Cell::new(None));
         let made = Rc::clone(&shown);
         let waker = self.waker.clone();
+        let utc_offset = self.utc_offset.get();
         let surface = BeuiSurface::new(
             &beui,
-            OwnSurface::new(LOCK_SURFACE, SIZE),
-            1.0,
+            OwnSurface::new(LOCK_SURFACE, self.window.get().whole()),
+            self.window.get().pixels_per_point,
             move || waker.wake(),
             move || {
                 let state = create_signal(state);
@@ -583,7 +707,7 @@ impl Root {
                 made.set(Some((state, shown_at)));
                 view! {
                     <Root>
-                        <LockCard state={state} shown_at={shown_at} />
+                        <LockCard state={state} shown_at={shown_at} utc_offset={utc_offset} />
                     </Root>
                 }
             },
@@ -602,10 +726,10 @@ impl Root {
         Ok(())
     }
 
-    /// Hands its beui documents what landed on their surfaces: its strip of text, its toasts
-    /// and its dialog. What landed on its own layer, the compositor, opens the dialog (F2,
-    /// which it intercepts) or closes it (Escape, which it intercepts while the dialog is open,
-    /// or a press the scrim captured), with the next frame.
+    /// Hands its beui documents what landed on their surfaces. What landed on its own layer, the
+    /// compositor, closes its dialog with the next frame: Escape, which it intercepts while the
+    /// dialog is open and the focus is outside it. A press beside the dialog is the dialog's
+    /// own, on beui's scrim.
     fn heard(&self, own: &[Delivery]) {
         let open = self.dialog.borrow().is_some();
         for delivery in own.iter().filter(|delivery| delivery.target == ROOT_LAYER) {
@@ -614,11 +738,6 @@ impl Root {
                     Some(Key::Escape) if open => Some(Asked::Close),
                     _ => None,
                 },
-                Input::PointerButton { pressed: true, .. } if open => Some(Asked::Close),
-                Input::Touch {
-                    phase: TouchPhase::Start,
-                    ..
-                } if open => Some(Asked::Close),
                 _ => None,
             };
             if asked.is_some() {
@@ -665,8 +784,13 @@ impl Root {
         let graphed = Rc::clone(&self.shown_memory);
         let panel = BeuiSurface::new(
             &beui,
-            OwnSurface::new(STATISTICS_SURFACE, STATISTICS_AREA),
-            1.0,
+            OwnSurface::new(
+                STATISTICS_SURFACE,
+                self.window
+                    .get()
+                    .pixels(self.window.get().statistics_width(), self.window.get().height),
+            ),
+            self.window.get().pixels_per_point,
             move || waker.wake(),
             move || {
                 let statistics = create_signal(HostStatistics {
@@ -738,14 +862,14 @@ impl Root {
     /// Escape and, once drawn, the focus; it closes giving the focus back to the layer that had
     /// it, and Escape to whatever has the focus.
     fn settle_dialog(&self) -> Result<(), String> {
-        let closed = self
+        let mut closed = self
             .dialog
             .borrow()
             .as_ref()
             .and_then(|dialog| dialog.closed.borrow_mut().take());
         let mut asked = self.asked.take();
         // A dialog waiting for a secret that cannot be had again neither closes nor gives way
-        // until it comes: a press on the scrim, Escape from outside and the host's questions wait.
+        // until it comes: Escape, a press on beui's scrim and the host's questions wait.
         let holding = self
             .dialog
             .borrow()
@@ -757,6 +881,9 @@ impl Root {
                 .is_some_and(|(_, pending)| pending.get_untracked());
         if holding && asked == Some(Asked::Close) {
             asked = None;
+        }
+        if holding && matches!(closed, Some(Closed::Dismissed)) {
+            closed = None;
         }
         let open_keep = self.dialog.borrow().as_ref().and_then(|dialog| dialog.keep);
         let signs_in = self
@@ -953,6 +1080,7 @@ impl Root {
             | Asking::ForgetAccount { .. }
             | Asking::Host(_)
             | Asking::Invitations
+            | Asking::Invite
             | Asking::Members
             | Asking::Agents
             | Asking::Contacts
@@ -964,11 +1092,11 @@ impl Root {
         };
         let receives_secret = matches!(
             opening,
-            Asking::Invitations | Asking::Agents | Asking::Contacts
+            Asking::Invitations | Asking::Invite | Asking::Agents | Asking::Contacts
         );
         let holds_while_pending = matches!(opening, Asking::Agents | Asking::Contacts);
         match opening {
-            Asking::Invitations => ask_core(CoreCommand::ListInvitations),
+            Asking::Invitations | Asking::Invite => ask_core(CoreCommand::ListInvitations),
             Asking::Members => ask_core(CoreCommand::ListMembers),
             Asking::Agents => ask_core(CoreCommand::ListAgents),
             // Each starts afresh: what an earlier opening left offered, done or failed goes.
@@ -989,14 +1117,27 @@ impl Root {
         }
         let core = self.core.borrow().clone();
         let core_shown = Rc::clone(&self.core_shown);
+        let presented = Presented::of(&opening);
+        let dismissing = Rc::clone(&closed);
         let surface = BeuiSurface::new(
             &beui,
-            OwnSurface::new(DIALOG_SURFACE, DIALOG_SIZE),
-            1.0,
+            OwnSurface::new(DIALOG_SURFACE, self.window.get().whole()),
+            self.window.get().pixels_per_point,
             move || waker.wake(),
             move || {
                 let done = Callback::new(move |how: Closed| {
                     *closing.borrow_mut() = Some(how);
+                });
+                // Dismissed by Escape or a press on the scrim: the question of keeping display
+                // settings reverts, as be-host's does, and anything else closes as cancelled.
+                let dismissed = Callback::new(move |()| {
+                    let mut closed = dismissing.borrow_mut();
+                    if closed.is_none() {
+                        *closed = Some(match keep {
+                            Some(round) => Closed::Reverted(round),
+                            None => Closed::Dismissed,
+                        });
+                    }
                 });
                 let shown = match opening {
                     Asking::KeepDisplay(asked) => {
@@ -1068,11 +1209,15 @@ impl Root {
                             <DiscardDialog reason done={done} />
                         }
                     }
-                    Asking::Invitations => {
+                    Asking::Invitations | Asking::Invite => {
+                        let invite = matches!(opening, Asking::Invite);
                         let core = create_signal(core);
                         core_shown.set(Some(core));
                         let (link, pending, ask) =
                             secret_asker(&secret_shown, &answered, &wakes, &closes);
+                        if invite {
+                            ask.call(SecretCommand::InviteMember);
+                        }
                         view! {
                             <InvitationsDialog
                                 core={core}
@@ -1111,8 +1256,20 @@ impl Root {
                         }
                     }
                 };
+                // be-host's own dialog: a card at its width over beui's scrim, or a sheet in a
+                // narrow window, which Escape and a press on the scrim dismiss.
                 view! {
-                    <Root clear_color=ColorRole::None>{shown}</Root>
+                    <Root clear_color=ColorRole::None>
+                        <DialogFrame
+                            open=true
+                            kind={presented.kind}
+                            width={Size::Custom(presented.width)}
+                            size={presented.size}
+                            on_dismiss={move || dismissed.call(())}
+                        >
+                            {shown}
+                        </DialogFrame>
+                    </Root>
                 }
             },
         )?;
@@ -1136,6 +1293,46 @@ impl Root {
         Ok(())
     }
 }
+
+/// How be-host presents each of the root's dialogs: its kind, width and size.
+#[derive(Clone, Copy)]
+struct Presented {
+    kind: DialogKind,
+    width: f32,
+    size: DialogSize,
+}
+
+impl Presented {
+    fn of(opening: &Asking) -> Self {
+        let alert = |width| Self {
+            kind: DialogKind::Alert,
+            width,
+            size: DialogSize::Small,
+        };
+        let dialog = |width, size| Self {
+            kind: DialogKind::Dialog,
+            width,
+            size,
+        };
+        match opening {
+            Asking::KeepDisplay(_) => alert(400.0),
+            Asking::Unsent => dialog(460.0, DialogSize::Large),
+            Asking::AddAccount { .. } => dialog(460.0, DialogSize::Small),
+            Asking::ForgetAccount { .. } => alert(DIALOG_POINTS),
+            Asking::Host(HostAsks::Reauth) => alert(460.0),
+            Asking::Host(HostAsks::Pairing(_)) => alert(340.0),
+            Asking::Host(HostAsks::Leave(_) | HostAsks::Discard(_)) => alert(DIALOG_POINTS),
+            Asking::Invitations => dialog(520.0, DialogSize::Large),
+            Asking::Invite => dialog(400.0, DialogSize::Small),
+            Asking::Members => dialog(480.0, DialogSize::Large),
+            Asking::Agents | Asking::Contacts => dialog(460.0, DialogSize::Large),
+            Asking::ShareLinks => dialog(460.0, DialogSize::Small),
+        }
+    }
+}
+
+/// beui's default dialog width, in points, which be-host's alerts keep.
+const DIALOG_POINTS: f32 = 400.0;
 
 /// The chords the root takes ahead of the focus, while the session is not locked: Escape while
 /// its dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
@@ -1258,25 +1455,6 @@ impl PartialEq for Held {
     }
 }
 
-/// Makes Escape close the component's dialog, as dismissed, once nothing inside it took the
-/// key first.
-fn escape_dismisses(done: Callback<Closed>) {
-    on_key(
-        KeyAt::Node(component_node()),
-        KeyPhase::Bubble,
-        KeyReveal::Focus,
-        move |event| {
-            let closes = event
-                .press()
-                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
-            if closes {
-                done.call(Closed::Dismissed);
-            }
-            closes
-        },
-    );
-}
-
 /// Asks its host's block stack to do `command`.
 fn ask_core(command: CoreCommand) {
     be_wasm_ops::guest::spawn(async move {
@@ -1290,6 +1468,8 @@ impl frames::Guest for Root {
         let root = self.clone();
         Box::pin(async move {
             let time = Duration::from_nanos(request.time);
+            root.resize(Window::of(&request.window));
+            root.utc_offset.set(request.utc_offset);
             root.own(time, Duration::from_nanos(request.wall_clock))
                 .await
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
@@ -1356,9 +1536,10 @@ impl frames::Guest for Root {
             // Its statistics panel while it is open, over the app: it scrolls, so it takes
             // presses, but never the focus from what the person works in.
             if let Some(statistics) = &*root.statistics.borrow() {
+                let window = root.window.get();
                 let mut layer = statistics.layer(
                     STATISTICS_LAYER,
-                    pos2(STATISTICS_ORIGIN.0, STATISTICS_ORIGIN.1),
+                    pos2(window.width - window.statistics_width(), 0.0),
                 );
                 layer.input.focuses = false;
                 layers.push(layer);
@@ -1368,33 +1549,24 @@ impl frames::Guest for Root {
             if let Some(menu) = &*root.menu.borrow()
                 && root.core.borrow().waits_for.is_none()
             {
-                let mut layer = menu.layer(MENU_LAYER, pos2(MENU_ORIGIN.0, MENU_ORIGIN.1));
+                let mut layer = menu.layer(MENU_LAYER, pos2(0.0, 0.0));
                 layer.input = LayerInput {
-                    hit: menu_area(menu),
+                    hit: menu_area(menu, root.window.get()),
                     ..LayerInput::default()
                 };
                 layers.push(layer);
             }
-            // While the dialog is open, over the rest: its scrim, which takes no press itself but
-            // captures every one that misses the dialog for the root's own layer, which closes
-            // it, and never takes the focus; and the dialog over it.
-            if let Some(dialog) = &*root.dialog.borrow()
-                && let Some(scrim) = &*root.scrim.borrow()
-            {
-                let mut layer = scrim.layer(SCRIM_LAYER, pos2(0.0, 0.0), 1.0);
+            // While the dialog is open, over the rest, filling the window: its card over beui's
+            // scrim, which takes every press.
+            if let Some(dialog) = &*root.dialog.borrow() {
+                let mut layer = dialog.surface.layer(DIALOG_LAYER, pos2(0.0, 0.0));
                 layer.input = LayerInput {
-                    hit: Area::Nowhere,
+                    hit: Area::Whole,
                     captures: true,
-                    focuses: false,
-                    placer: Some(ROOT_LAYER),
+                    focuses: true,
                     ..LayerInput::default()
                 };
                 layers.push(layer);
-                layers.push(
-                    dialog
-                        .surface
-                        .layer(DIALOG_LAYER, pos2(DIALOG_ORIGIN.0, DIALOG_ORIGIN.1)),
-                );
             }
             // While the session is locked, its lock screen over everything, taking every press,
             // with no toast over it: it shows nothing it would not show a stranger.
@@ -1570,27 +1742,12 @@ impl paintings::Guest for Root {
             .as_ref()
             .filter(|toasts| toasts.overlay_area() != Area::Nowhere)
             .and_then(painted);
-        // Its scrim and dialog only while the dialog is open, as its layer list shows them.
+        // Its dialog only while it is open, as its layer list shows it.
         let dialog = self
             .dialog
             .borrow()
             .as_ref()
             .and_then(|dialog| painted(&dialog.surface));
-        let scrim = dialog.as_ref().and_then(|_| {
-            let scrim = self.scrim.borrow();
-            let scrim = scrim.as_ref()?;
-            let (width, height) = scrim.size();
-            let painting = Painting {
-                frame: PaintFrame {
-                    size: [width, height],
-                    pixels_per_point: 1.0,
-                    background: SCRIM_COLOR.map(|channel| (channel * 255.0).round() as u8),
-                    primitives: Vec::new(),
-                },
-                textures: Default::default(),
-            };
-            Some((u64::from(scrim.id()), painting))
-        });
         // Its statistics panel only while it is open, its accounts while they show, and its
         // lock screen while locked.
         let statistics = self.statistics.borrow().as_ref().and_then(painted);
@@ -1615,7 +1772,6 @@ impl paintings::Guest for Root {
                 .chain(menu)
                 .chain(accounts)
                 .chain(statistics)
-                .chain(scrim)
                 .chain(dialog)
                 .chain(toasts)
                 .chain(lock)

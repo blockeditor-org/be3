@@ -72,6 +72,15 @@ async fn root() -> Result<Root, String> {
         .with_paste_shortcut(true))
 }
 
+/// The page's window as the root is told it: the test root draws a fixed size anyway.
+fn window() -> be_wasm_root_api::WindowSize {
+    be_wasm_root_api::WindowSize {
+        width: 400.0,
+        height: 240.0,
+        pixels_per_point: 1.0,
+    }
+}
+
 /// One frame of `root`, started from the next `requestAnimationFrame` with its deadline `budget`
 /// after it, as the page would draw one.
 async fn frame(
@@ -87,6 +96,8 @@ async fn frame(
             FrameRequest {
                 time,
                 wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             deadline,
             move |done| answer(done),
@@ -180,6 +191,8 @@ async fn a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks() -> Result
                 FrameRequest {
                     time: SPINS,
                     wall_clock: 0,
+                    utc_offset: 0,
+                    window: window(),
                 },
                 Instant::now(),
                 move |done| answer((Instant::now(), done)),

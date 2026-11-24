@@ -1489,12 +1489,32 @@ Each step lands on its own.
            with them. be-wasm-root-host's area tests run be-root in its own crate
            (`BE_ROOT_WASM`), their dialogs opened from the menu. be-host's `:native` stages be-root, and `--root`
            alone runs it (`be_root_in_place_of_the_hosts_ui_shows_its_onboarding`).
-         - 4g7a2. be-host's wording and layout: the window's size rather than the fixture's
-           400 by 240 (`SIZE`) and the dialog's fixed 152 points, be-host's titles and
-           copy, and the menu's entries shown as be-host shows them (an organization's
-           administrator or company, unsent edits only when there are some), with the
-           core-view fields that needs (the organization, the role, the escrow warning,
-           sync).
+         - 4g7a2 (built). be-host's wording and layout. `frame-request` carries the host's
+           window (`window`: its size in points and pixels per point) and time zone
+           (`utc-offset`); be-root fills the window with every surface but the statistics
+           panel (`STATISTICS_WIDTH` at its right edge) and resizes them as it changes, the
+           fixture's `SIZE`, `DIALOG_SIZE`, `MENU_AREA` and the scrim layer gone. Its dialogs
+           are be-host's own, beui's `DialogFrame` at be-host's width and kind for each
+           (`Presented`) on a surface the window's size, whose scrim Escape and a press
+           dismiss (the question of keeping display settings reverting, as be-host's does,
+           and a dialog waiting for a secret that cannot be had again holding); every
+           dialog's own Escape handler that only closed it is gone. Its titles, copy,
+           labels and layouts are be-host's: the dialogs, the onboarding (the account card
+           and menu, opening, joining and creating an organization, the settings profile and
+           sessions, the recovery phrase checked a word a field, unlocking with the phrase or
+           another device, the failure with Copy and Delete client database), adding an
+           account (where to keep it, the build's default server first), and the lock screen
+           with its clock at the host's offset. Its menu shows be-host's organization menu:
+           how changes sync, unsent edits while there are some, the escrow warning, Stop
+           hosting each kept block, Invite member for a company, Members and Invitations for
+           an administrator, and Manage accounts naming who is signed in; Lock, which
+           be-host's menu has not, is gone. `core-view` gained what that needs
+           (`organization`, `signed-in-as`, `company`, `administrator`, `escrow-warning`,
+           `hosting`, `default-server`) and `core-command` `stop-hosting`; be-host fills them
+           at 4g7g. Left to be-host until it hands them over (4g7g): About, Close be-host,
+           its other debug panels and the inspector in the menu; the invite's QR code and
+           Share; Invite member inside Members; and the web's note that a local account
+           lives only in the browser.
        - 4g7b. App views: be-host-runtime's orchestration (pacing, settle, restarts, grafting
          the accessibility trees) as a guest library the root links, and `app_view`'s views
          in the root, each declaring its layer's hit and gesture areas and placer.
@@ -1510,8 +1530,7 @@ Each step lands on its own.
          capability 4g6 gave it: the block stack's `core-view` and its commands and
          secrets (until step 5 moves the stack), the login session's lock and PAM, the
          displays' keep changes, and the clipboard and notices already wired; then, once the
-         real root has 4g7a2's layout (so the fixture's geometry, `SIZE`, `DIALOG_SIZE` and
-         `MENU_BUTTON`, never ships) and passes the host tests that exercise be-host's own
+         real root passes the host tests that exercise be-host's own
          `src/ui` today, with their paintings compared, and only then, the root
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
          noted above (`SlowSave`, the memory graph).
