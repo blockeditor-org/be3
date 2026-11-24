@@ -207,7 +207,9 @@ The server keeps one open organization per connection, so only the worker
 opens one, after the last worker stopped (`Link::open_organization`). Opening
 it again drops the connection's listings, so anything needing the
 open organization's escrow key (inviting, creating an agent) goes through the
-worker's `Peer`.
+worker's `Peer`. A stopping stack closes its connection: natively `stop` closes it at
+once, before anything borrows it again, and the account's reads (`accounts::read_signed_in`)
+are asked once more on a new connection when the one they used closed under them.
 
 The refs database is one per device, `be-refs.sqlite3` beside `be-objects/`
 (`be_host_stack::refs_in`, `/be-host` on the web). The worker builds its `Peer`
