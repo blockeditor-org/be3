@@ -7,7 +7,7 @@ use std::time::Duration;
 use std::{env, fs, thread};
 
 const USAGE: &str =
-    "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]";
+    "usage: be-tool-local stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]";
 /// The host tests' package, whose `:test` runs every test against the host that has every app
 /// and whose `:test-FILE` runs one against the host that stages the apps it names
 /// (crates/be-host-tests/BUCK).
