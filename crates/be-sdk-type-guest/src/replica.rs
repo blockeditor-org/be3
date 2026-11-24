@@ -1030,7 +1030,9 @@ where
                 Putting::Editor { editor, token } => {
                     Some((call, EditorAsk::PartPut { editor, token }))
                 }
-                Putting::Operation(_) => None,
+                // The replica's own, put again when it next goes out: an operation's by `flush`,
+                // a session state's by the next seal (`journal_state`).
+                Putting::Operation(_) | Putting::State(_) => None,
             });
         let appends = std::mem::take(&mut self.appends)
             .into_iter()
