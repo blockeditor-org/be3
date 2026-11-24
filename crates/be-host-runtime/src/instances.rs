@@ -237,6 +237,23 @@ struct Instance {
     stale: bool,
 }
 
+impl Instance {
+    /// Whether its block's content, or a block's it watches besides its own (its view's state,
+    /// where the text app keeps where it was left), is attached and has yet to reach it.
+    fn awaits_content(&self) -> bool {
+        let own = self
+            .role
+            .block()
+            .zip(self.content.as_ref())
+            .map(|(block, link)| (block.id, link));
+        own.into_iter()
+            .chain(self.watched.iter().map(|(block, link)| (*block, link)))
+            .any(|(block, link)| {
+                link.attached.is_some() && !link.delivered && be_host_stack::may_load(block)
+            })
+    }
+}
+
 struct ContentLink {
     content_type: Uuid,
     attached: Option<bool>,
@@ -1369,22 +1386,14 @@ impl Instances {
 
     pub(super) fn awaiting_content(&self) -> bool {
         self.entries.values().any(|entry| {
-            let mounted = entry.screens.values().any(|screen| screen.mounted > 0);
-            let own = entry
-                .role
-                .block()
-                .zip(entry.content.as_ref())
-                .map(|(block, link)| (block.id, link));
-            // A block it watches besides its own (its view's state, where the text app keeps
-            // where it was left) is waited for as its own block is.
-            mounted
-                && own
-                    .into_iter()
-                    .chain(entry.watched.iter().map(|(block, link)| (*block, link)))
-                    .any(|(block, link)| {
-                        link.attached.is_some() && !link.delivered && be_host_stack::may_load(block)
-                    })
+            entry.screens.values().any(|screen| screen.mounted > 0) && entry.awaits_content()
         })
+    }
+
+    /// Whether an editor served for a root (`Forwarded`) waits for a block's content: the root
+    /// mounts its views, so it waits whether or not this side saw one mounted.
+    pub(super) fn awaiting_forwarded_content(&self) -> bool {
+        self.entries.values().any(Instance::awaits_content)
     }
 
     /// Whether a host component is open: it has no screen to mount, so it asks for no frame,

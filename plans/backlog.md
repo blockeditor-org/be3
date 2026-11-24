@@ -221,22 +221,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   240 ("the channel to the first host closed: []"). Done: each cause found and
   fixed at its source, and each passes 400 runs at 16 at once.
 
-- **A reopened counter that never hears the head, once under verify load.**
-  `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` failed with
-  "never counted 5: it last counted Some(2)": the reopened replica loaded the
-  seal under the head and never took the head. It has not failed since in 6
-  runs alone and 3 under combined crate load. One cause is fixed at its source:
-  a replica told of a head before the lease came to it dropped the head
-  (`a_replica_that_gains_the_lease_takes_a_head_it_heard_of_before`). Unproven:
-  the host telling the reopened replica only the older seal, because both
-  heads it tells (the join's and `known_head`) still read it, and `heard`
-  naming a head the module did not load, so `moved_head` skips the real one.
-  Its next failure explains itself with prints, in `start` after `journal_for`
-  (remote, head, load_at, sealed_head, known_head), in `moved` and
-  `moved_head` (each head, and why it is parked or skipped), and in the join
-  path after `reopening`. Done: the cause seen in that output and fixed at its
-  source, with a test that shows it.
-
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
   (1), and has not failed since in 240 runs under `stress`. Its next failure
@@ -341,19 +325,42 @@ Depends on #686 (session catch-ups replaced by server ordering).
   failed once in a whole-crate run (its `count_of` was not `Some(11)` after the flush, line 114)
   and passed 6 of 6 alone. Seen again later counting 21: the edit of 10 typed after the block
   was editable again counted twice, in a run where the replica was told of a head another
-  device moved (`Replicas::moved`, not from this device) just before it reloaded. Done: the
-  cause found, from a rerun under the same load that keeps its output, and fixed at its source.
-- **An edit sealed offline onto a lost seal, once under load.**
-  be-host-stack's `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` failed once
-  under verify and once in 7 whole-crate runs: opened again after reconnecting, connected,
-  owing nothing and with the outbox drained, it stayed on the seal it opened on (a count of 2)
-  and never took the head (5). It passed alone. Done: the cause found, from a rerun under the
-  same load that keeps its output, and fixed at its source.
+  device moved (`Replicas::moved`, not from this device) just before it reloaded. It did not
+  fail in about 110 runs among whole-crate runs, 12 at a time on 4 cores. What was ruled out:
+  the sharer's `grant` only appends a log record, so it moves no head; `moved` with
+  `from_this_device` false means only that the server told the head (`moved_head`), which this
+  device's own seal is too when the outbox, not the replica, published it. A count of 21 is
+  what a three-way merge counts when its base is the head before the replica's own seal of the
+  edit (1) while both sides hold the edit (11 each): `Then::FastForwardMerge` merges from
+  `self.base`, so a head that descends from a seal of this session past the replica's base,
+  but is not that seal (`sealed_here` answers `Resume::Sealed` only for the seal itself), would
+  do it. Done: the cause found, from a rerun under the same load that keeps its output, and
+  fixed at its source.
+- **A root's Files child said to be opening, under load.**
+  `be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack` paints "the block's editor
+  is opening" over the Files panel in about 3 of 40 `stress --apart --parallel 8` runs, before
+  and after the root's children's statuses were told again each pass (crates/be-host/src/root.rs,
+  `serve_editors`). The host's own statuses for it go from opening to available (seen in a
+  print), so the workspace app keeps or shows the old one: where a child's `error` is drawn, and
+  whether a later status reaches it before the root says it owes nothing, is what to look at.
+  Done: the cause found and fixed at its source.
+- **A replica waiting for its head's objects, under whole-crate load.**
+  be-host-stack's `a_block_whose_replica_waits_for_its_heads_objects_does_not_export` failed
+  in 6 of 8 batches that ran the whole crate once among about 500 runs, 12 at a time on 4
+  cores ("the export failed as not available yet", its line 67), and passes alone. Done: the
+  cause found and fixed at its source.
 - **A paired device that stays loading its files.**
   `keep_hosting_outlives_the_editor_until_stop` timed out in 3 of 200 `stress` runs (8 at a
   time) before any hosting: a device just paired (`Approve`) stays on "Loading the files" and
-  never shows `#file-tree.new`. Done: the cause found from those runs' logs and fixed at its
-  source.
+  never shows `#file-tree.new`. Seen again in 3 of 160 runs at 8 at a time on 4 cores (the rest
+  of that run's failures were the kernel killing hosts for memory: two hosts a run is too many
+  at 8 at a time on a 15 GB machine, so use `--parallel 4` there). In one (run 72) the step
+  timed out with no busy reason and drive said the device was in step: the Files pane's
+  `#editor.loading` stayed while nothing was pending, so the file tree's editor waits on
+  something `busy` does not count (`awaiting_content` counts only a link `attached` and
+  `may_load`; check which of the two is false for the file tree's block then). In the other two
+  the paired device's app "did not answer within 35 seconds". Done: the cause found from those
+  runs' logs and fixed at its source.
 - **A folder's mirror once under load.**
   be-host-stack's `a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it`
   failed once in 1010 runs (202 tests five times, 12 at a time) and passed 40

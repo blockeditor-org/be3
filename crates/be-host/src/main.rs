@@ -3842,9 +3842,12 @@ impl HostCore {
             #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             // Once the stack lists it: before, the root could not open it.
             true => {
-                self.root_session = self
-                    .ensure_session()
-                    .filter(|session| be_host_stack::node(*session).is_some());
+                let session = self.ensure_session();
+                be_host_stack::want(
+                    be_host_stack::Owner::Session,
+                    session.into_iter().map(be_host_stack::Query::Block).collect(),
+                );
+                self.root_session = session.filter(|session| be_host_stack::node(*session).is_some());
                 self.root_session_pending = self.root_session.is_none();
             }
             _ => {
