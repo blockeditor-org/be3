@@ -8,7 +8,8 @@ fn the_reason_is_the_panics_message_or_how_the_harness_ended() {
         "timed out after 30 seconds; the app is starting"
     );
     assert_eq!(
-        reason("no panic in here\n", "the harness was killed by signal 9"),
+        reason("no panic in here\n", &ended(137)),
         "the harness was killed by signal 9"
     );
+    assert_eq!(ended(101), "the harness exited with status 101");
 }

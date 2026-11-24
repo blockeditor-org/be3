@@ -1,7 +1,8 @@
 use super::*;
 
 mod a_run_keeps_only_the_paintings_that_differ;
+mod a_tests_command_is_read_from_its_json;
 mod failures_that_differ_only_in_numbers_are_one_group;
 mod options_name_the_tests_and_how_many_runs_at_once;
 mod the_reason_is_the_panics_message_or_how_the_harness_ended;
-mod the_tests_a_name_matches_are_counted_from_the_harness_list;
+mod the_tests_a_name_matches_are_found_from_their_files;
