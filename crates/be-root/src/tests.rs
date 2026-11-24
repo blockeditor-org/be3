@@ -116,8 +116,8 @@ fn offered() -> Vec<Option<Entry>> {
 }
 
 /// be-root loaded as be-host loads a root, as an app is, started on this thread with beui's
-/// text face and icons, drawing on a stand-in for the host's device. It embeds no app, so
-/// nothing is staged for it.
+/// text face and icons, drawing on a stand-in for the host's device. Nothing is staged for it,
+/// so an app it spawns could not start.
 fn embedding() -> Root {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let base = be_wasm_dylink::identity(BASE_LIBRARY);

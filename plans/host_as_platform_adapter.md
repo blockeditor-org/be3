@@ -1512,7 +1512,7 @@ Each step lands on its own.
            be-host's menu has not, is gone. `core-view` gained what that needs
            (`organization`, `company`, `administrator`, `escrow-warning`, the host's own
            reason, `hosting`, `default-server`; who is signed in is the current account) and
-           `core-command` `stop-hosting`; be-host fills them at 4g7g. An agent's credentials
+           `core-command` `stop-hosting`; be-host fills them since 4g7b2a. An agent's credentials
            cross as the bundles the host's block stack encodes (`agent-credentials`'
            `bundle`, `proxy-bundle` and `proxy-header`), which the root only shows and copies. Left to be-host until it hands them over (4g7g): About, Close be-host,
            its other debug panels and the inspector in the menu; the invite's QR code and
@@ -1555,13 +1555,40 @@ Each step lands on its own.
            - the host's `Answer`s to editor calls (`commit-creation`, `render-clip`) on the
              relayed wire;
            - closing an editor short of the app stopping.
-         - 4g7b2. The session's view, full-window, in be-root: the editor `editor-of` names
-           for the block the session shows, through `Embedded::spawn_block`, with restarts, the
-           crash notice and the accessibility graft. be-host runs its block stack under
-           `--root` and serves the root's editors with `Forwarded`, with the registry's editor
-           for the block's type and the device's client id. Lift the refusal of `--root` with
-           `--dev-workspace`. A host test opens the dev workspace under `--root`, and a
-           painting shows a content editor's block.
+         - 4g7b2a (built). be-host runs its core under `--root`. `RootShell` owns `HostCore`
+           and steps it each frame, before the root's frame:
+           - the data directory and its lock;
+           - the block stack, accounts and session;
+           - the dev workspace, since `--root` and `--dev-workspace` now go together.
+
+           The core opens no editor of its own here. It keeps the session's block
+           (`HostCore::ensure_session`) for the root to show. It fills `core-view`, does its
+           commands and answers its secrets (`root/block_stack.rs`), which takes 4g7g's
+           block-stack part.
+
+           It serves the root's editors (`serve_editors`):
+           - `editor-of` names the session's own editor for the session's block, else the
+             registry's default for the block's type (`EditorRegistry::editor_app`);
+           - `open-editor` opens it in a `Forwarded` for the root's instance, once that
+             instance runs the app.
+
+           Host test: `be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack`.
+         - 4g7b2b (built). The session's view, in be-root (`guest/session.rs`):
+           - `core-view`'s `showing`, the session's block, is shown through
+             `Embedded::spawn_block`, filling the window under the root's own UI and following
+             it (`Embedded::show`);
+           - a notice over it shows the app loading, or why it stopped or could not start, in
+             be-host's own words; Reload starts an app that stopped again;
+           - `editor-app` carries the app's name for those words.
+
+           The root's `paintings` carry each embedded app's screen as the app painted it
+           (`Embedded::paintings`), under the id of the layer showing it, and `drive paint`
+           places them. be-root test:
+           `a_root_shows_why_the_block_its_session_shows_cannot_be_opened`. The host test
+           above paints the workspace app's frame.
+
+           Left for later: grafting the app's accessibility tree, which needs the root to
+           describe its own tree to the host first (4g7f's `tree` and `find`).
          - 4g7b3. Children: their placements, focus, the keyboard, drags and gifts, through
            the root's layers. Desktop windows stay with 4g7e.
        - 4g7c. Anchored views placed outside groups (`anchored`).
@@ -1571,16 +1598,14 @@ Each step lands on its own.
          win32 hosts' surfaces, which stay the host's.
        - 4g7f. drive's commands split as The root guest says: `tree`, `find`, `paint`,
          `settle`, `synced` and `offline` to the root as messages, the clock and the
-         platform's in the host.
+         platform's in the host. The root describes its own tree, and grafts into it the trees
+         of the apps it embeds (be-sdk-app-host's `Graft`).
        - 4g7g. be-host brings back under `--root` what the host keeps, each answering the
-         capability 4g6 gave it: the block stack's `core-view` and its commands and
-         secrets (until step 5 moves the stack), the login session's lock and PAM (with its
+         capability 4g6 gave it (the block stack's `core-view`, commands and secrets came
+         with 4g7b2a): the login session's lock and PAM (with its
          triggers: Super+L, idle and suspend lock through `host.lock`, since be-root's menu,
          like be-host's, has no Lock entry, and a person on the root has no other way to
-         lock), `core-view`'s fields 4g7a2 added (`default-server` among them, which names the
-         example server in the agents' proxy instructions in place of be-host's hard-coded
-         hosted one), the
-         displays' keep changes, and the clipboard and notices already wired; then, once the
+         lock), the displays' keep changes, and the clipboard and notices already wired; then, once the
          real root passes the host tests that exercise be-host's own
          `src/ui` today, with their paintings compared, and only then, the root
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies

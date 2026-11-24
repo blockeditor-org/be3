@@ -117,6 +117,8 @@ struct State {
     /// Whether the app said hello: one that stops after it stopped, one that stops before it
     /// could not start.
     started: bool,
+    /// What the app answered it painted (`Embedded::paintings`), until taken.
+    painted_answer: Option<Vec<u8>>,
     /// The frame clock's time, as the last frame was asked for.
     now: Duration,
     /// The root's frames so far, the pass the app's pacing counts.
@@ -219,6 +221,38 @@ impl Embedded {
         state.flush();
     }
 
+    /// What the app paints its screens with now, as it answers a host's `paintings` for its
+    /// tests (be-sdk-api's `ScreenPaintings`, encoded): none for an app that does not run.
+    pub async fn paintings(&self) -> Option<Vec<u8>> {
+        {
+            let mut state = self.state.borrow_mut();
+            if state.failure.is_some() || !state.run.session.running() {
+                return None;
+            }
+            state.painted_answer = None;
+            state.wire.app_call(AppCall::Paintings);
+            state.flush();
+        }
+        std::future::poll_fn(|context| {
+            let mut state = self.state.borrow_mut();
+            if let Some(painted) = state.painted_answer.take() {
+                return Poll::Ready(Some(painted));
+            }
+            if state.failure.is_some() {
+                return Poll::Ready(None);
+            }
+            if !state
+                .waiting
+                .iter()
+                .any(|waker| waker.will_wake(context.waker()))
+            {
+                state.waiting.push(context.waker().clone());
+            }
+            Poll::Pending
+        })
+        .await
+    }
+
     /// Whether the app said hello: one that stops after it stopped, one that stops before it
     /// could not start.
     pub fn started(&self) -> bool {
@@ -256,6 +290,7 @@ impl Embedded {
             fonts,
             opening,
             started: false,
+            painted_answer: None,
             now,
             pass: 0,
             painted: HashMap::default(),
@@ -606,6 +641,10 @@ impl State {
                 );
             }
             Heard::FrameNeeded => self.run.pacing.need(),
+            Heard::Paintings(painted) => {
+                self.painted_answer = Some(painted);
+                self.wake();
+            }
             Heard::ShutDown => self.run.session.shut_down(),
             Heard::Unanswered(failure) => {
                 self.run
@@ -613,15 +652,14 @@ impl State {
                     .fail(SessionFailure::Protocol(failure.clone()));
                 self.fail(failure);
             }
-            // The root bundles no fonts, offers no published values and asks for no paintings
-            // yet; a watch it never sets waits until the app drops it.
+            // The root bundles no fonts and offers no published values yet; a watch it never
+            // sets waits until the app drops it.
             Heard::MissingCharacters(_)
             | Heard::Watch(..)
             | Heard::Unwatch(..)
             | Heard::Ended(_)
             | Heard::Withdrawn(_)
             | Heard::Answer(..)
-            | Heard::Paintings(_)
             | Heard::Shell(_)
             | Heard::Blocks(..)
             | Heard::Service(_)

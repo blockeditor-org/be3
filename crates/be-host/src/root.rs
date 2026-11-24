@@ -9,9 +9,9 @@
 //! (`Surface::Root`), which the root draws on the window's device as an app draws
 //! (`Root::own_surface`); where it draws nothing the window shows its plain background. The host
 //! draws on demand: when the root asks for its next frame (`frame-done`'s `next`) or has
-//! something to step for (`Root::on_wake`). `drive paint` paints what the root's own surfaces
-//! painted (`be3:root`'s `paintings`) where its layer list shows them; an app's screen it
-//! embeds is not in the painting yet.
+//! something to step for (`Root::on_wake`). `drive paint` paints what the root's surfaces
+//! painted (`be3:root`'s `paintings`) where its layer list shows them: its own, and the screens
+//! of the apps it embeds, which it asks them for.
 //!
 //! This is the path step 4g turns on and makes the default, so it runs on be-host's real
 //! startup path and window, through beui's runner; only what the window shows comes from the
@@ -131,7 +131,7 @@ struct RootShell {
     /// the window is asked again every frame.
     requests: Requests,
     /// What the root's own surfaces painted when last asked (drive's `paint`), by their ids.
-    paintings: Rc<RefCell<BTreeMap<u32, Painting>>>,
+    paintings: Rc<RefCell<BTreeMap<u64, Painting>>>,
     /// Whether drive asked for a painting the root has not answered yet: be-host is busy until
     /// it has.
     painting: bool,
@@ -303,11 +303,7 @@ impl RootShell {
                     ScreenPaintings::default()
                 }),
             };
-            *self.paintings.borrow_mut() = painted
-                .screens
-                .into_iter()
-                .filter_map(|(id, painting)| Some((u32::try_from(id).ok()?, painting)))
-                .collect();
+            *self.paintings.borrow_mut() = painted.screens.into_iter().collect();
         }
         self.next = done.next.map(Duration::from_nanos);
         self.owed = done.owed;
@@ -819,22 +815,25 @@ struct ShownLayers {
     layers: Vec<(Layer, wgpu::Texture)>,
     quads: Quads,
     /// What the root's own surfaces painted when drive last asked, by their ids.
-    paintings: Rc<RefCell<BTreeMap<u32, Painting>>>,
+    paintings: Rc<RefCell<BTreeMap<u64, Painting>>>,
 }
 
 impl Paints for ShownLayers {
-    /// Each of the root's own surfaces' paintings where its layer shows it in the window, bottom
-    /// first. An app's screen the root embeds is left out: its painting would come
-    /// through the root (plans/host_as_platform_adapter.md, Other moves).
+    /// Each of the root's surfaces' paintings where its layer shows it in the window, bottom
+    /// first: its own by their surfaces' ids, and its apps' screens, which their paintings
+    /// come through the root for (plans/host_as_platform_adapter.md, Other moves), by their
+    /// layers' ids.
     fn painting(&self, _rect: beui::Rect) -> Option<Painting> {
         let paintings = self.paintings.borrow();
         let mut primitives = Vec::new();
         let mut textures = BTreeMap::new();
         for (layer, _) in &self.layers {
-            let Surface::Root(surface) = layer.surface else {
-                continue;
+            let key = match layer.surface {
+                Surface::Root(surface) => u64::from(surface),
+                Surface::Screen { .. } => layer.id.0,
+                Surface::Anchored { .. } | Surface::Host(_) => continue,
             };
-            let Some(painting) = paintings.get(&surface) else {
+            let Some(painting) = paintings.get(&key) else {
                 continue;
             };
             let (width, height) = (layer.size.0 as f32, layer.size.1 as f32);
