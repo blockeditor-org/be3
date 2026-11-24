@@ -115,7 +115,8 @@ pub fn Toasts(
     let off = store(RefCell::new(Vec::<u64>::new()));
     create_effect(move || {
         let wanted = toasts.get();
-        let next = off.with(|off| keep_leaving(&shown.get_untracked(), wanted, &mut off.borrow_mut()));
+        let next =
+            off.with(|off| keep_leaving(&shown.get_untracked(), wanted, &mut off.borrow_mut()));
         shown.set(next);
     });
     let open = create_memo(move || shown.with(|shown| !shown.is_empty()));
@@ -374,7 +375,10 @@ impl Motion {
         let thrown = velocity * away > TOAST_SWIPE_SPEED;
         let far = offset.abs() > TOAST_SWIPE_SHARE * width;
         let dismissed = self.held.borrow().dismissed;
-        let heading = match ((far || thrown) && velocity * away > -TOAST_SWIPE_SPEED, dismissed) {
+        let heading = match (
+            (far || thrown) && velocity * away > -TOAST_SWIPE_SPEED,
+            dismissed,
+        ) {
             (true, _) => Heading::Off(away),
             (false, true) => Heading::Off(match (velocity == 0.0, offset == 0.0) {
                 (false, _) => velocity.signum(),

@@ -47,7 +47,9 @@ fn a_toast_whose_time_runs_out_while_it_is_held_goes_once_let_go() {
     ]);
     // Slowly, so it is let go at no speed that would throw it.
     for step in 1..=STEPS {
-        harness.frame(vec![Input::PointerMoved(from + vec2(step as f32 * STEP, 0.0))]);
+        harness.frame(vec![Input::PointerMoved(
+            from + vec2(step as f32 * STEP, 0.0),
+        )]);
     }
 
     // Its time runs out while the mouse holds it a short way across.

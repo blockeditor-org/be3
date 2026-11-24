@@ -71,7 +71,13 @@ fn a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved() {
     // Dismissed, it stays dismissed while the changes are still unsaved.
     let close = pos2(window().width - 40.0, 36.0);
     // Pressed, it slides off, and goes once it is off.
-    until(&mut root, &mut time, click(close), "a frame is drawn", |_| true);
+    until(
+        &mut root,
+        &mut time,
+        click(close),
+        "a frame is drawn",
+        |_| true,
+    );
     time += second;
     step(&mut root, time);
     until(

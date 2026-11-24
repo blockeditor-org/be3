@@ -6,10 +6,10 @@ use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
 use crate::document::Document;
 use crate::node::{Rects, SpaceId};
+use be_lib_stable_hash::HashMap;
 use beui_types::Direction;
 use beui_types::NodeId;
 use beui_types::{Rect, Vec2};
-use be_lib_stable_hash::HashMap;
 
 const TOLERANCE: f32 = 1.0;
 const EXACT: f32 = 0.01;
@@ -181,17 +181,21 @@ impl Document {
     ) -> Rect {
         let mut bounds = Rect::EVERYTHING;
         let (mut free_x, mut free_y) = (false, false);
-        let clips = self.rects.clips_above(&id).into_iter().map(|(space, clip)| {
-            // Moved by the frames between the clip and the node, which moved the node
-            // and not the clip.
-            let between = shifts
-                .get(&space.node())
-                .filter(|above| above.layer == shift.layer)
-                .map_or(Vec2::ZERO, |above| {
-                    shift.by - above.by - self.moved(space.node())
-                });
-            (space, clip.translate(between))
-        });
+        let clips = self
+            .rects
+            .clips_above(&id)
+            .into_iter()
+            .map(|(space, clip)| {
+                // Moved by the frames between the clip and the node, which moved the node
+                // and not the clip.
+                let between = shifts
+                    .get(&space.node())
+                    .filter(|above| above.layer == shift.layer)
+                    .map_or(Vec2::ZERO, |above| {
+                        shift.by - above.by - self.moved(space.node())
+                    });
+                (space, clip.translate(between))
+            });
         let viewport = viewport.map(|rect| (SpaceId::of(id), rect));
         for (space, clip) in clips.chain(viewport) {
             let (x, y) = self.scrolls(space);

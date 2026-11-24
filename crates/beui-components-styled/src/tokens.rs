@@ -339,11 +339,7 @@ pub enum Movement {
 }
 
 impl Movement {
-    pub const ALL: [Movement; 3] = [
-        Movement::Settle,
-        Movement::Rubber,
-        Movement::Pull,
-    ];
+    pub const ALL: [Movement; 3] = [Movement::Settle, Movement::Rubber, Movement::Pull];
 
     /// The movement as an easing. `Rubber` and `Pull` are placeholders.
     pub const fn easing(self) -> Easing {

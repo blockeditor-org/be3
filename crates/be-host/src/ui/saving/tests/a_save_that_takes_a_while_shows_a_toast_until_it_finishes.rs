@@ -27,7 +27,10 @@ fn a_save_that_takes_a_while_shows_a_toast_until_it_finishes() {
     // It slides off.
     test.stepped.settle();
     assert!(
-        test.stepped.document().find_test_id(&format!("toast.{TOAST_ID}")).is_none(),
+        test.stepped
+            .document()
+            .find_test_id(&format!("toast.{TOAST_ID}"))
+            .is_none(),
         "and goes away once everything is saved"
     );
 }
