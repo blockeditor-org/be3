@@ -116,6 +116,7 @@ mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_editor_reads_content_its_replica_could_not_open_as_failed;
 mod an_editors_edit_made_before_two_restarts_it_was_not_shown_lands;
+mod an_append_made_under_a_new_replica_is_answered_though_one_before_was_released_mid_append;
 mod an_editors_calls_are_answered_once_though_its_replica_reopens_before_the_answers;
 mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
 mod an_entry_told_better_replaces_the_one_held_and_unknown_never_does;
@@ -644,6 +645,11 @@ struct Sim<C: LiveEdit + Clone + Default> {
     resumed: Vec<usize>,
     /// Submissions wait until `unstall`.
     stalled_submits: bool,
+    /// Appends to the log wait until `unstall`.
+    stalled_appends: bool,
+    /// A released replica leaves its module running, as a host's does, for the block to open
+    /// again in it under a new replica (`open_in_module`).
+    keeps_modules: bool,
     /// The largest submission the server takes (`MAX_RELAY_BYTES` in be-server): a larger one
     /// fails.
     largest_submission: usize,
@@ -740,6 +746,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             read_stalled: false,
             resumed: vec![0; devices],
             stalled_submits: false,
+            stalled_appends: false,
+            keeps_modules: false,
             largest_submission: usize::MAX,
             kept_opening: None,
             kept_submitted: 0,
@@ -913,6 +921,37 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         {
             self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
+        self.lease_changed(Some(device));
+        self.settle();
+    }
+
+    /// Opens the block again under a new replica in the module its released one ran in
+    /// (`keeps_modules`), as a host opens a block closed a moment ago.
+    fn open_in_module(&mut self, device: usize) {
+        let client = self.devices[device].client;
+        let held = &mut self.devices[device];
+        assert!(held.released && held.module.is_some(), "the replica was released");
+        held.released = false;
+        held.taken_before += held.status.journaled_taken;
+        let may_edit = self.devices[device].may_edit;
+        let tag = Hash::from_bytes(self.devices[device].tag.0);
+        self.lease.write(
+            self.order.sequence,
+            client,
+            MembershipChange::Joined(JoinedParticipant { tag, may_edit }),
+        );
+        let (journal, local, sealed_head) = self.journal_on(self.head);
+        let opening = Opening {
+            content_type: C::CONTENT_TYPE,
+            tag: self.devices[device].tag,
+            origin: self.devices[device].origin,
+            taken_before: self.devices[device].taken_before,
+            journal,
+            sealed_head,
+            ..opening(client, local, self.lease.clone())
+        };
+        let replica = self.to(device, |host| Replica::new(host, opening));
+        self.devices[device].replica = Some(replica);
         self.lease_changed(Some(device));
         self.settle();
     }
@@ -1263,8 +1302,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 }
             }
             if self.devices[device].released {
-                self.devices[device].module = None;
-                self.devices[device].executor = None;
+                if !self.keeps_modules {
+                    self.devices[device].module = None;
+                    self.devices[device].executor = None;
+                }
                 self.devices[device].replica = None;
                 let client = self.devices[device].client;
                 self.lease
@@ -1559,6 +1600,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
+            call @ Call::Append { .. } if self.stalled_appends => self.held.push((device, call)),
             Call::Append { reply, bytes, .. } => {
                 let seq = self.log.len() as u64;
                 let item = be_sdk_type_api::LogItem {
@@ -1830,6 +1872,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.stalled = false;
         self.read_stalled = false;
         self.stalled_submits = false;
+        self.stalled_appends = false;
         for (device, call) in std::mem::take(&mut self.held) {
             self.act(device, call);
         }

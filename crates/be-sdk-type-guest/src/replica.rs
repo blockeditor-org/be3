@@ -151,7 +151,8 @@ pub(crate) trait AnyReplica {
     fn carry(&mut self, epoch: u64) -> Carried;
 
     /// The host's answer to a call a replica of the block before this one made under `epoch`:
-    /// one made for an editor is handed on to it (`asked_before`), and any other goes.
+    /// one made for an editor is handed on to it (`asked_before`). Any other goes on purpose:
+    /// this replica made its own calls for what it needs as it opened.
     fn late(&mut self, now: u64, epoch: u64, input: Input, out: &mut Vec<Effect>);
 
     fn adopt(&mut self, carried: Carried);
@@ -942,6 +943,7 @@ where
         let appends = std::mem::take(&mut self.appends)
             .into_iter()
             .map(|(call, (editor, token))| (call, EditorAsk::Append { editor, token }));
+        // Only an editor still attached waits for an answer, which bounds what is carried.
         let asks = std::mem::take(&mut self.asked_before)
             .into_iter()
             .map(|((epoch, call), ask)| (epoch, call, ask))
@@ -951,6 +953,7 @@ where
                     .chain(appends)
                     .map(|(call, ask)| (epoch, call, ask)),
             )
+            .filter(|(_, _, ask)| self.editors.contains_key(&ask.editor()))
             .collect();
         Carried {
             snapshots_shown: std::mem::take(&mut self.snapshots_shown),
@@ -968,8 +971,10 @@ where
             _ => return,
         };
         match (self.asked_before.remove(&(epoch, call)), input) {
+            // Only the editor takes the page: this replica read the log afresh, and a page read
+            // before it opened may hold what a redaction since took out.
             (Some(EditorAsk::LogRead { editor, token }), Input::LogRead { result, .. }) => {
-                self.log_page_read(Some((editor, token)), result);
+                self.tell_editor(editor, &ToEditor::LogRead { token, result });
             }
             (Some(EditorAsk::PartPut { editor, token }), Input::PartPut { result, .. }) => {
                 self.tell_editor(editor, &ToEditor::PartPut { token, result });
@@ -1943,9 +1948,14 @@ where
             Input::Resent { editor } => self.resent(editor),
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
-                // Its reads of the log are answered to no one, and carry to no next replica.
+                // What it asked is answered to no one, and carries to no next replica.
                 self.log_reads
                     .retain(|_, read| read.is_none_or(|(asker, _)| asker != editor));
+                self.appends.retain(|_, (asker, _)| *asker != editor);
+                self.puts.retain(|_, put| {
+                    !matches!(put, Putting::Editor { editor: asker, .. } if *asker == editor)
+                });
+                self.asked_before.retain(|_, ask| ask.editor() != editor);
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
                 self.snapshots_shown.remove(&editor);
@@ -4207,15 +4217,6 @@ where
 
     fn answer_log_read(&mut self, token: Token, result: Result<be_block_content::LogPage, String>) {
         let reader = self.log_reads.remove(&token).flatten();
-        self.log_page_read(reader, result);
-    }
-
-    /// A page of the log read for `reader` (an editor and its token), or for the replica.
-    fn log_page_read(
-        &mut self,
-        reader: Option<(EditorId, u64)>,
-        result: Result<be_block_content::LogPage, String>,
-    ) {
         if let Ok(page) = &result {
             self.log_size = self.log_size.max(page.size);
             self.take_log(page.items.clone());
