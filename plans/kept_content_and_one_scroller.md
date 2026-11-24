@@ -7,18 +7,9 @@ piece should do once, plus small duplicates found beside them.
 
 ## Steps
 
-1. **A kept subtree keeps its context.** Content kept while an overlay is closed does not see
-   the overlay's presence unless its wrapper passes it in by hand (`presence.provide()` inside
-   `<Kept>`), so `Modal` (modal.rs), `Anchored` (anchored.rs) and `DockDialog`
-   (beui-dock-host's `unstyled/dialog.rs`) each wrap their body the same way, and forgetting
-   the call breaks presence inside the kept body. `Kept` captures the context it was built in,
-   the overlay's presence included, and gives it to its subtree whenever it is shown.
-2. **Keeping content is the caller's choice.** `Modal` and `DockDialog` always keep their body,
-   `Anchored` has a `keep_alive` prop. All three build their body on open and drop it on close;
-   a caller that wants its form's state kept while closed wraps its own body in `<Kept>`, which
-   step 1 makes correct. `Anchored`'s `keep_alive` and the three wrappers go, as do the
-   "ever opened" flags in `ContextMenu` and `Dialog`. A body built fresh on each open also
-   cannot show values left over from the last one.
+Steps 1 (a kept subtree reads the context of the `Kept` showing it) and 2 (overlays build their
+body on each open; keeping it is the caller's `Kept`) have landed.
+
 3. **Scroll snaps.** `Scroll` gets snap stops along an axis: offsets a fling and a release
    settle on. A carousel or a pager uses them too.
 4. **A sheet is one Scroll.** sheet.rs drives its content's offset itself, with its own wheel
@@ -49,8 +40,6 @@ piece should do once, plus small duplicates found beside them.
 
 ## The test
 
-- A dialog whose kept body reads the overlay's presence fades with it, with no `provide()`
-  anywhere.
 - A sheet's content longer than the sheet shows a scrollbar and scrolls from the keyboard; a
   pull from the content's top lowers the sheet, and a pull below the lowest stop dismisses it.
 - The demo's sheet and dialog paintings are unchanged apart from the scrollbar.

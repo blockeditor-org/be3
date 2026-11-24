@@ -54,7 +54,6 @@ pub fn ContextMenu(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
@@ -70,7 +69,6 @@ pub fn ContextMenu(
             at
             placement
             bounds
-            keep_alive
             selection
             toolbar_at
             opens_on_hold
@@ -89,7 +87,6 @@ pub fn MenuPopup(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
@@ -107,7 +104,6 @@ pub fn MenuPopup(
             at
             placement
             bounds
-            keep_alive
             sheet={sheet}
             overlay
         />

@@ -7,7 +7,7 @@ use beui_view::reactive::*;
 pub fn Fullscreen(
     open: Prop<bool>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Build<NodeId>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     view! {
         <Modal open scrim=Scrim::Strong placement=ModalPlacement::Fill on_dismiss={on_dismiss}>

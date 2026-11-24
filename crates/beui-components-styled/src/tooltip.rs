@@ -27,7 +27,6 @@ pub fn Tooltip(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = TOOLTIP_PLACEMENT)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     children: Child,
 ) -> NodeId {
     view! {
@@ -39,7 +38,6 @@ pub fn Tooltip(
             at
             placement
             bounds
-            keep_alive
             content={move |handle: TooltipHandle| view! {
                 <TooltipBubble handle />
             }}

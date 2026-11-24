@@ -106,14 +106,13 @@ narrow app region. The exception is a window with a layer space, below.
 
 An `Overlay`'s content is built on open and removed on close, like `Show`: a
 closed menu or tooltip costs only its overlay node and nothing in it is
-focusable, hit, or described. To keep it, with its state, while closed
-(dialogs, popovers, dock windows), put a `Kept` in the content and a
-`KeepAlive` around the overlay, as a popup's `keep_alive` does in
-`unstyled::Anchored`: what the `Kept` builds on first open is kept,
-paused, while closed. A kept subtree reads the context around its `KeepAlive`,
-not the overlay's, so content that needs the overlay's presence reads it
-outside the `Kept` (`use_overlay_presence()`) and provides it again inside
-(`presence.provide()`). Content can be built more than once, so it is an
+focusable, hit, or described. Every overlay component (`Modal`, `Anchored` and
+the popups on it, `Dialog`, `DockDialog`) builds its body fresh on each open, so
+it never shows values left over from the last one. A caller that wants its
+content kept, with its state, while closed wraps its own body in a `Kept` with
+a `KeepAlive` around the overlay: what the `Kept` builds on first open is kept,
+paused, while closed, and reads the overlay's context (its presence) as the
+rest of the content does. Content can be built more than once, so it is an
 `Fn`. State the rest of a component reads (which rows a select's search
 hides) belongs outside the content, derived from data, since the content's
 nodes may not exist.

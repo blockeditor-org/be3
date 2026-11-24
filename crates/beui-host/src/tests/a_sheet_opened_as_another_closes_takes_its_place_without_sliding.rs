@@ -29,7 +29,7 @@ fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {
     let top = |harness: &Harness, content: NodeRef| {
         harness
             .document()
-            .node_rect(content.get())
+            .node_rect(content.try_get()?)
             .map(|rect| rect.top())
     };
     first.set(true);
