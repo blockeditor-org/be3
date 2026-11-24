@@ -99,10 +99,10 @@ fn heard(heard: be_host_runtime::Heard) {
             editors::camera::closed(app_id, instance);
         }
         InstanceEvent::KeyboardAsked(child) => {
-            if child.is_some() {
-                app_view::keyboard_into_child(&app_id, instance);
+            app_view::asks::heard(app_id.clone(), instance, child);
+            if let Some(child) = child {
+                app_view::keyboard_into_child(&app_id, instance, child);
             }
-            app_view::asks::heard(app_id, instance, child);
         }
         _ => {}
     }
