@@ -49,7 +49,7 @@ Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backl
   - The personal organization is unaffected: it holds every account but has no log.
 
 **Follow-up owed on landed work:**
-- block-rows-guard: also guard the other columns that name a block (`links.grant_block`, `access_log_authorities.above_id`, `block_edges.reference_id`, `blocks.parent_id`), or document that `forget_blocks` takes whole subtrees made by an account that holds no links.
+- block-rows-guard: also guard the other columns that name a block (`access_log_authorities.above_id`, `block_edges.reference_id`, `blocks.parent_id`), or document that `forget_blocks` takes whole subtrees made by an account that holds no links.
 
 **Hosted blocks 4e and step 4's acceptance** (plans/hosted_blocks.md): stacked on 4d2-5, which is now on this branch, so rebase both onto this branch's tip. Neither is verified.
 - `claude/hosted-blocks-4e-2` @ a06baa44 (review: NOT READY). Still to do from the review:
