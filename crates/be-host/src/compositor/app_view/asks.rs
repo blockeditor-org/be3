@@ -9,15 +9,16 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use be_sdk_api::{ChildId, EditorInstanceId};
+use be_sdk_api::{ChildId, EditorInstanceId, ViewId};
 use beui::reactive::*;
 
 type Key = (String, EditorInstanceId);
 
 thread_local! {
     static ASKED: RefCell<HashMap<Key, ChildId>> = RefCell::new(HashMap::new());
-    /// The children with a view built, by their placer, each with how many views show it.
-    static VIEWED: RefCell<HashMap<(Key, ChildId), usize>> = RefCell::new(HashMap::new());
+    /// The views up of the children each instance placed: the child, its instance and the view.
+    static VIEWED: RefCell<HashMap<Key, Vec<(ChildId, EditorInstanceId, ViewId)>>> =
+        RefCell::new(HashMap::new());
     /// One trigger per instance that has been tracked or heard. A trigger stays once made, as
     /// views that track it may outlive the instance; there is one per instance a session opened.
     /// It is never freed, so nothing frees it after the reactive arena at thread exit.
@@ -59,23 +60,67 @@ pub(crate) fn taken(app_id: &str, instance: EditorInstanceId) {
     }
 }
 
-/// A view of `child`, which the instance placed, is built (`shown`) or went.
-pub(crate) fn viewed(app_id: &str, instance: EditorInstanceId, child: ChildId, shown: bool) {
-    let key = ((app_id.to_owned(), instance), child);
-    VIEWED.with_borrow_mut(|viewed| match shown {
-        true => *viewed.entry(key).or_default() += 1,
-        false => {
-            if let Some(count) = viewed.get_mut(&key) {
-                *count -= 1;
-                if *count == 0 {
-                    viewed.remove(&key);
+/// A view of `child`, which the instance placed, came up (`shown`) or went: `region` of the
+/// child's instance `own`.
+pub(crate) fn viewed(
+    app_id: &str,
+    instance: EditorInstanceId,
+    child: ChildId,
+    (own, region): (EditorInstanceId, ViewId),
+    shown: bool,
+) {
+    let key = (app_id.to_owned(), instance);
+    VIEWED.with_borrow_mut(|viewed| {
+        let views = viewed.entry(key.clone()).or_default();
+        match shown {
+            true => views.push((child, own, region)),
+            false => {
+                if let Some(at) = views.iter().position(|view| *view == (child, own, region)) {
+                    views.swap_remove(at);
                 }
             }
         }
+        if views.is_empty() {
+            viewed.remove(&key);
+        }
     });
+    trigger(&key).notify();
 }
 
-/// Whether a view of `child`, which the instance placed, is built.
+/// Whether a view of `child`, which the instance placed, is up.
 pub(crate) fn has_view(app_id: &str, instance: EditorInstanceId, child: ChildId) -> bool {
-    VIEWED.with_borrow(|viewed| viewed.contains_key(&((app_id.to_owned(), instance), child)))
+    VIEWED.with_borrow(|viewed| {
+        viewed
+            .get(&(app_id.to_owned(), instance))
+            .is_some_and(|views| views.iter().any(|view| view.0 == child))
+    })
+}
+
+/// Whether the view `region` of the instance `own`, up as the instance's child `child`, is the one
+/// to act on the instance's ask, tracking it. The asked child takes the keyboard in its content:
+/// where the placer's dock shows that in a body of its own (`content`, a view of the same
+/// instance up under another of the placer's children), that view acts, not the child's own
+/// view or the bars docked with it; otherwise the asked child's own view does.
+pub(crate) fn acts(
+    app_id: &str,
+    instance: EditorInstanceId,
+    child: ChildId,
+    (own, region, content): (EditorInstanceId, ViewId, ViewId),
+) -> bool {
+    let key = (app_id.to_owned(), instance);
+    trigger(&key).track();
+    let Some(asked) = ASKED.with_borrow(|asked| asked.get(&key).copied()) else {
+        return false;
+    };
+    VIEWED.with_borrow(|viewed| {
+        let views = viewed.get(&key).map(Vec::as_slice).unwrap_or_default();
+        let asked_own = views.iter().any(|view| view.0 == asked && view.1 == own);
+        if !asked_own {
+            return false;
+        }
+        match views.iter().any(|view| view.1 == own && view.2 == content) {
+            true => region == content,
+            false => child == asked,
+        }
+    })
 }
