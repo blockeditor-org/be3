@@ -63,11 +63,16 @@ use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 pub struct Embedding {
     apps: Vec<Embedded>,
     windows: Windows,
-    /// The presses and Escapes routed since `take_pressed`, in order: what takes back active
-    /// children (`Children::revoke`).
-    pressed: Vec<Pressed>,
-    /// The app's screen that took the keyboard last since `take_focused`.
-    focused: Option<LayerId>,
+}
+
+/// What a window's input did (`Embedding::input`).
+#[derive(Debug, Default)]
+pub struct Routed {
+    /// What the root's own surfaces hear of it.
+    pub own: Vec<Delivery>,
+    /// The presses and Escapes in it, in order, each with the layer it reached (an app's screen
+    /// or the root's own): what takes back active children (`Children::revoke`).
+    pub pressed: Vec<Pressed>,
 }
 
 /// A press, of a pointer, a finger or a pen, or Escape pressed, and the layer it reached.
@@ -85,8 +90,6 @@ impl Embedding {
         Self {
             apps: Vec::new(),
             windows: Windows::new(compositor),
-            pressed: Vec::new(),
-            focused: None,
         }
     }
 
@@ -126,28 +129,22 @@ impl Embedding {
     /// `input.deliver` carries it) over the layers drawn last: what lands on an app's screen goes
     /// to the app, at the time it was sampled; what lands on the root's own surfaces is
     /// answered, for the root to take in.
-    pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Vec<Delivery>, String> {
+    pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Routed, String> {
         let events = input::decode(events)?;
         let routed = self.windows.route(window, events);
-        self.pressed.extend(routed.iter().filter_map(|delivery| {
-            Some(Pressed {
-                layer: delivery.target,
-                escape: presses(&delivery.input)?,
+        let pressed = routed
+            .iter()
+            .filter_map(|delivery| {
+                Some(Pressed {
+                    layer: delivery.target,
+                    escape: presses(&delivery.input)?,
+                })
             })
-        }));
-        Ok(self.forward(routed))
-    }
-
-    /// The presses and Escapes routed since the last call, in order, each with the layer it
-    /// reached: an app's screen or the root's own.
-    pub fn take_pressed(&mut self) -> Vec<Pressed> {
-        std::mem::take(&mut self.pressed)
-    }
-
-    /// The app's screen that took the keyboard last since the last call, routed there by a press
-    /// or moved there (`focus`): what the editors placing the child it shows hear.
-    pub fn take_focused(&mut self) -> Option<LayerId> {
-        self.focused.take()
+            .collect();
+        Ok(Routed {
+            own: self.forward(routed),
+            pressed,
+        })
     }
 
     /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
@@ -225,16 +222,13 @@ impl Embedding {
     }
 
     /// Sends each app what is for its screens, and answers the rest.
-    fn forward(&mut self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
+    fn forward(&self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
         let mut own = Vec::new();
         for delivery in deliveries {
             let Surface::Screen { instance, surface } = delivery.surface else {
                 own.push(delivery);
                 continue;
             };
-            if delivery.input == input::Input::Focus(true) {
-                self.focused = Some(delivery.target);
-            }
             if let Some(app) = self.apps.iter().find(|app| app.instance() == instance) {
                 app.input(surface, delivery.input, delivery.time);
             }
