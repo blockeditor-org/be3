@@ -14,7 +14,9 @@ base64 = "0.22"
 beui-html = { path = "../beui-html" }
 be-lib-build-id = { path = "../be-lib-build-id" }
 be-tool-fix-rust-source = { path = "../be-tool-fix-rust-source" }
+be-tool-paint-compare = { path = "../be-tool-paint-compare" }
 be-tool-paint-review-manifest = { path = "../be-tool-paint-review-manifest" }
+be-tool-run-test = { path = "../be-tool-run-test" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 serde_json = "1"
 be-lib-prompt = { path = "../be-lib-prompt" }

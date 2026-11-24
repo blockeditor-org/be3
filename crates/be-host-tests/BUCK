@@ -160,9 +160,8 @@ cargo_library()
 # To reproduce a flake that shows only under load, run
 # `./scripts/buck run //crates/be-tool-local:bin -- stress NAME`
 # (crates/be-tool-local/src/stress.rs, guides/testing_a_gui.md, 6): it builds
-# :test-harness, :host-with-all, //crates/be-host:bin and the sysroot targets
-# run_env names, then runs the harness many times at once with each run_env
-# variable set to its output. Keep its environment in step with run_env below.
+# :test[command], or with --apart each :test-<file>[command] (buck/dev/test.bzl),
+# and runs that command many times at once, with the environment below.
 cargo_test(
     apart_env = host_test_apps(APPS),
     paints = True,

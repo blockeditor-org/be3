@@ -4,10 +4,10 @@ use super::*;
 fn a_run_keeps_only_the_paintings_that_differ() {
     let directory = env::temp_dir().join(format!("stress-paintings-{}", std::process::id()));
     let _ = fs::remove_dir_all(&directory);
-    let (made, accepted, changed) = (
+    let (made, accepted, out) = (
         directory.join("made"),
         directory.join("accepted"),
-        directory.join("changed"),
+        directory.join("out"),
     );
     fs::create_dir_all(&made).unwrap();
     fs::create_dir_all(&accepted).unwrap();
@@ -24,9 +24,11 @@ fn a_run_keeps_only_the_paintings_that_differ() {
         painting("<p>before</p>"),
     )
     .unwrap();
-    let differ = changed_paintings(&made, &accepted, &changed);
+    let differ = compare(&made, &accepted, &out).unwrap();
     assert_eq!(differ.len(), 1);
     assert_eq!(differ[0].0, "moved.browser.paint");
+    assert!(!differ[0].1.is_empty(), "it says what changed");
+    let changed = out.join("changed");
     assert_eq!(
         fs::read(changed.join("moved.browser.paint")).unwrap(),
         painting("<p>after</p>")
