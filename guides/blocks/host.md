@@ -829,7 +829,8 @@ A block file (`be_block_client::transfer`) holds a tree. host-services'
 `export-block` and `be download` both collect it with
 `be_block_type_host::transfer::collect`: it refuses a block only its owner can
 read, or one inside such a block (a block file opens for anyone; the server
-marks only the block made owner-only, so `collect` asks each block above),
+marks only the block made owner-only, so `collect` asks each block above, up
+to one this account may not know of, and fails if it cannot ask),
 starts from the parent when that parent's type is `exported_whole` in its
 manifest (a database view with its database) and this account may view it,
 from the block alone otherwise, and lists the tree a level at a time, leaving

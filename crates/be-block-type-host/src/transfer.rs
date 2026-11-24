@@ -1,7 +1,7 @@
 //! A block and everything inside it, collected for a block file (`be_block_client::transfer`):
 //! the one export the host's and `be download` share. Import is `Peer::queue_import`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 
 use be_block_client::transfer::Saved;
@@ -47,8 +47,9 @@ impl Open for Modules {
 /// such a block, is refused, since a block file opens for anyone; one below that only its
 /// author reads is left out. When `top`'s parent is a type `exported_whole` says goes only whole
 /// (a database view with its database), the export starts from that parent, if this account
-/// may view it; otherwise, or when the parent's summary cannot be read, from `top` alone. Each
-/// block carries its content as `open` holds it, or else as readers outside its session see it,
+/// may view it; otherwise, or when this account may not know of the parent, from `top` alone.
+/// A block above that cannot be read for any other reason, or a block listed inside itself,
+/// fails the export. Each block carries its content as `open` holds it, or else as readers outside its session see it,
 /// and its signed log when its type keeps one. A type that keeps parts after its first, which
 /// bytes do not carry, is refused until a block file carries parts.
 pub async fn collect<S: ObjectStore>(
@@ -59,8 +60,10 @@ pub async fn collect<S: ObjectStore>(
 ) -> Result<Vec<Saved>, ClientError> {
     let picked = peer.summary(top).await?;
     // The server marks only the block made readable by its author alone, not what lies in it,
-    // so each block above is asked too, as far as this account can read summaries.
+    // so each block above is asked too, up to the first this account may not know of. Any other
+    // failure to read one fails the export: what cannot be checked is not exported.
     let mut parent = None;
+    let mut seen = HashSet::from([picked.id]);
     let mut above = Some(picked.clone());
     while let Some(summary) = above {
         if summary.owner_only {
@@ -71,7 +74,20 @@ pub async fn collect<S: ObjectStore>(
             ));
         }
         above = match summary.parent {
-            Some(BlockParent::Block(up)) => peer.summary(up).await.ok(),
+            Some(BlockParent::Block(up)) if !seen.insert(up) => {
+                return Err(ClientError::Refused(
+                    ErrorCode::InvalidRequest,
+                    format!("block {up} is listed inside itself"),
+                ));
+            }
+            Some(BlockParent::Block(up)) => match peer.summary(up).await {
+                Ok(summary) => Some(summary),
+                Err(ClientError::Refused(
+                    ErrorCode::BlockNotFound | ErrorCode::PermissionDenied,
+                    _,
+                )) => None,
+                Err(error) => return Err(error),
+            },
             _ => None,
         };
         if summary.id == picked.id {
