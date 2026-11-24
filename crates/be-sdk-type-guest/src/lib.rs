@@ -795,7 +795,15 @@ impl Module {
             let carried = state
                 .replicas
                 .remove(&id)
-                .map(|mut replica| replica.carry(state.epochs.get(&id).copied().unwrap_or_default()))
+                .map(|mut replica| {
+                    let epoch = state.epochs.get(&id).copied().unwrap_or_default();
+                    // A released replica's editors are gone, and its calls are answered to its
+                    // id, which a replica opened later does not have: none of them carries.
+                    lacking::Carried {
+                        asks: Vec::new(),
+                        ..replica.carry(epoch)
+                    }
+                })
                 .unwrap_or_default();
             if let Some(block) = state.blocks.remove(&id)
                 && (!carried.entries.is_empty() || !carried.refused.is_empty())
