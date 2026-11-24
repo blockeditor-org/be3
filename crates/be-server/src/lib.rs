@@ -586,7 +586,11 @@ pub async fn serve_with_mail(
             _ = &mut shutdown => {
                 upkeep.abort();
                 services.http.close_all().await;
-                services.store.checkpoint().await?;
+                // Stopping as asked: a checkpoint that fails now (the WAL is kept, and the next
+                // open replays it) is no reason to call the stop a failure.
+                if let Err(error) = services.store.checkpoint().await {
+                    tracing::warn!(%error, "the checkpoint on stopping failed");
+                }
                 return Ok(());
             }
             accepted = listener.accept() => {
