@@ -8,14 +8,18 @@
     };
   };
 
-  outputs = { nixpkgs, disko, ... }: {
-    nixosConfigurations.api = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [ disko.nixosModules.disko ./common.nix ./api ];
+  outputs = { nixpkgs, disko, ... }:
+    let
+      common = import ./common.nix;
+    in
+    {
+      nixosConfigurations.api = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [ disko.nixosModules.disko common.module ./api ];
+      };
+      nixosConfigurations.build = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [ disko.nixosModules.disko common.module ./build ];
+      };
     };
-    nixosConfigurations.build = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [ disko.nixosModules.disko ./common.nix ./build ];
-    };
-  };
 }
