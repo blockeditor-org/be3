@@ -59,8 +59,10 @@ source ~/.cache/be3/dev/env
 
 # be-host in a window with be-root, the root guest it is to run in place of its own UI
 # (`--root=APP` runs another staged app whose manifest says "root": true); only :native stages
-# be-root, and no shipped host holds a root yet
+# be-root, and no shipped host holds a root yet; with --dev-workspace the root shows the dev
+# workspace's session (its block stack runs under the root too)
 ./scripts/buck run //crates/be-host:native -- --root
+./scripts/buck run //crates/be-host:native -- --root --dev-workspace
 
 # the VR simulator headless, with drive taps under space and the host: `drive --into=space ...`
 # walks and clicks through space, `drive xr left|right ...` works a headset's controllers

@@ -301,7 +301,9 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   own UI stays the default until be-root passes the host tests that exercise it
   (plans/host_as_platform_adapter.md, 4g7). The host test
   `be_root_in_place_of_the_hosts_ui_shows_its_onboarding` stages be-root and runs it with
-  `--root=be3.root`, filling be-host's window; the host tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
+  `--root=be3.root`, filling be-host's window, and
+  `be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack` with the dev workspace
+  too, where it paints the session's view, the workspace app's frame, under the root's menu; the host tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
   one, and see a press, a key and a touch reach the triangle it embeds, which
   tints its screen by what it heard, and its dialog take drive's input method
   and the window's clipboard and give the focus back to the triangle. Tests also run a root natively in
