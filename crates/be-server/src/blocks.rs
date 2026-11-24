@@ -2652,7 +2652,11 @@ pub(crate) const BLOCK_ROWS_APART: &[&str] = &[
 /// from the schema; a new column that names a block goes here.
 #[cfg(test)]
 pub(crate) const BLOCK_COLUMNS: &[(&str, &str, &str)] = &[
-    ("block_edges", "reference_id", "deleted with the block, as either end"),
+    (
+        "block_edges",
+        "reference_id",
+        "deleted with the block, as either end",
+    ),
     (
         "blocks",
         "parent_id",
