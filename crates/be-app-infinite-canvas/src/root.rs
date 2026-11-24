@@ -38,7 +38,6 @@ pub(crate) mod touch;
 
 use actions::canvas_actions;
 use canvas::CanvasStage;
-use export::ExportDialog;
 use layers::CanvasLayers;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
@@ -89,6 +88,10 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
         Ok(creation.create(&CanvasContent::default()))
     }
+
+    fn exporters() -> Vec<be_sdk_beui::Exporter> {
+        vec![export::png_exporter().into(), export::svg_exporter().into()]
+    }
 }
 
 #[component]
@@ -113,7 +116,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
         untrack(|| add_to_menu(menu::frame_menu(&menu_actions, fit_all.as_ref())));
     });
     let touch = actions.touch;
-    let exporter = actions.exporter;
     provide_context(actions);
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
@@ -125,7 +127,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     <DockTab id=STAGE>
                         <List @node_ref=&scope spacing=Space::None>
                             <TouchSetting editor choice={touch} />
-                            <ExportDialog exporter />
                             <RasterDialogs state />
                             <ListItem grow=1.0>
                                 <Layers>

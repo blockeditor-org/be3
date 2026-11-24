@@ -9,6 +9,7 @@ fn an_editor_that_edits_nothing_is_never_offered() {
         name: format!("editor {editor}"),
         icon: None,
         extensions: Vec::new(),
+        exporters: Vec::new(),
     };
     let catalog = BlockCatalog::default().with_editors([
         entry(10, Edits::Type(block_type.into_bytes())),

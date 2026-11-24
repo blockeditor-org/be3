@@ -405,6 +405,23 @@ interface types {
         block-id: block-id,
     }
 
+    /// Which exporter of a block's editor to run, and the settings it starts
+    /// from (empty for the exporter's own defaults; guides/apps/editor.md,
+    /// "Exporting").
+    record export-request {
+        exporter: string,
+        settings: list<u8>,
+    }
+
+    /// The Export dialog of `block-id`: the host runs it in the app of the
+    /// block's editor (opened with `opening-kind.export`), which draws the
+    /// dialog and says it is done with `close-dialog`, which arrives as the
+    /// child's `child-status.dialog`.
+    record export-child {
+        block-id: block-id,
+        request: export-request,
+    }
+
     /// Where a block is listed: at the root, detached from every parent,
     /// inside a block, or in the account's Unfiled, which the host resolves
     /// to the account's own and where everything made without a place the
@@ -468,6 +485,7 @@ interface types {
         /// editor places in a view it anchored. The form says it is done with
         /// `close-dialog`, which arrives as the child's `child-status.dialog`.
         rename(block-id),
+        %export(export-child),
     }
 
     record child-placement {
@@ -816,7 +834,17 @@ interface types {
         block-type: block-type-id,
         /// The block the artifact is made from.
         source: block-id,
+        /// The exporter of the source's editor that makes it.
+        exporter: string,
         data: list<u8>,
+    }
+
+    /// The Export dialog of a block another editor placed as a child
+    /// (`child-content.export`), in the app of the block's editor.
+    record open-export {
+        block-id: block-id,
+        block-type: block-type-id,
+        request: export-request,
     }
 
     /// A picker another editor placed as a child, which answers with
@@ -862,7 +890,8 @@ interface types {
     }
 
     /// How an editor instance opens: on a block, as a creation dialog, on an
-    /// artifact's settings, as a picker, as a form renaming a block, as a host
+    /// artifact's settings, as a picker, as a form renaming a block, as the
+    /// Export dialog of a block, as a host
     /// component, which has no frame, or on a block it may only join.
     variant opening-kind {
         block(open-block),
@@ -870,6 +899,7 @@ interface types {
         artifact(open-artifact),
         picker(open-picker),
         rename(open-rename),
+        %export(open-export),
         host(open-host),
         join(open-join),
     }

@@ -14,7 +14,9 @@ fn defined_metadata_merges_key_by_key() {
         &Artifact {
             source: Uuid::from_u128(4).into(),
             source_type: Uuid::from_u128(2),
+            exporter: "png".to_owned(),
             settings: vec![3],
+            made: None,
         },
     );
 

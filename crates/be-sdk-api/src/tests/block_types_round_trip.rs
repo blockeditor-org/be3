@@ -32,6 +32,7 @@ fn block_types_round_trip() {
             name: "Debug view".into(),
             icon_codepoint: "\u{e093}".into(),
             extensions: Vec::new(),
+            exporters: Vec::new(),
         }],
     };
     assert_eq!(

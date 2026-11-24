@@ -147,6 +147,22 @@ impl AppPicker {
         }
     }
 
+    /// The Export dialog of `block`, in the app of its editor `editor`, running `request`.
+    pub(crate) fn export(
+        app: Arc<AppManifest>,
+        editor: Uuid,
+        block: EditorBlock,
+        request: be_sdk_api::ExportRequest,
+    ) -> Self {
+        let instance = next_instance();
+        be_host_runtime::ask_export(instance, request);
+        Self {
+            app,
+            role: InstanceRole::Export(editor, block),
+            instance,
+        }
+    }
+
     pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedView {
         HostedView {
             editor: ViewEditor {
@@ -189,6 +205,7 @@ impl Drop for AppPicker {
     fn drop(&mut self) {
         be_host_runtime::close(&self.app.identity.id, self.instance);
         be_host_runtime::forget_picker(self.instance);
+        be_host_runtime::forget_export(self.instance);
     }
 }
 
@@ -622,6 +639,7 @@ pub(super) struct AppArtifact {
     editor: Uuid,
     block: EditorBlock,
     source: Uuid,
+    exporter: String,
     client_id: Uuid,
     instance: EditorInstanceId,
     opened: bool,
@@ -637,6 +655,7 @@ impl AppArtifact {
         app: Arc<AppManifest>,
         editor: Uuid,
         source: Uuid,
+        exporter: String,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
@@ -650,6 +669,7 @@ impl AppArtifact {
             app,
             editor,
             source,
+            exporter,
             client_id,
             block: EditorBlock {
                 id: target_id,
@@ -686,6 +706,7 @@ impl ArtifactSession for AppArtifact {
             editor: self.editor,
             block: self.block,
             source: self.source,
+            exporter: &self.exporter,
             data,
             resync: std::mem::take(&mut self.resync),
         });

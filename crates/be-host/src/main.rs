@@ -3360,6 +3360,7 @@ impl HostCore {
                 match self.registry.artifact_session(
                     descriptor.source_type,
                     *descriptor.source,
+                    &descriptor.exporter,
                     id,
                     block_type,
                     self.client_id,
@@ -3548,6 +3549,9 @@ impl HostCore {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::Export(request) => {
+                self.show_dialog(from, id, ShellDialog::Export(request));
+            }
             // Only an editor of the block keeps hosting it.
             BlockCommand::KeepHosting(keep) if from == Some(id) => self.hosts.keep(id, keep),
             BlockCommand::KeepHosting(_) => {}

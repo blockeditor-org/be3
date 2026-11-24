@@ -2895,6 +2895,22 @@ pub fn plain_file(
     });
 }
 
+/// `content` of `content_type` as the plain file its type writes it as, named after `name` when
+/// the file names nothing itself: what `plain_file` reads for a block that holds it.
+pub fn file_of_content(
+    content_type: Uuid,
+    content: Vec<u8>,
+    name: String,
+    reply: impl FnOnce(Result<be_block_type_host::PlainFile, String>) + Send + 'static,
+) {
+    send(Command::FileOfContent {
+        content_type,
+        content,
+        name,
+        reply: replies::expect(reply),
+    });
+}
+
 /// Replaces a block's content with a file's, as its type reads one. False, with nothing sent,
 /// when the block is out of reach offline (`out_of_reach`): try again once the host reconnects.
 #[must_use]
