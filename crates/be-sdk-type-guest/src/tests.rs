@@ -102,6 +102,7 @@ mod a_small_edit_after_a_large_one_lands_in_order_when_the_holder_reads_late;
 mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod a_typed_edit_during_a_held_drag_reaches_peers_at_once;
+mod an_append_under_a_replica_opened_after_a_release_is_answered_once_and_the_released_ones_to_no_one;
 mod an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash;
 mod an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_reach_the_server;
 mod an_edit_held_behind_one_whose_order_came_during_a_seal_goes_once_the_seal_lands;
@@ -117,9 +118,8 @@ mod an_editor_is_not_told_again_a_snapshot_it_holds_when_its_replica_reopens;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_editor_reads_content_its_replica_could_not_open_as_failed;
-mod an_editors_edit_made_before_two_restarts_it_was_not_shown_lands;
-mod an_append_under_a_replica_opened_after_a_release_is_answered_once_and_the_released_ones_to_no_one;
 mod an_editors_calls_are_answered_once_though_its_replica_reopens_before_the_answers;
+mod an_editors_edit_made_before_two_restarts_it_was_not_shown_lands;
 mod an_editors_range_read_is_answered_once_though_its_replica_reopens_before_its_parts_are_read;
 mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
 mod an_entry_told_better_replaces_the_one_held_and_unknown_never_does;
@@ -937,7 +937,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     fn open_in_module(&mut self, device: usize) {
         let client = self.devices[device].client;
         let held = &mut self.devices[device];
-        assert!(held.released && held.module.is_some(), "the replica was released");
+        assert!(
+            held.released && held.module.is_some(),
+            "the replica was released"
+        );
         held.released = false;
         held.taken_before += held.status.journaled_taken;
         let may_edit = self.devices[device].may_edit;

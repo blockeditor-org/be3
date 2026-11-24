@@ -5,7 +5,8 @@ use super::*;
 /// opened after the release, under a new id, answers its own editor's append once across a
 /// reopen, and the released one's append is answered to no one.
 #[test]
-fn an_append_under_a_replica_opened_after_a_release_is_answered_once_and_the_released_ones_to_no_one() {
+fn an_append_under_a_replica_opened_after_a_release_is_answered_once_and_the_released_ones_to_no_one()
+ {
     let mut sim = Sim::<Logbook>::new(1, logbook_module);
     sim.keeps_modules = true;
     sim.open(0);
