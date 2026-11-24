@@ -649,6 +649,15 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         &self.draft
     }
 
+    /// Asks the artifact instance to make its artifact again from `data`, its settings as the
+    /// host applied them, as be-host does on Apply and Regenerate.
+    pub fn regenerate(&mut self, data: Vec<u8>) {
+        self.wire
+            .call(INSTANCE, EditorCall::RegenerateArtifact(data));
+        self.send();
+        self.run();
+    }
+
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
         self.tell(vec![EditorEvent::ArtifactSettings(data)]);
@@ -1546,6 +1555,15 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             }
             self.calls.push(message);
         }
+    }
+
+    /// What the artifact instance said, each time it changed, of why it could not make its
+    /// artifact again (none once it could).
+    pub fn take_artifact_failures(&mut self) -> Vec<Option<String>> {
+        self.take_shell_messages(|message| match message {
+            ShellMessage::ArtifactFailed(failure) => Some(failure.clone()),
+            _ => None,
+        })
     }
 
     /// Takes the shell messages `pick` accepts, in the order the editor told them; the rest wait.
