@@ -4439,7 +4439,7 @@ async fn apply(
             };
             if let Some(bytes) = bytes
                 && let Err(error) =
-                    publish_bytes(peer, replicas, shared, to, content_type, bytes, true).await
+                    publish_bytes(peer, replicas, shared, to, content_type, bytes).await
             {
                 record(shared, error);
             }
@@ -4462,8 +4462,7 @@ async fn apply(
                 }
                 false => match ensure_type(peer, shared, block, content_type).await {
                     Ok(()) => {
-                        publish_bytes(peer, replicas, shared, block, content_type, bytes, true)
-                            .await
+                        publish_bytes(peer, replicas, shared, block, content_type, bytes).await
                     }
                     Err(error) => Err(error),
                 },
@@ -4682,9 +4681,20 @@ async fn seed(
     if peer.newest_head(block).await?.is_some() {
         return Ok(());
     }
-    publish_bytes(peer, replicas, shared, block, content_type, bytes, false).await
+    // Seeded only while nothing else wrote it: a write that lands first is kept.
+    if let Some(change) = described(peer, replicas, shared, content_type, bytes).await {
+        peer.write(
+            block,
+            Write::encoded(content_type, change.parts, None)
+                .described(change.references, change.derived),
+        )
+        .await?;
+    }
+    Ok(())
 }
 
+/// Writes `bytes` as the block's whole content, over whatever another write left
+/// (`Peer::force_update`).
 async fn publish_bytes(
     peer: &Arc<Peer<Store>>,
     replicas: &mut Replicas,
@@ -4692,29 +4702,30 @@ async fn publish_bytes(
     block: Uuid,
     content_type: Uuid,
     bytes: Vec<u8>,
-    retry: bool,
 ) -> Result<(), ClientError> {
-    let Some(description) = replicas
-        .describe((peer, shared), content_type, &bytes)
-        .await
-    else {
-        return Ok(());
-    };
-    let mut expected = peer.newest_head(block).await?;
-    for _ in 0..4 {
-        match peer
-            .write(
-                block,
-                Write::encoded(content_type, &bytes, expected)
-                    .described(description.references.clone(), description.derived.clone()),
-            )
-            .await?
-        {
-            be_block_client::Saved::Rejected { head } if retry => expected = head,
-            _ => return Ok(()),
-        }
+    if let Some(change) = described(peer, replicas, shared, content_type, bytes).await {
+        peer.force_update(block, content_type, &change).await?;
     }
     Ok(())
+}
+
+/// `bytes` as a write carries them, with what the type says they reference and derive; none
+/// when no type module describes them.
+async fn described(
+    peer: &Arc<Peer<Store>>,
+    replicas: &mut Replicas,
+    shared: &Arc<Mutex<Shared>>,
+    content_type: Uuid,
+    bytes: Vec<u8>,
+) -> Option<be_block_client::NewContent> {
+    let description = replicas
+        .describe((peer, shared), content_type, &bytes)
+        .await?;
+    Some(be_block_client::NewContent {
+        parts: bytes.into(),
+        references: description.references,
+        derived: description.derived,
+    })
 }
 
 async fn imported(

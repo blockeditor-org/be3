@@ -268,7 +268,12 @@ pub async fn open_share_link(
         .encode();
         let id = link.id;
         records
-            .update(move |_| vec![be_block::AccountBlock::set_share(id, Some(kept.clone()))])
+            .update(move |_| {
+                crate::peer::account_block::answered(vec![be_block::AccountBlock::set_share(
+                    id,
+                    Some(kept.clone()),
+                )])
+            })
             .await?;
     }
     let mut tries = 0;
@@ -531,9 +536,11 @@ impl<S: ObjectStore> Peer<S> {
         let bytes = kept.map(|kept| kept.encode());
         self.records()
             .await?
-            .update(move |current| match (current.share(link), &bytes) {
-                (None, None) => Vec::new(),
-                _ => vec![be_block::AccountBlock::set_share(link, bytes.clone())],
+            .update(move |content| {
+                crate::peer::account_block::answered(match (content.root().share(link), &bytes) {
+                    (None, None) => Vec::new(),
+                    _ => vec![be_block::AccountBlock::set_share(link, bytes.clone())],
+                })
             })
             .await
     }
@@ -541,8 +548,7 @@ impl<S: ObjectStore> Peer<S> {
     pub(crate) async fn kept_shares(&self) -> Result<Vec<(Uuid, KeptShare)>, ClientError> {
         let records = self.records().await?;
         Ok(match records.read().await {
-            Ok(held) => held
-                .content
+            Ok(content) => content
                 .root()
                 .shares
                 .iter()
