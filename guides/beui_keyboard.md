@@ -262,8 +262,11 @@ has it while any of its views does; a focused view that closes takes it away.
 `Editor::has_keyboard` says whether one of that editor's own views has it
 (be-sdk-beui-platform's runner tells `Views::keyboard`), so of two chats shown
 at once only the one typed in counts as focused. A restarted app's runner
-starts over without the keyboard, and the host replays `Focus(true)` to the
-screen that had it once the app announces it again (`Instances::reopen`).
+starts over without the keyboard, and the host sends `Focus(true)` to the
+screen that had it when it announces the screen again (`Instances::announce`).
+Input for a screen the host has not announced to the app yet is dropped
+(`Instances::gate`), as for an app that is not running; only whether it has the
+keyboard reaches it, at that announce.
 `BeuiTest` gives the editor's view the keyboard as it opens, and `blur` and
 `focus` move it.
 

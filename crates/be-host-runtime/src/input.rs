@@ -73,10 +73,11 @@ pub(super) struct InputForwarder {
 
 impl InputForwarder {
     /// `heard` is what modifiers the app last heard, which every view of the app shares: the app
-    /// keeps one set of modifiers for all its views.
-    pub(super) fn new(heard: beui::Heard) -> Self {
+    /// keeps one set of modifiers for all its views. `focused` is whether the view starts out
+    /// counted as having the keyboard, which the host tells the app when it announces the view.
+    pub(super) fn new(heard: beui::Heard, focused: bool) -> Self {
         Self {
-            replay: Replay::hearing(heard),
+            replay: Replay::hearing(heard, focused),
             started: false,
         }
     }

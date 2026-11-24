@@ -54,7 +54,7 @@ fn an_active_child_takes_the_frame_of_the_dock_view_holding_the_content() {
     );
     instances.place(INSTANCE, STAGE, Placement { rect, clip: rect });
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     report(&mut instances, ViewId::MAIN, None);
     report(&mut instances, STAGE, Some(be_sdk_api::Insets::default()));
     assert_eq!(

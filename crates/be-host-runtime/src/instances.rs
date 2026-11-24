@@ -103,7 +103,6 @@ pub(super) struct Instances {
     connection: Option<Connection>,
     next_screen: u64,
     announced: HashSet<ScreenId>,
-    unannounced_input: Vec<Outbound>,
     block_types: Option<Arc<crate::AppCatalog>>,
     sent_block_types: Option<u64>,
     network: Vec<String>,
@@ -438,7 +437,6 @@ impl Instance {
 fn forget_opened(
     app_id: &str,
     heard: &beui::Heard,
-    unannounced: &mut Vec<Outbound>,
     instance: EditorInstanceId,
     entry: &mut Instance,
 ) {
@@ -484,14 +482,9 @@ fn forget_opened(
     }
     for screen in entry.screens.values_mut() {
         screen.stopped = None;
-        // The new runner hears everything afresh, its views without the keyboard: a
-        // screen that had it hears so again once the app announces it.
-        if screen.input.focused() {
-            let mut batch = be_sdk_api::InputBatch::new(screen.request.screen, false);
-            batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
-            unannounced.push(Outbound::App(AppCall::Input(batch)));
-        }
-        screen.input = InputForwarder::new(heard.clone());
+        // The new runner hears everything afresh, its views without the keyboard: a screen
+        // that had it keeps it, and hears so once it is announced again (`Instances::announce`).
+        screen.input = InputForwarder::new(heard.clone(), screen.input.focused());
     }
     entry.stale = true;
 }
@@ -866,7 +859,7 @@ pub(super) enum DragKind {
 impl Screen {
     fn new(request: ScreenRequest, pass: u64, heard: &beui::Heard) -> Self {
         Self {
-            input: InputForwarder::new(heard.clone()),
+            input: InputForwarder::new(heard.clone(), false),
             placement: None,
             request,
             last_seen: pass,
@@ -1133,15 +1126,12 @@ impl Instances {
                 }
                 continue;
             }
+            // Input for a screen the app has not been told of yet is dropped, as for an app that
+            // is not running: where the keyboard is reaches the screen once it is announced.
             match &message {
                 Outbound::App(AppCall::Input(batch))
                     if !self.announced.contains(&batch.screen)
-                        && !self.is_anchored_screen(batch.screen) =>
-                {
-                    if self.is_screen(batch.screen) {
-                        self.unannounced_input.push(message);
-                    }
-                }
+                        && !self.is_anchored_screen(batch.screen) => {}
                 _ => allowed.push(message),
             }
         }
@@ -2283,7 +2273,6 @@ impl Instances {
             forget_opened(
                 &self.app_id,
                 &self.heard,
-                &mut self.unannounced_input,
                 instance,
                 entry,
             );
@@ -2309,7 +2298,6 @@ impl Instances {
             forget_opened(
                 &self.app_id,
                 &self.heard,
-                &mut self.unannounced_input,
                 *instance,
                 entry,
             );
@@ -3831,9 +3819,27 @@ impl Instances {
         Some(screen.window.cursor)
     }
 
-    pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Vec<ScreenRequest> {
-        self.announced = screens.iter().map(|screen| screen.screen).collect();
-        screens
+    /// Tells the app its screens: the `Screens` call, then `Input::Focus` for each newly
+    /// announced screen that has the keyboard, since the app's views start without it. Input
+    /// sent before a screen was announced is dropped (`gate`), so the keyboard is state the
+    /// screen learns here rather than input it missed.
+    pub(super) fn announce(&mut self, screens: Vec<ScreenRequest>) -> Vec<Outbound> {
+        let before = std::mem::replace(
+            &mut self.announced,
+            screens.iter().map(|screen| screen.screen).collect(),
+        );
+        let mut messages = Vec::new();
+        for screen in self.entries.values().flat_map(|entry| entry.screens.values()) {
+            let id = screen.request.screen;
+            if self.announced.contains(&id) && !before.contains(&id) && screen.input.focused() {
+                let mut batch = be_sdk_api::InputBatch::new(id, false);
+                batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
+                messages.push(Outbound::App(AppCall::Input(batch)));
+            }
+        }
+        let mut sent = vec![AppCall::Screens(screens).into()];
+        sent.extend(messages);
+        sent
     }
 
     fn instance_of_screen(&self, id: ScreenId) -> Option<EditorInstanceId> {
@@ -3876,30 +3882,6 @@ impl Instances {
             items: pastes.collect(),
         };
         self.translate(&mut pasted, false);
-    }
-
-    fn is_screen(&self, id: ScreenId) -> bool {
-        self.entries
-            .values()
-            .flat_map(|entry| entry.screens.values())
-            .any(|screen| screen.request.screen == id)
-    }
-
-    pub(super) fn take_announced_input(&mut self) -> Vec<Outbound> {
-        let held = std::mem::take(&mut self.unannounced_input);
-        let (announced, waiting): (Vec<Outbound>, Vec<Outbound>) =
-            held.into_iter().partition(|message| match message {
-                Outbound::App(AppCall::Input(batch)) => self.announced.contains(&batch.screen),
-                _ => true,
-            });
-        self.unannounced_input = waiting
-            .into_iter()
-            .filter(|message| match message {
-                Outbound::App(AppCall::Input(batch)) => self.is_screen(batch.screen),
-                _ => false,
-            })
-            .collect();
-        announced
     }
 
     pub(super) fn place(

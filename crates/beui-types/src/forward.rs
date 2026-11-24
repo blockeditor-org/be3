@@ -116,10 +116,12 @@ pub struct Replay {
 }
 
 impl Replay {
-    /// A replay sharing with the program's other sinks what modifiers it heard.
-    pub fn hearing(heard: Heard) -> Self {
+    /// A replay sharing with the program's other sinks what modifiers it heard, which counts the
+    /// program as already knowing whether it has the keyboard (`focused`).
+    pub fn hearing(heard: Heard, focused: bool) -> Self {
         Self {
             heard,
+            focused,
             ..Self::default()
         }
     }

@@ -51,7 +51,7 @@ fn a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported() {
         PASS,
     );
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     assert!(
         instances.frame_report(INSTANCE, TAB).is_none(),
         "the new view has no frame yet"

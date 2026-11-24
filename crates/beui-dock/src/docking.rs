@@ -816,9 +816,10 @@ impl AnyDockingLayout {
         for node in nodes {
             if let NodeKind::Dialog { id, parent, parts } = &node.kind {
                 let dialog = self.mint(id);
-                if found.dialogs.iter().any(|(held, _)| *held == dialog) {
-                    continue;
-                }
+                assert!(
+                    !found.parts.contains_key(&dialog) && !found.bars.contains_key(&dialog),
+                    "two dock dialogs or bars are declared with the id {id:?}"
+                );
                 let parent = parent.with(|parent| self.mint(parent));
                 found.dialogs.push((dialog, parent));
                 found.parts.insert(dialog, *parts);
@@ -831,9 +832,10 @@ impl AnyDockingLayout {
             } = &node.kind
             {
                 let bar = self.mint(id);
-                if found.bars.contains_key(&bar) {
-                    continue;
-                }
+                assert!(
+                    !found.bars.contains_key(&bar) && !found.parts.contains_key(&bar),
+                    "two dock bars or dialogs are declared with the id {id:?}"
+                );
                 let owner = parent.as_ref().map(|parent| self.mint(parent));
                 found.bars.insert(bar, (id.key().to_owned(), *content));
                 found.spec_bars.push(DockSpecBar {
@@ -1030,12 +1032,14 @@ impl AnyDockingLayout {
                     |base, next| DockId::derived(stepped(&base.key().to_owned(), next)),
                 );
                 let tab = self.mint(&id);
-                if found.parts.contains_key(&tab) {
-                    return None;
-                }
-                if found.tabs.insert(tab, Rc::clone(entry)).is_some() {
-                    return None;
-                }
+                assert!(
+                    !found.parts.contains_key(&tab) && !found.bars.contains_key(&tab),
+                    "a dock tab is declared with the id {id:?} of a dialog or bar"
+                );
+                assert!(
+                    found.tabs.insert(tab, Rc::clone(entry)).is_none(),
+                    "two dock tabs are declared with the id {id:?}"
+                );
                 if let EntryKind::Tab { bare: true, .. } = &entry.kind {
                     found.bare.insert(tab);
                 }

@@ -9,8 +9,6 @@ const PACKAGES: &[&str] = &[
     "git",
     "python3",
     "libasound2t64",
-    "libgtk-3-0t64",
-    "libwebkit2gtk-4.1-0",
     "libvulkan1",
     "mesa-vulkan-drivers",
     "libx11-6",

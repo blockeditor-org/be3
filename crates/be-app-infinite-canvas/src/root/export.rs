@@ -79,6 +79,8 @@ pub(crate) struct Scene {
     pub(crate) clipped: bool,
     pub(crate) background: Color32,
     pub(crate) palette: Palette,
+    /// The theme the app shows, which the export draws in.
+    pub(crate) theme: Theme,
     pub(crate) embeds: BTreeMap<Uuid, Embed>,
     pub(crate) rasters: BTreeMap<Uuid, CanvasRaster>,
     pub(crate) name: String,
@@ -93,14 +95,9 @@ pub(crate) struct ImageFile {
 pub(crate) type Images = BTreeMap<Uuid, ImageFile>;
 
 impl Scene {
-    /// What `items` (every item for none) of the canvas `state` shows draw, as it is now and
-    /// tracking it.
-    pub(crate) fn of(
-        state: &CanvasReader,
-        palette: Palette,
-        background: Color32,
-        items: &[Uuid],
-    ) -> Ready<Self> {
+    /// What `items` (every item for none) of the canvas `state` shows draw in `theme`, as it is
+    /// now and tracking it.
+    pub(crate) fn of(state: &CanvasReader, theme: Theme, items: &[Uuid]) -> Ready<Self> {
         // Nothing to draw is only known once the canvas has arrived.
         state.content.read(|_| ())?;
         let references = state.references.get()?;
@@ -200,8 +197,15 @@ impl Scene {
             entities,
             area,
             clipped,
-            background,
-            palette,
+            background: theme.background,
+            palette: Palette {
+                auto: theme.text,
+                surface: theme.surface,
+                control: theme.control,
+                border: theme.border,
+                muted: theme.text_muted,
+            },
+            theme,
             embeds,
             rasters,
             name,
@@ -293,28 +297,14 @@ impl CanvasReader {
     }
 }
 
-/// The colours an export draws in: always the same, so what it makes does not change with the
-/// theme of whoever makes it (an artifact is made again on every device that shows it).
-fn export_palette() -> (Palette, Color32) {
-    let theme = Theme::DARK;
-    (
-        Palette {
-            auto: theme.text,
-            surface: theme.surface,
-            control: theme.control,
-            border: theme.border,
-            muted: theme.text_muted,
-        },
-        theme.background,
-    )
-}
-
-/// The scene `settings` draws of the canvas `editor` reads, with the images it shows.
+/// The scene `settings` draws of the canvas `editor` reads, with the images it shows, in the
+/// theme the app shows: an export looks as the canvas does, and an artifact is made again when
+/// the theme changes.
 fn scenes(editor: Editor) -> impl Fn(&ImageExport) -> Ready<(Scene, Images)> {
     let reader = CanvasReader::new(editor);
+    let theme = use_theme();
     move |settings: &ImageExport| {
-        let (palette, background) = export_palette();
-        let scene = Scene::of(&reader, palette, background, &settings.items)?;
+        let scene = Scene::of(&reader, theme.get().resolve(), &settings.items)?;
         let images = images_of(editor, &scene)?;
         Ok((scene, images))
     }
@@ -520,7 +510,7 @@ fn draw(
         text_turn(entity),
     );
     if entity.shape == CanvasShape::Text {
-        paint_written(&turned, entity, ink, camera);
+        paint_written(&turned, scene, entity, ink, camera);
         return;
     }
     let embed = entity.block.and_then(|block| scene.embeds.get(&block));
@@ -559,15 +549,21 @@ fn draw(
         ),
     }
     .draw(painter);
-    paint_written(&turned, entity, ink, camera);
+    paint_written(&turned, scene, entity, ink, camera);
 }
 
-fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: CanvasView) {
+fn paint_written(
+    painter: &Painter,
+    scene: &Scene,
+    entity: &CanvasEntity,
+    ink: Color32,
+    camera: CanvasView,
+) {
     for Written {
         origin,
         layout,
         missing,
-    } in written(painter, entity, ink, camera)
+    } in written(painter, &scene.theme, entity, ink, camera)
     {
         for rect in missing {
             painter.rect_filled(rect, 0.0, MISSING);
@@ -598,6 +594,7 @@ struct Written {
 
 fn written(
     painter: &Painter,
+    theme: &Theme,
     entity: &CanvasEntity,
     ink: Color32,
     camera: CanvasView,
@@ -619,7 +616,7 @@ fn written(
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
         syntax: SyntaxColors::uniform(ink.into()),
-        ..text_area_colors(&ThemeTokens::literal(&Theme::DARK))
+        ..text_area_colors(&ThemeTokens::literal(theme))
     };
     let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(
@@ -737,7 +734,7 @@ fn svg_entity(
         return;
     }
     if entity.shape == CanvasShape::Text {
-        svg_written(out, painter, entity, ink, &turn);
+        svg_written(out, painter, scene, entity, ink, &turn);
         return;
     }
     if entity.shape.embeds_block() {
@@ -818,6 +815,7 @@ fn svg_entity(
     svg_written(
         out,
         painter,
+        scene,
         entity,
         ink,
         &turn_by(entity, text_turn(entity)),
@@ -829,12 +827,14 @@ const MISSING: Color32 = Color32::from_rgb(255, 105, 180);
 fn svg_written(
     out: &mut String,
     painter: &Painter,
+    scene: &Scene,
     entity: &CanvasEntity,
     ink: Color32,
     turn: &str,
 ) {
     let lines = written(
         painter,
+        &scene.theme,
         entity,
         ink,
         CanvasView::from_corner(Pos2::ZERO, 1.0),

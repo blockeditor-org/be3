@@ -58,7 +58,9 @@ is, `show`, `focused`, `mode()`, `snapshot`/`restore`, bars by key, fullscreen);
 covers, its windows and the window manager, the switch. `layout` is optional: a `Docking` given none
 makes its own. The declarations take no key type: a tab's `id` is a `DockId`, which any `DockKey`
 passes as. A dock read through a `DockingLayout<K>` keys every tab it gives an id with a `K`
-(debug builds assert it); a tab left without one has no key there.
+(debug builds assert it); a tab left without one has no key there. Tabs, dialogs and bars share
+one id space: declaring two with the same `id` in one dock is a bug, and the dock asserts against
+it in every build.
 
 **Defaults.** Whatever a declaration leaves out, the dock derives, so a layout says only what
 differs (an editor's stage and side panel are about ten lines, guides/apps/editor.md):
