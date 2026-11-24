@@ -16,6 +16,8 @@ type Key = (String, EditorInstanceId);
 
 thread_local! {
     static ASKED: RefCell<HashMap<Key, ChildId>> = RefCell::new(HashMap::new());
+    /// The children with a view built, by their placer, each with how many views show it.
+    static VIEWED: RefCell<HashMap<(Key, ChildId), usize>> = RefCell::new(HashMap::new());
     /// One trigger per instance that has been tracked or heard. A trigger stays once made, as
     /// views that track it may outlive the instance; there is one per instance a session opened.
     /// It is never freed, so nothing frees it after the reactive arena at thread exit.
@@ -55,4 +57,25 @@ pub(crate) fn taken(app_id: &str, instance: EditorInstanceId) {
     if ASKED.with_borrow_mut(|asked| asked.remove(&key)).is_some() {
         trigger(&key).notify();
     }
+}
+
+/// A view of `child`, which the instance placed, is built (`shown`) or went.
+pub(crate) fn viewed(app_id: &str, instance: EditorInstanceId, child: ChildId, shown: bool) {
+    let key = ((app_id.to_owned(), instance), child);
+    VIEWED.with_borrow_mut(|viewed| match shown {
+        true => *viewed.entry(key).or_default() += 1,
+        false => {
+            if let Some(count) = viewed.get_mut(&key) {
+                *count -= 1;
+                if *count == 0 {
+                    viewed.remove(&key);
+                }
+            }
+        }
+    });
+}
+
+/// Whether a view of `child`, which the instance placed, is built.
+pub(crate) fn has_view(app_id: &str, instance: EditorInstanceId, child: ChildId) -> bool {
+    VIEWED.with_borrow(|viewed| viewed.contains_key(&((app_id.to_owned(), instance), child)))
 }

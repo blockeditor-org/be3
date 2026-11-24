@@ -87,6 +87,7 @@ impl Platform for AppPlatform {
                 actions_version: 0,
                 sent_actions: HashMap::default(),
                 focused: HashSet::default(),
+                windowless_focus: HashSet::default(),
                 unlisted: HashSet::default(),
                 listed: HashSet::default(),
                 toggles: HashMap::default(),
@@ -186,6 +187,9 @@ struct ModuleRunner {
     /// What each view last sent of them, at which change.
     sent_actions: HashMap<ViewRef, (SentActions, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
+    /// The views the host gave the keyboard while they had no window yet: each window made for
+    /// one is focused as it is made (`window_made`).
+    windowless_focus: HashSet<ViewRef>,
     /// The views in `focused` the last frame did not list yet.
     unlisted: HashSet<ViewRef>,
     /// The views the last frame listed.
@@ -282,6 +286,8 @@ impl ModuleRunner {
         let stale = std::mem::take(&mut self.unlisted);
         self.focused
             .retain(|id| shown(id) || (!listed.contains(id) && !stale.contains(id)));
+        let focused = &self.focused;
+        self.windowless_focus.retain(|id| focused.contains(id));
         // One still not listed by the next frame closed before it ever showed.
         self.unlisted = self
             .focused
@@ -342,8 +348,8 @@ impl ModuleRunner {
             match regions.iter().find(|region| region.id() == floated.region) {
                 Some(region) => {
                     floated.shown = true;
-                    let new = self.windows.insert(floated.region, *window) != Some(*window);
-                    if new && self.focused.contains(&floated.region) {
+                    self.windows.insert(floated.region, *window);
+                    if self.windowless_focus.remove(&floated.region) {
                         // The host gave the view the keyboard before its window was made.
                         self.runner.push(Incoming::Window(WindowReport::Focused {
                             window: *window,
@@ -901,11 +907,12 @@ fn placed(mut tree: TreeUpdate, ratio: f32) -> TreeUpdate {
 
 impl ModuleRunner {
     /// Takes `window` as the one showing the view `id`. A view the host gave the keyboard before
-    /// its window was made (it heard `Input::Focus` while it had none) has its window focused,
-    /// so the field it would focus takes the keyboard once it is up.
+    /// its window was made (it heard `Input::Focus(true)` while it had none, and not lost it
+    /// since) has its window focused, so the field it would focus takes the keyboard once it is
+    /// up.
     fn window_made(&mut self, id: ViewRef, window: WindowId) {
-        let new = self.windows.insert(id, window) != Some(window);
-        if new && self.focused.contains(&id) {
+        self.windows.insert(id, window);
+        if self.windowless_focus.remove(&id) {
             self.send(Incoming::Window(WindowReport::Focused {
                 window,
                 focused: true,
@@ -933,8 +940,16 @@ impl Regions for ModuleRunner {
         let id = region.id();
         let window = self.windows.get(&id).copied();
         if let Input::Focus(focused) = event.input {
-            if let Some(window) = window {
-                self.send(Incoming::Window(WindowReport::Focused { window, focused }));
+            match window {
+                Some(window) => {
+                    self.send(Incoming::Window(WindowReport::Focused { window, focused }));
+                }
+                None => {
+                    match focused {
+                        true => self.windowless_focus.insert(id),
+                        false => self.windowless_focus.remove(&id),
+                    };
+                }
             }
             let was = !self.focused.is_empty();
             match focused {

@@ -137,6 +137,7 @@ pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
 struct AskedFocus {
     asked: Memo<bool>,
     placer: Placer,
+    child: ChildId,
 }
 
 #[derive(Clone, Copy)]
@@ -1619,14 +1620,18 @@ fn focus_when_asked(
     });
 }
 
-/// Moves the keyboard into a child the editor `instance` of `app` asked take it
-/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask: if the
-/// keyboard is within the editor's views and the children they show, and no view that takes the
-/// keyboard is open, it leaves them at once, and the child's view takes it as it is built
-/// (`focus_when_given`), or at once if it is, while nothing else took it meanwhile. Keys typed
+/// Moves the keyboard into `child`, which the editor `instance` of `app` asked take it
+/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask. A child
+/// whose view is built takes it there at once (`focus_when_given`). For one whose view is not
+/// built yet: if the keyboard is within the editor's views and the children they show, and no
+/// view that takes the keyboard is open, it leaves them at once, and the child's view takes it
+/// as it is built, while nothing else took it meanwhile. Keys typed
 /// in between reach nothing: none is held (decisions/keys_are_never_held.md).
-pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId) {
-    if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
+pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: ChildId) {
+    // A child whose view is built takes the keyboard there, as that view decides.
+    if asks::has_view(app, instance, child)
+        || WANTING_KEYBOARD.with_borrow(|views| !views.is_empty())
+    {
         return;
     }
     try_with_document(|document| {
@@ -1661,6 +1666,9 @@ fn focus_when_given(
     let Some(asked) = asked else {
         return;
     };
+    // While this view lives, an ask for its child is this view's to act on.
+    asks::viewed(asked.placer.app, asked.placer.instance, asked.child, true);
+    on_cleanup(move || asks::viewed(asked.placer.app, asked.placer.instance, asked.child, false));
     let catcher = *catcher;
     let passing = create_signal(false);
     create_effect(move || {
@@ -2111,6 +2119,7 @@ impl ChildNodes {
             provide_context(ChildFocus(Some(AskedFocus {
                 asked: create_memo(move || asks::asks(placer.app, placer.instance, key)),
                 placer,
+                child: key,
             })));
             let node = child_view.with(|view| view(key, child, rect));
             (node, holder)
