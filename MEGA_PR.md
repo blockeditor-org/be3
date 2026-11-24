@@ -57,6 +57,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7b3c`: under a root, a child that shows takes its placer's frame (taken back from every child of the view by a press outside or Escape), and docks join across apps through one `Docks` and `host.dock`; be-host waits for blocks a root asks for before they are listed.
 - `export-through-artifacts-7`: export goes through artifacts: an export is a block that follows its source, made again by the source's exporter, with its settings and fingerprint under separate keys, standing failures reported, and no parallel export APIs; `transfer::Open::content` returns a boxed future to avoid a rustc ICE on the web.
 - `flakes-6`: a root counts as settled only once no app is starting or compiling and it has stepped with every answer it was given, and a held rejoin takes only its own next entry (same origin, base and sequence), replaying only entries past what it heard.
+- `flakes-7`: only the present of a frame that was asked for meets a need, so a `frame-needed` heard before a present the app made unasked is still drawn (the stale "editor is opening" under be-root); the not-yet export test waits out the references read before holding answers.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
