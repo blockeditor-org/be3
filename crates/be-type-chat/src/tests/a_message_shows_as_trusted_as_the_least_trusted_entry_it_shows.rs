@@ -11,20 +11,20 @@ fn a_message_shows_as_trusted_as_the_least_trusted_entry_it_shows() {
     };
     let entries = [
         item(0, ADA, &message("hello")),
-        signed(1, ADA, &edit("forged"), LogSigner::Bad),
+        signed(1, ADA, &edit("forged"), Signer::Bad),
     ];
     let log = ChatLog::of(&entries);
     assert_eq!(log.message(0).unwrap().body.as_deref(), Some("hello"));
-    assert_eq!(log.message(0).unwrap().signer, LogSigner::Verified);
+    assert_eq!(log.message(0).unwrap().signer, Signer::Verified);
 
     let entries = [
         item(0, ADA, &message("hello")),
-        signed(1, ADA, &edit("with an old key"), LogSigner::Replaced),
+        signed(1, ADA, &edit("with an old key"), Signer::Replaced),
     ];
     let log = ChatLog::of(&entries);
     assert_eq!(
         log.message(0).unwrap().body.as_deref(),
         Some("with an old key")
     );
-    assert_eq!(log.message(0).unwrap().signer, LogSigner::Replaced);
+    assert_eq!(log.message(0).unwrap().signer, Signer::Replaced);
 }

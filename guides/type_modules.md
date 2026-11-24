@@ -10,6 +10,13 @@ talks to its host only through typed operations. be-host's peer, `be` and
 
 - `crates/be-sdk-type-api`: the protocol, the WIT world
   `be3:block-type/type-module` (`wit/*.wit`) and the Rust generated from it.
+  Where the WIT describes a type the block stack already has, the generated
+  code is that type (bindgen's `with`), so host and module hand the stack's
+  values across unconverted: be-block-content's log types (`LogItem`,
+  `LogPage`, `Signer`, …), `Announcement`, `Along`, `ChildChange` and
+  `SearchDocument`, be-block-store's `PartRef`, be-block-protocol's journal,
+  `Participant` and `SessionState`, and be-block-session's `Resume`. Such a
+  WIT record keeps the Rust type's fields in order, and changes with it.
 - `crates/be-sdk-type-guest`: the replica library a type module links. It holds
   a block's live session and undo stack as one deterministic state machine
   that every `Document<R>` and `Blob<K>` works with unchanged.
@@ -92,7 +99,9 @@ Traps:
   `next: async func() -> T` becomes a latest-value watch
   (`be_wasm_ops::Watched`), which editors follow with `editor.watch::<W>()`.
 - `with` substitutes an existing Rust type for a WIT type, and nothing checks
-  that their serde forms agree; use it only for byte arrays and newtype ids.
+  that their serde forms agree: keep the WIT's fields and cases in the Rust
+  type's order (a record a variant case carries is `inline` when the Rust case
+  has fields), and its byte fields on `serde_bytes`.
 - Ids and access levels have one shape everywhere: `be3:shared`
   (`crates/be-wasm-ops/wit`) holds `uuid`, `hash` and their named aliases.
 - WIT keywords are written with `%`, and a function may not share its name
@@ -277,7 +286,7 @@ what anyone with Edit may rewrite, a log what its authors add. A types crate
 says so with `be_block_types![T { log }]` (`Registration::log`), and the
 content implements `be_block_content::LogFold`: how an entry
 (`be_block_content::LogItem`: place, id, author, arrival, the app's bytes and
-who signed them, `LogSigner`) changes what the content shows.
+who signed them, `be_block_content::Signer`) changes what the content shows.
 
 - **Appending.** An editor sends `FromEditor::Append` (`EditorMirror::append`,
   `ContentProjection::append` in be-sdk); the replica calls `host.append`

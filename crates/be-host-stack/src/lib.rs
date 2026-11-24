@@ -1049,7 +1049,7 @@ fn send_child_change(
     send(Command::ChangeChild {
         block,
         content_type,
-        change: api_child(change),
+        change,
         copying,
         reply: {
             let answer = ChildAnswer(Arc::clone(&answer));
@@ -1098,19 +1098,6 @@ pub(crate) fn copied_in_place(block: Uuid, content_type: Uuid, source: Uuid, cop
     };
     send_child_change(block, content_type, back, None);
     false
-}
-
-fn api_child(change: be_block_content::ChildChange) -> be_sdk_type_api::ChildChange {
-    match change {
-        be_block_content::ChildChange::Add(child) => be_sdk_type_api::ChildChange::Add(child),
-        be_block_content::ChildChange::Delete(child) => be_sdk_type_api::ChildChange::Delete(child),
-        be_block_content::ChildChange::Replace { old, new } => {
-            be_sdk_type_api::ChildChange::Replace(be_sdk_type_api::ReplaceChild { old, new })
-        }
-        be_block_content::ChildChange::Reorder { block, after } => {
-            be_sdk_type_api::ChildChange::Reorder(be_sdk_type_api::ReorderChild { block, after })
-        }
-    }
 }
 
 pub fn version(block: Uuid, command: be_sdk_api::VersionCommand) {

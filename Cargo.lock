@@ -2427,6 +2427,7 @@ name = "be-sdk-type-api"
 version = "0.1.0"
 dependencies = [
  "be-block-commit",
+ "be-block-content",
  "be-block-protocol",
  "be-block-session",
  "be-block-store",

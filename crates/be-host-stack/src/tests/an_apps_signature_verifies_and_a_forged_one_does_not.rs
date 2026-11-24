@@ -1,5 +1,7 @@
 use super::*;
-use crate::authorship::{self, Signer};
+use be_block_content::Signer;
+
+use crate::authorship;
 
 fn signed(block: Uuid, bytes: &[u8]) -> Vec<u8> {
     let (sender, receiver) = std::sync::mpsc::channel();

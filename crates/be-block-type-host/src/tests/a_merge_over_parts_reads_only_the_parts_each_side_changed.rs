@@ -49,7 +49,7 @@ fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
             .parts
             .iter()
             .filter_map(|part| match part {
-                WrittenPart::Reused(part) => Some(be_block_store::PartRef::from(*part)),
+                WrittenPart::Reused(part) => Some(*part),
                 _ => None,
             })
             .collect();

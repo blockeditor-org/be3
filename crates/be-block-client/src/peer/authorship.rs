@@ -4,6 +4,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Weak};
 
+use be_block_content::Signer;
 use be_block_keys::SigningPublic;
 use be_block_store::ObjectStore;
 use sha2::{Digest, Sha256};
@@ -88,29 +89,6 @@ fn record(account: Uuid, block: Uuid, bytes: &[u8], signature: &[u8]) -> [u8; 32
     hasher.update(bytes);
     hasher.update(signature);
     hasher.finalize().into()
-}
-
-/// Who signed bytes, as far as this device can tell.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Signer {
-    /// The account's key, verified through a contact link or a key change sealed with the one
-    /// before (or this account's own).
-    Verified,
-    /// The key the server named the first time this device asked, pinned since and never
-    /// verified.
-    Unverified,
-    /// A key other than the account's current one: the server names one that is not the one
-    /// this device pinned, or a contact's key a new phrase replaced. The account took a new
-    /// phrase, or the server is lying, or someone holds the old phrase.
-    Changed,
-    /// A contact's key it had replaced before the server took the record, after this device
-    /// learned of the new one: one of the account's devices not yet told of its new phrase, a
-    /// send held offline until after it, or someone holding the old phrase. Not proof of a
-    /// forgery, so not `Bad`, but louder than `Changed`.
-    Replaced,
-    /// No key this device knows the account by, nor one the server names, made the signature:
-    /// a forgery, or bytes changed since they were signed.
-    Bad,
 }
 
 /// `bytes` an app wrote, framed by the app's id ahead of them, as the host signs and verifies

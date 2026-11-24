@@ -14,15 +14,15 @@ fn only_a_messages_author_deletes_it_and_its_redacted_entry_shows_deleted() {
 
     let mut redacted = item(0, ADA, &message("hello"));
     redacted.payload = None;
-    redacted.signer = LogSigner::Redacted;
+    redacted.signer = Signer::Redacted;
     let entries = [
         redacted,
-        signed(1, ADA, &delete, LogSigner::Replaced),
+        signed(1, ADA, &delete, Signer::Replaced),
         item(2, BO, &message("still here")),
     ];
     let log = ChatLog::of(&entries);
     let deleted = log.message(0).unwrap();
     assert_eq!(deleted.author, ADA);
-    assert_eq!(deleted.deleted, Some((5, LogSigner::Replaced)));
+    assert_eq!(deleted.deleted, Some((5, Signer::Replaced)));
     assert_eq!(bodies(&log), [Some("still here".to_owned())]);
 }

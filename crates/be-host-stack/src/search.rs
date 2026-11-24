@@ -1619,7 +1619,7 @@ async fn puts_of(
         return None;
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
-        documents.push(be_sdk_type_api::SearchDocument {
+        documents.push(be_block_content::SearchDocument {
             key: String::new(),
             source: None,
             name: None,
@@ -1664,7 +1664,7 @@ async fn puts_of(
                 commit: at,
                 source: document
                     .source
-                    .map(|source| *be_block_store::PartRef::from(source).hash().as_bytes()),
+                    .map(|source| *source.hash().as_bytes()),
                 text,
                 partial: false,
             }
@@ -1853,7 +1853,7 @@ async fn documents_of(
     commit: &be_block_commit::Commit,
     keys: Option<Vec<String>>,
     indexed: &[[u8; 32]],
-) -> Option<Option<Vec<be_sdk_type_api::SearchDocument>>> {
+) -> Option<Option<Vec<be_block_content::SearchDocument>>> {
     match replicas
         .search_text(
             (peer, shared),
