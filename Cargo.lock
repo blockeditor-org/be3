@@ -2654,6 +2654,7 @@ dependencies = [
 name = "be-tool-build-helper"
 version = "0.1.0"
 dependencies = [
+ "be-tool-build-helper-protocol",
  "httparse",
  "serde",
  "serde_json",
@@ -2661,6 +2662,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "be-tool-build-helper-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2740,6 +2749,7 @@ dependencies = [
  "be-block-content",
  "be-sdk-terminal",
  "be-sdk-test",
+ "be-tool-build-helper-protocol",
  "be-tool-terminal-emulator",
  "be-type-terminal",
  "beui",

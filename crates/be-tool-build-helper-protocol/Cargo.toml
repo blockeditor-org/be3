@@ -1,0 +1,15 @@
+[package]
+name = "be-tool-build-helper-protocol"
+description = "What be-tool-build-helper answers and be-launcher reads: products, a build's status and a published build's manifest"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true

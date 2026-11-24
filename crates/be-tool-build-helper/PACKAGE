@@ -22,6 +22,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -32,6 +33,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
@@ -48,6 +50,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -58,6 +61,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
@@ -74,6 +78,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -84,6 +89,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
@@ -100,6 +106,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -110,6 +117,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
@@ -126,6 +134,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -136,6 +145,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
@@ -152,6 +162,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -162,6 +173,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
@@ -178,6 +190,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
@@ -188,6 +201,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",

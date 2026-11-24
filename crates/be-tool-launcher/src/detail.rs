@@ -246,7 +246,7 @@ fn CommentCard(
         <Frame padding={Padding::vertical(Space::Sm)}>
             <Frame
                 fill=ColorRole::Surface
-                border={move || Border::new(ColorRole::Custom(outline.get().into())).width(Stroke::Hairline)}
+                border={move || Border::new(ColorRole::Custom(outline.get())).width(Stroke::Hairline)}
                 radius=Radius::Lg
             >
                 <List spacing=Space::None>

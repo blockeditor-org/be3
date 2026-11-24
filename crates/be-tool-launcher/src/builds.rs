@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::helper::{self, Manifest};
+use be_tool_build_helper_protocol::Manifest;
+
+use crate::helper;
 use crate::net::Http;
 
 const PART: &str = "part";

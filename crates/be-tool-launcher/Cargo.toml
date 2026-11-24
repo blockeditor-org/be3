@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 be-block-content = { path = "../be-block-content" }
+be-tool-build-helper-protocol = { path = "../be-tool-build-helper-protocol" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }
 beui-host-window = { path = "../beui-host-window" }
