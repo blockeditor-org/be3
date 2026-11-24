@@ -6,7 +6,8 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        along, announcement, byte-range, commit-id, description, journal-base, loaded, log-page, merging,
+        along, announcement, byte-range, commit-id, description, journal-base, load-error, loaded,
+        log-page, merging,
         submission, part-ref, recipients, resume, status, written,
     };
     use be3:shared/ids@0.1.0.{uuid};
@@ -29,7 +30,7 @@ interface host {
 
     /// A commit's stored form; with `first-part`, only the bytes of its root's
     /// first part (`be_block::Loads::FirstPart`).
-    load: async func(commit: commit-id, first-part: bool) -> result<loaded, string>;
+    load: async func(commit: commit-id, first-part: bool) -> result<loaded, load-error>;
 
     /// A range of the bytes of a saved part, which a replica that loaded only
     /// its first part reads on demand. Under a stateless request, only a part

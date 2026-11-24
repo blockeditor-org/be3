@@ -209,7 +209,7 @@ pub(crate) enum Input {
     Sequenced(Vec<SessionOp>),
     Read {
         token: Token,
-        result: Result<be_block_content::Stored, String>,
+        result: Result<be_block_content::Stored, be_sdk_type_api::LoadError>,
     },
     PartRead {
         token: Token,
@@ -2215,7 +2215,23 @@ where
         self.finish_reads();
     }
 
-    fn answer_read(&mut self, token: Token, result: Result<be_block_content::Stored, String>) {
+    fn answer_read(
+        &mut self,
+        token: Token,
+        result: Result<be_block_content::Stored, be_sdk_type_api::LoadError>,
+    ) {
+        // Not to be had now: an opening waits, as the host opens the replica again once the
+        // head moves or the connection comes back. Anything else fails as it would.
+        let opening = matches!(
+            self.waiting,
+            Some(Wait::Reads {
+                then: Then::Load | Then::RestartCommits { .. },
+                ..
+            })
+        );
+        if opening && matches!(result, Err(be_sdk_type_api::LoadError::NotYet(_))) {
+            return;
+        }
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
             return;
         };
@@ -2225,8 +2241,11 @@ where
         else {
             return;
         };
-        let decoded =
-            result.and_then(|stored| C::from_stored(&stored).map_err(|error| error.to_string()));
+        let decoded = match result {
+            Ok(stored) => C::from_stored(&stored).map_err(|error| error.to_string()),
+            Err(be_sdk_type_api::LoadError::Unreadable(error)) => Err(error),
+            Err(be_sdk_type_api::LoadError::NotYet(error)) => Err(error),
+        };
         match decoded {
             Ok(content) => {
                 *slot = Slot::Ready(content);

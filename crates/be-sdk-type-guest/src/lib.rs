@@ -906,11 +906,16 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::load(commit, first_part));
                 self.answer_later(replica, pending, move |result| Input::Read {
                     token,
-                    result: result.and_then(|loaded| loaded).and_then(|loaded| {
-                        loaded
-                            .into_stored()
-                            .ok_or_else(|| "the host loaded parts that form no tree".to_owned())
-                    }),
+                    result: result
+                        .map_err(be_sdk_type_api::LoadError::NotYet)
+                        .and_then(|loaded| loaded)
+                        .and_then(|loaded| {
+                            loaded.into_stored().ok_or_else(|| {
+                                be_sdk_type_api::LoadError::Unreadable(
+                                    "the host loaded parts that form no tree".to_owned(),
+                                )
+                            })
+                        }),
                 });
             }
             Effect::ReadPart {

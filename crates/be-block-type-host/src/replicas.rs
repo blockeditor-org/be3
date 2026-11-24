@@ -324,8 +324,8 @@ struct Refused {
 
 pub enum Answered {
     Load(
-        Reply<Result<be_sdk_type_api::Loaded, String>>,
-        Result<be_sdk_type_api::Loaded, String>,
+        Reply<Result<be_sdk_type_api::Loaded, be_sdk_type_api::LoadError>>,
+        Result<be_sdk_type_api::Loaded, be_sdk_type_api::LoadError>,
     ),
     ReadPart(
         Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
@@ -389,6 +389,13 @@ pub enum Io {
     Locked {
         replica: ReplicaId,
         arrivals: u64,
+    },
+    /// A load of `commit` for the replica found its objects not to be had now (`Loads::NotYet`):
+    /// the replica waits, and opens again once the block's head moves or the connection
+    /// comes back.
+    NotYet {
+        replica: ReplicaId,
+        commit: CommitId,
     },
     Published {
         publish: u64,
@@ -1094,6 +1101,11 @@ pub struct Replicas<H: Host> {
     /// Blocks a read or a submission here found locked (`H::set_locked`), until keys arrive
     /// (`unlock`).
     locked: HashSet<Uuid>,
+    /// Blocks whose replica's load found the commit's objects not to be had now (a head
+    /// another device replaced, which the server dropped, or a lost connection), by the
+    /// commit: opened again once the head moves on from it or the connection comes back
+    /// (`read_not_yet`). Never unreadable for it, so never reset for it.
+    not_yet: HashMap<Uuid, CommitId>,
     /// Submissions refused for a missing key, submitted again once keys arrive (`unlock`).
     refused: Vec<Refused>,
     /// How many searches for keys relayed messages started.
@@ -1168,6 +1180,7 @@ impl<H: Host> Replicas<H> {
             searching: HashSet::new(),
             searched: HashSet::new(),
             locked: HashSet::new(),
+            not_yet: HashMap::new(),
             refused: Vec::new(),
             forwarded: HashMap::new(),
             #[cfg(test)]
@@ -2129,6 +2142,8 @@ impl<H: Host> Replicas<H> {
                 self.moved(replica, moved, false);
             }
         }
+        // The join told the head: a load it was waiting on reads again on it.
+        self.read_not_yet(peer, Some(block), false);
         self.close_if_asked(replica);
     }
 
@@ -2492,6 +2507,7 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn close(&mut self, block: Uuid) {
+        self.not_yet.remove(&block);
         let Some(replica) = self.blocks.get(&block).copied() else {
             return;
         };
@@ -3604,6 +3620,9 @@ impl<H: Host> Replicas<H> {
     }
 
     fn told(&mut self, (peer, shared): Ctx<'_, H>, told: Told) {
+        if let Told::Head { block, .. } | Told::Event(Event::Sealed { block, .. }) = &told {
+            self.read_not_yet(peer, Some(*block), false);
+        }
         let block = match &told {
             Told::Event(
                 Event::Membership { block, .. }
@@ -3987,6 +4006,13 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
+            Io::NotYet { replica, commit } => {
+                if let Some(block) = self.open.get(&replica).map(|open| open.block) {
+                    self.not_yet.insert(block, commit);
+                    // The head may have moved on while it read.
+                    self.read_not_yet(peer, Some(block), false);
+                }
+            }
             Io::Locked { replica, arrivals } => {
                 if let Some(block) = self.open.get(&replica).map(|open| open.block) {
                     match peer.arrivals() == arrivals {
@@ -4119,7 +4145,27 @@ impl<H: Host> Replicas<H> {
         self.rejoin(peer, replica, rejoin);
     }
 
+    /// Opens again the replicas of `block` (or of every block) whose load found its objects
+    /// not to be had (`not_yet`) once the block's head moved on from that commit, or on
+    /// `reconnected`, once the connection came back.
+    fn read_not_yet(&mut self, peer: &Peer<H::Store>, block: Option<Uuid>, reconnected: bool) {
+        let ready: Vec<Uuid> = self
+            .not_yet
+            .iter()
+            .filter(|(of, commit)| {
+                block.is_none_or(|block| block == **of)
+                    && (reconnected || peer.known_remote_head(**of) != Some(**commit))
+            })
+            .map(|(of, _)| *of)
+            .collect();
+        for block in ready {
+            self.not_yet.remove(&block);
+            self.reopen(block);
+        }
+    }
+
     pub fn reconnect(&mut self, (peer, _): Ctx<'_, H>) {
+        self.read_not_yet(peer, None, true);
         self.rejoins += 1;
         let rejoin = self.rejoins;
         // One whose creation the drain has not sent yet joins once it has (`created`).
@@ -4411,6 +4457,8 @@ impl<H: Host> Replicas<H> {
         {
             self.moved(replica, head, false);
         }
+        // The join told the head: a load it was waiting on reads again on it.
+        self.read_not_yet(peer, Some(block), false);
         self.close_if_asked(replica);
     }
 
@@ -5165,9 +5213,25 @@ impl<H: Host> Replicas<H> {
                     if let Err(ClientError::Locked(_)) = &read {
                         let _ = io.send(Io::Locked { replica, arrivals });
                     }
-                    let result = read
-                        .map(be_sdk_type_api::Loaded::of)
-                        .map_err(|error| error.to_string());
+                    // What is not to be had now is no fault of the content: the replica waits
+                    // and opens again, rather than be called unreadable (and, held, reset).
+                    // A locked read has its own way back (`Io::Locked`, `unlock`).
+                    let not_yet = match &read {
+                        Err(error)
+                            if matches!(error, ClientError::MissingObject(_))
+                                || error.is_unreachable() =>
+                        {
+                            let _ = io.send(Io::NotYet { replica, commit });
+                            true
+                        }
+                        _ => false,
+                    };
+                    let result = read.map(be_sdk_type_api::Loaded::of).map_err(|error| {
+                        match not_yet {
+                            true => be_sdk_type_api::LoadError::NotYet(error.to_string()),
+                            false => be_sdk_type_api::LoadError::Unreadable(error.to_string()),
+                        }
+                    });
                     if let Ok(loaded) = &result {
                         reach
                             .lock()

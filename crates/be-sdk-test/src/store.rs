@@ -484,7 +484,7 @@ impl Inner {
                 };
                 let result = loaded
                     .map(be_sdk_type_guest::api::Loaded::of)
-                    .map_err(|error| error.to_string());
+                    .map_err(|error| be_sdk_type_guest::api::LoadError::Unreadable(error.to_string()));
                 reply.send(&mut self.host, &result);
             }
             Call::Load { reply, commit, .. } => {
@@ -496,7 +496,9 @@ impl Inner {
                         bytes: bytes.clone(),
                         parts: Vec::new(),
                     })
-                    .ok_or_else(|| "no such commit".to_owned());
+                    .ok_or_else(|| {
+                        be_sdk_type_guest::api::LoadError::Unreadable("no such commit".to_owned())
+                    });
                 reply.send(&mut self.host, &result);
             }
             call @ Call::ReadPart { .. } if self.hold_reads => self.held_reads.push((block, call)),

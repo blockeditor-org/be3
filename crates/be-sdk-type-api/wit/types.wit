@@ -348,6 +348,19 @@ interface types {
         redo,
     }
 
+    /// Why a commit's stored form did not load (`host.load`).
+    variant load-error {
+        /// Its objects are not to be had now: the server dropped the commit as a newer
+        /// head replaced it (it keeps no history the organization did not ask for), or
+        /// the connection is down. The replica waits: the host opens it again once the
+        /// block's head moves or the connection comes back. Never a reason to call the
+        /// block unreadable.
+        not-yet(string),
+        /// It was had and does not read: a decode or schema failure, which loading it
+        /// again would not change.
+        unreadable(string),
+    }
+
     /// Why a stateless request has no answer.
     variant failure {
         unknown-type,

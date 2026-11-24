@@ -36,6 +36,12 @@ another schema's; no stamp is not stale. A stale block's frame shows
 `StaleNotice` (`surfaces::StaleBlock`) with Reset (`be_host_stack::reset`, the
 type's default content), Delete, and Try anyway (`try_anyway`, for the
 session). A block the host holds itself is reset without asking, with a notice.
+Only content that was had and does not read is unreadable (`load-error.unreadable`). A load
+whose objects are not to be had now answers `load-error.not-yet`: the commit is a head another
+device replaced, which the server drops at once (it keeps no history the organization did not
+ask for, so a device that heard of a head can find it gone), or the connection is down. The
+replica waits, and the host opens it again once the block's head moves on from that commit or
+the connection comes back (`Replicas::not_yet`), so nothing is reset for it.
 
 The host keeps `be-objects/` and the refs database across builds.
 
