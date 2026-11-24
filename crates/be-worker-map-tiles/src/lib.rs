@@ -37,21 +37,23 @@ pub struct Tiles {
 }
 
 impl Work for Tiles {
-    fn start(_app: &mut App) -> Result<Self, String> {
+    type In = Job;
+    type Out = Rasterized;
+
+    fn start(_app: &mut App<Rasterized>) -> Result<Self, String> {
         Ok(Self {
             decoded: VecDeque::new(),
         })
     }
 
-    fn receive(&mut self, message: Vec<u8>, app: &mut App) -> Result<(), String> {
-        let Job { id, source, body } = Job::decode(&message)?;
+    fn receive(&mut self, job: Job, app: &mut App<Rasterized>) -> Result<(), String> {
+        let Job { id, source, body } = job;
         let tile = self.decode(source, &body);
         let result = match tile.as_ref() {
             Ok(tile) => Ok(raster::rasterize(tile, id.zoom, window(id, source))),
             Err(error) => Err(error.clone()),
         };
-        let answer = Rasterized { id, result };
-        app.send(answer.encode());
+        app.send(&Rasterized { id, result });
         Ok(())
     }
 }

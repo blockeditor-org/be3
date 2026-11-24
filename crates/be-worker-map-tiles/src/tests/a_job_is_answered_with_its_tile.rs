@@ -21,26 +21,26 @@ fn a_job_is_answered_with_its_tile() {
         source: id,
         body: Vec::new(),
     };
-    let empty = tiles
-        .ask(&job.encode())
-        .expect("the rasterizer takes the job");
+    let empty: Vec<Rasterized> = tiles.ask(&job).expect("the rasterizer takes the job");
     let not_a_tile = Job {
         id: elsewhere,
         source: elsewhere,
         body: vec![0x1f, 0x8b, 0],
     };
-    let broken = tiles
-        .ask(&not_a_tile.encode())
+    let broken: Vec<Rasterized> = tiles
+        .ask(&not_a_tile)
         .expect("the rasterizer takes the job");
 
-    let [empty] = <[Vec<u8>; 1]>::try_from(empty).expect("one answer for the job");
-    let empty = Rasterized::decode(&empty).expect("the answer decodes");
+    let [empty] = <[Rasterized; 1]>::try_from(empty)
+        .ok()
+        .expect("one answer for the job");
     assert_eq!(empty.id, id);
     let raster = empty.result.expect("an empty tile is drawn");
     assert_eq!(raster.pixels.len(), TILE_PIXELS * TILE_PIXELS * 4);
     assert!(raster.labels.is_empty());
-    let [broken] = <[Vec<u8>; 1]>::try_from(broken).expect("one answer for the job");
-    let broken = Rasterized::decode(&broken).expect("the answer decodes");
+    let [broken] = <[Rasterized; 1]>::try_from(broken)
+        .ok()
+        .expect("one answer for the job");
     assert_eq!(broken.id, elsewhere);
     assert!(broken.result.is_err());
 }

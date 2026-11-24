@@ -1,6 +1,7 @@
 use std::cell::Cell;
 
 use be_sdk_beui::worker::{App, Work};
+use be_worker_map::{Job, Rasterized};
 use be_worker_map_tiles::Tiles;
 
 use super::*;
@@ -13,15 +14,18 @@ thread_local! {
 struct FailsOnce(Tiles);
 
 impl Work for FailsOnce {
-    fn start(app: &mut App) -> Result<Self, String> {
+    type In = Job;
+    type Out = Rasterized;
+
+    fn start(app: &mut App<Rasterized>) -> Result<Self, String> {
         Tiles::start(app).map(Self)
     }
 
-    fn receive(&mut self, message: Vec<u8>, app: &mut App) -> Result<(), String> {
+    fn receive(&mut self, job: Job, app: &mut App<Rasterized>) -> Result<(), String> {
         if !FAILED.replace(true) {
             return Err("the rasterizer could not draw this tile".to_owned());
         }
-        self.0.receive(message, app)
+        self.0.receive(job, app)
     }
 }
 

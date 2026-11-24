@@ -68,26 +68,3 @@ pub struct Answer {
     pub result: Result<Rendered, String>,
     pub measures: Vec<Measure>,
 }
-
-impl Job {
-    pub fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).expect("a job always encodes")
-    }
-
-    pub fn decode(message: &[u8]) -> Result<Self, String> {
-        postcard::from_bytes(message)
-            .map_err(|error| format!("the PDF editor sent a job that did not decode: {error}"))
-    }
-}
-
-impl Answer {
-    pub fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).expect("an answer always encodes")
-    }
-
-    pub fn decode(message: &[u8]) -> Result<Self, String> {
-        postcard::from_bytes(message).map_err(|error| {
-            format!("the PDF renderer sent an answer that did not decode: {error}")
-        })
-    }
-}

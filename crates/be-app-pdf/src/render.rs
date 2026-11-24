@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, time::Instant};
+use std::{collections::HashMap, time::Instant};
 
 use be_sdk_beui::frame_time;
 
-use be_sdk_beui::worker::{Generation, Shared};
+use be_sdk_beui::worker::{Shared, Ticket};
 use be_sdk_beui::{
     PerformanceReporter, Waker,
     beui::{Image, Pos2, Vec2},
@@ -32,10 +32,9 @@ pub(crate) type RenderJobResult = Result<RenderedTile, String>;
 /// One pane's way to the renderer (be-worker-pdf-render), which every PDF the app shows shares:
 /// it sends the pane's jobs and hears only their answers, in order.
 pub(crate) struct RenderClient {
-    renderer: Shared,
-    /// The generation of the renderer each job still unanswered went to, and the frame it was
-    /// sent in by the frame clock, oldest first.
-    sent: VecDeque<(Generation, Option<Instant>)>,
+    renderer: Shared<Job, Answer>,
+    /// The frame each job still unanswered was sent in, by the frame clock.
+    sent: HashMap<Ticket, Option<Instant>>,
 }
 
 impl RenderClient {
@@ -43,37 +42,26 @@ impl RenderClient {
         let waker = waker.clone();
         Self {
             renderer: Shared::new(be_worker_pdf::MODULE, move || waker.wake()),
-            sent: VecDeque::new(),
+            sent: HashMap::new(),
         }
     }
 
     pub(crate) fn send(&mut self, data: Vec<u8>, page: usize, target: RenderTarget) {
-        let job = Job { page, target, data };
-        let generation = self.renderer.send(&job.encode());
-        self.sent.push_back((generation, frame_time()));
+        let ticket = self.renderer.send(&Job { page, target, data });
+        self.sent.insert(ticket, frame_time());
     }
 
     /// The answer to the oldest job still unanswered, once it came, with what the renderer
     /// measured recorded to `performance`.
+    /// A job the renderer stopped before answering fails alone: what was sent since is answered
+    /// by the renderer started anew.
     pub(crate) fn receive(&mut self, performance: &PerformanceReporter) -> Option<RenderJobResult> {
-        let answer = loop {
-            let answer = self.renderer.try_receive()?;
-            let generation = answer.generation;
-            match answer.result.and_then(|message| Answer::decode(&message)) {
-                Ok(answer) => break answer,
-                // That generation stopped: it answers nothing more it was sent, and what went to
-                // a later one (a send that started the renderer anew) is still to come. A stop
-                // fails nothing of this pane's if it sent that generation nothing.
-                Err(why) => {
-                    let before = self.sent.len();
-                    self.sent.retain(|(sent, _)| *sent != generation);
-                    if self.sent.len() != before {
-                        return Some(Err(why));
-                    }
-                }
-            }
+        let (ticket, answer) = self.renderer.try_receive()?;
+        let sent = self.sent.remove(&ticket).flatten();
+        let answer = match answer {
+            Ok(answer) => answer,
+            Err(why) => return Some(Err(why)),
         };
-        let sent = self.sent.pop_front().and_then(|(_, sent)| sent);
         if let (Some(sent), Some(now)) = (sent, frame_time()) {
             performance.record_duration("Round trip", now.saturating_duration_since(sent));
         }

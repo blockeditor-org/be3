@@ -76,8 +76,8 @@ fn an_apps_worker_answers_through_the_hosts_wire_and_stops_when_the_app_fails() 
     let received = Rc::new(RefCell::new(Vec::new()));
     let told = Rc::clone(&received);
     guest.enter(|| {
-        let mut worker = Worker::spawn(MODULE);
-        worker.send(b"hello".to_vec());
+        let mut worker = Worker::<Vec<u8>, Vec<u8>>::spawn(MODULE);
+        worker.send(&b"hello".to_vec());
         be_sdk_api::ops::guest::spawn(async move {
             for _ in 0..3 {
                 let message = worker.receive().await;
