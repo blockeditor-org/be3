@@ -14,6 +14,6 @@ fn the_editor_opens_with_its_cards_fitted_into_the_view() {
         stage.expand(0.5).contains_rect(cards),
         "every card is on screen, {cards:?} in {stage:?}"
     );
-    assert_eq!(shown(&mut test, "pan_zoom.zoom"), "\"Zoom 66%\"");
+    assert_eq!(test.label("editor.zoom"), "66%");
     test.snapshot("the_editor_opens_with_its_cards_fitted_into_the_view");
 }

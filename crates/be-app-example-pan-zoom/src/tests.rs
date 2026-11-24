@@ -38,3 +38,4 @@ fn shown(test: &mut BeuiTest<PanZoomRoot>, test_id: &str) -> String {
         .node_detail(node)
         .expect("the node has no text")
 }
+mod the_frame_zooms_an_editor_with_no_zoom_code_of_its_own_from_the_palette;

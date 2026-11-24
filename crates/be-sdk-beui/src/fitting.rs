@@ -27,7 +27,10 @@ impl Editor {
             let area = area.get();
             untrack(|| editor.keep_fitted_area(area));
         });
-        Fitting { editor, fit }
+        let fitting = Fitting { editor, fit };
+        // What it keeps fitted is what the frame's `editor.zoom-fit` fits.
+        editor.fit_with(move || fitting.fit());
+        fitting
     }
 }
 

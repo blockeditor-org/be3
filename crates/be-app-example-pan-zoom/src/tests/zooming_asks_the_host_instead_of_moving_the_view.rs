@@ -12,7 +12,7 @@ fn zooming_asks_the_host_instead_of_moving_the_view() {
         "the editor says once what the host keeps fitted"
     );
 
-    test.click("pan_zoom.zoom_in");
+    test.click("editor.zoom_in");
 
     let changes = test.take_view_changes();
     assert!(matches!(

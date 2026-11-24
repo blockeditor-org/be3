@@ -132,17 +132,25 @@ impl Drop for EditorSession {
 
 impl EditorSession {
     pub fn new(instance: EditorInstanceId, waker: Waker, open: Open) -> Self {
-        Self::joining(instance, waker, open, &Module::default())
+        Self::joining(
+            instance,
+            waker,
+            open,
+            crate::EditorCapabilities::default(),
+            &Module::default(),
+        )
     }
 
     pub(crate) fn joining(
         instance: EditorInstanceId,
         waker: Waker,
         open: Open,
+        capabilities: crate::EditorCapabilities,
         module: &Module,
     ) -> Self {
         let host = EditorHost::new(waker);
         host.set_instance(instance);
+        host.set_capabilities(capabilities);
         module.enter(instance, &host);
         Self::adopt(instance, open(host.clone()), host)
     }

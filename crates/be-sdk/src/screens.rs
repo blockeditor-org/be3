@@ -20,7 +20,9 @@ use crate::{
     wire::Delivery,
 };
 
-pub(crate) type Opener = Open;
+/// How an editor of this app is opened, and what its manifest says it can do
+/// (`EditorHost::capabilities`).
+pub(crate) type Opener = (Open, crate::EditorCapabilities);
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
@@ -391,12 +393,12 @@ impl Screens {
         });
         let module = &self.module;
         self.sessions.entry(instance).or_insert_with(|| {
-            let open = openers
+            let (open, capabilities) = openers
                 .iter()
                 .find(|(declared, _)| *declared == editor)
-                .map(|(_, open)| *open)
+                .map(|(_, opener)| opener.clone())
                 .unwrap_or_else(|| panic!("this app has no editor {editor}"));
-            EditorSession::joining(instance, waker, open, module)
+            EditorSession::joining(instance, waker, open, capabilities, module)
         })
     }
 

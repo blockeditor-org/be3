@@ -125,7 +125,7 @@ pub use modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, NumberInputApi,
 };
-pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomApi, PanZoomHandle, PanZoomView};
+pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomApi, PanZoomHandle, PanZoomView, ZOOM_STEP};
 pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle};
 pub use popover::{Popover, PopoverApi, PopoverHandle};

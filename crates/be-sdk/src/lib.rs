@@ -126,7 +126,7 @@ pub mod __private {
     #[cfg(target_arch = "wasm32")]
     pub struct EditorEntry {
         name: &'static str,
-        open: crate::screens::Opener,
+        open: crate::editor_session::Open,
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -162,20 +162,20 @@ pub mod __private {
         let openers = entries
             .into_iter()
             .map(|entry| {
-                let id = manifest
+                let (id, capabilities) = manifest
                     .editors
                     .iter()
                     .find(|editor| editor.name == entry.name)
-                    .map(|editor| editor.id)
+                    .map(|editor| (editor.id, editor.capabilities.clone()))
                     .or_else(|| {
                         manifest
                             .hosts
                             .iter()
                             .find(|host| host.name == entry.name)
-                            .map(|host| host.id)
+                            .map(|host| (host.id, crate::EditorCapabilities::default()))
                     })
                     .expect("every entry names a declared editor or host component");
-                (uuid::Uuid::from_bytes(id), entry.open)
+                (uuid::Uuid::from_bytes(id), (entry.open, capabilities))
             })
             .collect();
         let identity = manifest.identity;

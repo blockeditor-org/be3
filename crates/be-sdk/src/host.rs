@@ -577,6 +577,8 @@ pub struct EditorHost {
     member_events: Rc<RefCell<Vec<be_sdk_api::blocks::MemberEvent>>>,
     /// Opened as a Join member (`opening-kind.join`): no content, only the host channel.
     joined: Rc<Cell<bool>>,
+    /// What the app's manifest says this editor can do (`editors.<name>.capabilities`).
+    capabilities: Rc<RefCell<crate::EditorCapabilities>>,
     channel_events: Rc<RefCell<Vec<be_sdk_api::blocks::ChannelEvent>>>,
     hosting: Rc<Cell<Option<be_sdk_api::blocks::HostingHere>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
@@ -676,6 +678,17 @@ impl EditorHost {
 
     pub fn waker(&self) -> Waker {
         self.waker.clone()
+    }
+
+    /// What the app's manifest says this editor can do (`editors.<name>.capabilities`), such as
+    /// whether the host gives it a camera (`pan_and_zoom`).
+    pub fn capabilities(&self) -> crate::EditorCapabilities {
+        self.capabilities.borrow().clone()
+    }
+
+    /// As the manifest says; a test harness sets it for the editor it runs.
+    pub fn set_capabilities(&self, capabilities: crate::EditorCapabilities) {
+        *self.capabilities.borrow_mut() = capabilities;
     }
 
     pub fn revision(&self, pushed: Pushed) -> u64 {

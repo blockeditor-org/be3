@@ -309,6 +309,8 @@ impl OwnedEditor {
         let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
         let popped = create_signal(None::<crate::popover::Popped>);
+        let zoom = create_signal(None);
+        let fit = create_signal(None);
         let pushed = Rc::new(Mirror::new(&host));
         let mirrored = Rc::downgrade(&pushed);
         let syncing = core.on_pumped(move || {
@@ -334,6 +336,8 @@ impl OwnedEditor {
             fitted: Cell::new(None),
             pushed,
             frame_children,
+            zoom,
+            fit,
         });
         Self {
             editor: Editor(state.handle()),
@@ -376,9 +380,19 @@ struct EditorState {
     fitted: Cell<Option<NodeRef>>,
     pushed: Rc<Mirror>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
+    /// The frame's zoom actions, while the manifest declares `pan_and_zoom` (`zoom.rs`).
+    pub(crate) zoom: Signal<Option<crate::zoom::ZoomActions>>,
+    /// What "fit" does here: what the editor keeps fitted (`keep_fitted`), or its own
+    /// (`fit_with`).
+    pub(crate) fit: Signal<Option<crate::zoom::Fitter>>,
 }
 
 impl Editor {
+    pub(crate) fn zoom_state(&self) -> (Signal<Option<crate::zoom::ZoomActions>>, Signal<Option<crate::zoom::Fitter>>) {
+        let state = self.state();
+        (state.zoom, state.fit)
+    }
+
     fn state(&self) -> Rc<EditorState> {
         self.0.value()
     }

@@ -13,7 +13,8 @@ pub const MAX_SCALE: f32 = 32.0;
 
 const ZOOM_PER_SCROLL_POINT: f32 = 0.004;
 const KEY_STEP: f32 = 40.0;
-const KEY_ZOOM_STEP: f32 = 1.25;
+/// One step of zooming in or out: a `+` or `-` key, a zoom button, `editor.zoom-in`.
+pub const ZOOM_STEP: f32 = 1.25;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PanZoomView {
@@ -100,8 +101,8 @@ impl Camera {
             _ => None,
         };
         let zoom = match press.key {
-            Key::Plus => Some(KEY_ZOOM_STEP),
-            Key::Minus => Some(KEY_ZOOM_STEP.recip()),
+            Key::Plus => Some(ZOOM_STEP),
+            Key::Minus => Some(ZOOM_STEP.recip()),
             _ => None,
         };
         if pan.is_none() && zoom.is_none() && press.key != Key::Zero {
