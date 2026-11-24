@@ -1211,7 +1211,10 @@ interface paintings {
     /// What the root's surfaces painted, in beui-paint-format's encoding of
     /// screen paintings (`ScreenPaintings`), each in its pixels: each of its
     /// own under its surface's id (`Surface::Root`), and each screen of an app
-    /// it embeds, as the app painted it, under the id of the layer showing it.
+    /// it embeds, as the app painted it, under the id of the layer showing it:
+    /// a hash of the instance and the screen (be-sdk-root's
+    /// `Embedded::layer`), so never one of the small ids a root gives its own
+    /// surfaces.
     /// A surface it paints no painting of is left out, and none at all may be
     /// answered as no bytes. The host places each where the layer list drawn
     /// last shows it.

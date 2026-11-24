@@ -194,6 +194,19 @@ impl Root {
         app.layer(SESSION_SCREEN, pos2(0.0, 0.0))
     }
 
+    /// Whether the session's editor is still being opened: its host has yet to name and open
+    /// it, so the root owes its host the frame that shows it (a host waiting for its root to
+    /// settle waits for it). Once its app runs, the app's own pacing says what it owes.
+    pub(super) fn session_loading(&self) -> bool {
+        matches!(
+            &*self.session.borrow(),
+            Some(Session {
+                state: Showing::Loading,
+                ..
+            })
+        )
+    }
+
     /// The session's editor's app while it runs, with the id of the layer showing its screen
     /// once it painted it.
     pub(super) fn session_screen(&self) -> Option<(Embedded, be_lib_layers::LayerId)> {

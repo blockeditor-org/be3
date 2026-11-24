@@ -22,6 +22,9 @@ use crate::{HostCore, PendingDestructiveAction, root_settings, ui};
 #[derive(Default)]
 pub(super) struct BlockStack {
     making: Vec<(u64, Making)>,
+    /// Requests the host cannot start yet: an agent asked for while another of the
+    /// organization's requests is in flight (listing the agents), which `HostCore` would drop.
+    deferred: Vec<(u64, SecretCommand)>,
 }
 
 /// A secret `HostCore` is making for the root, which it hands over once made.
@@ -48,7 +51,16 @@ impl BlockStack {
                 core.command(context, command);
             }
         }
-        for (id, command) in root.take_secret_requests() {
+        let asked = std::mem::take(&mut self.deferred)
+            .into_iter()
+            .chain(root.take_secret_requests());
+        for (id, command) in asked {
+            if matches!(command, SecretCommand::CreateAgent(_))
+                && core.pending_organization_request.is_some()
+            {
+                self.deferred.push((id, command));
+                continue;
+            }
             match self.start(core, context, command) {
                 Ok(making) => self.making.push((id, making)),
                 Err(secret) => {

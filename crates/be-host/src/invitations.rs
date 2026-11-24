@@ -20,6 +20,11 @@ pub(crate) struct Invitations {
     inviting: bool,
     /// The link it made.
     made: Option<String>,
+    /// Whether an invitation is being made (`invite`), until the server answers it, whatever
+    /// else the list's requests are doing.
+    creating: bool,
+    /// Why making the last invitation failed, apart from the list's own errors.
+    make_error: Option<String>,
     /// The invite list is open.
     listing: bool,
     rows: Vec<Invite>,
@@ -33,6 +38,8 @@ impl Default for Invitations {
         Self {
             inviting: false,
             made: None,
+            creating: false,
+            make_error: None,
             listing: false,
             rows: Vec::new(),
             busy: false,
@@ -56,6 +63,8 @@ impl Invitations {
         self.inviting = true;
         self.made = None;
         self.error = None;
+        self.make_error = None;
+        self.creating = true;
         self.busy = true;
         let post = self.replies.1.clone();
         be_host_stack::create_invitation(Box::new(move |made| post.send(Reply::Made(made))));
@@ -75,9 +84,14 @@ impl Invitations {
     }
 
     pub(crate) fn close(&mut self) {
-        let inviting = (self.inviting, self.made.take());
+        let inviting = (
+            self.inviting,
+            self.made.take(),
+            self.creating,
+            self.make_error.take(),
+        );
         *self = Self::default();
-        (self.inviting, self.made) = inviting;
+        (self.inviting, self.made, self.creating, self.make_error) = inviting;
     }
 
     pub(crate) fn revoke(&mut self, link: Uuid) {
@@ -88,6 +102,9 @@ impl Invitations {
 
     fn replied(&mut self, reply: Reply) {
         self.busy = false;
+        if matches!(reply, Reply::Made(_)) {
+            self.creating = false;
+        }
         match reply {
             Reply::Made(Ok(link)) => {
                 self.made = Some(link);
@@ -97,7 +114,11 @@ impl Invitations {
                 }
             }
             Reply::Listed(Ok(rows)) => self.rows = rows,
-            Reply::Made(Err(error)) | Reply::Listed(Err(error)) => self.error = Some(error),
+            Reply::Made(Err(error)) => {
+                self.make_error = Some(error.clone());
+                self.error = Some(error);
+            }
+            Reply::Listed(Err(error)) => self.error = Some(error),
         }
     }
 
@@ -209,7 +230,7 @@ impl Invitations {
         if let Some(link) = &self.made {
             return Some(Ok(link.clone()));
         }
-        match (self.busy, &self.error) {
+        match (self.creating, &self.make_error) {
             (true, _) => None,
             (false, Some(error)) => Some(Err(error.clone())),
             (false, None) => Some(Err("no invitation was made".to_owned())),

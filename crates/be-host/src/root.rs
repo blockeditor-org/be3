@@ -144,8 +144,8 @@ struct RootShell {
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
     /// The memory rows the root was last handed while it watches the host's statistics.
     memory: Option<MemoryRows>,
-    /// The editors be-host serves the root's apps, by the root's instance each runs in.
-    editors: HashMap<u64, Forwarded>,
+    /// The editors be-host serves the root's apps, and the asks for them that wait.
+    editors: Editors,
     /// The block stack as the root is shown it, and the secrets it asked for.
     block_stack: block_stack::BlockStack,
 }
@@ -193,7 +193,7 @@ impl RootShell {
             notices: None,
             pasted: Rc::default(),
             memory: None,
-            editors: HashMap::new(),
+            editors: Editors::default(),
             block_stack: block_stack::BlockStack::default(),
         }
     }
@@ -439,6 +439,12 @@ impl beui::native::Program for RootShell {
             false => self.core.busy(false),
         };
         busy.extend(be_host_runtime::busy());
+        if self.core.root_session_pending {
+            busy.push("the session's block is not listed yet".to_owned());
+        }
+        if !self.editors.asks.is_empty() || !self.editors.openings.is_empty() {
+            busy.push("the root asked for an editor of a block not listed yet".to_owned());
+        }
         if self.owed {
             busy.push(format!("the root {} owes a frame", self.app));
         }
@@ -651,8 +657,18 @@ fn refuse_unserved(root: &mut Root) {
 /// `Forwarded`, one for each of the root's instances, and serves what each app's editors ask
 /// through the root (`host.forward`, `host.forwarded`) as be-host serves its own apps. An
 /// instance the root let go of, or that stopped, it stops serving.
-fn serve_editors(core: &crate::HostCore, root: &mut Root, served: &mut HashMap<u64, Forwarded>) {
-    for (id, block) in root.take_editor_asks() {
+fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors) {
+    let served = &mut editors.served;
+    let asks = std::mem::take(&mut editors.asks)
+        .into_iter()
+        .chain(root.take_editor_asks());
+    for (id, block) in asks {
+        // While the stack does not list the session's block (yet, or again for a moment), an
+        // ask for a block it does not list waits for it rather than failing.
+        if core.root_session_pending && be_host_stack::node(Uuid::from_bytes(block)).is_none() {
+            editors.asks.push((id, block));
+            continue;
+        }
         let editor = core
             .editor_of(Uuid::from_bytes(block))
             .map(|(app, _, _)| EditorApp {
@@ -662,7 +678,16 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, served: &mut HashMap<u
             });
         root.answer_editor(id, editor);
     }
-    for opening in root.take_openings() {
+    let openings = std::mem::take(&mut editors.openings)
+        .into_iter()
+        .chain(root.take_openings());
+    for opening in openings {
+        if core.root_session_pending
+            && be_host_stack::node(Uuid::from_bytes(opening.block)).is_none()
+        {
+            editors.openings.push(opening);
+            continue;
+        }
         let opened = open_editor(core, &opening, served);
         root.answer_opening(opening.id, opened);
     }
@@ -673,8 +698,9 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, served: &mut HashMap<u
         match forwarded.receive(frames) {
             Ok(frames) => root.relay(instance, frames),
             Err(why) => {
-                eprintln!("be-host: the root's app {instance} broke the app protocol: {why}");
+                // Stopped toward the root too, which shows that it stopped.
                 served.remove(&instance);
+                root.stop_instance(instance, &format!("it broke the app protocol: {why}"));
             }
         }
     }
@@ -682,6 +708,15 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, served: &mut HashMap<u
     for (instance, forwarded) in served.iter_mut() {
         root.relay(*instance, forwarded.step());
     }
+}
+
+/// The editors be-host serves the root's apps, by the root's instance each runs in, and the
+/// root's asks for editors of blocks the stack does not list yet, which wait until it does.
+#[derive(Default)]
+struct Editors {
+    served: HashMap<u64, Forwarded>,
+    asks: Vec<(u64, [u8; 16])>,
+    openings: Vec<EditorOpening>,
 }
 
 /// Opens the editor `opening` asks for in the app the root's instance runs, which must be the
