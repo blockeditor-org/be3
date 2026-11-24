@@ -766,6 +766,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
     sealing: bool,
+    /// A seal the host asked for (a flush) was put off while this holder's own edits or a reload
+    /// were on their way: it goes once they land, rather than waiting for a quiet spell.
+    seal_asked: bool,
     closing: Option<u64>,
     loaded: bool,
     released: bool,
@@ -1087,6 +1090,7 @@ where
             replaced_through: 0,
             epoch: opened.epoch,
             sealing: false,
+            seal_asked: false,
             closing: None,
             loaded: false,
             released: false,
@@ -1124,6 +1128,16 @@ where
                     sealing: Sealing::Due,
                     reply: None,
                 });
+            }
+            if self.seal_asked && !self.sealing && !self.own_on_its_way() {
+                self.seal_asked = false;
+                if self.seal_would_settle() {
+                    self.sealing = true;
+                    self.jobs.push_back(Job::Seal {
+                        sealing: Sealing::Due,
+                        reply: None,
+                    });
+                }
             }
             self.flush_editors();
             if self.released {
@@ -3393,6 +3407,15 @@ where
             && self.seal_retry_at.is_none_or(|at| self.now >= at)
     }
 
+    /// Whether this replica's own edits wait for their place in the order, or a reload of its
+    /// own is on its way.
+    fn own_on_its_way(&self) -> bool {
+        self.in_flight > 0
+            || !self.unsent.is_empty()
+            || !self.reloading.is_empty()
+            || !self.reloads_putting.is_empty()
+    }
+
     fn has_unsealed_work(&self) -> bool {
         self.applied > self.sealed || !self.keep.is_empty()
     }
@@ -4906,6 +4929,10 @@ where
         // the reload replaces.
         if skip || !self.reloading.is_empty() || !self.reloads_putting.is_empty() {
             self.sealing = false;
+            // Asked for while what it would seal is still on its way: it goes once that lands.
+            if reply.is_some() && sealing == Sealing::Due && self.is_holder() {
+                self.seal_asked |= self.own_on_its_way();
+            }
             if let Some(id) = reply {
                 self.reply(id, Answer::Sealed);
             }

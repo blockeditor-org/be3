@@ -1900,10 +1900,6 @@ impl Session<'_> {
                         ran.carry_out(command).await;
                     }
                     after_order.splice(0..0, held);
-                    // A flush that ran ahead of them seals what they made, as it was asked to.
-                    if ran.served.take_flushed_ahead() {
-                        seal_now(peer, shared, ran.replicas, ran.tasks).await;
-                    }
                     true
                 }
             };
@@ -3057,9 +3053,6 @@ impl Ran<'_> {
             return false;
         };
         let sealed_owed = matches!(command, Command::SealOwed);
-        if matches!(command, Command::Flush(_)) {
-            self.served.flushed_ahead();
-        }
         if let Some(block) = command.asks_server_of() {
             self.tasks.sent(self.peer, self.shared, Some(block)).await;
         }

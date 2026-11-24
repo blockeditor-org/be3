@@ -90,6 +90,7 @@ mod a_replica_whose_content_does_not_decode_tells_its_editors_it_failed;
 mod a_restart_keeps_a_peers_pending_edit_and_the_peers_cursors;
 mod a_restart_that_removes_the_dragged_item_ends_it;
 mod a_restart_waits_for_a_seal_holding_everything_the_order_numbered;
+mod a_seal_asked_for_while_an_edit_waits_for_its_place_goes_once_it_has_one;
 mod a_restart_waits_for_the_holder_to_be_alone_below_the_ceiling;
 mod a_seal_counted_in_another_run_of_the_order_is_merged_not_taken_as_news;
 mod a_seal_mid_drag_leaves_the_drag_out_of_the_commit;
@@ -1076,6 +1077,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         let ticket = self.with_replica(device, |replica, host| replica.change(host, change));
         let outcome = self.answered(device, ticket.op());
         ticket.decode(outcome).expect("a change is answered")
+    }
+
+    /// The host asks `device`'s replica to seal what it owes, as a flush does.
+    fn seal(&mut self, device: usize) {
+        let ticket = self.with_replica(device, |replica, host| replica.seal(host, false));
+        let outcome = self.answered(device, ticket.op());
+        ticket.decode(outcome).expect("a seal is answered");
     }
 
     fn content(&mut self, device: usize) -> C {
