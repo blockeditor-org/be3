@@ -49,6 +49,7 @@ struct Placed {
     gap: f32,
     align: Align,
     baseline: Option<f32>,
+    sticky: bool,
 }
 
 #[derive(Default)]
@@ -142,6 +143,7 @@ impl ListNode {
             gap,
             align,
             baseline,
+            sticky: item.size.sticky,
         }
     }
 
@@ -313,6 +315,9 @@ impl ListNode {
             false => 0.0,
         };
         let starts = justified(grid, self.justify, leftover, &line.items);
+        // What of the list is visible, read only for a list that sticks something: reading it
+        // lays the list out again whenever the scroll around it moves.
+        let mut visible = None;
         for (item, start) in line.items.iter().zip(starts) {
             let (offset, length) = self.cross_place(grid, item, line, cross);
             let offset = self.axes(start, line_start + offset);
@@ -331,8 +336,42 @@ impl ListNode {
                 ),
                 _ => child_rect,
             };
+            let child_rect = match item.sticky && !self.wrap {
+                true => {
+                    let visible = *visible.get_or_insert_with(|| painter.clip_rect());
+                    self.stuck(child_rect, rect, visible)
+                }
+                false => child_rect,
+            };
             crate::layout::layout(doc, painter, item.child, child_rect, out);
         }
+    }
+
+    /// Where a sticky child at `child` goes: down to the start edge of what is `visible` of
+    /// the list once that edge has passed it, but no further than the list's end.
+    fn stuck(&self, child: Rect, list: Rect, visible: Rect) -> Rect {
+        let edge = self.main_and_cross(visible.min.to_vec2()).0;
+        let (start, length) = (
+            self.main_and_cross(child.min.to_vec2()).0,
+            self.main_and_cross(child.size()).0,
+        );
+        let end = self.main_and_cross(list.max.to_vec2()).0;
+        if !edge.is_finite() || edge <= start {
+            return child;
+        }
+        let at = edge.min(end - length).max(start);
+        child.translate(self.axes(at - start, 0.0))
+    }
+
+    /// The children in the order they are drawn: sticky ones last, above what scrolls under
+    /// them.
+    fn drawn(&self) -> impl Iterator<Item = NodeId> + '_ {
+        let sticky = move |item: &&ListEntry| item.size.sticky && !self.wrap;
+        self.items
+            .iter()
+            .filter(move |item| !sticky(item))
+            .chain(self.items.iter().filter(sticky))
+            .map(|item| item.child)
     }
 
     fn cross_place(&self, grid: PixelGrid, item: &Placed, line: &Line, cross: f32) -> (f32, f32) {
@@ -493,13 +532,15 @@ impl Element for ListNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        crate::paint::paint_raised_last(doc, painter, rects, || {
-            self.items.iter().map(|item| item.child)
-        });
+        crate::paint::paint_raised_last(doc, painter, rects, || self.drawn());
     }
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        self.drawn().collect()
     }
 
     fn children_revision(&self) -> Option<u64> {

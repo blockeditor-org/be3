@@ -392,6 +392,9 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="FirstFit" code={vec![FittingLabels::SOURCE, Tile::SOURCE]}>
                 <FittingLabels />
             </Sample>
+            <Sample title="Sticky items" code={vec![StickyHeaders::SOURCE, StickyHeader::SOURCE, Tile::SOURCE]}>
+                <StickyHeaders />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -517,6 +520,42 @@ fn ListJustify() -> NodeId {
                 </ForEach>
             </List>
         </List>
+    }
+}
+
+/// Each planet group's header stays at the top of the scroll while its group scrolls under it,
+/// and the next group's end carries it off. It opens scrolled a little, with the first header
+/// already stuck. Its scroll fades no edge, which would fade the header over what is under it.
+#[sample]
+#[component]
+fn StickyHeaders() -> NodeId {
+    let groups = vec![("Inner", &PLANETS[..4]), ("Outer", &PLANETS[4..])];
+    view! {
+        <Frame @test_id="demo.lists.sticky" width={Extent::px(PANEL_WIDTH)} height={Extent::px(180.0)}>
+            <beui::unstyled::Scroll offset=60.0 style={beui::styled::scroll::scroll_style().fading(0.0)}>
+                <ForEach value={groups}>|(name, planets): (&'static str, &'static [&'static str])|
+                    <List spacing=8.0>
+                        <ListItem sticky=true>
+                            <StickyHeader label={name.to_owned()} />
+                        </ListItem>
+                        <ForEach value={planets.to_vec()}>|planet: &'static str|
+                            <Tile label={planet.to_owned()} />
+                        </ForEach>
+                    </List>
+                </ForEach>
+            </beui::unstyled::Scroll>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn StickyHeader(label: Prop<String>) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame fill={theme.background} padding={Sides::symmetric(4.0, 6.0)}>
+            <Text color={theme.text_muted}>{label}</Text>
+        </Frame>
     }
 }
 

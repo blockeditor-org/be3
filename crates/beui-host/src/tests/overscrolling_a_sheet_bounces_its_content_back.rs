@@ -17,9 +17,9 @@ fn overscrolling_a_sheet_bounces_its_content_back() {
         harness.touch(TouchPhase::Move, pos2(200.0, 580.0 - step as f32 * 15.0));
     }
     let stretched = harness.document().scroll_overscroll(sheet);
-    let end = harness.document().scroll_offset(sheet) - stretched;
+    let end = sheet_scrolled(&harness, sheet) - stretched;
     assert_eq!(
-        harness.rect(sheet).height(),
+        sheet_raised(&harness, sheet),
         540.0,
         "the sheet stays at its top stop"
     );
@@ -42,7 +42,7 @@ fn overscrolling_a_sheet_bounces_its_content_back() {
     harness.settle();
     assert_eq!(harness.document().scroll_overscroll(sheet), 0.0);
     assert_eq!(
-        harness.document().scroll_offset(sheet),
+        sheet_scrolled(&harness, sheet),
         end,
         "and rests at its end"
     );

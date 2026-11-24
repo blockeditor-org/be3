@@ -31,7 +31,7 @@ fn the_arrow_keys_step_a_focused_sheet_handle_between_its_stops() {
         harness
             .document()
             .node_rect(sheet.get())
-            .map(|rect| rect.height())
+            .map(|_| sheet_raised(harness, sheet.get()))
     };
     let handle = harness
         .document()
