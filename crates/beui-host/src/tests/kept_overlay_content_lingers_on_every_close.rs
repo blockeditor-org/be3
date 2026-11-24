@@ -20,21 +20,17 @@ fn kept_overlay_content_lingers_on_every_close() {
                     anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
                     placement=Placement::At
                     open={open}
-                >|| {
-                    let presence = use_overlay_presence();
-                    view! {
-                        <Kept>|| {
-                            builds.update(|builds| *builds += 1);
-                            if let Some(presence) = presence {
-                                presence.provide();
-                                presence.linger_while(create_memo(move || leaving.get()));
-                            }
-                            view! {
-                                <Frame width=40.0 height=30.0 />
-                            }
-                        }</Kept>
-                    }
-                }</Overlay>
+                >||
+                    <Kept>|| {
+                        builds.update(|builds| *builds += 1);
+                        // Read inside the kept subtree, with nothing carrying it in.
+                        let presence = use_overlay_presence().expect("the kept content reads its overlay's presence");
+                        presence.linger_while(create_memo(move || leaving.get()));
+                        view! {
+                            <Frame width=40.0 height=30.0 />
+                        }
+                    }</Kept>
+                </Overlay>
             </KeepAlive>
         }
     });

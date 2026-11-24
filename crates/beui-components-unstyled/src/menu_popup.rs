@@ -91,7 +91,6 @@ pub fn MenuPopup(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] focusing: Prop<bool>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
@@ -132,7 +131,6 @@ pub fn MenuPopup(
             at
             placement
             bounds
-            keep_alive
             open
             sheet
             traps_focus={focusing}

@@ -798,7 +798,6 @@ pub(crate) fn RasterDialogs(state: CanvasState) -> NodeId {
             width.get() < held_width || height.get() < held_height
         })
     });
-    let rows = (0..3).collect::<Vec<usize>>();
     let apply = move || {
         if let RasterDialog::Resize(id) = dialog.get_untracked() {
             state.record(InfiniteCanvasOperation::Resize {
@@ -861,7 +860,7 @@ pub(crate) fn RasterDialogs(state: CanvasState) -> NodeId {
                         </ListItem>
                     </List>
                     <Text style=TextStyle::CAPTION>"Anchor"</Text>
-                    <ForEach value={rows}>|row: usize|
+                    <ForEach value={(0..3).collect::<Vec<usize>>()}>|row: usize|
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
                     <Show value={cropping}>

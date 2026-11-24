@@ -179,8 +179,8 @@ pub fn footer_order(actions: &[DialogAction], narrow: bool) -> FooterOrder {
     }
 }
 
-/// Whether the dialog around a `DialogBody` is open: it keeps its body while
-/// closed, so the body asks for its focus again each time it reopens.
+/// Whether the dialog around a `DialogBody` is open: its body stays while the
+/// dialog leaves, and lets go of the focus it asked for as it closes.
 #[derive(Clone, Copy)]
 struct DialogOpen(Memo<bool>);
 
@@ -224,8 +224,8 @@ pub fn DialogBody(
         if kind != DialogKind::Alert || !focuses.get() {
             return None;
         }
-        // A dialog keeps its body while closed, so the request falls when it
-        // closes and rises again, refocusing, each time it reopens.
+        // The body stays while the dialog leaves, so the request falls as it
+        // closes.
         if shown_now.is_some_and(|open| !open.get()) {
             return None;
         }
@@ -374,7 +374,8 @@ pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: Callback<()>,
     pub tall: bool,
-    pub body: NodeId,
+    /// Builds what shows the body in the sheet: call it in the sheet's content.
+    pub body: BuildFn<NodeId>,
 }
 
 pub struct DialogCardHandle {
@@ -476,9 +477,9 @@ pub fn Dialog(
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = 0.0)] beak: f32,
     on_dismiss: Callback<()>,
-    card: Render<DialogCardHandle, NodeId>,
+    card: RenderFn<DialogCardHandle, NodeId>,
     sheet: Render<DialogSheetHandle, NodeId>,
-    body: Render<DialogLayout, NodeId>,
+    body: RenderFn<DialogLayout, NodeId>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
     let viewport = use_viewport_size();
@@ -525,24 +526,25 @@ pub fn Dialog(
     provide_context(layout);
     provide_context(Modality(create_memo(|| true)));
     provide_context(DialogOpen(open));
-    let mut ever = false;
-    let opened = create_memo(move || {
-        ever |= open.get();
-        ever
-    });
     let built = create_signal(None::<NodeId>);
     let card_built = create_signal(None::<NodeId>);
     let in_sheet = create_memo(move || sheeted.get().then(|| built.get()).flatten());
     let in_card = create_memo(move || (!sheeted.get()).then(|| built.get()).flatten());
     let pointer = NodeRef::new();
-    let pending = std::cell::Cell::new(Some((body, card)));
+    // The body is built each time the dialog opens, and dropped once it is closed and no
+    // surface shows it any more (each counts itself in `showing` while it does).
+    let showing = create_signal(0_usize);
+    let held = store(std::cell::RefCell::new(None::<Scope>));
+    let was_open = std::cell::Cell::new(false);
     let scope = owner_scope().expect("a dialog is built inside a scope");
     create_binding(move || {
-        if opened.get()
-            && let Some((body, card)) = pending.take()
-        {
+        let now = open.get();
+        let shown = showing.get() > 0;
+        let opened = !was_open.replace(now) && now;
+        if opened {
+            let fresh = scope.run(Scope::detached);
             let (node, card) = untrack(|| {
-                scope.run(|| {
+                fresh.context().run(|| {
                     let node = body.call(layout);
                     let card = card.call(DialogCardHandle {
                         pointer,
@@ -553,8 +555,15 @@ pub fn Dialog(
                     (node, card)
                 })
             });
+            let old = held.value().borrow_mut().replace(fresh);
+            drop(old);
             built.set(Some(node));
             card_built.set(Some(card));
+        } else if !now && !shown && held.value().borrow().is_some() {
+            built.set(None);
+            card_built.set(None);
+            let old = held.value().borrow_mut().take();
+            drop(old);
         }
     });
     let centred_card = create_memo(move || centred.get().then(|| card_built.get()).flatten());
@@ -567,14 +576,15 @@ pub fn Dialog(
     let as_card = create_memo(move || ready.get() && centred.get());
     let as_sheet = create_memo(move || ready.get() && sheeted.get());
     let as_layer = create_memo(move || ready.get() && !centred.get() && !sheeted.get());
-    let sheet_body = view! {
-        <Portal node={in_sheet} />
-    };
     let sheet = sheet.call(DialogSheetHandle {
         open: as_sheet,
         close: on_dismiss,
         tall: size == DialogSize::Large,
-        body: sheet_body,
+        body: BuildFn::new(move || {
+            view! {
+                <Shows node={in_sheet} showing />
+            }
+        }),
     });
     let held = NodeRef::new();
     let frame = create_memo(move || Rect::from_min_size(Pos2::ZERO, viewport.get()));
@@ -626,7 +636,7 @@ pub fn Dialog(
                 motion={ModalMotion::Slides(slide)}
                 on_dismiss={on_dismiss}
             >|_: ModalHandle|
-                <Portal node={centred_card} />
+                <Shows node={centred_card} showing />
             </Modal>
             <Overlay
                 anchor={at}
@@ -636,10 +646,24 @@ pub fn Dialog(
                 beak={reach}
                 open={as_layer}
                 on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-            >
-                <Portal node={layer_card} />
+            >||
+                <Shows node={layer_card} showing />
             </Overlay>
             {sheet}
         </List>
+    }
+}
+
+/// Shows `node` through a portal, counted in `showing` while it is built.
+#[component]
+fn Shows(node: Memo<Option<NodeId>>, showing: Signal<usize>) -> NodeId {
+    showing.update(|showing| *showing += 1);
+    on_cleanup(move || {
+        if showing.is_alive() {
+            showing.update(|showing| *showing = showing.saturating_sub(1));
+        }
+    });
+    view! {
+        <Portal node={node} />
     }
 }

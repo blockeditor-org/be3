@@ -67,7 +67,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: Callback<()>,
-    #[prop(children)] content: Build<NodeId>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
     let scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));

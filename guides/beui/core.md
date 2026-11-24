@@ -204,11 +204,12 @@ it. A key in `awake` keeps running while hidden and reads as shown, for a
 subtree whose purpose is shown elsewhere (a dock tab whose own dock joined);
 it is still dropped once `keep` no longer lists it.
 
-A kept subtree belongs to the `KeepAlive`, not the `Kept` that first built it,
-so it reads the context provided around the `KeepAlive`, not what is provided
-between it and the `Kept`. Content that needs a value from in between reads it
-outside the `Kept` and provides it again inside, as overlay content does with
-`use_overlay_presence()` and `presence.provide()`. Inside, `kept_shown()` is a
+A kept subtree belongs to the `KeepAlive`, which owns, pauses and disposes it,
+but reads its context from where it is shown: while a `Kept` shows it, from
+around that `Kept` (an overlay's presence, say), and while hidden, from around
+the `KeepAlive` (`Scope::read_context_from`). What it reads as it builds comes
+from the `Kept` that first built it; what it builds later, once moved, from the
+`Kept` it moved to. Inside, `kept_shown()` is a
 memo of whether the subtree (and every one kept around it) is shown, for what
 it holds outside itself and must let go while hidden. Each `Kept` adds a portal
 node between its slot and what it keeps.

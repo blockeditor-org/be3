@@ -1380,12 +1380,12 @@ pub fn ModalSheet(
     #[prop(default = 0.0)] fade: f32,
     curves: SheetCurves,
     scrim: Prop<Color>,
-    grip: Render<SheetGripHandle, NodeId>,
-    panel: Render<NodeId, NodeId>,
+    grip: RenderFn<SheetGripHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
     on_close: Callback<()>,
-    #[prop(children)] content: Build<NodeId>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
-    let shown = open;
+    let shown = open.clone();
     view! {
         <Modal
             open
@@ -1395,14 +1395,14 @@ pub fn ModalSheet(
             on_dismiss={on_close}
         >|modal: ModalHandle|
             <ModalSheetBody
-                open={shown}
+                open={shown.clone()}
                 rest
-                stops
+                stops={stops.clone()}
                 fit
                 fade
                 curves
-                grip
-                panel
+                grip={move |handle: SheetGripHandle| grip.call(handle)}
+                panel={move |content: NodeId| panel.call(content)}
                 on_presence={modal.presence}
                 on_close={on_close}
             >
