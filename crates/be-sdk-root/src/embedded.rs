@@ -81,6 +81,8 @@ pub struct Hosted {
     pub preview: bool,
     /// Whether the editor pans and zooms its own world (`host.editor-of`'s `pan-and-zoom`).
     pub pan_and_zoom: bool,
+    /// The editor, as its app's manifest names it (`host.editor-of`'s `editor`).
+    pub shows: [u8; 16],
 }
 
 /// Why `Embedded::spawn_block` spawned nothing.
@@ -212,6 +214,7 @@ impl Embedded {
         let name = editor.name;
         let preview = editor.preview;
         let pan_and_zoom = editor.pan_and_zoom;
+        let shows = editor.editor;
         let app = Self::spawn_app(editor.app, editor.module, spawn.surface, spawn.fonts, now);
         let editor = app
             .open_editor(spawn.shown)
@@ -227,6 +230,7 @@ impl Embedded {
             name,
             preview,
             pan_and_zoom,
+            shows,
         })
     }
 

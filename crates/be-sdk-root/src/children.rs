@@ -1,8 +1,9 @@
 //! The children the editors of an app a root embeds place (guides/apps/children.md), as the root
 //! shows them (plans/host_as_platform_adapter.md, 4g7b3): each block child placed to run its
 //! editor is that block's editor, which the root's host opens and serves
-//! (`Embedded::open_editor`), asked for a screen the size of its place and composited there: under its placer's layer, which leaves the hole it cut for it, or over
-//! it for a child placed `ChildLayer::Above`. A child that takes input where it is placed
+//! (`Embedded::open_editor`), asked for a screen the size of its place and composited there:
+//! under its placer's layer, which leaves the hole it cut for it, or over it for a child placed
+//! `ChildLayer::Above`. A child that takes input where it is placed
 //! (active, live or in place) takes the presses there; a passive one leaves them to its placer.
 //! The children those editors place are shown the same way, any number of levels deep.
 //!
@@ -57,8 +58,9 @@
 //! while no popover or keyboard-taking layer of the editor's is open (the editor's own popovers
 //! are in its screen, so the root does not see them), the press that promotes a child replayed in
 //! it, a joined dock's tab menus, picks and details (the editors' menus reach the root's host as
-//! shell messages it does not take yet), drags, and every other kind of child (web views, host panels, program windows, pickers, creations, artifact
-//! settings and rename forms), which the placer hears are unavailable.
+//! shell messages it does not take yet), drags, and every other kind of child (web views, host
+//! panels, program windows, pickers, creations, artifact settings and rename forms), which the
+//! placer hears are unavailable.
 
 use std::{
     cell::{Cell, RefCell},
@@ -297,6 +299,9 @@ struct Editor {
     tab_asks: RefCell<Vec<TabAsk>>,
     /// The places showing its main view and its preview view.
     main_place: Cell<Option<PlaceKey>>,
+    /// Whether the place showing its main view takes its placer's frame, whose screen is the
+    /// placer's size: no other place shows a copy of it then.
+    main_framed: Cell<bool>,
     preview_place: Cell<Option<PlaceKey>>,
     /// Its main view and its preview view as asked last: a docked editor no place shows is asked
     /// for its main view still.
@@ -351,6 +356,7 @@ impl Editor {
             asks: RefCell::new(Vec::new()),
             tab_asks: RefCell::new(Vec::new()),
             main_place: Cell::new(None),
+            main_framed: Cell::new(false),
             preview_place: Cell::new(None),
             main: RefCell::new(None),
             preview: RefCell::new(None),
@@ -401,11 +407,21 @@ impl Editor {
             held.asked = true;
             return held.screen;
         }
+        let first = screen_of(editor, FIRST_TAB_SCREEN).0;
+        let last = screen_of(editor, SCREENS_PER_EDITOR - 1).0;
         let next = tabs
             .iter()
             .map(|held| held.screen.0 + 1)
             .max()
-            .unwrap_or(screen_of(editor, FIRST_TAB_SCREEN).0);
+            .unwrap_or(first);
+        // Past its editor's numbers, the lowest one free: a screen let go of is taken again
+        // only once the numbers after the last one held run out.
+        let next = match next <= last {
+            true => next,
+            false => (first..=last)
+                .find(|free| tabs.iter().all(|held| held.screen.0 != *free))
+                .unwrap_or(last),
+        };
         let screen = ScreenId(next);
         tabs.push(TabScreen {
             tab,
@@ -437,6 +453,8 @@ impl Editor {
             .or(mains.first())
             .copied();
         self.main_place.set(main_place.map(|ask| ask.key));
+        self.main_framed
+            .set(main_place.is_some_and(|ask| ask.framing.is_some()));
         let area = |ask: &&PlaceAsk| ask.placement.rect.width() * ask.placement.rect.height();
         let preview_place = asks
             .iter()
@@ -930,14 +948,20 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
     }
 }
 
-/// The key of the editor `child` shows (`EditorKey`): its block's, unless its block's editor is
-/// held by another place that asked for another editor than it asks for, when it is a twin of
-/// its own, as be-host's `Editors::place` says. A preview is never a twin.
+/// The key of the editor `child` shows (`EditorKey`): its block's, unless it asks for another
+/// editor than the one holding its block, when it is a twin of its own, as be-host's
+/// `Editors::place` says: the editor that holds it, once open, else the one its place named.
+/// One asking for none, or for the editor holding it, shares it, whatever view block it names;
+/// a preview is never a twin.
 fn editor_key(child: &Child) -> EditorKey {
     let block = EditorKey::Block(child.block);
     let holder = POOL.with_borrow(|pool| pool.editors.get(&block).and_then(Weak::upgrade));
-    match (holder, child.shown.editor) {
-        (Some(holder), Some(asked)) if !child.previewed() && holder.shown.editor != Some(asked) => {
+    let held = holder.map(|holder| match &*holder.showing.borrow() {
+        Showing::Shown { hosted, .. } => Some(hosted.shows),
+        Showing::Opening | Showing::Label | Showing::Failed(_) => holder.shown.editor,
+    });
+    match (held, child.shown.editor) {
+        (Some(held), Some(asked)) if !child.previewed() && held != Some(asked) => {
             EditorKey::Twin(child.place())
         }
         _ => block,
@@ -985,9 +1009,12 @@ impl Children {
         };
         self.settle_in(parent, None, above, &mut settling, Vec::new(), true);
         // Each editor is asked for its screens once every place showing it said what it asks.
+        // Its own children were followed against the screens it was asked for before: one that
+        // changed them lays out anew for them, and the placements of that layout bring the
+        // settle that follows its children against them, so they lag no layout behind.
         let visited = POOL.with_borrow_mut(|pool| std::mem::take(&mut pool.visited));
         for editor in &visited {
-            editor.show(&docks);
+            editor.show(settling.docks);
         }
         self.tell_all();
         self.hear_docks(parent, &mut docks);
@@ -1699,9 +1726,9 @@ impl Children {
         let shown = layer.transform.bounds(layer.clip);
         let mut below = Vec::new();
         let mut over = Vec::new();
-        let mut holes = Vec::new();
-        // The occluders over the holes, in the placer's pixels, which it is hit in still.
-        let mut occluders = Vec::new();
+        // Where children that take input are, in the placer's pixels, each with the occluders
+        // that hide it, where the placer is hit still.
+        let mut holes: Vec<(Rect, Vec<Rect>)> = Vec::new();
         let placed_in = |editor: EditorInstanceId, view: ViewId| {
             (editor, view) == (screen.instance, screen.view)
         };
@@ -1723,6 +1750,11 @@ impl Children {
             // shows itself, is drawn scaled to its own place, hit nowhere, and without the
             // editor's own children, which that place shows.
             let copy = child.copy();
+            // The main view taking its placer's frame is the placer's size: other places show
+            // none of it.
+            if copy && !child.previewed() && child.shared.main_framed.get() {
+                continue;
+            }
             if copy {
                 shown_child.id = copy_layer(shown_child.id, child.place());
             }
@@ -1795,22 +1827,27 @@ impl Children {
                 (false, false) => Area::Nowhere,
             };
             if active && !framing && placement.layer == ChildLayer::Below {
+                // A child placed to fit takes the presses only where it took room; a turned
+                // one, the upright bounds of its place.
+                let room = child.fitted().map_or(placement.rect.size(), |room| {
+                    be_lib_geometry::vec2(room.width, room.height)
+                });
                 let swept = placed_transform(placement, be_lib_geometry::vec2(1.0, 1.0))
-                    .bounds(Rect::from_min_size(pos2(0.0, 0.0), placement.rect.size()));
-                holes.push(hole(
+                    .bounds(Rect::from_min_size(pos2(0.0, 0.0), room));
+                let hole = hole(
                     &ChildPlacement {
                         rect: swept,
                         ..placement.clone()
                     },
                     pixels,
                     layer.clip,
-                ));
-                occluders.extend(
-                    child
-                        .occluders
-                        .iter()
-                        .map(|occluder| scaled(*occluder, pixels)),
                 );
+                let occluders = child
+                    .occluders
+                    .iter()
+                    .map(|occluder| scaled(*occluder, pixels))
+                    .collect();
+                holes.push((hole, occluders));
             }
             let into = match (framing, placement.layer) {
                 (false, ChildLayer::Below) => &mut below,
@@ -1858,7 +1895,7 @@ impl Children {
             body.clip = body.clip.intersect(from_window.bounds(clip));
             body.input.placer = Some(layer.id);
             if placement.layer == ChildLayer::Below {
-                holes.push(hole(placement, pixels, layer.clip));
+                holes.push((hole(placement, pixels, layer.clip), Vec::new()));
             }
             let request = tab_screen(screen, editor, ask, false);
             let into = match placement.layer {
@@ -1867,7 +1904,7 @@ impl Children {
             };
             owner.nested.borrow().layers(&request, body, into);
         }
-        layer.input.hit = placer_hit(layer.size, holes, occluders);
+        layer.input.hit = placer_hit(layer.size, holes);
         layers.extend(below);
         layers.push(layer);
         layers.extend(over);
@@ -1920,20 +1957,19 @@ fn hole(placement: &ChildPlacement, pixels: f32, clip: Rect) -> Rect {
 }
 
 /// Where a placer's layer `size` pixels big is hit, with `holes` (in its pixels) where children
-/// that take input are and `occluders` over them, which hide them: everywhere but in a hole,
-/// unless an occluder is over it there, as be-host-runtime's holes say.
-fn placer_hit(size: (u32, u32), holes: Vec<Rect>, occluders: Vec<Rect>) -> Area {
+/// that take input are, each with the occluders placed after its child, which hide it: as
+/// be-host-runtime's holes say, everywhere but where some hole is and none of its own occluders
+/// are.
+fn placer_hit(size: (u32, u32), holes: Vec<(Rect, Vec<Rect>)>) -> Area {
     if holes.is_empty() {
         return Area::Whole;
     }
     let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(size.0 as f32, size.1 as f32));
-    let mut hit = whole.subtract(&holes);
-    hit.extend(
-        occluders
-            .into_iter()
-            .map(|occluder| occluder.intersect(whole)),
-    );
-    Area::Region(hit)
+    let cut: Vec<Rect> = holes
+        .into_iter()
+        .flat_map(|(hole, occluders)| hole.subtract(&occluders))
+        .collect();
+    Area::Region(whole.subtract(&cut))
 }
 
 /// The occluders of `placements` that hide its child `index`: those placed after it, as
@@ -2304,6 +2340,8 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
             if let Ok(hosted) = opened {
                 hosted.app.close_editor(hosted.editor);
                 release_app(&hosted.app);
+                // The app it was opened in may hold no editor now: the next settle lets it go.
+                wake();
             }
             return;
         };
@@ -2346,6 +2384,7 @@ async fn open(shown: ShownBlock, preview: bool, with: &SpawnWith) -> Result<Host
             name: editor.name,
             preview: editor.preview,
             pan_and_zoom: editor.pan_and_zoom,
+            shows: editor.editor,
         }),
         Err(why) => {
             release_app(&app);
