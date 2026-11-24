@@ -1,4 +1,4 @@
-use be_block::{LinkSharing, OrganizationPolicies};
+use be_block::{Allowance, OrganizationPolicies};
 use be_block_keys::Admits;
 use be_block_protocol::ErrorCode;
 use be_type_text::{TextBlock, TextContent};
@@ -6,8 +6,8 @@ use be_type_text::{TextBlock, TextContent};
 use super::an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server::set_policies;
 use super::*;
 
-/// A share link that admits one person, which the policy must allow as it allows a link for
-/// anyone, opens for the first account that opens it, reads for that one, and for no one else:
+/// A share link that admits one person, which the organization allows where it shares outside
+/// (an invitation's share half), opens for the first account that opens it, reads for that one, and for no one else:
 /// the server refuses a second opener, as it refuses one the link does not admit.
 #[tokio::test]
 async fn a_share_link_admitting_one_opens_for_its_first_opener_alone() {
@@ -25,18 +25,25 @@ async fn a_share_link_admitting_one_opens_for_its_first_opener_alone() {
         .await
         .unwrap();
 
+    set_policies(
+        &admin,
+        &[OrganizationPolicies::set_outside_sharing(Some(
+            Allowance::Blocked,
+        ))],
+    )
+    .await;
     let refused = admin
         .make_share_link(team, Access::View, Admits::One)
         .await
         .unwrap_err();
     assert!(
         matches!(refused, ClientError::Refused(ErrorCode::PolicyRefused, _)),
-        "a link for one person reaches outside, as one for anyone does: {refused}"
+        "a link for one person reaches outside, refused where nothing is shared outside: {refused}"
     );
     set_policies(
         &admin,
-        &[OrganizationPolicies::set_link_sharing(Some(
-            LinkSharing::Anyone,
+        &[OrganizationPolicies::set_outside_sharing(Some(
+            Allowance::Allowed,
         ))],
     )
     .await;

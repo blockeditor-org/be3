@@ -141,8 +141,9 @@ fn stored(connection: &Connection, link: Uuid) -> Result<Option<Stored>, ServerE
 
 impl ServerStore {
     /// Whether `organization`'s policy lets a link admit `admits`: in the personal organization,
-    /// where every account is a member, its members or one of them; in a company one, one
-    /// person as anyone is.
+    /// where every account is a member, its members or one of them; in a company one, its
+    /// `link_sharing`, but for a link that admits one, an invitation's share half, which its
+    /// `outside_sharing` allows as a contact link that carried access was.
     fn link_policy_allows(
         &self,
         graph: &BlockGraph,
@@ -153,16 +154,15 @@ impl ServerStore {
         if crate::keys::organization_kind(connection, organization)? == OrganizationKind::Personal {
             return Ok(admits != Admits::Anyone);
         }
-        Ok(
-            match self
-                .policies(graph, connection, organization)?
-                .link_sharing()
-            {
-                LinkSharing::Off => false,
-                LinkSharing::Members => admits == Admits::Members,
-                LinkSharing::Anyone => true,
-            },
-        )
+        let policies = self.policies(graph, connection, organization)?;
+        if admits == Admits::One {
+            return Ok(policies.shares_outside());
+        }
+        Ok(match policies.link_sharing() {
+            LinkSharing::Off => false,
+            LinkSharing::Members => admits == Admits::Members,
+            LinkSharing::Anyone => true,
+        })
     }
 
     /// Makes share link `link` on `block`, by a manager of it who is a member, with the record

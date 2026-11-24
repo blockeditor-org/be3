@@ -706,7 +706,8 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   reduced, so whether the closing lowered anyone is the record's signed `lowers`.
 - **Guests.** A link admits members of the block's organization (in the personal organization,
   every account) or, where the policy allows it, any account on the server, or one: the first
-  account that opens it, allowed where one for anyone is (and always in the personal
+  account that opens it, an invitation's share half, allowed wherever the organization shares
+  outside (`outside_sharing`, whatever `link_sharing` says; always in the personal
   organization), which the server then opens for that account alone (`Admits::One`,
   `share_links.opened_by`), as it refuses one the link does not admit. One from outside
   the organization joins it as a guest (`OrganizationRole::Guest`): a member row holding only
