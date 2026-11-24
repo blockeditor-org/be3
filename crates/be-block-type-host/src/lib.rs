@@ -29,6 +29,8 @@ pub struct Conflict {
     pub count: usize,
 }
 
+/// What a replica tells and asks the program holding it. The methods with bodies have neutral
+/// defaults (nothing told, nothing known) that only be-host overrides.
 pub trait Host: Sized + 'static {
     type Store: ObjectStore + 'static;
 
@@ -52,44 +54,59 @@ pub trait Host: Sized + 'static {
     /// and no join has said since that this account may edit it (`Peer::discarded`): told as a
     /// replica opens, and as each join answers once the replica it opens has its editors
     /// attached, so a `false` means its editors' edits are taken.
-    fn set_marked(shared: &Arc<Mutex<Self>>, block: Uuid, marked: bool);
+    fn set_marked(_shared: &Arc<Mutex<Self>>, _block: Uuid, _marked: bool) {}
 
-    fn owned(shared: &Arc<Mutex<Self>>, block: Uuid) -> bool;
+    /// Whether this device holds `block` as its own (its settings), so a replica resets it when
+    /// `reshaped` says its schema changed instead of joining it. None by default.
+    fn owned(_shared: &Arc<Mutex<Self>>, _block: Uuid) -> bool {
+        false
+    }
 
-    fn reshaped(shared: &Arc<Mutex<Self>>, block: Uuid, schema: &str) -> bool;
+    /// Whether the schema `block` was stamped with differs from `schema`. Asked only of an
+    /// `owned` block.
+    fn reshaped(_shared: &Arc<Mutex<Self>>, _block: Uuid, _schema: &str) -> bool {
+        false
+    }
 
-    fn reset_notice();
+    /// Tells the person that an `owned` block was reset.
+    fn reset_notice() {}
 
-    fn known_head(shared: &Arc<Mutex<Self>>, block: Uuid) -> Option<CommitId>;
+    /// A head of `block` the host heard of beyond the server's, which an opening replica merges
+    /// in. None by default.
+    fn known_head(_shared: &Arc<Mutex<Self>>, _block: Uuid) -> Option<CommitId> {
+        None
+    }
 
     fn to_editor(shared: &Arc<Mutex<Self>>, block: Uuid, editor: EditorId, bytes: Vec<u8>) -> bool;
 
-    fn content(shared: &Arc<Mutex<Self>>, block: Uuid, content_type: Uuid, bytes: Vec<u8>);
+    fn content(_shared: &Arc<Mutex<Self>>, _block: Uuid, _content_type: Uuid, _bytes: Vec<u8>) {}
 
     fn released(shared: &Arc<Mutex<Self>>, block: Uuid);
 
     /// Also when only `status.undo` changed.
-    fn status(shared: &Arc<Mutex<Self>>, block: Uuid, status: &Status);
+    fn status(_shared: &Arc<Mutex<Self>>, _block: Uuid, _status: &Status) {}
 
     fn described(
-        shared: &Arc<Mutex<Self>>,
-        block: Uuid,
-        references: Vec<Uuid>,
-        description: Description,
-    );
+        _shared: &Arc<Mutex<Self>>,
+        _block: Uuid,
+        _references: Vec<Uuid>,
+        _description: Description,
+    ) {
+    }
 
-    fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict);
+    fn conflict(_shared: &Arc<Mutex<Self>>, _block: Uuid, _conflict: Conflict) {}
 
     /// How many open replicas have edits not yet committed, which owe a seal (`Owing`), and how
     /// many hold edits not yet durable (`Replicas::counts`).
     fn counted(
-        shared: &Arc<Mutex<Self>>,
-        unsealed: Vec<Owing>,
-        owing: Vec<Owing>,
-        undurable: Vec<Owing>,
-    );
+        _shared: &Arc<Mutex<Self>>,
+        _unsealed: Vec<Owing>,
+        _owing: Vec<Owing>,
+        _undurable: Vec<Owing>,
+    ) {
+    }
 
-    fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool);
+    fn leaving(_shared: &Arc<Mutex<Self>>, _leaving: bool) {}
 
     /// What the worker waits on its modules for while it awaits one's answer (`Replicas::wait`),
     /// each as "<block>: <what was asked>", empty once answered: for a host to name when it stays

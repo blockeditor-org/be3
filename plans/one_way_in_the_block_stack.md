@@ -45,9 +45,5 @@ drifted into a bug.
    one test. Everything else reads `Loads::FirstPart` and then a span. Fold `Streamed` into
    `Blob` (its `encode_streamed`/`decode_streamed` private to blob.rs), delete `stream_*`, and
    port `a_large_image_streams_without_downloading_all_of_it` to `read_span`.
-5. **`be_block_type_host::Host` has no-op defaults.** be-tool-cli's `replica.rs` and the tests'
-   `Quiet` write about twelve empty methods (`set_marked`, `owned`, `reshaped`, `known_head`,
-   `status`, `described`, `conflict`, `counted`, `leaving`, …). The trait gives them empty
-   bodies; only the host overrides them.
 6. **One `Saved`.** be-block-client has `peer::Saved` (the result of a write) and
    `transfer::Saved` (a block in a file). Rename the second `SavedBlock`.
