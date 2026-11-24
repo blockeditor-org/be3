@@ -25,8 +25,8 @@ const MANIFEST: &str = r#"{"id": "be3.echo", "name": "Echo", "version": "0.1.0",
         "display_name": "Echo", "icon": "x", "views": ["Main"]}}}"#;
 
 /// Stages the echo app and its worker as be-tool-buck stages them, in a directory of their own
-/// that discovery reads the staged files from (this test runs in a process of its own).
-fn stage() -> std::path::PathBuf {
+/// that discovery reads the staged files from while the answer's guard is held.
+fn stage() -> (std::path::PathBuf, be_host_stack::discovery::AssetsForTesting) {
     let bundle = std::env::temp_dir().join(format!("be3-worker-bundle-{}", std::process::id()));
     let workers = bundle.join("workers/be3.echo");
     std::fs::create_dir_all(&workers).unwrap();
@@ -36,10 +36,10 @@ fn stage() -> std::path::PathBuf {
     std::fs::write(bundle.join("echo.wasm"), module("ECHO_APP_WASM")).unwrap();
     std::fs::write(workers.join(MODULE), module("ECHO_WORKER_WASM")).unwrap();
     let staged = bundle.clone();
-    be_host_stack::discovery::use_assets(move |path| {
+    let assets = be_host_stack::discovery::assets_for_testing(move |path| {
         std::fs::read(staged.join(path)).map_err(|error| format!("{path}: {error}"))
     });
-    bundle
+    (bundle, assets)
 }
 
 /// The app's side of the wire: an executor that serves nothing, which the worker is spawned on.
@@ -54,7 +54,7 @@ fn guest() -> Executor {
 /// wire the host serves the app, answers it, and stops with the app when the app fails.
 #[test]
 fn an_apps_worker_answers_through_the_hosts_wire_and_stops_when_the_app_fails() {
-    let bundle = stage();
+    let (bundle, _assets) = stage();
     let _installed =
         be_host_stack::discovery::install_for_testing(&[("be3.echo.app.json", MANIFEST)]);
     let (wake, woken) = mpsc::channel();

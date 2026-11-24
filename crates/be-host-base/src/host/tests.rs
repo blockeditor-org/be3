@@ -1,3 +1,4 @@
 use super::*;
 mod a_desk_hands_its_owner_to_the_handlers_and_a_dropped_mailbox_hears_nothing;
 mod a_letter_across_threads_travels_as_bytes_and_arrives_as_its_value;
+mod every_installed_waker_is_woken;

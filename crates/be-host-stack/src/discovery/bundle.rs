@@ -49,7 +49,50 @@ pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + 
     }
 }
 
+/// Assets a test reads the staged files from while it holds them (`assets_for_testing`), ahead
+/// of `use_assets`'s, which a process sets once.
+#[cfg(any(test, feature = "testing"))]
+static TESTING_ASSETS: std::sync::RwLock<Option<std::sync::Arc<Assets>>> =
+    std::sync::RwLock::new(None);
+
+/// Reads the staged files through `read_asset` while the answer is held, as `use_assets` does
+/// for a process: for a test that shares its process with others which discovered the apps
+/// already (`install_for_testing` puts its manifests in place the same way).
+#[cfg(any(test, feature = "testing"))]
+#[must_use = "the assets are read only while this is held"]
+pub fn assets_for_testing(
+    read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + Sync + 'static,
+) -> AssetsForTesting {
+    let assets: Assets = Box::new(read_asset);
+    let before = TESTING_ASSETS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .replace(std::sync::Arc::new(assets));
+    AssetsForTesting(before)
+}
+
+/// Assets a test put in place (`assets_for_testing`), until it is dropped.
+#[cfg(any(test, feature = "testing"))]
+pub struct AssetsForTesting(Option<std::sync::Arc<Assets>>);
+
+#[cfg(any(test, feature = "testing"))]
+impl Drop for AssetsForTesting {
+    fn drop(&mut self) {
+        *TESTING_ASSETS
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = self.0.take();
+    }
+}
+
 pub fn open(path: &str) -> Result<Stored, String> {
+    #[cfg(any(test, feature = "testing"))]
+    if let Some(read_asset) = TESTING_ASSETS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+    {
+        return read_asset(path).map(Stored::Bytes);
+    }
     match ASSETS.get() {
         Some(read_asset) => read_asset(path).map(Stored::Bytes),
         #[cfg(target_os = "android")]
