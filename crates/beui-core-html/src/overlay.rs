@@ -169,6 +169,10 @@ impl Drop for Layer {
         if let Some(held) = self.inert.take() {
             make_inert(held, false);
         }
+        // A layer that goes while it is shown (its owner dropped it as it closed, before the
+        // pass that hides it) gives the focus back as hiding it would.
+        #[cfg(target_arch = "wasm32")]
+        web::let_go(self.web.get_mut());
     }
 }
 
@@ -588,6 +592,27 @@ mod web {
 
     fn anchors_supported() -> bool {
         supported(&ANCHORS, "anchor-name", "--beui")
+    }
+
+    /// Gives the focus back to where it was before the layer showed, if the layer is shown and
+    /// held the focus (or the focus was lost to the page): the layer is going.
+    pub(super) fn let_go(held: &mut Held) {
+        if held.shown.take().is_none() {
+            return;
+        }
+        let Some(returns_to) = held.returns_to.take().filter(|element| element.is_connected())
+        else {
+            return;
+        };
+        let active = crate::dom::document().and_then(|document| document.active_element());
+        let inside = held
+            .dialog
+            .as_ref()
+            .is_some_and(|dialog| within(dialog, active.as_ref().map(AsRef::as_ref)));
+        let lost = active.is_none_or(|active| active.tag_name() == "BODY");
+        if inside || lost {
+            let _ = returns_to.focus();
+        }
     }
 
     fn within(element: &web_sys::Element, target: Option<&web_sys::Node>) -> bool {
