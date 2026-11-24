@@ -496,9 +496,9 @@ fn view(core: &HostCore) -> CoreView {
             .status
             .hosting
             .iter()
-            .map(|(block, name)| HostedBlock {
-                block: block.into_bytes(),
-                name: name.clone(),
+            .map(|kept| HostedBlock {
+                block: kept.block.into_bytes(),
+                name: kept.name.clone(),
             })
             .collect(),
         default_server: be_host_base::platform::default_account_server().map(|server| {
