@@ -1662,9 +1662,7 @@ async fn puts_of(
                     key: document.key,
                 },
                 commit: at,
-                source: document
-                    .source
-                    .map(|source| *source.hash().as_bytes()),
+                source: document.source.map(|source| *source.hash().as_bytes()),
                 text,
                 partial: false,
             }

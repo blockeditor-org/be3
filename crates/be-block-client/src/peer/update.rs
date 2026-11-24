@@ -73,7 +73,10 @@ impl<S: ObjectStore> Peer<S> {
             let Some(change) = make(read).await? else {
                 return Ok(None);
             };
-            match self.write_change(block, content_type, &change, head).await? {
+            match self
+                .write_change(block, content_type, &change, head)
+                .await?
+            {
                 Saved::Rejected { .. } => continue,
                 saved => return Ok(Some(saved)),
             }

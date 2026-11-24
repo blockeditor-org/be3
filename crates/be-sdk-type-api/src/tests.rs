@@ -53,7 +53,10 @@ where
 }
 
 fn short<T>() -> &'static str {
-    std::any::type_name::<T>().rsplit("::").next().unwrap_or_default()
+    std::any::type_name::<T>()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default()
 }
 
 mod every_type_the_wit_maps_onto_the_stacks_has_its_wire_form;

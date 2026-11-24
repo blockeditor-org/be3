@@ -48,14 +48,8 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
                 .map(|item| (item.payload.clone(), item.signer))
                 .collect::<Vec<_>>(),
             [
-                (
-                    Some(b"hello".to_vec()),
-                    be_block_content::Signer::Verified
-                ),
-                (
-                    Some(b"forged".to_vec()),
-                    be_block_content::Signer::Verified
-                ),
+                (Some(b"hello".to_vec()), be_block_content::Signer::Verified),
+                (Some(b"forged".to_vec()), be_block_content::Signer::Verified),
             ],
             "the editor hears its entries, signed as its app's"
         );

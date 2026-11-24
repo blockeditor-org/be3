@@ -6,11 +6,11 @@ use std::{
 };
 
 use be_block_commit::MergeResult;
-use be_block_protocol::{Journal, JournalEntry};
 use be_block_content::{
     BlockContent, ChildChange, LiveEdit, Loads, Merge, MergeParts, PartReader, PartRef,
     SearchDocument, Undo, Unread, history::History,
 };
+use be_block_protocol::{Journal, JournalEntry};
 use be_sdk_type_api::{
     BlockPlace, Change, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Loaded,
     Merged, MergedParts, Opening, Plain, PlainFile, PublishOutcome, ReplicaId, SessionState,
@@ -1320,18 +1320,12 @@ impl replicas::GuestReplica for OpenReplica {
     }
 
     fn logged(&self, items: Vec<be_block_content::LogItem>) -> LocalFuture<()> {
-        self.module.input(
-            self.id,
-            Input::Logged(items),
-        );
+        self.module.input(self.id, Input::Logged(items));
         Box::pin(ready(()))
     }
 
     fn refused(&self, entries: Vec<be_block_content::RefusedEntry>) -> LocalFuture<()> {
-        self.module.input(
-            self.id,
-            Input::Refused(entries),
-        );
+        self.module.input(self.id, Input::Refused(entries));
         Box::pin(ready(()))
     }
 

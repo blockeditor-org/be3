@@ -7,9 +7,7 @@ use be_block_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
 use be_block_protocol::ClientId;
-use be_block_protocol::{
-    JoinedParticipant, Journal, JournalBase, MembershipChange, SessionState,
-};
+use be_block_protocol::{JoinedParticipant, Journal, JournalBase, MembershipChange, SessionState};
 use be_block_session::{Membership, Resume, Sequencer};
 use be_block_store::Hash;
 use be_sdk_type_api::{

@@ -56,7 +56,11 @@ fn every_type_the_wit_maps_onto_the_stacks_has_its_wire_form() {
     };
     agrees::<_, wit::ChunkRef>(chunk, true);
     agrees::<_, wit::NodeRef>(node, true);
-    for part in [PartRef::Chunk(chunk), PartRef::Chunks(node), PartRef::Node(node)] {
+    for part in [
+        PartRef::Chunk(chunk),
+        PartRef::Chunks(node),
+        PartRef::Node(node),
+    ] {
         agrees::<_, wit::PartRef>(part, true);
     }
 

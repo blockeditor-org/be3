@@ -442,7 +442,8 @@ impl Harness {
     /// `peer` connected again keeping time by a manual clock, as a test whose writes contend on
     /// purpose wants: an update's backoff then waits for no real time (`Peer::back_off`).
     async fn on_manual_clock(&self, peer: &Peer<MemoryStore>) {
-        self.reconnect_on(peer, peer.token(), &Clock::manual()).await;
+        self.reconnect_on(peer, peer.token(), &Clock::manual())
+            .await;
     }
 
     async fn reconnect_on(&self, peer: &Peer<MemoryStore>, token: String, clock: &Clock) {

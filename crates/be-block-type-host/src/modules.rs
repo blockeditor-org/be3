@@ -344,18 +344,16 @@ impl Scope {
     /// call). An `error` comes back for the host to report.
     pub fn take(&mut self, connection: &mut Connection, op: OpId, call: Call) -> Under {
         match call {
-            Call::ReadPart { reply, part, range } => {
-                match self.allows(part) {
-                    true => {
-                        self.read.push(part);
-                        Under::Read(PartRead { reply, part, range })
-                    }
-                    false => {
-                        reply.send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
-                        Under::Answered
-                    }
+            Call::ReadPart { reply, part, range } => match self.allows(part) {
+                true => {
+                    self.read.push(part);
+                    Under::Read(PartRead { reply, part, range })
                 }
-            }
+                false => {
+                    reply.send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
+                    Under::Answered
+                }
+            },
             Call::Error { message, .. } => {
                 connection.complete(op, Outcome::Err(OpError::Canceled));
                 Under::Error(message)
