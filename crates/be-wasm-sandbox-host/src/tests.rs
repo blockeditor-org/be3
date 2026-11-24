@@ -15,6 +15,7 @@ use be_wasm_sandbox_api::{
 
 use super::*;
 
+mod a_compile_under_way_is_work_in_flight;
 mod a_guest_compiles_a_module_and_talks_to_an_instance_of_it;
 mod a_guest_spawns_a_staged_app_by_its_id_and_talks_to_it;
 mod a_shared_worker_s_answer_goes_to_the_job_it_answers;
@@ -27,9 +28,8 @@ mod an_instance_of_an_app_no_staged_app_has_the_id_of_says_so;
 mod an_instance_that_stopped_says_why;
 mod an_instance_the_guest_drops_stops;
 mod clients_of_a_shared_worker_hear_only_their_own_answers;
-mod frames_sent_to_an_instance_still_starting_are_work_in_flight;
 mod frames_no_guest_asks_for_are_not_work_in_flight;
-mod a_compile_under_way_is_work_in_flight;
+mod frames_sent_to_an_instance_still_starting_are_work_in_flight;
 
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
 

@@ -11,7 +11,9 @@ fn a_held_rejoin_takes_its_own_next_entry_and_lets_go_once_sealed() {
         |peer, shared, mut replicas| async move {
             let (block, said) =
                 rejoin_held_before_its_own_entry(&peer, &shared, &mut replicas).await;
-            let through = replicas.heard_through_of(block).expect("the order was heard");
+            let through = replicas
+                .heard_through_of(block)
+                .expect("the order was heard");
             for event in &said {
                 replicas.heard((&peer, &shared), event);
             }
@@ -22,9 +24,13 @@ fn a_held_rejoin_takes_its_own_next_entry_and_lets_go_once_sealed() {
                 "its own next entry is taken while the answer is held"
             );
             replicas.seal_later(block, false);
-            step_until_replicas(&peer, &shared, &mut replicas, "let the rejoin go", |replicas, _| {
-                !replicas.joining()
-            })
+            step_until_replicas(
+                &peer,
+                &shared,
+                &mut replicas,
+                "let the rejoin go",
+                |replicas, _| !replicas.joining(),
+            )
             .await;
             let bytes = replicas
                 .content((&peer, &shared), block)

@@ -17,7 +17,9 @@ fn frames_sent_to_an_instance_still_starting_are_work_in_flight() {
     )
     .expect("the echo app starts");
     // Not polled, so it has not heard the instance start.
-    instance.send(vec![b"hello".to_vec()]).expect("it takes frames");
+    instance
+        .send(vec![b"hello".to_vec()])
+        .expect("it takes frames");
     assert!(
         !instance.settled(),
         "frames waiting for the instance to start are not settled"

@@ -11,7 +11,9 @@ fn a_held_rejoin_takes_no_entry_another_order_numbered_next() {
         |peer, shared, mut replicas| async move {
             let (block, said) =
                 rejoin_held_before_its_own_entry(&peer, &shared, &mut replicas).await;
-            let through = replicas.heard_through_of(block).expect("the order was heard");
+            let through = replicas
+                .heard_through_of(block)
+                .expect("the order was heard");
             for event in &said {
                 let mut event = event.clone();
                 if let be_block_client::Event::Sequenced { entry, .. } = &mut event {

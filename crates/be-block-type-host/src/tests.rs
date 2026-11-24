@@ -16,8 +16,6 @@ use uuid::Uuid;
 use crate::{Host, Replicas, in_process, started};
 
 mod a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits;
-mod a_held_rejoin_takes_its_own_next_entry_and_lets_go_once_sealed;
-mod a_held_rejoin_takes_no_entry_another_order_numbered_next;
 mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
 mod a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_edits;
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
@@ -25,6 +23,8 @@ mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
 mod a_closing_block_is_not_joined_again_and_closes;
 mod a_head_gone_everywhere_opens_once_more_then_is_unreadable;
+mod a_held_rejoin_takes_its_own_next_entry_and_lets_go_once_sealed;
+mod a_held_rejoin_takes_no_entry_another_order_numbered_next;
 mod a_host_crash_with_a_held_drag_saves_nothing;
 mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the_seal;
 mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
@@ -933,9 +933,13 @@ async fn rejoin_held_before_its_own_entry(
     let mut mirror = attach_mirror::<Tally>(peer, shared, replicas, block, editor).await;
     // The first is heard as the order numbers it, so the replica knows where the order is.
     operate(replicas, block, editor, &mut mirror, TallyOp::Add(2));
-    step_until_replicas(peer, shared, replicas, "heard the first edit", |replicas, _| {
-        replicas.heard_through_of(block).is_some()
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "heard the first edit",
+        |replicas, _| replicas.heard_through_of(block).is_some(),
+    )
     .await;
     receive_frames(shared, replicas, block, editor, &mut mirror);
     operate(replicas, block, editor, &mut mirror, TallyOp::Add(3));

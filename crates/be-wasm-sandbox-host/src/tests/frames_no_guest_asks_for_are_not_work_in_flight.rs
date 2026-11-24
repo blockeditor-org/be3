@@ -15,5 +15,8 @@ fn frames_no_guest_asks_for_are_not_work_in_flight() {
         .insert(1, stopped_served(vec![b"hello".to_vec()], true));
     assert!(!server.settled(), "frames the guest waits for are owed it");
     server.instances.insert(1, stopped_served(Vec::new(), true));
-    assert!(server.settled(), "a guest waiting with nothing sent waits on no one");
+    assert!(
+        server.settled(),
+        "a guest waiting with nothing sent waits on no one"
+    );
 }
