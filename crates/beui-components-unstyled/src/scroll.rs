@@ -751,6 +751,7 @@ fn Scrolling(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     direction: Prop<Direction>,
     snaps: Prop<Vec<f32>>,
+    bar_from: Prop<f32>,
     fit: bool,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
@@ -813,6 +814,16 @@ fn Scrolling(
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
+    // What the bar shows: the offsets past `bar_from`, as a scroll of what lies past it.
+    let barred = create_memo(move || {
+        let from = bar_from.get().max(0.0);
+        let position = position.get();
+        ScrollPosition {
+            offset: (position.offset - from).max(0.0),
+            content: (position.content - from).max(0.0),
+            ..position
+        }
+    });
     component_accessibility(create_memo(move || {
         scroll_view(reported.get(), direction.get())
     }));
@@ -847,10 +858,10 @@ fn Scrolling(
     reveal.with(|reveal| reveal.timer.set(Some(fading)));
     let moved = Cell::new(None::<f32>);
     create_effect(move || {
-        let Some(position) = reported.get() else {
+        if reported.with(Option::is_none) {
             return;
-        };
-        let at = position.offset;
+        }
+        let at = barred.get().offset;
         if moved.replace(Some(at)).is_some_and(|was| was != at) {
             reveal.value().poke();
         }
@@ -872,9 +883,13 @@ fn Scrolling(
     });
     let bar_width = style.width();
     let bar = ScrollHandle {
-        position,
+        position: barred,
         direction,
-        scroll_to: Callback::new(move |offset: f32| motion.value().scroll_to(offset)),
+        scroll_to: Callback::new(move |offset: f32| {
+            motion
+                .value()
+                .scroll_to(offset + bar_from.get_untracked().max(0.0))
+        }),
         visibility: reveal.with(|reveal| reveal.visibility.read_only()),
         on_engage: Callback::new(move |now: bool| {
             engaged.set(now);
@@ -975,7 +990,7 @@ fn Scrolling(
                     on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
                         let at_edge = bar_width > 0.0
-                            && position.get_untracked().max_offset() > 0.0
+                            && barred.get_untracked().max_offset() > 0.0
                             && near_edge(direction.get_untracked(), press, bar_width);
                         near.set(at_edge);
                     }}
@@ -1042,6 +1057,11 @@ pub fn Scroll(
     /// keys move freely. Natively only for now: the HTML core's browser scroll ignores them.
     #[prop(default = Vec::new())]
     snaps: Prop<Vec<f32>>,
+    /// The offset its bar starts at: the bar shows only the offsets past it, as the scroll of
+    /// what lies past it, and nothing while the scroll is short of it (a sheet's bar, past its
+    /// highest stop). Natively only: the browser draws its own bar.
+    #[prop(default = 0.0)]
+    bar_from: Prop<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
@@ -1078,6 +1098,7 @@ pub fn Scroll(
             api
             direction
             snaps
+            bar_from
             fit
             bleed
             focus_ring
