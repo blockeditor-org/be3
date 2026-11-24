@@ -18,10 +18,8 @@ fn be_root_in_place_of_the_hosts_ui_opens_a_block_its_files_open() {
     let row = host.place("TreeItem \"Canvas\"");
     let row = format!("{:.0},{:.0}", row.0 + row.2 / 2.0, row.1 + row.3 / 2.0);
     host.restart_as_root(ROOT);
-    host.pause(600);
     host.run(&["settle"]);
     host.run(&["click", &row]);
-    host.pause(600);
     host.run(&["settle"]);
     host.snapshot("be_root_opens_a_block_its_files_open");
     host.close();
