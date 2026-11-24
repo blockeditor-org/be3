@@ -477,11 +477,11 @@ impl Walk<'_> {
         };
         let mut entries = Vec::new();
         let kept = BlockTree {
-            children: &mut |block| {
+            children: &mut |row| {
                 graph
                     .listed
-                    .contains(&block.id)
-                    .then(|| Listed::Blocks(graph.children(block).cloned().collect()))
+                    .contains(&row.block.id)
+                    .then(|| Listed::Blocks(graph.children(&row.block).cloned().collect()))
             },
             open: &open,
             shown: self.shown,

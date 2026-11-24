@@ -65,18 +65,14 @@ impl Cells {
     }
 
     fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
-        let entries = self.entries;
-        create_memo(move || {
-            entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())
-        })
+        self.folder.entry(key)
     }
 
     /// Edits entry `key`'s name in place, if it may be renamed.
     fn rename(&self, key: Uuid) {
         let editable = self
             .folder
-            .menu_block(key)
-            .get_untracked()
+            .menu_block_now(key)
             .is_some_and(|block| block.access.can_edit());
         if editable {
             self.renaming.set(Some(key));
@@ -84,14 +80,17 @@ impl Cells {
     }
 
     fn open(&self, entry: Memo<Option<Entry>>) -> impl Fn() + use<> {
-        let host = self.editor.host();
+        let cells = *self;
         move || {
-            let Some(entry) = entry.get_untracked() else {
-                return;
-            };
-            if let (Some(id), Some(block_type)) = (entry.id, entry.block_type) {
-                host.open_block(id, block_type);
+            if let Some(entry) = entry.get_untracked() {
+                cells.open_entry(&entry);
             }
+        }
+    }
+
+    fn open_entry(&self, entry: &Entry) {
+        if let (Some(id), Some(block_type)) = (entry.id, entry.block_type) {
+            self.editor.host().open_block(id, block_type);
         }
     }
 }
@@ -284,26 +283,27 @@ fn EntryRows(cells: Cells) -> NodeId {
     let keys = cells.keys();
     let Cells {
         editor,
-        entries,
         selected,
         renaming,
         ..
     } = cells;
     let item = move |key: Uuid| {
-        entries.with(|entries| {
-            entries
-                .iter()
-                .find(|entry| entry.reference == key)
-                .map(|entry| TreeItem {
-                    label: entry.name.clone(),
-                    ..TreeItem::default()
-                })
-                .unwrap_or_default()
-        })
+        cells
+            .folder
+            .entry_tracked(key)
+            .map(|entry| TreeItem {
+                label: entry.name,
+                ..TreeItem::default()
+            })
+            .unwrap_or_default()
     };
-    let open = move |key: Uuid| (cells.open(cells.entry(key)))();
+    let open = move |key: Uuid| {
+        if let Some(entry) = cells.folder.entry_now(key) {
+            cells.open_entry(&entry);
+        }
+    };
     let rename = move |(key, name): (Uuid, String)| {
-        if let Some(block) = cells.folder.menu_block(key).get_untracked() {
+        if let Some(block) = cells.folder.menu_block_now(key) {
             rename_block(editor, block.id, &name);
         }
         renaming.set(None);
