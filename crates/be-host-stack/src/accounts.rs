@@ -407,7 +407,7 @@ pub async fn accept_invitation(
 fn invitation_of(link: be_block_protocol::Link) -> Result<Invitation, AccountError> {
     match link.kind {
         LinkKind::Invitation(invitation) => Ok(invitation),
-        LinkKind::Contact(_) => Err(AccountError {
+        LinkKind::Contact => Err(AccountError {
             message: "That is a contact link, not an invitation: open it from Contacts.".into(),
             invalid_token: false,
         }),

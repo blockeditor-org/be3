@@ -12,7 +12,7 @@ async fn a_holder_that_loses_edit_access_hands_the_lease_on() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_account = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
     let block = owner.create_block(BlockParent::Root).await;
     let granted = owner.grant(block, guest_account, Access::Edit).await;

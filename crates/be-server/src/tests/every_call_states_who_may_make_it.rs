@@ -135,7 +135,7 @@ fn op_case(op: &Op) -> &'static str {
         Op::CreateAgent { .. } => "create-agent",
         Op::RotateAgentToken(_) => "rotate-agent-token",
         Op::CreateLink {
-            kind: LinkKind::Contact(_),
+            kind: LinkKind::Contact,
             ..
         } => "create-link (contact)",
         Op::CreateLink {
@@ -438,7 +438,7 @@ impl TestClient {
             .write(Op::CreateLink {
                 link: other,
                 card: sealed(),
-                kind: LinkKind::Contact(None),
+                kind: LinkKind::Contact,
                 signed: None,
             })
             .await;

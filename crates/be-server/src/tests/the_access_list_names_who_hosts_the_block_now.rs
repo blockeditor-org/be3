@@ -25,7 +25,7 @@ async fn the_access_list_names_who_hosts_the_block_now() {
     let mut viewer = harness.member("viewer@example.com").await;
     let viewer_account = viewer.id();
     viewer.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = viewer.accept(link, &[]).await;
     let block = owner.create_block(BlockParent::Root).await;
     let granted = owner.grant(block, viewer_account, Access::View).await;

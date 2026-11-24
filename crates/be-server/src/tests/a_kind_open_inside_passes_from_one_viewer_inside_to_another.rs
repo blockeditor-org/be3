@@ -66,9 +66,9 @@ async fn a_kind_open_inside_passes_from_one_viewer_inside_to_another() {
     let mut viewer = harness.member("viewer@example.com").await;
     let viewer_id = viewer.id();
     viewer.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = sharer.accept(link, &[]).await;
-    let link = sharer.link(None).await;
+    let link = sharer.link().await;
     let _ = viewer.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

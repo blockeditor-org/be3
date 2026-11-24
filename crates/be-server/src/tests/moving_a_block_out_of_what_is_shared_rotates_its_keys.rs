@@ -54,7 +54,7 @@ async fn moving_a_block_out_of_what_is_shared_rotates_its_keys() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
 
     let shared = owner.create_block(BlockParent::Root).await;

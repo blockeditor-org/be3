@@ -180,7 +180,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 account,
                 Uuid::new_v4(),
                 Vec::new(),
-                be_block_protocol::LinkKind::Contact(None),
+                be_block_protocol::LinkKind::Contact,
                 None,
             )
             .await,
@@ -192,7 +192,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 account,
                 Uuid::new_v4(),
                 vec![0; MAX_SEALED_BYTES + 1],
-                be_block_protocol::LinkKind::Contact(None),
+                be_block_protocol::LinkKind::Contact,
                 None,
             )
             .await,

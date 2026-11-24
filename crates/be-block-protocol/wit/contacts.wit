@@ -9,7 +9,7 @@ package be3:server@0.1.0;
 interface contacts {
     use types.{
         access-level, account-id, block-id, entry-hash, error, link-admits, link-id,
-        organization-id, pending-grant, public-key,
+        organization-id, public-key,
     };
 
     /// An invitation into an organization. Its link is a bearer secret: any
@@ -63,8 +63,9 @@ interface contacts {
 
     /// What accepting a link does beyond making two contacts.
     variant link-kind {
-        /// With a grant, the accepter is also given access to its block.
-        contact(option<pending-grant>),
+        /// Only the two contacts. An invitation to a block carries a share link
+        /// with the same code instead (guides/blocks/keys.md, "An invitation").
+        contact,
         /// The accepter joins the organization as an editor. Only its
         /// administrator makes one.
         invitation(invitation),

@@ -34,8 +34,7 @@ async fn listed(guest: &Peer<MemoryStore>, block: Uuid) -> BlockSummary {
     summary.clone()
 }
 
-/// A share whose key reaches the server after its grant (as `Peer::share` sends them, or a
-/// pending grant sealed later): the guest's device lists the block while it has no key, then
+/// A share whose key reaches the server after its grant (as `Peer::share` sends them): the guest's device lists the block while it has no key, then
 /// opens it once the key is sealed to it, though it already looked for that key once. The
 /// server tells it so (`topic.keys`); a device away as the key was sealed asks for every key
 /// as it attaches again.

@@ -15,7 +15,7 @@ async fn a_summary_names_no_references_and_a_referenced_block_still_reads_as_kno
     let mut viewer = harness.member("viewer@example.com").await;
     let viewer_id = viewer.id();
     viewer.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = viewer.accept(link, &[]).await;
 
     let page = owner.create_block(BlockParent::Root).await;

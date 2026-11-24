@@ -6,7 +6,7 @@ use be_block_keys::{
 use std::collections::HashMap;
 
 use be_block_protocol::{
-    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, PendingGrant, SealedKey,
+    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, SealedKey,
 };
 use uuid::Uuid;
 
@@ -275,13 +275,12 @@ impl std::fmt::Debug for GrantOffer {
 #[derive(Clone, Debug)]
 pub struct Finished {
     pub card: ContactCard,
-    pub grant: Option<PendingGrant>,
     /// For an invitation, the organization its accepter joined, signing themselves in as they
     /// accepted it: the link is finished in that organization.
     pub invited: Option<Uuid>,
-    /// The link, which `Peer::finish_links` deletes once it signed the grant, if any,
-    /// with the mailbox message that brought its accepter's card (`letter`), so a device that
-    /// stops before then finishes it again.
+    /// The link, which `Peer::finish_links` deletes once its accepter is a contact, with the
+    /// mailbox message that brought their card (`letter`), so a device that stops before then
+    /// finishes it again.
     pub(crate) link: Uuid,
     pub(crate) letter: u64,
 }
@@ -1319,10 +1318,9 @@ pub async fn make_link(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
-    offer: Option<&GrantOffer>,
 ) -> Result<InviteCode, ClientError> {
     let code = InviteCode::generate();
-    make_link_with(connection, identity, me, offer, &code).await?;
+    make_link_with(connection, identity, me, &code).await?;
     Ok(code)
 }
 
@@ -1332,17 +1330,9 @@ pub(crate) async fn make_link_with(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
-    offer: Option<&GrantOffer>,
     code: &InviteCode,
 ) -> Result<(), ClientError> {
-    let grant = offer.map(|offer| PendingGrant {
-        organization: offer.organization,
-        block: offer.block,
-        access: offer.access,
-        key: offer.key,
-        sealed: code.seal_grant(offer.key.into_bytes(), &offer.secret),
-    });
-    let kind = LinkKind::Contact(grant);
+    let kind = LinkKind::Contact;
     let account = Uuid::from_bytes(me.account);
     keep_link(
         connection,
@@ -1443,8 +1433,8 @@ async fn held_verified(
     })
 }
 
-/// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
-/// key, is sealed to `identity` as it is taken. The record it makes of the link's owner follows
+/// Accepts a link of the kind `expected`: an invitation's escrow key is sealed to `identity` as
+/// it is taken. The record it makes of the link's owner follows
 /// the newest of what the account's block holds and `pins`, what this device pinned (as
 /// `contacts` takes it), so a server that serves this device an older block makes no record it
 /// would read as a rollback. Accepting an invitation signs this account into
@@ -1474,19 +1464,7 @@ pub async fn accept_link(
             .map_or(0, |pin| pin.verified),
     );
     let key = match &link.kind {
-        LinkKind::Contact(Some(grant)) => {
-            let secret = code
-                .open_grant(grant.key.into_bytes(), &grant.sealed)
-                .map_err(|_| tampered())?;
-            let mine = Party {
-                account: me.account,
-                public: identity.public(),
-            };
-            identity
-                .seal_for(me.account, &mine, grant.key.as_bytes(), &secret)
-                .map_err(|_| tampered())?
-        }
-        LinkKind::Contact(None) => Vec::new(),
+        LinkKind::Contact => Vec::new(),
         LinkKind::Invitation(invitation) if invitation.escrow.is_empty() => Vec::new(),
         LinkKind::Invitation(invitation) => {
             let opened = code
@@ -1667,23 +1645,16 @@ pub(crate) async fn finish_links(
         if !ops.is_empty() {
             be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
         }
-        let (grant, invited) = match own.kind.clone() {
-            LinkKind::Contact(grant) => (grant, None),
-            LinkKind::Invitation(invitation) => (None, Some(invitation.organization)),
+        let invited = match &own.kind {
+            LinkKind::Contact => None,
+            LinkKind::Invitation(invitation) => Some(invitation.organization),
         };
-        // Finished in the organization it is for: there its grant is sealed, or its accepter
-        // signed in.
-        let elsewhere = grant
-            .as_ref()
-            .map(|grant| grant.organization)
-            .or(invited)
-            .is_some_and(|of| of != organization);
-        if elsewhere {
+        // An invitation is finished in the organization its accepter signed into.
+        if invited.is_some_and(|of| of != organization) {
             continue;
         }
         finished.push(Finished {
             card,
-            grant,
             invited,
             link,
             letter,

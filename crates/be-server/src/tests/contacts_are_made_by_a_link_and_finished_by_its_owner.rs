@@ -31,7 +31,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: link,
                 card: owner_card.seal(&code, CardRole::Owner),
-                kind: be_block_protocol::LinkKind::Contact(None),
+                kind: be_block_protocol::LinkKind::Contact,
                 signed: None,
             })
         })

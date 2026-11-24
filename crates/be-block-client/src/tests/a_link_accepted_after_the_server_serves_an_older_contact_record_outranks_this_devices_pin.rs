@@ -68,8 +68,7 @@ async fn a_link_accepted_after_the_server_serves_an_older_contact_record_outrank
             "Rosa",
             "rosa@example.com",
         ),
-        None,
-    )
+)
     .await
     .unwrap();
     crate::contacts::accept_link(

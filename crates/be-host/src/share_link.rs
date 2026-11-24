@@ -104,7 +104,7 @@ impl ShareLinks {
     }
 
     /// Reads the share link an invitation carries with its contact link's code
-    /// (plans/invitations_without_pending_grants.md), once the contact is made, and offers it as
+    /// (guides/blocks/keys.md, "An invitation"), once the contact is made, and offers it as
     /// a pasted one: a contact link that carries none shows nothing.
     pub(crate) fn follow_invitation(&mut self, code: InviteCode) {
         let post = self.replies.1.clone();

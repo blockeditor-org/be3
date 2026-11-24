@@ -171,11 +171,6 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         owner_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         card            BLOB NOT NULL,
-        grant_organization TEXT NOT NULL DEFAULT '',
-        grant_block     TEXT NOT NULL DEFAULT '',
-        grant_access    TEXT NOT NULL DEFAULT '',
-        grant_key       TEXT NOT NULL DEFAULT '',
-        grant_sealed    BLOB NOT NULL DEFAULT x'',
         invite_organization TEXT NOT NULL DEFAULT '',
         invite_escrow   BLOB NOT NULL DEFAULT x'',
         -- An invitation's key, derived from its code, which its record in the organization's

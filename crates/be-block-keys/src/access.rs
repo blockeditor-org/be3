@@ -130,7 +130,7 @@ pub enum Admits {
     /// Any account on the server; one from outside the organization joins it as a guest.
     Anyone,
     /// The first account to open it, as `Anyone` admits it, and no other after: an invitation
-    /// sent to one person (plans/invitations_without_pending_grants.md).
+    /// sent to one person (guides/blocks/keys.md, "An invitation").
     One,
 }
 

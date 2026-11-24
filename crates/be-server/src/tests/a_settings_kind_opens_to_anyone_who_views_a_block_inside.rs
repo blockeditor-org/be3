@@ -46,7 +46,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

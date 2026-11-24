@@ -1,7 +1,7 @@
 use super::*;
 
-/// A key as it travels, and a link's pending grant, print without the key, as any `Debug` might
-/// end up in a log.
+/// A key as it travels, and the offer of one a share link hands on, print without the key, as
+/// any `Debug` might end up in a log.
 #[test]
 fn a_debug_print_shows_no_key() {
     let carried = be_block_keys::CarriedKey {
@@ -20,7 +20,7 @@ fn a_debug_print_shows_no_key() {
     };
     let kept = crate::contacts::KeptLink {
         code: vec![0xab; 25],
-        kind: be_block_protocol::LinkKind::Contact(None),
+        kind: be_block_protocol::LinkKind::Contact,
         made: 0,
     };
     let greeting = be_block_protocol::Greeting {

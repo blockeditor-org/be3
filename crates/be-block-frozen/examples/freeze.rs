@@ -709,8 +709,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &owner_personal.connection(),
         owner_personal.keys().identity(),
         &owner_card,
-        None,
-    )
+)
     .await
     .map_err(text)?;
     be_block_client::contacts::accept_link(

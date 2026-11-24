@@ -34,7 +34,6 @@ const OWN_CONTACT: &[u8] = b"be3.own.contact.v1";
 const OWN_PIN: &[u8] = b"be3.own.pin.v1";
 const CARD_OWNER: &[u8] = b"be3.contact.owner.v1";
 const CARD_ACCEPTER: &[u8] = b"be3.contact.accepter.v1";
-const GRANT_INFO: &[u8] = b"be3.contact.grant.v1";
 const FROM_INFO: &[u8] = b"be3.from.v1";
 const ESCROW_PIN_INFO: &[u8] = b"be3.escrow.pin.v1";
 const KEY_CHANGE_INFO: &[u8] = b"be3.key.change.v1";
@@ -485,14 +484,6 @@ impl InviteCode {
 
     fn open(&self, context: &[u8], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
         open_with(&self.key(context), context, sealed, KeyError::Invite)
-    }
-
-    pub fn seal_grant(&self, id: [u8; 16], key: &[u8]) -> Vec<u8> {
-        self.seal(&[GRANT_INFO, &id].concat(), key)
-    }
-
-    pub fn open_grant(&self, id: [u8; 16], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        self.open(&[GRANT_INFO, &id].concat(), sealed)
     }
 
     fn key(&self, context: &[u8]) -> Zeroizing<[u8; 32]> {

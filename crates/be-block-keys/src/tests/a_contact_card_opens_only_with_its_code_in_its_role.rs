@@ -44,12 +44,5 @@ fn a_contact_card_opens_only_with_its_code_in_its_role() {
         "a card made without the code opened"
     );
 
-    let key = [9u8; 32];
-    let grant = code.seal_grant([1; 16], &key);
-    assert_eq!(code.open_grant([1; 16], &grant).unwrap(), key);
-    assert!(
-        code.open_grant([2; 16], &grant).is_err(),
-        "a grant's key opened under another key's id"
-    );
     assert!(InviteCode::from_bytes(&code.to_bytes()).unwrap() == code);
 }

@@ -31,7 +31,7 @@ async fn a_hosts_record_is_proved_only_on_its_blocks_path() {
     let mut player = harness.member("player@example.com").await;
     for other in [&mut editor, &mut player] {
         other.personal().await;
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let accepted = other.accept(link, &[]).await;
         assert!(accepted.is_ok(), "{accepted:?}");
     }

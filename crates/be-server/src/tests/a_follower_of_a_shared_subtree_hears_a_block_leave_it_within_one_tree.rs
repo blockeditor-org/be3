@@ -6,7 +6,7 @@ async fn guest(harness: &Harness, owner: &mut TestClient, email: &str) -> (TestC
     let mut guest = harness.member(email).await;
     let account = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
     (guest, account)
 }

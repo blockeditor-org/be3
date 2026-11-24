@@ -56,7 +56,7 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let mut editor = harness.member("editor@example.com").await;
     let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

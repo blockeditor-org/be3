@@ -237,24 +237,14 @@ async fn check(snapshot: &Snapshot) {
             .shares_outside(),
         "{name}: the organization's policies no longer read"
     );
-    let offer = owner
-        .offer(id(snapshot.team), be_block_graph::Access::View)
+    let refused = owner
+        .make_share_link(
+            id(snapshot.team),
+            be_block_graph::Access::View,
+            be_block_keys::Admits::Anyone,
+        )
         .await
-        .unwrap();
-    let card = contacts::card(
-        owner.account(),
-        owner.keys().identity(),
-        scene::OWNER_NAME,
-        scene::OWNER_EMAIL,
-    );
-    let refused = contacts::make_link(
-        &owner.connection(),
-        owner.keys().identity(),
-        &card,
-        Some(&offer),
-    )
-    .await
-    .unwrap_err();
+        .unwrap_err();
     assert!(
         matches!(
             refused,
