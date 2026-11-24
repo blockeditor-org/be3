@@ -122,7 +122,7 @@ impl Scene {
                 let background = frame
                     .style
                     .filled()
-                    .map_or(background, |fill| resolve_color(fill, background));
+                    .map_or(theme.background, |fill| resolve_color(fill, theme.background));
                 let name = frame.text.to_str_lossy();
                 let name = match name.trim().is_empty() {
                     true => "Frame".to_owned(),
@@ -153,7 +153,7 @@ impl Scene {
                     .and_then(|info| info.name())
                     .filter(|name| !name.trim().is_empty())
                     .unwrap_or_else(|| "Canvas".to_owned());
-                (chosen, area.expand(PADDING), false, background, name)
+                (chosen, area.expand(PADDING), false, theme.background, name)
             }
         };
         if entities.is_empty() {
@@ -197,7 +197,7 @@ impl Scene {
             entities,
             area,
             clipped,
-            background: theme.background,
+            background,
             palette: Palette {
                 auto: theme.text,
                 surface: theme.surface,
@@ -298,13 +298,14 @@ impl CanvasReader {
 }
 
 /// The scene `settings` draws of the canvas `editor` reads, with the images it shows, in the
-/// theme the app shows: an export looks as the canvas does, and an artifact is made again when
-/// the theme changes.
+/// theme the host has the app show (`host_preferences`), so an export looks as the canvas does.
+/// An artifact is made without a document, so this reads the host's preferences rather than a
+/// view's theme.
 fn scenes(editor: Editor) -> impl Fn(&ImageExport) -> Ready<(Scene, Images)> {
     let reader = CanvasReader::new(editor);
-    let theme = use_theme();
     move |settings: &ImageExport| {
-        let scene = Scene::of(&reader, theme.get().resolve(), &settings.items)?;
+        let theme = Theme::of(be_sdk_beui::host_preferences().theme);
+        let scene = Scene::of(&reader, theme, &settings.items)?;
         let images = images_of(editor, &scene)?;
         Ok((scene, images))
     }
