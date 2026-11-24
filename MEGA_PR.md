@@ -49,6 +49,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7b3a`: be-root shows the block children its session's editor places, opens the editor each placement names, settles them by key, and takes presses only where a child shows.
 - `fonts-on-skrifa`: fonts on skrifa, harfrust and zeno in place of FreeType and HarfBuzz; shape plans, coverage and metrics cached; system scan reads only headers and cmap.
 - `missing-object-not-unreadable`: a head whose objects are missing is not-yet, not unreadable; not-yet loads wait on the join, are bounded, and run no jobs on default content; host reads of a not-yet block fail at once.
+- `hosted-blocks-acceptance`: hosted blocks step 4e (be BLOCK host), players carry on with the next host, a closing replica does not rejoin, kept hosts say whether they host now; export checks not-yet beside its content (wasi ICE).
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
