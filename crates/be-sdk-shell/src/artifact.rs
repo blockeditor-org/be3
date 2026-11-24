@@ -113,35 +113,6 @@ pub(crate) fn ArtifactBar(
                             <Show value={waiting}>
                                 <Text style=TextStyle::CAPTION>"Loading…"</Text>
                             </Show>
-                            <Show value={described}>
-                                <ListItem shrink=1.0>
-                                    <List
-                                        direction=Direction::Horizontal
-                                        align=Align::Center
-                                        spacing=SPACING
-                                    >
-                                        <Text style=TextStyle::CAPTION>"Generated from"</Text>
-                                        <Button
-                                            @test_id={"workspace.artifact.source"}
-                                            label={source_name}
-                                            variant=ButtonVariant::Ghost
-                                            on_click={move || {
-                                                if let Some(source) = source.get_untracked() {
-                                                    workspace.open(source, None);
-                                                }
-                                            }}
-                                        />
-                                        <ListItem shrink=1.0>
-                                            <Text
-                                                style=TextStyle::CAPTION
-                                                overflow=Overflow::Ellipsis
-                                            >
-                                                {summary}
-                                            </Text>
-                                        </ListItem>
-                                    </List>
-                                </ListItem>
-                            </Show>
                         </List>
                         <Spacer />
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -174,6 +145,31 @@ pub(crate) fn ArtifactBar(
                             />
                         </List>
                     </List>
+                    <Show value={described}>
+                        <List
+                            direction=Direction::Horizontal
+                            wrap=true
+                            align=Align::Center
+                            spacing=SPACING
+                        >
+                            <Text style=TextStyle::CAPTION>"Generated from"</Text>
+                            <Button
+                                @test_id={"workspace.artifact.source"}
+                                label={source_name}
+                                variant=ButtonVariant::Ghost
+                                on_click={move || {
+                                    if let Some(source) = source.get_untracked() {
+                                        workspace.open(source, None);
+                                    }
+                                }}
+                            />
+                            <ListItem shrink=1.0>
+                                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                    {summary}
+                                </Text>
+                            </ListItem>
+                        </List>
+                    </Show>
                     <Show value={move || failure.with(|failure| !failure.is_empty())}>
                         <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>
                     </Show>
