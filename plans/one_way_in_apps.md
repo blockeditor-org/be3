@@ -21,6 +21,7 @@ Pieces several editors write for themselves, which be-sdk-beui or the types shou
    (`RenderClient.sent`) each work out which jobs a stopped generation will never answer.
    be-sdk-worker gets `Shared<Job, Answer>` and `Work<In, Out>`, which do the serde, give each
    job a ticket and fail the tickets a stopped generation leaves; both apps use them.
+
 ## The test
 
 - workspace-index's row menu renames a block, as file-tree's does.
