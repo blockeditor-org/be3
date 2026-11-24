@@ -185,6 +185,9 @@ pub(crate) enum Input {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
+        /// The modules' clock as the host relayed it: an editor's edit is recorded for undo as
+        /// made then, however long it waits as a job (a replica still loading the block).
+        at: u64,
     },
     Attach {
         editor: EditorId,
@@ -1905,8 +1908,8 @@ where
         }
     }
 
-    /// An edit made in the open tentative gesture `gesture`, its message held under `serial`:
-    /// shown on top, told to the other editors, and kept in the layer.
+    /// An edit made at `at` in the open tentative gesture `gesture`, its message held under
+    /// `serial`: shown on top, told to the other editors, and kept in the layer.
     fn hold(
         &mut self,
         gesture: GestureId,
@@ -1914,6 +1917,7 @@ where
         mut operation: C::Op,
         origin: Option<EditorId>,
         record: bool,
+        at: u64,
     ) -> bool {
         if self.diverged {
             self.error(DIVERGED);
@@ -1935,7 +1939,7 @@ where
                 &operation,
                 origin,
                 Some(gesture.id),
-                self.now,
+                at,
             );
         }
         if self.tentative.is_empty() {
@@ -2072,7 +2076,7 @@ where
             Job::Input(Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
-                ..
+                at,
             }) => match FromEditor::decode(&bytes) {
                 Some(FromEditor::Operate { operation, .. }) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
@@ -2081,7 +2085,7 @@ where
                 }
                 Some(FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_))
                 | None => {}
-                Some(message) => self.handle_editor(editor, message),
+                Some(message) => self.handle_editor(editor, message, at),
             },
             Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
             _ => {}
@@ -2095,14 +2099,14 @@ where
             Job::Input(Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
-                ..
+                at,
             }) => match FromEditor::decode(&bytes) {
                 Some(FromEditor::Operate { .. }) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
                 }
                 Some(FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_))
                 | None => {}
-                Some(message) => self.handle_editor(editor, message),
+                Some(message) => self.handle_editor(editor, message, at),
             },
             Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(true)),
             _ => {}
@@ -2172,10 +2176,10 @@ where
             Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
-                ..
+                at,
             } => {
                 if let Some(message) = FromEditor::decode(&bytes) {
-                    self.handle_editor(editor, message);
+                    self.handle_editor(editor, message, at);
                 }
                 self.reported.status = None;
             }
@@ -4406,15 +4410,15 @@ where
         }
     }
 
-    /// Records `operation`, made in its editor's gesture `gesture` or outside any, for undo
-    /// against the content it is applied to, beneath any tentative layer, and makes it.
+    /// Records `operation`, made at `at` in its editor's gesture `gesture` or outside any, for
+    /// undo against the content it is applied to, beneath any tentative layer, and makes it.
     fn record_and_edit(
         &mut self,
         operation: C::Op,
         origin: Option<EditorId>,
         gesture: Option<u64>,
+        at: u64,
     ) -> bool {
-        let at = self.now;
         self.unheld();
         let content = match &self.beneath {
             Some(beneath) if !self.tentative.is_empty() => beneath,
@@ -4425,7 +4429,8 @@ where
         self.edit(operation, origin)
     }
 
-    fn handle_editor(&mut self, editor: EditorId, message: FromEditor) {
+    /// Handles what `editor` sent, relayed at `at`.
+    fn handle_editor(&mut self, editor: EditorId, message: FromEditor, at: u64) {
         let Some(&editable) = self.editors.get(&editor) else {
             return;
         };
@@ -4448,11 +4453,12 @@ where
                                 operation,
                                 Some(editor),
                                 editor != be_sdk_type_api::HOST_EDITOR,
+                                at,
                             ),
                             (be_sdk_type_api::HOST_EDITOR, None) => {
                                 self.edit(operation, Some(editor))
                             }
-                            _ => self.record_and_edit(operation, Some(editor), gesture),
+                            _ => self.record_and_edit(operation, Some(editor), gesture, at),
                         }
                     });
                 // A refused operation never lands as the editor's, so it is told what holds
@@ -4838,7 +4844,7 @@ where
                     return self.reply(id, Answer::Changed(false));
                 };
                 for operation in operations {
-                    self.record_and_edit(operation, None, None);
+                    self.record_and_edit(operation, None, None, self.now);
                 }
                 self.reply(id, Answer::Changed(true));
             }
