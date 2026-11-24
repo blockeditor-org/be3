@@ -48,20 +48,17 @@ fn a_local_account_finds_the_text_it_wrote() {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until("found the text it wrote", |shared| {
+    // Read in the one wait: an index whose head moves runs the search again, and its answer
+    // shows no hits until their snippets are cut again (`forget_answers`).
+    crate::wait_until("found the text it wrote, with its snippet", |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
-        (answer.complete && found == [note]).then_some(())
+        let snippet = answer.hits.first().map(|hit| hit.snippet.as_str());
+        (answer.complete
+            && found == [note]
+            && snippet.is_some_and(|snippet| snippet.contains("ripen late")))
+        .then_some(())
     });
-    let snippet = with_shared(|shared| shared.search.answer(&ask))
-        .flatten()
-        .and_then(|answer| answer.hits.first().map(|hit| hit.snippet.clone()));
-    assert!(
-        snippet
-            .as_deref()
-            .is_some_and(|snippet| snippet.contains("ripen late")),
-        "the hit shows the text it matched: {snippet:?}"
-    );
     // Indexing settles: what it writes of the index is not queued to be indexed again.
     wait_until("indexed everything", |shared| shared.search_busy.is_none());
 }
