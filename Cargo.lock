@@ -2677,6 +2677,7 @@ dependencies = [
  "be-block-client",
  "be-block-commit",
  "be-block-content",
+ "be-block-fault-relay",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
