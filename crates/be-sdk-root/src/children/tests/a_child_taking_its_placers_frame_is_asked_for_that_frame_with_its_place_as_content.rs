@@ -38,5 +38,8 @@ fn a_child_taking_its_placers_frame_is_asked_for_that_frame_with_its_place_as_co
         placed_content(&card, true),
         rect((40.0, 30.0), (120.0, 90.0))
     );
-    assert_eq!(placed_content(&card, false), rect((0.0, 0.0), (100.0, 60.0)));
+    assert_eq!(
+        placed_content(&card, false),
+        rect((0.0, 0.0), (100.0, 60.0))
+    );
 }

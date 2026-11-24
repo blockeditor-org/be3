@@ -16,9 +16,9 @@ use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
     Catalog, ChildPlacement, ChildPlacements, DebugTemplate, DockMessage, EditorInstanceId, Fonts,
-    ImeArea, InputBatch,
-    Insets, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
-    TimedInput, WindowRequests, embed::shell::Call as ShellCall, shell_types::ShellMessage,
+    ImeArea, InputBatch, Insets, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
+    SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
+    shell_types::ShellMessage,
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},

@@ -876,9 +876,7 @@ fn open_blocks(
         let from = editors
             .opened
             .iter()
-            .find(|((_, editor), opened)| {
-                *editor == instance.0 && opened.app.identity.id == app
-            })
+            .find(|((_, editor), opened)| *editor == instance.0 && opened.app.identity.id == app)
             .map(|(key, _)| *key);
         let shell = editors
             .opened
@@ -899,7 +897,11 @@ fn open_blocks(
 /// The editor that handles a show request from `from` (be-host's `shell_route::handler`): the
 /// nearest of it and the editors placing it, up to the `shell`, whose manifest accepts show
 /// requests, else the shell.
-fn handler(from: Option<(u64, u64)>, shell: Option<(u64, u64)>, editors: &Editors) -> Option<(u64, u64)> {
+fn handler(
+    from: Option<(u64, u64)>,
+    shell: Option<(u64, u64)>,
+    editors: &Editors,
+) -> Option<(u64, u64)> {
     let accepts = |key: &(u64, u64)| {
         editors.opened.get(key).is_some_and(|opened| {
             opened
@@ -978,11 +980,11 @@ fn child_status(
     let preview = match (child.preview, manifest) {
         (ShownPreview::None, _) => ChildPreview::Hosted,
         (ShownPreview::Label, _) => ChildPreview::Label,
-        (ShownPreview::View, Some(_)) => ChildPreview::Hosted,
+        (ShownPreview::View, Some(_)) => ChildPreview::Composited,
         (ShownPreview::View, None) => ChildPreview::Waiting,
     };
-    let available = manifest.is_some()
-        || (child.preview != ShownPreview::None && child.error.is_none());
+    let available =
+        manifest.is_some() || (child.preview != ShownPreview::None && child.error.is_none());
     let error = shown
         .and_then(|shown| be_host_stack::revisions::error(shown.block))
         .or_else(|| child.error.clone())

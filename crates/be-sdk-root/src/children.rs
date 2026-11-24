@@ -37,7 +37,7 @@
 //!
 //! A child placed as a preview runs its editor too, asked for its preview view
 //! (`PREVIEW_SCREEN`, `preview_screen`) and shown under its placer, which leaves a hole for it
-//! once the host says it is available (`ChildPreview::Hosted`), as a passive child is, hit
+//! once the host says it composites it (`ChildPreview::Composited`), as a passive child is, hit
 //! nowhere. One whose editor draws no preview runs no app: its placer draws its block's label.
 //! Promoted (a canvas focusing its card), it keeps its editor, asked for its main view.
 //!
@@ -544,7 +544,10 @@ impl Children {
         let mut editors: Vec<EditorInstanceId> = Vec::new();
         // An editor shown only as a preview has no dock, as under be-host, which keeps previews
         // out of its docks: another editor of its block may be docked.
-        for screen in screens.iter().filter(|screen| screen.view != ViewId::PREVIEW) {
+        for screen in screens
+            .iter()
+            .filter(|screen| screen.view != ViewId::PREVIEW)
+        {
             if !editors.contains(&screen.instance) {
                 editors.push(screen.instance);
                 settling.docks.register(screen.instance, &app, block);
@@ -1240,10 +1243,13 @@ impl Children {
             if active && !child.framing && placement.layer == ChildLayer::Below {
                 holes.push(hole(placement, pixels, layer.clip));
             }
-            let request = child.main.clone().unwrap_or_else(|| match child.previewed() {
-                true => preview_screen(placement, editor, child.raster),
-                false => child_screen(placement, editor, child.raster),
-            });
+            let request = child
+                .main
+                .clone()
+                .unwrap_or_else(|| match child.previewed() {
+                    true => preview_screen(placement, editor, child.raster),
+                    false => child_screen(placement, editor, child.raster),
+                });
             let into = match (child.framing, placement.layer) {
                 (false, ChildLayer::Below) => &mut below,
                 (true, _) | (false, ChildLayer::Above) => &mut over,
