@@ -289,6 +289,12 @@ impl Root {
         }
     }
 
+    /// Why the apps the root spawned have yet to finish with frames they were sent: a step on
+    /// them in flight, or what they sent back that the root has yet to take in a frame.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        self.core.unsettled()
+    }
+
     /// The children the root showed of the editors the host opened since the last call
     /// (`host.show-children`), the latest of each editor's view.
     pub fn take_shown_children(&mut self) -> Vec<crate::ShownChildren> {
@@ -398,6 +404,17 @@ impl Root {
     /// root itself as long as it takes, up to its patience past the deadline. A root that
     /// trapped, panicked or took longer says why, and draws nothing again.
     pub fn frame(&mut self, request: FrameRequest, deadline: Instant) -> Result<FrameDone, String> {
+        // Apps still stepping on frames sent them before this frame (content relayed to them)
+        // finish first, until the deadline, so the root takes in what they answer before it
+        // says what it owes.
+        loop {
+            let since = self.bell.rung();
+            self.core.drain()?;
+            if !self.core.apps_stepping() || Instant::now() >= deadline {
+                break;
+            }
+            self.bell.wait(since, deadline);
+        }
         self.core.begin(request, deadline)?;
         loop {
             let since = self.bell.rung();
