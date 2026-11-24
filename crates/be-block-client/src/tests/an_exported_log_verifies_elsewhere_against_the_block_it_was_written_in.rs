@@ -31,7 +31,7 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
             .collect::<Vec<_>>(),
         [Some(b"one".to_vec()), Some(b"two".to_vec()), None]
     );
-    let file = crate::transfer::encode(&[crate::transfer::Saved {
+    let file = crate::transfer::encode(&[crate::transfer::SavedBlock {
         id: chat,
         block_type: be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         parent: None,

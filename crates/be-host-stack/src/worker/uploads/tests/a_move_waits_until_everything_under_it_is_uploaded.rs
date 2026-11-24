@@ -1,7 +1,7 @@
 use super::*;
 
-fn saved(id: Uuid, parent: Option<usize>) -> Saved {
-    Saved {
+fn saved(id: Uuid, parent: Option<usize>) -> SavedBlock {
+    SavedBlock {
         id,
         block_type: Uuid::nil(),
         parent,

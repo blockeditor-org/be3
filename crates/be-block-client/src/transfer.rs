@@ -12,7 +12,7 @@ const VERSION: u32 = 1;
 const TOP: u32 = u32::MAX;
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-pub struct Saved {
+pub struct SavedBlock {
     pub id: Uuid,
     pub block_type: Uuid,
     pub parent: Option<usize>,
@@ -25,7 +25,7 @@ pub struct Saved {
     pub log: Vec<crate::ExportedEntry>,
 }
 
-pub fn encode(blocks: &[Saved]) -> Vec<u8> {
+pub fn encode(blocks: &[SavedBlock]) -> Vec<u8> {
     let mut out = MAGIC.to_vec();
     out.extend(VERSION.to_le_bytes());
     out.extend((blocks.len() as u32).to_le_bytes());
@@ -76,7 +76,7 @@ pub fn encode(blocks: &[Saved]) -> Vec<u8> {
     out
 }
 
-pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
+pub fn decode(bytes: &[u8]) -> Result<Vec<SavedBlock>, String> {
     let mut reader = Reader { bytes, at: 0 };
     if reader.take(MAGIC.len())? != MAGIC {
         return Err("this is not a block file".to_owned());
@@ -151,7 +151,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
                 signature,
             });
         }
-        blocks.push(Saved {
+        blocks.push(SavedBlock {
             id,
             block_type,
             parent,
@@ -306,7 +306,7 @@ pub fn file_name(name: &str) -> String {
     }
 }
 
-pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
+pub fn renumber(blocks: Vec<SavedBlock>) -> Vec<SavedBlock> {
     let ids: HashMap<Uuid, Uuid> = blocks
         .iter()
         .map(|block| (block.id, Uuid::now_v7()))
@@ -324,7 +324,7 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
             {
                 *value = swap.apply(value);
             }
-            Saved {
+            SavedBlock {
                 id: ids[&block.id],
                 block_type: block.block_type,
                 parent: block.parent,

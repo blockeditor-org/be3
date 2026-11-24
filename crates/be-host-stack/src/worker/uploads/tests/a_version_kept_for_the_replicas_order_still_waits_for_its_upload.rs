@@ -11,7 +11,7 @@ fn a_version_kept_for_the_replicas_order_still_waits_for_its_upload() {
     let mut served = Served::default();
     let checkout = Uuid::new_v4();
     uploads.add(vec![(
-        Saved {
+        SavedBlock {
             id: checkout,
             block_type: Uuid::nil(),
             parent: None,

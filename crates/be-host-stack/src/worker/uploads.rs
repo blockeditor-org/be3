@@ -7,7 +7,7 @@ use std::{
 
 use std::sync::Mutex;
 
-use be_block_client::transfer::Saved;
+use be_block_client::transfer::SavedBlock;
 use be_block_graph::BlockParent;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use uuid::Uuid;
@@ -50,7 +50,7 @@ impl Uploads {
         self.queue.borrow_mut().peer = Some(Arc::clone(peer));
     }
 
-    pub(super) fn add(&mut self, blocks: Vec<(Saved, BlockParent)>) {
+    pub(super) fn add(&mut self, blocks: Vec<(SavedBlock, BlockParent)>) {
         let peer = {
             let mut queue = self.queue.borrow_mut();
             let ids: Vec<Uuid> = blocks.iter().map(|(block, _)| block.id).collect();
@@ -165,7 +165,7 @@ impl Uploads {
 }
 
 impl Queue {
-    fn kept(&mut self, blocks: &[(Saved, BlockParent)]) {
+    fn kept(&mut self, blocks: &[(SavedBlock, BlockParent)]) {
         for (block, _) in blocks {
             self.unkept.remove(&block.id);
         }
