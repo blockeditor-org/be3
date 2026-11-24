@@ -9,7 +9,6 @@ use beui_dock_state::{
 };
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
-use beui_view::reactive::IntoPropValue;
 use beui_view::reactive::macro_support::OptionalTakes;
 use beui_view::reactive::*;
 use beui_view::types::Rect;
@@ -122,12 +121,6 @@ pub struct AnyDockingLayout {
 }
 
 pub struct ByLayout;
-
-impl<K> IntoPropValue<AnyDockingLayout, ByLayout> for DockingLayout<K> {
-    fn into_prop_value(self) -> AnyDockingLayout {
-        self.any
-    }
-}
 
 impl<K> OptionalTakes<DockingLayout<K>, ByLayout> for AnyDockingLayout {
     fn take_some(value: DockingLayout<K>) -> Self {
