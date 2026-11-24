@@ -46,14 +46,34 @@ impl BlockStack {
         root: &mut Root,
         context: &beui::native::Context,
     ) {
-        for command in root.take_core_commands() {
-            for command in commands(command) {
+        let commands = root.take_core_commands();
+        let asked = root.take_secret_requests();
+        self.serve(core, context, commands, asked, |id, secret| {
+            root.answer_secret(id, secret)
+        });
+        root.show_core(view(core));
+    }
+
+    /// Answers the secrets made since the last step through `answer`, which says whether the
+    /// root still waited for each, then does the root's `commands` and starts making the secrets
+    /// it `asked` for. What was made is answered first, so nothing started here (an agent
+    /// deferred until the request before it was answered, a command that opens the agents)
+    /// replaces or clears it.
+    fn serve(
+        &mut self,
+        core: &mut HostCore,
+        context: &beui::native::Context,
+        commands: Vec<CoreCommand>,
+        asked: Vec<(u64, SecretCommand)>,
+        mut answer: impl FnMut(u64, Option<CoreSecret>) -> bool,
+    ) {
+        self.answer_made(core, context, &mut answer);
+        for command in commands {
+            for command in self::commands(command) {
                 core.command(context, command);
             }
         }
-        let asked = std::mem::take(&mut self.deferred)
-            .into_iter()
-            .chain(root.take_secret_requests());
+        let asked = std::mem::take(&mut self.deferred).into_iter().chain(asked);
         for (id, command) in asked {
             if matches!(command, SecretCommand::CreateAgent(_))
                 && core.pending_organization_request.is_some()
@@ -64,10 +84,19 @@ impl BlockStack {
             match self.start(core, context, command) {
                 Ok(making) => self.making.push((id, making)),
                 Err(secret) => {
-                    root.answer_secret(id, secret);
+                    answer(id, secret);
                 }
             }
         }
+    }
+
+    /// Answers each secret being made that is made by now, keeping the rest.
+    fn answer_made(
+        &mut self,
+        core: &mut HostCore,
+        context: &beui::native::Context,
+        answer: &mut impl FnMut(u64, Option<CoreSecret>) -> bool,
+    ) {
         let mut waiting = Vec::new();
         for (id, making) in std::mem::take(&mut self.making) {
             // The agent being made, by its account, once it is.
@@ -79,7 +108,7 @@ impl BlockStack {
                 Some(secret) => {
                     // An agent's credentials cannot be had again: one nobody waits for any more
                     // is removed, as the root's `make-secret` says.
-                    if !root.answer_secret(id, secret)
+                    if !answer(id, secret)
                         && let Some(account) = agent
                     {
                         core.command(context, ui::UiCommand::RemoveAgent(account));
@@ -89,7 +118,6 @@ impl BlockStack {
             }
         }
         self.making = waiting;
-        root.show_core(view(core));
     }
 
     /// Starts making the secret `command` asks for: what it is making, or at once the secret,
@@ -499,3 +527,6 @@ fn set_aside(aside: be_block_client::Aside) -> SetAside {
         be_block_client::Aside::Misplaced => SetAside::Misplaced,
     }
 }
+
+#[cfg(test)]
+mod tests;
