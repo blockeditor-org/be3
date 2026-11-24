@@ -16,6 +16,7 @@ fn a_joined_docks_body_is_its_owners_dock_view_framed_where_it_holds_the_content
         tab: 4,
         placement: body,
         raster: 2.0,
+        space: None,
     };
     // The owner's view of that tab, placed by the dock, the size of the body's place.
     let screen = tab_screen(ScreenId(2), EditorInstanceId(9), &ask, false);

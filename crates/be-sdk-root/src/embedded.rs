@@ -10,14 +10,15 @@ use std::{
     time::Duration,
 };
 
-use be_lib_geometry::{Pos2, Rect, pos2, vec2};
+use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    Catalog, ChildPlacement, ChildPlacements, DebugTemplate, DockMessage, EditorInstanceId, Fonts,
-    ImeArea, InputBatch, Insets, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
-    SurfaceSpec, TimedInput, WindowRequests,
+    AnchorSpace, AnchoredPlacement, Catalog, ChildPlacement, ChildPlacements, DebugTemplate,
+    DockMessage, EditorInstanceId, Fonts, HostTransform, ImeArea, InputBatch, Insets, Opening,
+    Pos2 as ViewPos2, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
+    TimedInput, Vec2 as ViewVec2, ViewPlacement, ViewSize, ViewportMetrics, WindowRequests,
     app::EditorEvent,
     embed::shell::Call as ShellCall,
     shell_types::{DragStart, ShellMessage},
@@ -171,6 +172,12 @@ struct State {
     /// Where each screen holds its editor's content, as its last layout's frame report said:
     /// none for a view that holds none (a dock bar of its tools).
     contents: HashMap<ScreenId, Option<Insets>>,
+    /// The room each screen asked for to fit its content (`screen-request.fit`) used, in its
+    /// points, as its layouts said (`layout-commit.sizes`).
+    used: HashMap<ScreenId, Vec2>,
+    /// How each view the app anchored hangs (`frame-report.anchored`), by the screen it opened
+    /// for it, as its last layout's report said: it closes once a layout no longer lists it.
+    anchored: HashMap<ScreenId, AnchoredPlacement>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -412,6 +419,8 @@ impl Embedded {
             restyled: false,
             intrinsics: HashMap::default(),
             contents: HashMap::default(),
+            used: HashMap::default(),
+            anchored: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -501,6 +510,12 @@ impl Embedded {
     /// asks to leave the frame it takes.
     pub fn take_told(&self) -> Vec<(EditorInstanceId, ShellMessage)> {
         std::mem::take(&mut self.state.borrow_mut().told)
+    }
+
+    /// The room its screen `screen`, asked for to fit its content (`screen-request.fit`), used,
+    /// in its points, as its last layout said.
+    pub fn used(&self, screen: ScreenId) -> Option<Vec2> {
+        self.state.borrow().used.get(&screen).copied()
     }
 
     /// The size its editor `editor`'s content wants, as it last told the shell.
@@ -631,6 +646,123 @@ impl Embedded {
         })
     }
 
+    /// The views its editors anchored (menus, popovers, sheets), each once painted: the layer
+    /// showing it at its rect, which is in host coordinates, the window's points, as its anchor
+    /// space said, with how it hangs. Its layer shows its surface as `Surface::Anchored`, and
+    /// its id is the same every frame for the same screen.
+    pub fn anchored(&self) -> Vec<AnchoredView> {
+        let state = self.state.borrow();
+        let mut anchored: Vec<(&ScreenId, &AnchoredPlacement)> = state.anchored.iter().collect();
+        // Those that hang from another in the order they were opened, which the app numbers.
+        anchored.sort_by_key(|(screen, _)| screen.0);
+        anchored
+            .into_iter()
+            .filter_map(|(screen, placement)| {
+                let painted = state.painted.get(screen)?;
+                let raster = raster(painted);
+                let points = 1.0 / raster;
+                let size = placement.rect.size();
+                let bounds = state
+                    .run
+                    .screens
+                    .iter()
+                    .filter(|request| request.instance == painted.instance)
+                    .find_map(|request| request.anchor_space.map(|space| space.bounds));
+                let request = ScreenRequest {
+                    screen: *screen,
+                    instance: painted.instance,
+                    view: painted.view,
+                    placement: ViewPlacement::Anchored,
+                    frame: None,
+                    metrics: ViewportMetrics {
+                        logical: ViewVec2 {
+                            x: size.x,
+                            y: size.y,
+                        },
+                        visible: ViewPos2::ZERO,
+                        pixel_width: painted.width,
+                        pixel_height: painted.height,
+                        scale_factor: raster,
+                        raster,
+                    },
+                    windows: false,
+                    host_place: None,
+                    docked: false,
+                    anchor_space: bounds.map(|bounds| AnchorSpace {
+                        to_host: HostTransform {
+                            origin: ViewPos2 {
+                                x: placement.rect.min.x,
+                                y: placement.rect.min.y,
+                            },
+                            scale: ViewVec2 { x: 1.0, y: 1.0 },
+                        },
+                        bounds,
+                    }),
+                    fit: false,
+                    origin: None,
+                };
+                let size = (painted.width, painted.height);
+                let layer = Layer {
+                    id: screen_layer(self.instance, *screen),
+                    surface: Surface::Anchored {
+                        instance: self.instance,
+                        surface: painted.surface,
+                    },
+                    size,
+                    transform: Affine::from_axes(
+                        vec2(points, 0.0),
+                        vec2(0.0, points),
+                        placement.rect.min,
+                    ),
+                    clip: Rect::from_min_max(pos2(0.0, 0.0), pos2(size.0 as f32, size.1 as f32)),
+                    corner_radius: 0.0,
+                    opacity: 1.0,
+                    shown: true,
+                    input: LayerInput::default(),
+                };
+                Some(AnchoredView {
+                    layer,
+                    placement: placement.clone(),
+                    screen: *screen,
+                    editor: painted.instance,
+                    view: painted.view,
+                    request,
+                })
+            })
+            .collect()
+    }
+
+    /// The screen showing the view `view` of its editor `editor`, as it painted it last.
+    pub(crate) fn screen_of(
+        &self,
+        editor: EditorInstanceId,
+        view: be_sdk_api::ViewId,
+    ) -> Option<ScreenId> {
+        let state = self.state.borrow();
+        state
+            .painted
+            .values()
+            .find(|placement| (placement.instance, placement.view) == (editor, view))
+            .map(|placement| placement.screen)
+    }
+
+    /// Tells the app that a press outside them closed its anchored views `views`, which all hang
+    /// from its view shown on `screen` (`input-batch.dismissed`), as be-host does: each hears it
+    /// before anything else the app is sent.
+    pub(crate) fn dismiss(&self, screen: ScreenId, views: Vec<be_sdk_api::ViewId>) {
+        let mut state = self.state.borrow_mut();
+        if state.failure.is_some() || !state.run.session.running() || views.is_empty() {
+            return;
+        }
+        let mut batch = InputBatch::new(screen, false);
+        batch.dismissed = views;
+        let send = state
+            .run
+            .send_for_frame(vec![AppCall::Input(batch).into()], Some);
+        state.wire.send(send);
+        state.flush();
+    }
+
     /// The input method's area the screen showing `surface` asks for, in its own points, and
     /// the pixels per point the surface is painted at: the field its app edits there, if any.
     pub(crate) fn ime(&self, surface: u32) -> Option<(ImeArea, f32)> {
@@ -707,6 +839,23 @@ pub fn tell_editor(instance: u64, editor: EditorInstanceId, event: &EditorEvent)
         // A host that stopped answering stops the root too.
         let _ = told.await;
     });
+}
+
+/// A view an app's editor anchored (`Embedded::anchored`).
+#[derive(Clone, Debug)]
+pub struct AnchoredView {
+    /// The layer showing it where it hangs.
+    pub layer: Layer,
+    pub placement: AnchoredPlacement,
+    /// The screen the app opened for it.
+    pub screen: ScreenId,
+    /// The editor that anchored it, and the view it is.
+    pub editor: EditorInstanceId,
+    pub view: be_sdk_api::ViewId,
+    /// The screen as a placer's, for the children placed in it: the size it hangs at, at the
+    /// pixels it is painted at, anchoring views of its own where it hangs, within the bounds of
+    /// the view of its editor's it hangs from, as be-host's anchored views do.
+    pub request: ScreenRequest,
 }
 
 /// Spawns the staged app `app`'s entry point `module` in the root's sandbox.
@@ -898,6 +1047,8 @@ impl State {
                 self.painted.retain(|screen, _| laid_out(screen));
                 self.windows.retain(|screen, _| laid_out(screen));
                 self.contents.retain(|screen, _| laid_out(screen));
+                self.used.retain(|screen, _| laid_out(screen));
+                self.anchored.retain(|screen, _| laid_out(screen));
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
@@ -909,10 +1060,19 @@ impl State {
                     .heard_layout(&mut commit, |placements| only_moves(placed, placements));
                 let children = std::mem::take(&mut commit.children);
                 self.place(children);
+                self.hear_sizes(std::mem::take(&mut commit.sizes));
                 // Held with its children when they wait for the present, else heard now.
                 self.hear_docks(std::mem::take(&mut commit.docks));
                 for report in &commit.reports {
                     self.contents.insert(report.screen, report.content);
+                    match &report.anchored {
+                        Some(anchored) => {
+                            self.anchored.insert(report.screen, anchored.clone());
+                        }
+                        None => {
+                            self.anchored.remove(&report.screen);
+                        }
+                    }
                 }
                 self.run.pacing.laid_out();
             }
@@ -920,6 +1080,7 @@ impl State {
                 self.run.holds.heard_presents(1);
                 for held in self.run.holds.release_presented() {
                     if let Held::Laid(laid) = held {
+                        self.hear_sizes(laid.sizes);
                         for window in laid.windows {
                             self.windows.insert(window.screen, window.window);
                         }
@@ -1115,6 +1276,14 @@ impl State {
         {
             let failure = format!("the app's session failed: {failure:?}");
             self.fail(failure);
+        }
+    }
+
+    /// Keeps the room the screens asked to fit their content used, as a layout said.
+    fn hear_sizes(&mut self, sizes: Vec<ViewSize>) {
+        for size in sizes {
+            self.used
+                .insert(size.screen, vec2(size.logical.x, size.logical.y));
         }
     }
 

@@ -1169,8 +1169,12 @@ fn child_status(
         (ShownPreview::View, Some(_)) => ChildPreview::Composited,
         (ShownPreview::View, None) => ChildPreview::Waiting,
     };
-    let available =
-        manifest.is_some() || (child.preview != ShownPreview::None && child.error.is_none());
+    // A dialog (a picker, a rename form, an Export dialog) is available at once, as be-host's
+    // own are: its placer shows its frame while its editor opens.
+    let dialog_shown = matches!(child.shows, Some(be_wasm_root_api::Shown::Dialog(_)));
+    let available = manifest.is_some()
+        || (dialog_shown && child.error.is_none())
+        || (child.preview != ShownPreview::None && child.error.is_none());
     // A dialog's pick, answer and card, as what it told the shell that the root relays says
     // (`host.tell-shell`), as be-host's `picker_status` says them.
     let dialog = child
@@ -1382,7 +1386,7 @@ struct ShownLayers {
 
 impl Paints for ShownLayers {
     /// Each of the root's surfaces' paintings where its layer shows it in the window, bottom
-    /// first: its own by their surfaces' ids, and its apps' screens, which their paintings
+    /// first: its own by their surfaces' ids, and its apps' screens and anchored views, which their paintings
     /// come through the root for (plans/host_as_platform_adapter.md, Other moves), by their
     /// layers' ids.
     fn painting(&self, _rect: beui::Rect) -> Option<Painting> {
@@ -1392,24 +1396,23 @@ impl Paints for ShownLayers {
         for (layer, _) in &self.layers {
             let key = match layer.surface {
                 Surface::Root(surface) => u64::from(surface),
-                Surface::Screen { .. } => layer.id.0,
-                Surface::Anchored { .. } | Surface::Host(_) => continue,
+                Surface::Screen { .. } | Surface::Anchored { .. } => layer.id.0,
+                Surface::Host(_) => continue,
             };
             let Some(painting) = paintings.get(&key) else {
                 continue;
             };
-            let (width, height) = (layer.size.0 as f32, layer.size.1 as f32);
+            // The painting's own pixels, which are its surface's: a screen asked to fit its
+            // content paints the room it used, at the top left of its surface.
+            let (width, height) = (painting.frame.size[0] as f32, painting.frame.size[1] as f32);
             let corners =
                 [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)].map(|(x, y)| {
                     let at = layer.transform.apply(beui::pos2(x, y));
                     [at.x, at.y]
                 });
-            let clip = [
-                corners.iter().map(|at| at[0]).fold(f32::MAX, f32::min),
-                corners.iter().map(|at| at[1]).fold(f32::MAX, f32::min),
-                corners.iter().map(|at| at[0]).fold(f32::MIN, f32::max),
-                corners.iter().map(|at| at[1]).fold(f32::MIN, f32::max),
-            ];
+            // What of it shows: its layer's clip.
+            let shown = layer.transform.bounds(layer.clip);
+            let clip = [shown.min.x, shown.min.y, shown.max.x, shown.max.y];
             primitives.extend(painting.placed(Placement {
                 source: [0.0, 0.0, 1.0, 1.0],
                 corners,

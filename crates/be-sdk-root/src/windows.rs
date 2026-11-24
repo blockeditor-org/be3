@@ -92,6 +92,14 @@ impl Windows {
         deliveries
     }
 
+    /// The window whose layers drawn last hold the layer `layer`.
+    pub fn window_of(&self, layer: LayerId) -> Option<Option<u64>> {
+        self.windows
+            .iter()
+            .find(|routing| routing.layers.layer(layer).is_some())
+            .map(|routing| routing.window)
+    }
+
     /// Whether `window` has a router.
     pub fn routes(&self, window: Option<u64>) -> bool {
         self.windows.iter().any(|routing| routing.window == window)

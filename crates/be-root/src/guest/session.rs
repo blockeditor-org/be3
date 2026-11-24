@@ -9,11 +9,13 @@ use std::{cell::Cell, future::Future, pin::Pin, rc::Rc, task::Poll, time::Durati
 use be_lib_geometry::pos2;
 use be_lib_layers::{Area, Layer, LayerId, LayerInput};
 use be_sdk_api::{
-    EditorInstanceId, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceFormat,
-    SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
+    AnchorSpace, EditorInstanceId, HostTransform, ParentView, Pos2 as ViewPos2, ScreenId,
+    ScreenRequest, SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement,
+    ViewportMetrics,
 };
 use be_sdk_root::{
-    BlockSpawn, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed, SpawnFailure, Spawning,
+    AnchoredView, BlockSpawn, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed,
+    SpawnFailure, Spawning,
 };
 use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
 use beui::reactive::*;
@@ -246,6 +248,9 @@ impl Root {
             layer,
             &mut layers,
         );
+        // The views the session's editor and its children anchored outside their groups, over
+        // everything they place (`anchored-placement`).
+        children.anchored_layers(&hosted.app, Some(hosted.editor), &mut layers);
         layers
     }
 
@@ -282,8 +287,12 @@ impl Root {
         let Some(layer) = hosted.app.layer(SESSION_SCREEN, pos2(0.0, 0.0)) else {
             return Vec::new();
         };
+        let anchored = anchored(hosted, children)
+            .into_iter()
+            .map(|(app, view)| (app, view.screen, view.layer.id));
         std::iter::once((hosted.app.clone(), SESSION_SCREEN, layer.id))
             .chain(children.screens())
+            .chain(anchored)
             .collect()
     }
 
@@ -396,7 +405,17 @@ fn screen(editor: EditorInstanceId, window: Window) -> ScreenRequest {
         windows: false,
         host_place: None,
         docked: false,
-        anchor_space: None,
+        // The session's views anchor theirs anywhere in the window, in its points.
+        anchor_space: Some(AnchorSpace {
+            to_host: HostTransform {
+                origin: ViewPos2::ZERO,
+                scale: ViewVec2 { x: 1.0, y: 1.0 },
+            },
+            bounds: be_lib_geometry::Rect::from_min_max(
+                pos2(0.0, 0.0),
+                pos2(window.width, window.height),
+            ),
+        }),
         fit: false,
         origin: None,
     }
@@ -501,4 +520,22 @@ pub(super) fn SessionNotice(
             }</Show>
         </Frame>
     }
+}
+
+/// The views the session's editor `hosted` and the `children` it places anchored outside their
+/// groups, each with its app: the session's app's first, then each child's app's.
+fn anchored(hosted: &Hosted, children: &Children) -> Vec<(Embedded, AnchoredView)> {
+    std::iter::once(hosted.app.clone())
+        .chain(
+            children
+                .apps()
+                .into_iter()
+                .filter(|app| app.instance() != hosted.app.instance()),
+        )
+        .flat_map(|app| {
+            app.anchored()
+                .into_iter()
+                .map(move |view| (app.clone(), view))
+        })
+        .collect()
 }
