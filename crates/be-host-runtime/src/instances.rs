@@ -172,6 +172,9 @@ struct Instance {
     /// The highest `keyboard-ask` a child it placed carried that the host acted on: a commit
     /// carrying a higher one moves the keyboard to that child (`set_children`).
     keyboard_ask: u64,
+    /// The child its latest ask names, until the ask is withdrawn: when the child is no longer
+    /// placed, the compositor hears the ask stands no more.
+    asked_child: Option<ChildId>,
     /// Blocks it made in this run, the only ones an app whose manifest does not set `sharing`
     /// may open to anyone inside (`services::refuses_sharing`).
     made: HashSet<Uuid>,
@@ -354,6 +357,7 @@ impl Instance {
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
             keyboard_ask: 0,
+            asked_child: None,
             made: HashSet::default(),
             screens: HashMap::default(),
             forwarded_statuses: HashMap::default(),
@@ -433,6 +437,10 @@ fn forget_opened(
         );
     }
     entry.deferred.clear();
+    // The new run's editor counts its asks afresh, and an ask the old one made stands no more.
+    entry.keyboard_ask = 0;
+    entry.asked_child = None;
+    super::events::emit(app_id, instance, InstanceEvent::KeyboardAsked(None));
     entry.reported_focus = None;
     entry.reported_editable = None;
     entry.reported_hosting = None;
@@ -2226,7 +2234,7 @@ impl Instances {
     /// again. What they described goes in `Run::restart` (`Descriptions`).
     /// Opens an editor again as a Join member (`opening-kind.join`, no content) once its
     /// block's access fell to Join, or as an ordinary editor once it rose from it: closed at the
-    /// app if it was open there, with all an app's close ends (its gifts, services, waiting
+    /// app if it was open there, with all an app's close ends (its services, waiting
     /// messages, early shows, the screens it announced) forgotten, as `remove` forgets them,
     /// but the instance kept, so the next pass opens it again.
     fn switch_kind(&mut self, instance: EditorInstanceId) -> Vec<Outbound> {
@@ -2859,29 +2867,74 @@ impl Instances {
             occluders,
         };
         let changed = screen.children != table;
-        let asked = table
-            .children
-            .iter()
-            .max_by_key(|placement| placement.keyboard_ask)
-            .map(|placement| (placement.child, placement.keyboard_ask));
         screen.children = table;
-        if let Some(entry) = self.entries.get_mut(&instance) {
-            match asked {
-                // The highest ask above every one acted on: the keyboard goes to its child at
-                // once, the compositor moving it there as the commit is applied, whether the
-                // child's app runs yet or not (decisions/keys_are_never_held.md).
-                Some((child, ask)) if ask > entry.keyboard_ask => {
-                    entry.keyboard_ask = ask;
-                    super::events::emit(
-                        &self.app_id,
-                        instance,
-                        InstanceEvent::KeyboardAsked(Some(child)),
-                    );
+        changed
+    }
+
+    /// Hears the keyboard asks one layout commit carries (`child-placement.keyboard-ask`), across
+    /// all its views: for each editor, the child that carries its highest. One above every ask
+    /// acted on for that editor moves the keyboard to its child at once, the compositor moving it
+    /// there as the commit is applied, whether the child's app runs yet or not
+    /// (decisions/keys_are_never_held.md): one event an editor per commit.
+    pub(super) fn hear_keyboard_asks(&mut self, children: &[ChildPlacements]) {
+        let mut asked: Vec<(EditorInstanceId, ChildId, u64)> = Vec::new();
+        for placements in children {
+            for placement in &placements.children {
+                match asked.iter_mut().find(|(editor, ..)| *editor == placements.instance) {
+                    Some(held) if placement.keyboard_ask > held.2 => {
+                        *held = (placements.instance, placement.child, placement.keyboard_ask);
+                    }
+                    Some(_) => {}
+                    None => asked.push((
+                        placements.instance,
+                        placement.child,
+                        placement.keyboard_ask,
+                    )),
                 }
-                _ => {}
             }
         }
-        changed
+        for (instance, child, ask) in asked {
+            let Some(entry) = self.entries.get_mut(&instance) else {
+                continue;
+            };
+            if ask > entry.keyboard_ask {
+                entry.keyboard_ask = ask;
+                entry.asked_child = Some(child);
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::KeyboardAsked(Some(child)),
+                );
+            }
+        }
+        // An ask whose child its editor no longer places is withdrawn.
+        for placements in children {
+            let Some(entry) = self.entries.get_mut(&placements.instance) else {
+                continue;
+            };
+            let Some(child) = entry.asked_child else {
+                continue;
+            };
+            let placed = entry
+                .screens
+                .values()
+                .chain(entry.anchored.iter().map(|held| &held.screen))
+                .any(|screen| {
+                    screen
+                        .children
+                        .children
+                        .iter()
+                        .any(|placement| placement.child == child)
+                });
+            if !placed {
+                entry.asked_child = None;
+                super::events::emit(
+                    &self.app_id,
+                    placements.instance,
+                    InstanceEvent::KeyboardAsked(None),
+                );
+            }
+        }
     }
 
     /// The host asks that `child` of `instance` take the keyboard, as a view that hands the

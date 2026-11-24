@@ -11,8 +11,8 @@
 //! (`be3:root`'s `host.show-children`): available once an editor shows the child, with what its
 //! app's manifest says of that editor, or why the root shows nothing of it.
 //!
-//! Left for later (4g7b3's later parts): giving a child the keyboard (`focus-child`) and the
-//! gifts of keys held for it, promoting and taking back an active child, a child that takes its
+//! Left for later (4g7b3's later parts): moving the keyboard into a child its placement asks it
+//! for (`keyboard-ask`), promoting and taking back an active child, a child that takes its
 //! placer's frame, docks that join across apps (a child is asked for its own dock), drags, a block
 //! shown in several places sharing one editor, occluders, a child sized to its content (`fit`), one placed in place at
 //! its zoom, previews, and every other kind of child (web views, host panels, program windows,

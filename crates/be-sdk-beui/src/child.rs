@@ -41,9 +41,10 @@ pub fn ChildBlock(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
-    /// How many times the editor asked that the child take the keyboard: each time it grows,
-    /// the host moves the keyboard to the child at the layout commit that carries it, if the
-    /// keyboard is within this editor's views and no view that takes the keyboard is open.
+    /// How many times the editor asked that the child take the keyboard, a count that only grows:
+    /// each time it grows above the highest it reached, the host moves the keyboard to the child
+    /// at the layout commit that carries it, if the keyboard is within this editor's views and
+    /// no view that takes the keyboard is open.
     #[prop(default = 0)]
     keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
@@ -232,7 +233,10 @@ fn SubregionView(
         Some(tab) => tab_keyboard_asks(editor, tab, placed, mode),
         None => create_memo(|| 0),
     };
-    let keyboard = Prop::dynamic(move || keyboard.get() + tab_asks.get());
+    // Both counts only grow, so their sum does: the editor's own count is taken as how many
+    // times it grew, so neither can hide the other's growth.
+    let own_asks = growths(keyboard);
+    let keyboard = Prop::dynamic(move || own_asks.get() + tab_asks.get());
     let state = editor.register_child(
         slot,
         placed.into_prop(),
@@ -297,6 +301,20 @@ fn SubregionView(
     view! {
         <Embed slot={slot} punch={punch} rotation={turn} radius={radius} children={Some(inner)} />
     }
+}
+
+/// How many times `count` grew above the highest it reached.
+fn growths(count: Prop<u64>) -> ReadSignal<u64> {
+    let grown = create_signal(0_u64);
+    let highest = StoredCell::new(0_u64);
+    create_effect(move || {
+        let now = count.get();
+        if now > highest.get() {
+            highest.set(now);
+            untrack(|| grown.update(|grown| *grown += 1));
+        }
+    });
+    grown.read_only()
 }
 
 /// Counts the times the dock gives `tab` the keyboard, or brings its window forward, while the
