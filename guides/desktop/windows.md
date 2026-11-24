@@ -56,7 +56,8 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
   (`win32_map::host_program`). So a window from last time, kept as a placeholder with its chip
   like any other (guides/desktop.md), starts again from its shortcut on Open or Restore, even one
   the desktop did not launch. Matching by executable misses a launcher whose window belongs to
-  another process (its shortcut targets the launcher, its window the program it starts) and a
+  another process (its shortcut targets the launcher, its window the program it starts: Electron's
+  `Update.exe --processStart`, Steam, `cmd /c`) and a
   path Windows redirects (a 32-bit program's System32 is SysWOW64); without an AppUserModelID
   such a window's chip cannot start it again. Every entry is listed `opens_hidden`,
   since showing one captures it: the shell opens a hidden tab for each, nothing is captured or
