@@ -8,7 +8,8 @@ use crate::document::Document;
 use crate::node::{Rects, SpaceId};
 use beui_types::Direction;
 use beui_types::NodeId;
-use beui_types::Rect;
+use beui_types::{Rect, Vec2};
+use be_lib_stable_hash::HashMap;
 
 const TOLERANCE: f32 = 1.0;
 const EXACT: f32 = 0.01;
@@ -62,15 +63,20 @@ impl Document {
             return found;
         };
         let viewport = self.viewport.as_ref().map(|(_, rect, _)| *rect);
-        let mut pending = vec![(root, false, viewport)];
-        while let Some((id, parent_cut, viewport)) = pending.pop() {
+        // How far the frames above each node translate it, so a clip is checked moved
+        // with whatever moved its content under it: a toast or page sliding under a
+        // clip is in motion, not cut off.
+        let mut shifts: HashMap<NodeId, Vec2> = HashMap::default();
+        let mut pending = vec![(root, false, viewport, Vec2::ZERO)];
+        while let Some((id, parent_cut, viewport, shift)) = pending.pop() {
             if !self.arena.contains(id) {
                 continue;
             }
+            shifts.insert(id, shift);
             let Some(rect) = self.rects.get(&id) else {
                 continue;
             };
-            let bounds = self.reachable(id, viewport);
+            let bounds = self.reachable(id, viewport, shift, &shifts);
             let cut = rect.is_positive() && !within(rect, bounds);
             if cut && !parent_cut {
                 found.push(self.overflow(id, OverflowKind::CutOff, rect, bounds));
@@ -93,8 +99,9 @@ impl Document {
                 }
             }
             let viewport = self.viewport_inside(id, viewport);
+            let shift = shift + self.moved(id);
             for child in self.arena.get(id).live_children() {
-                pending.push((child, cut, viewport));
+                pending.push((child, cut, viewport, shift));
             }
         }
         found
@@ -133,22 +140,38 @@ impl Document {
         if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id) {
             return self.arena.get_as::<OverlayNode>(overlay).placed_in;
         }
+        let moved = self.moved(id);
+        viewport.map(|viewport| viewport.translate(moved))
+    }
+
+    /// How far a frame translates what is inside it.
+    fn moved(&self, id: NodeId) -> Vec2 {
         match self.arena.kind_of::<FrameNode>(id) {
-            Some(frame) => {
-                let moved = self
-                    .arena
-                    .get_as::<FrameNode>(frame)
-                    .moved(self.pixel_grid());
-                viewport.map(|viewport| viewport.translate(moved))
-            }
-            None => viewport,
+            Some(frame) => self
+                .arena
+                .get_as::<FrameNode>(frame)
+                .moved(self.pixel_grid()),
+            None => Vec2::ZERO,
         }
     }
 
-    fn reachable(&self, id: NodeId, viewport: Option<Rect>) -> Rect {
+    fn reachable(
+        &self,
+        id: NodeId,
+        viewport: Option<Rect>,
+        shift: Vec2,
+        shifts: &HashMap<NodeId, Vec2>,
+    ) -> Rect {
         let mut bounds = Rect::EVERYTHING;
         let (mut free_x, mut free_y) = (false, false);
-        let clips = self.rects.clips_above(&id).into_iter();
+        let clips = self.rects.clips_above(&id).into_iter().map(|(space, clip)| {
+            // Moved by the frames between the clip and the node, which moved the node
+            // and not the clip.
+            let between = shifts
+                .get(&space.node())
+                .map_or(Vec2::ZERO, |above| shift - *above - self.moved(space.node()));
+            (space, clip.translate(between))
+        });
         let viewport = viewport.map(|rect| (SpaceId::of(id), rect));
         for (space, clip) in clips.chain(viewport) {
             let (x, y) = self.scrolls(space);

@@ -8,6 +8,11 @@ use super::*;
 
 /// Well past the time an ordinary toast shows for (beui's `TOAST_DURATION`), in nanoseconds.
 const PAST_ITS_TIME: u64 = 60_000_000_000;
+/// Long enough a frame, in nanoseconds, that a few of them see a toast slide all the way in
+/// or out.
+const FRAME: u64 = 100_000_000;
+/// When the toasts have slid in and rest, well before an ordinary one's time is up.
+const SETTLED: u64 = 1_000_000_000;
 
 #[test]
 fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
@@ -45,10 +50,12 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
         },
     ]);
     // The root hears them as it steps, and draws them in a frame it then asks for.
-    let drawn = (2..12)
+    (2..12)
         .map(|time| draw(&mut root, time))
         .find(|done| toasts(done).is_some())
         .expect("the root shows its host's notices within a few frames");
+    // They slide in from the side; once they rest, they are hit where they are drawn.
+    let drawn = draw(&mut root, SETTLED);
     let layer = toasts(&drawn).expect("the toasts' layer shows");
     assert_eq!(
         shown(&drawn).last(),
@@ -98,7 +105,7 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
     let copy = pos2(width as f32 - 84.0, 72.0);
 
     // What beui drew: the failure as an alert with its action, the refusal under it.
-    let painting = own_paintings(&mut root, 11)
+    let painting = own_paintings(&mut root, SETTLED + 1)
         .into_iter()
         .find(|(surface, _)| *surface == u64::from(TOAST_SURFACE))
         .map(|(_, painting)| painting)
@@ -113,7 +120,7 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
     );
 
     // Pressed through the root's router: the failure's action, then its close button.
-    let mut time = 12;
+    let mut time = SETTLED + 2;
     let mut press = |root: &mut Root, at| {
         root.input(
             None,
@@ -136,7 +143,7 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
         .expect("the root takes input");
         (0..5)
             .flat_map(|_| {
-                time += 1;
+                time += FRAME;
                 draw(root, time);
                 root.take_answers()
             })
@@ -157,7 +164,7 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
     // until the person answers it.
     let answers: Vec<_> = (0..10)
         .flat_map(|step| {
-            draw(&mut root, PAST_ITS_TIME + step);
+            draw(&mut root, PAST_ITS_TIME + step * FRAME);
             root.take_answers()
         })
         .collect();

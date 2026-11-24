@@ -6,12 +6,9 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::{BackEdge, BackGesture};
-use beui_view::types::{Vec2, vec2};
+use beui_view::types::{Vec2, Velocity, pos2, vec2};
 
 pub const BACK_DRAG_SHARE: f32 = 0.3;
-const RETURN_SECONDS: f32 = 0.25;
-const LEAVE_SECONDS: f32 = 0.2;
-const ENTER_SECONDS: f32 = 0.3;
 const ENTER_SHARE: f32 = 0.25;
 const BEHIND_SHARE: f32 = 0.25;
 
@@ -19,8 +16,8 @@ const BEHIND_SHARE: f32 = 0.25;
 enum Phase {
     Still,
     Dragging,
-    Returning { from: f32 },
-    Leaving { from: f32 },
+    Returning,
+    Leaving,
     Entering,
 }
 
@@ -28,17 +25,27 @@ struct State {
     phase: Phase,
     position: f32,
     direction: f32,
+    /// The page's speed in points a second toward leaving: the gesture's as it
+    /// is let go, then its spring's.
+    velocity: f32,
+    /// The speed the gesture let a leaving page go at, which the page coming
+    /// in starts at.
+    thrown: f32,
+    /// The gesture's progress on the frame clock, for the speed it is let go at.
+    tracked: Option<Velocity>,
 }
 
-/// How a back slide's motions look: the easing a page slides in on (`enter`),
-/// carries on off the edge on (`leave`), and eases back to rest on when a
-/// gesture is cancelled (`settle`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// How a back slide's motions look: the springs a page slides in on (`enter`),
+/// carries on off the edge on (`leave`), and comes back to rest on when a
+/// gesture is cancelled (`settle`). Each starts at the speed the back gesture
+/// was let go at, or at rest after a back with no gesture.
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SlideCurves {
-    pub enter: Easing,
-    pub leave: Easing,
-    pub settle: Easing,
+    pub enter: Spring,
+    pub leave: Spring,
+    pub settle: Spring,
 }
+
 
 struct Slide {
     curves: SlideCurves,
@@ -58,6 +65,10 @@ struct Slide {
 }
 
 impl Slide {
+    fn width(&self) -> f32 {
+        self.viewport.get_untracked().x.max(1.0)
+    }
+
     fn place(&self, position: f32) {
         let direction = {
             let mut state = self.state.borrow_mut();
@@ -72,10 +83,36 @@ impl Slide {
         self.on_presence.call(1.0 - position.clamp(0.0, 1.0));
     }
 
-    fn start(&self, phase: Phase) {
+    /// Follows the gesture's progress on the frame clock, so a release knows
+    /// how fast the page was moving.
+    fn track(&self, position: f32) {
+        let point = pos2(position * self.width(), 0.0);
+        let at = now();
+        let mut state = self.state.borrow_mut();
+        match state.tracked.as_mut() {
+            Some(tracked) => tracked.sample(at, point),
+            None => state.tracked = Some(Velocity::new(at, point)),
+        }
+    }
+
+    /// The speed the gesture was let go at, in points a second toward leaving;
+    /// zero for a back with no gesture.
+    fn released(&self) -> f32 {
+        self.state
+            .borrow_mut()
+            .tracked
+            .take()
+            .map_or(0.0, |tracked| tracked.get().x)
+    }
+
+    fn start(&self, phase: Phase, velocity: f32) {
         let animate = {
             let mut state = self.state.borrow_mut();
             state.phase = phase;
+            state.velocity = velocity;
+            if phase == Phase::Leaving {
+                state.thrown = velocity;
+            }
             !matches!(phase, Phase::Still | Phase::Dragging)
         };
         self.reveal(phase);
@@ -93,55 +130,60 @@ impl Slide {
 
     fn reveal(&self, phase: Phase) {
         self.revealing.set(
-            self.behind
-                && matches!(
-                    phase,
-                    Phase::Dragging | Phase::Returning { .. } | Phase::Leaving { .. }
-                ),
+            self.behind && matches!(phase, Phase::Dragging | Phase::Returning | Phase::Leaving),
         );
     }
 
     fn gesture(&self, gesture: BackGesture) {
-        let (phase, position) = {
-            let state = self.state.borrow();
-            (state.phase, state.position)
-        };
-        if matches!(phase, Phase::Leaving { .. }) {
+        let phase = self.state.borrow().phase;
+        if phase == Phase::Leaving {
             return;
         }
         match gesture {
             BackGesture::Started { edge } => {
-                self.state.borrow_mut().direction = match edge {
-                    BackEdge::Right => -1.0,
-                    BackEdge::Left | BackEdge::None => 1.0,
-                };
-                self.start(Phase::Dragging);
+                {
+                    let mut state = self.state.borrow_mut();
+                    state.direction = match edge {
+                        BackEdge::Right => -1.0,
+                        BackEdge::Left | BackEdge::None => 1.0,
+                    };
+                    state.tracked = None;
+                }
+                self.start(Phase::Dragging, 0.0);
                 self.place(0.0);
+                self.track(0.0);
             }
             BackGesture::Progressed(progress) => {
                 if phase == Phase::Dragging {
-                    self.place(progress * BACK_DRAG_SHARE);
+                    let position = progress * BACK_DRAG_SHARE;
+                    self.place(position);
+                    self.track(position);
                 }
             }
             BackGesture::Cancelled => {
                 if phase == Phase::Dragging {
-                    self.start(Phase::Returning { from: position });
+                    let velocity = self.released();
+                    self.start(Phase::Returning, velocity);
                 }
             }
             BackGesture::Invoked => {
+                let velocity = match phase {
+                    Phase::Dragging => self.released(),
+                    _ => 0.0,
+                };
                 if phase == Phase::Still {
                     self.state.borrow_mut().direction = 1.0;
                 }
                 match self.open {
-                    None => self.start(Phase::Leaving { from: position }),
+                    None => self.start(Phase::Leaving, velocity),
                     Some(open) => {
                         self.on_back.call(());
                         match open.get_untracked() {
                             true if phase == Phase::Dragging => {
-                                self.start(Phase::Returning { from: position })
+                                self.start(Phase::Returning, velocity)
                             }
                             true => {}
-                            false => self.leave(),
+                            false => self.leave(velocity),
                         }
                     }
                 }
@@ -149,24 +191,26 @@ impl Slide {
         }
     }
 
-    fn leave(&self) {
+    fn leave(&self, velocity: f32) {
         let (phase, position) = {
             let state = self.state.borrow();
             (state.phase, state.position)
         };
-        if !matches!(phase, Phase::Leaving { .. }) && position < 1.0 {
-            self.start(Phase::Leaving { from: position });
+        if phase != Phase::Leaving && position < 1.0 {
+            self.start(Phase::Leaving, velocity);
         }
     }
 
     fn reset(&self) {
-        self.start(Phase::Still);
+        self.state.borrow_mut().tracked = None;
+        self.start(Phase::Still, 0.0);
         self.place(0.0);
     }
 
     fn gone(&self) {
+        let thrown = self.state.borrow().thrown;
         if self.open.is_some() {
-            self.start(Phase::Still);
+            self.start(Phase::Still, 0.0);
             self.on_gone.call(());
             return;
         }
@@ -175,7 +219,9 @@ impl Slide {
             true => {
                 self.state.borrow_mut().direction *= -1.0;
                 self.place(ENTER_SHARE);
-                self.start(Phase::Entering);
+                // The page coming in carries on the way the gesture threw the
+                // one going: toward its rest, at the speed it was let go at.
+                self.start(Phase::Entering, -thrown.max(0.0));
             }
             false => self.reset(),
         }
@@ -184,42 +230,46 @@ impl Slide {
     fn finish(&self) {
         let phase = self.state.borrow().phase;
         match phase {
-            Phase::Leaving { .. } => {
+            Phase::Leaving => {
                 self.place(1.0);
                 self.gone();
             }
-            Phase::Returning { .. } | Phase::Entering => self.reset(),
+            Phase::Returning | Phase::Entering => self.reset(),
             _ => {}
         }
     }
 
     fn step(&self, frame: AnimationFrame) -> Option<Duration> {
-        let phase = self.state.borrow().phase;
-        let elapsed = frame.elapsed.as_secs_f32();
-        let (position, next) = match phase {
-            Phase::Still | Phase::Dragging => return None,
-            Phase::Returning { from } => {
-                let progress = tween(elapsed, RETURN_SECONDS, self.curves.settle);
-                let next = if progress >= 1.0 { Phase::Still } else { phase };
-                (from * (1.0 - progress), next)
-            }
-            Phase::Leaving { from } => {
-                let progress = tween(elapsed, LEAVE_SECONDS, self.curves.leave);
-                if progress >= 1.0 {
-                    self.place(1.0);
-                    self.gone();
-                    return self.running();
-                }
-                (from + (1.0 - from) * progress, phase)
-            }
-            Phase::Entering => {
-                let progress = tween(elapsed, ENTER_SECONDS, self.curves.enter);
-                let next = if progress >= 1.0 { Phase::Still } else { phase };
-                (ENTER_SHARE * (1.0 - progress), next)
-            }
+        let (phase, position, mut velocity) = {
+            let state = self.state.borrow();
+            (state.phase, state.position, state.velocity)
         };
-        self.state.borrow_mut().phase = next;
-        self.reveal(next);
+        let width = self.width();
+        let seconds = frame.delta.as_secs_f32();
+        let (spring, target) = match phase {
+            Phase::Still | Phase::Dragging => return None,
+            Phase::Returning => (self.curves.settle, 0.0),
+            Phase::Leaving => (self.curves.leave, 1.0),
+            Phase::Entering => (self.curves.enter, 0.0),
+        };
+        let mut displacement = (position - target) * width;
+        spring.advance(&mut displacement, &mut velocity, seconds);
+        let position = target + displacement / width;
+        match phase {
+            Phase::Leaving if position >= 1.0 || (displacement == 0.0 && velocity == 0.0) => {
+                self.place(1.0);
+                self.gone();
+                return self.running();
+            }
+            // A page coming to rest stops there rather than swinging past it
+            // and showing what is beside it.
+            Phase::Returning | Phase::Entering if position <= 0.0 => {
+                self.reset();
+                return None;
+            }
+            _ => {}
+        }
+        self.state.borrow_mut().velocity = velocity;
         self.place(position);
         self.running()
     }
@@ -234,14 +284,16 @@ impl Slide {
 
 /// The motion for [`on_back`](beui_view::reactive::on_back), which only routes.
 ///
-/// Held, the page follows the finger; let go, it carries on off the edge
-/// before `on_back` runs; a cancelled gesture eases it back; a back with no
-/// gesture carries it off from where it rests. `behind` builds the page back
+/// Held, the page follows the finger; let go, it carries on off the edge on
+/// the `leave` spring, at the speed it was let go at, before `on_back` runs,
+/// and the next page comes in on `enter` at that speed; a cancelled gesture
+/// springs it back on `settle`; a back with no gesture carries it off from
+/// rest. The gesture's speed is read from its progress on the frame clock. `behind` builds the page back
 /// goes to under the moving one for the gesture's length, so `on_back` swaps
 /// in what was already showing; the moving page needs an opaque background,
 /// and a page that must keep its state is built once and handed to a `Portal`
 /// in both places. Given `open`, a back only asks: `on_back` runs at once, a
-/// held page eases back, and the page slides away when `open` falls, calling
+/// held page springs back, and the page slides away when `open` falls, calling
 /// `on_gone` once it's off.
 #[component]
 pub fn BackSlide(
@@ -267,6 +319,9 @@ pub fn BackSlide(
             phase: Phase::Still,
             position: 0.0,
             direction: 1.0,
+            velocity: 0.0,
+            thrown: 0.0,
+            tracked: None,
         }),
         animation: Cell::new(None),
         shift,
@@ -291,10 +346,7 @@ pub fn BackSlide(
             untrack(|| {
                 let slide = slide.value();
                 let phase = slide.state.borrow().phase;
-                if matches!(
-                    phase,
-                    Phase::Dragging | Phase::Returning { .. } | Phase::Leaving { .. }
-                ) {
+                if matches!(phase, Phase::Dragging | Phase::Returning | Phase::Leaving) {
                     slide.reset();
                 }
             });
@@ -310,7 +362,7 @@ pub fn BackSlide(
                 let slide = slide.value();
                 match open {
                     true => slide.reset(),
-                    false => slide.leave(),
+                    false => slide.leave(0.0),
                 }
             },
         );

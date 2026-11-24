@@ -18,7 +18,7 @@ pub enum ModalPlacement {
     Sheet,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ModalMotion {
     /// The content sits in a [`BackSlide`] moving on these curves, which
     /// carries it away on back.

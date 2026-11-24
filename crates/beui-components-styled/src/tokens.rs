@@ -320,20 +320,18 @@ impl Default for CornerSet {
 /// What a motion is for: the look of something moving, which the unstyled
 /// layer takes as an `Easing` (a motion that runs for a set time) or a `Spring`
 /// (one that carries the speed it was let go at, and rests by pixel distances).
-/// A component asks for the form its motion runs on. Today `Settle` is used in
-/// both forms, `Enter` and `Leave` only as easings and `Rubber` and `Pull` only
-/// as springs; their other forms are placeholders, to be set when a component
-/// first asks for them. How long a motion takes is behaviour and stays with the
-/// component. `Motion::Instant` still lands every movement at once.
+/// A component asks for the form its motion runs on, and a motion that follows
+/// a gesture runs on a spring, so it carries on at the speed it was let go at.
+/// Today `Settle` is used in both forms and `Rubber` and `Pull` only as
+/// springs; their easings are placeholders, to be set when a component first
+/// asks for them. How long an eased motion takes is behaviour and stays with
+/// the component. `Motion::Instant` still lands every movement at once.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Movement {
-    /// Something landing where layout puts it: a dropped item, dock panes and
-    /// bars moving, a sidebar opening, a sheet or page returning after a drag.
+    /// Something landing where layout puts it or going on its way: a dropped
+    /// item, dock panes and bars moving, a sidebar opening, a sheet rising, a
+    /// page or toast sliding in, out or back after a drag.
     Settle,
-    /// Something arriving: a sheet rising, a page sliding in.
-    Enter,
-    /// Something going away: a page sliding out.
-    Leave,
     /// Scrolled content pulled past its end springing back.
     Rubber,
     /// A window or sheet pulled past where it rests springing back.
@@ -341,10 +339,8 @@ pub enum Movement {
 }
 
 impl Movement {
-    pub const ALL: [Movement; 5] = [
+    pub const ALL: [Movement; 3] = [
         Movement::Settle,
-        Movement::Enter,
-        Movement::Leave,
         Movement::Rubber,
         Movement::Pull,
     ];
@@ -352,17 +348,14 @@ impl Movement {
     /// The movement as an easing. `Rubber` and `Pull` are placeholders.
     pub const fn easing(self) -> Easing {
         match self {
-            Movement::Settle | Movement::Enter | Movement::Rubber | Movement::Pull => {
-                Easing::OutCubic
-            }
-            Movement::Leave => Easing::OutQuad,
+            Movement::Settle | Movement::Rubber | Movement::Pull => Easing::OutCubic,
         }
     }
 
-    /// The movement as a spring. `Enter` and `Leave` are placeholders.
+    /// The movement as a spring.
     pub const fn spring(self) -> Spring {
         match self {
-            Movement::Settle | Movement::Enter | Movement::Leave => Spring {
+            Movement::Settle => Spring {
                 stiffness: 500.0,
                 damping: 42.0,
             },
@@ -380,8 +373,6 @@ impl Movement {
     pub const fn name(self) -> &'static str {
         match self {
             Movement::Settle => "settle",
-            Movement::Enter => "enter",
-            Movement::Leave => "leave",
             Movement::Rubber => "rubber",
             Movement::Pull => "pull",
         }

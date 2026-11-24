@@ -4,6 +4,8 @@ use super::*;
 fn the_message_toast_sample_offers_its_actions() {
     let mut test = alone(WIDE, Page::Overlays);
     test.frame(Vec::new());
+    // The page's toasts slide in before they rest.
+    test.settle();
     for _ in 0..REVEAL_TICKS {
         let bottom = test.size().y;
         if test.shown("toast.3") && test.rect_of("toast.3").bottom() <= bottom {

@@ -33,7 +33,6 @@ const CLOSE_DISTANCE: f32 = 96.0;
 const THROWN_SECONDS: f32 = 0.2;
 const RELEASED_STRETCH: f32 = 0.35;
 const EPSILON: f32 = 0.5;
-const ENTER_SECONDS: f32 = 0.3;
 const LEAVE_SECONDS: f32 = 0.22;
 const RETURN_SECONDS: f32 = 0.25;
 const HIDDEN_SHIFT: f32 = 100_000.0;
@@ -83,6 +82,7 @@ enum Slide {
     Shown,
     Entering {
         elapsed: f32,
+        velocity: f32,
         waited: u8,
     },
     Leaving {
@@ -96,8 +96,8 @@ enum Slide {
         from: f32,
     },
     Morphing {
-        elapsed: f32,
-        from: f32,
+        height: f32,
+        velocity: f32,
         waited: u8,
     },
     Gone,
@@ -145,13 +145,14 @@ struct Held {
     backing: bool,
 }
 
-/// How a sheet's motions look: the easing it rises on (`enter`) and comes back
+/// How a sheet's motions look: the spring it rises on, and grows or shrinks on
+/// from a sheet it takes over from (`enter`), the easing it comes back
 /// to a stop on after a drag or a back gesture lets go (`settle`), and the
 /// springs it comes back on when pulled past its top (`pull`) and its content
 /// when scrolled past an end (`rubber`).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SheetCurves {
-    pub enter: Easing,
+    pub enter: Spring,
     pub settle: Easing,
     pub pull: Spring,
     pub rubber: Spring,
@@ -534,6 +535,7 @@ impl Motion {
             let mut held = self.held.borrow_mut();
             held.slide = Slide::Entering {
                 elapsed: 0.0,
+                velocity: 0.0,
                 waited: 0,
             };
         }
@@ -624,8 +626,8 @@ impl Motion {
 
     fn morph(&self, from: f32) {
         self.held.borrow_mut().slide = Slide::Morphing {
-            elapsed: 0.0,
-            from,
+            height: from,
+            velocity: 0.0,
             waited: 0,
         };
         self.shifted.set(0.0);
@@ -635,13 +637,13 @@ impl Motion {
         self.kick();
     }
 
-    fn step_morph(&self, before: f32, from: f32, waited: u8, elapsed: f32) -> bool {
+    fn step_morph(&self, height: f32, velocity: f32, waited: u8, elapsed: f32) -> bool {
         let (sheet, body, _) = self.laid_out();
         if sheet.is_none() || body.is_none() {
             if waited < UNPLACED_FRAMES {
                 self.held.borrow_mut().slide = Slide::Morphing {
-                    elapsed: before,
-                    from,
+                    height,
+                    velocity,
                     waited: waited + 1,
                 };
                 return true;
@@ -652,20 +654,21 @@ impl Motion {
         }
         let shape = self.shape();
         let goal = self.rest_height(self.resting, &shape);
-        let elapsed = before + elapsed;
-        let progress = tween(elapsed, ENTER_SECONDS, Easing::Linear);
-        if progress >= 1.0 {
+        let mut displacement = height - goal;
+        let mut velocity = velocity;
+        self.curves.enter.advance(&mut displacement, &mut velocity, elapsed);
+        if displacement == 0.0 && velocity == 0.0 {
             self.held.borrow_mut().slide = Slide::Shown;
             self.place_height(self.resting);
             return false;
         }
-        let eased = self.curves.enter.sample(progress);
+        let height = goal + displacement;
         self.held.borrow_mut().slide = Slide::Morphing {
-            elapsed,
-            from,
+            height,
+            velocity,
             waited,
         };
-        self.place_height(Rest::Free(from + (goal - from) * eased));
+        self.place_height(Rest::Free(height));
         true
     }
 
@@ -686,19 +689,27 @@ impl Motion {
     fn step_slide(&self, elapsed: f32) -> bool {
         let slide = self.held.borrow().slide;
         if let Slide::Morphing {
-            elapsed: before,
-            from,
+            height,
+            velocity,
             waited,
         } = slide
         {
-            return self.step_morph(before, from, waited, elapsed);
+            return self.step_morph(height, velocity, waited, elapsed);
         }
         let height = match (slide, self.sheet_height().filter(|height| *height > 0.0)) {
             (Slide::Shown | Slide::Gone | Slide::Morphing { .. }, _) => return false,
             (_, Some(height)) => height,
-            (Slide::Entering { elapsed, waited }, None) if waited < UNPLACED_FRAMES => {
+            (
+                Slide::Entering {
+                    elapsed,
+                    velocity,
+                    waited,
+                },
+                None,
+            ) if waited < UNPLACED_FRAMES => {
                 self.held.borrow_mut().slide = Slide::Entering {
                     elapsed,
+                    velocity,
                     waited: waited + 1,
                 };
                 return true;
@@ -728,16 +739,26 @@ impl Motion {
         let (shift, next) = match slide {
             Slide::Entering {
                 elapsed: before,
+                velocity,
                 waited,
             } => {
                 let elapsed = before + elapsed;
-                let progress = tween(elapsed, ENTER_SECONDS, Easing::Linear);
-                let eased = self.curves.enter.sample(progress);
-                let next = match progress >= 1.0 {
-                    true => Slide::Shown,
-                    false => Slide::Entering { elapsed, waited },
-                };
-                ((1.0 - eased) * height, next)
+                // It rises from below the edge, or from wherever it was let in.
+                let mut shift = self.shifted.get().min(height);
+                let mut velocity = velocity;
+                self.curves.enter.advance(&mut shift, &mut velocity, elapsed - before);
+                // It stops at its rest rather than rising past it off the edge.
+                match shift <= 0.0 {
+                    true => (0.0, Slide::Shown),
+                    false => (
+                        shift,
+                        Slide::Entering {
+                            elapsed,
+                            velocity,
+                            waited,
+                        },
+                    ),
+                }
             }
             Slide::Leaving {
                 elapsed: before,

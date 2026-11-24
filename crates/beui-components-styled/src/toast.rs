@@ -6,7 +6,7 @@ use crate::button::{Button, ButtonVariant};
 use crate::list::List;
 use crate::scroll::scroll_style;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
-use crate::tokens::{Padding, Size, Space};
+use crate::tokens::{Movement, Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     Edge, Picture, Pressable, TOAST_DURATION, Toast, ToastAction, ToastHandle,
@@ -59,6 +59,7 @@ pub fn Toasts(
             width={WIDTH.px()}
             margin={MARGIN.px()}
             spacing={SPACING.px()}
+            spring={Movement::Settle.spring()}
             scroll={scroll_style()}
             on_dismiss
             on_action

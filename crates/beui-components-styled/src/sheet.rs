@@ -17,7 +17,7 @@ const GRIP_WIDTH: Size = Size::Custom(36.0);
 const GRIP_HEIGHT: Size = Size::Custom(4.0);
 const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
 const CURVES: SheetCurves = SheetCurves {
-    enter: Movement::Enter.easing(),
+    enter: Movement::Settle.spring(),
     settle: Movement::Settle.easing(),
     pull: Movement::Pull.spring(),
     rubber: Movement::Rubber.spring(),

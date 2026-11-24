@@ -39,6 +39,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     );
     fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
+    // The toasts slide back in.
+    fixture.test.settle();
     assert!(
         fixture.test.shown(&toast(1)),
         "and come back once it closes"
@@ -74,6 +76,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
     assert!(!fixture.test.shown(&toast(2)), "but its toast goes");
 
     fixture.test.click(format!("{}.dismiss", toast(3)));
+    // It slides off before the desktop hears it is dismissed.
+    fixture.test.settle();
     fixture.settle();
     assert_eq!(
         fixture.signals(),

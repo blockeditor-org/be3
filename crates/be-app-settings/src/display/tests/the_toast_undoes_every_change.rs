@@ -11,6 +11,8 @@ fn the_toast_undoes_every_change() {
     settings.choose(SCALE, 6);
     assert!(settings.says("Theme and scale now apply on your devices"));
 
+    // The toast slides in before it can be pressed where it rests.
+    settings.editor.settle();
     settings.editor.click("toast.0.action.undo");
     settings.run();
     assert_eq!(settings.every_device().theme, Some(ThemeKind::EPaper));
