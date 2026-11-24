@@ -16,6 +16,7 @@ use be_sdk_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
 use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::block_tree::{BlockTree, Listed, TreeBlock, TreeEntry, TreeNote};
 pub(crate) use be_sdk_beui::sections::{own_system, shared_with_me, workspaces};
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use be_sdk_beui::{Editor, label_glyph};
@@ -697,7 +698,7 @@ impl Builder<'_> {
             return;
         };
         for block in listed {
-            self.push(block, 1, None, &mut Vec::new(), true);
+            self.push(block, 1, true);
         }
     }
 
@@ -729,7 +730,7 @@ impl Builder<'_> {
             let used = self.used_in(block.id);
             let made_by = block.metadata.get(&CREATED_BY);
             let at = self.rows.len();
-            self.push(block, 1, None, &mut Vec::new(), false);
+            self.push(block, 1, false);
             let row = &mut self.rows[at];
             row.unused = used.as_ref().is_some_and(Vec::is_empty);
             row.detail = Some(unfiled_detail(made_by, used));
@@ -772,7 +773,7 @@ impl Builder<'_> {
             return;
         };
         for block in blocks {
-            self.push(block, 1, None, &mut Vec::new(), false);
+            self.push(block, 1, false);
         }
     }
 
@@ -809,17 +810,13 @@ impl Builder<'_> {
         let Some(watched) = self.watched.sections.get(&section.id) else {
             return;
         };
-        let listed = self.clock.listed(watched);
-        let Some(children) = note_for(&mut self.rows, listed, "Nothing here yet", |label| {
-            Row::note(path.clone(), 1, label)
-        }) else {
-            return;
-        };
-        self.push_pinned(section.id);
-        let mut path = path;
-        for child in children {
-            self.push(child, 1, Some(section.id), &mut path, false);
+        let listed = listed(self.clock.listed(watched));
+        if matches!(&listed, Listed::Blocks(children) if !children.is_empty()) {
+            self.push_pinned(section.id);
         }
+        self.push_tree(Some(&path), |tree, rows| {
+            tree.walk_listed(listed, &path, 1, false, rows);
+        });
     }
 
     fn shown_block(&mut self, id: Uuid) -> Option<BlockInfo> {
@@ -865,8 +862,12 @@ impl Builder<'_> {
             row.tags = self.tags_of(&info);
             let entered = self.entered.as_ref() == Some(&row.key);
             self.rows.push(row);
-            if entered {
-                self.push_inside(id, 2, &mut vec![id], false, "Nothing here yet");
+            let listing = self.watched.expanded.get(&id);
+            if let Some(listing) = listing.filter(|_| entered) {
+                let listed = listed(self.clock.listed(listing));
+                self.push_tree(Some(&[id]), |tree, rows| {
+                    tree.walk_listed(listed, &[id], 3, false, rows);
+                });
             }
         }
     }
@@ -901,37 +902,93 @@ impl Builder<'_> {
         for block in shared {
             let at = self.rows.len();
             let leavable = block.author != Some(self.account);
-            self.push(block, 1, None, &mut Vec::new(), false);
+            self.push(block, 1, false);
             self.rows[at].can_leave = leavable;
         }
     }
 
-    fn push(
+    /// Pushes a block listed at the top of a section (no container) at `depth`, and what is
+    /// open below it.
+    fn push(&mut self, block: BlockInfo, depth: usize, trashed: bool) {
+        self.push_tree(None, |tree, rows| {
+            tree.walk(vec![block], &[], depth, trashed, rows);
+        });
+    }
+
+    /// Pushes the rows `walk` walks: each block open below it (`Watched::expanded`, or the row
+    /// entered) unfolds. What is empty says so as a folder entered does, as does `entered`, the
+    /// folder the walk starts in, if it is one.
+    fn push_tree(
         &mut self,
-        reference: BlockInfo,
-        depth: usize,
-        container: Option<Uuid>,
-        path: &mut Vec<Uuid>,
-        trashed: bool,
+        entered: Option<&[Uuid]>,
+        walk: impl FnOnce(&mut BlockTree, &mut Vec<TreeEntry>),
     ) {
-        self.watched
-            .block_types
-            .insert(reference.id, reference.block_type);
-        let mut key_path = path.clone();
-        key_path.push(reference.id);
-        let expanded = self.watched.expanded.contains_key(&reference.id);
+        let inside = entered.map(<[Uuid]>::to_vec);
+        let entered = self.entered.clone();
+        let expanded = &self.watched.expanded;
+        let clock = &mut self.clock;
+        let mut entries = Vec::new();
+        walk(
+            &mut BlockTree {
+                children: &mut |block| {
+                    expanded
+                        .get(&block.id)
+                        .map(|listing| listed(clock.listed(listing)))
+                },
+                open: &|row: &TreeBlock| {
+                    let unfolds = expanded.contains_key(&row.block.id)
+                        && !is_reference(row)
+                        && !row.block.references.is_empty();
+                    unfolds || entered.as_ref() == Some(&RowKey::Block(row.path.clone()))
+                },
+                shown: &|_| true,
+                matches: None,
+            },
+            &mut entries,
+        );
+        for entry in entries {
+            match entry {
+                TreeEntry::Block(tree) => self.push_block(tree),
+                TreeEntry::Note { path, depth, note } => {
+                    let label = match note {
+                        TreeNote::Failed(why) => why,
+                        TreeNote::Empty
+                            if inside.as_ref() == Some(&path)
+                                || self.entered.as_ref() == Some(&RowKey::Block(path.clone())) =>
+                        {
+                            "Nothing here yet".to_owned()
+                        }
+                        TreeNote::Empty => "No references".to_owned(),
+                    };
+                    self.rows.push(Row::note(path, depth, &label));
+                }
+            }
+        }
+    }
+
+    fn push_block(&mut self, tree: TreeBlock) {
+        let TreeBlock {
+            path,
+            block,
+            depth,
+            container,
+            in_deleted,
+            ..
+        } = tree;
+        self.watched.block_types.insert(block.id, block.block_type);
+        let expanded = self.watched.expanded.contains_key(&block.id);
         let rows = &self.rows;
-        let row = describe(
+        let mut row = describe(
             self.client,
             self.types,
             &self.watched.block_types,
-            &reference,
+            &block,
             Placement {
-                key: RowKey::Block(key_path),
+                key: RowKey::Block(path),
                 depth,
                 container,
                 expanded,
-                trashed,
+                trashed: in_deleted,
             },
             |id| {
                 rows.iter()
@@ -939,45 +996,24 @@ impl Builder<'_> {
                     .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
             },
         );
-        let entered = self.entered.as_ref() == Some(&row.key);
-        let open = row.expanded || entered;
-        let trashed = trashed || row.deleted;
-        let mut row = row;
-        row.tags = self.tags_of(&reference);
+        row.tags = self.tags_of(&block);
         self.rows.push(row);
-        if !open || path.contains(&reference.id) {
-            return;
-        }
-        let empty = match entered {
-            true => "Nothing here yet",
-            false => "No references",
-        };
-        path.push(reference.id);
-        self.push_inside(reference.id, depth, path, trashed, empty);
-        path.pop();
     }
+}
 
-    fn push_inside(
-        &mut self,
-        id: Uuid,
-        depth: usize,
-        path: &mut Vec<Uuid>,
-        trashed: bool,
-        empty: &str,
-    ) {
-        let Some(listing) = self.watched.expanded.get(&id) else {
-            return;
-        };
-        let listed = self.clock.listed(listing);
-        let Some(children) = note_for(&mut self.rows, listed, empty, |label| {
-            Row::note(path.clone(), depth + 1, label)
-        }) else {
-            return;
-        };
-        for child in children {
-            self.push(child, depth + 1, Some(id), path, trashed);
-        }
+/// A listing as the tree walks it: one still loading within its grace shows nothing yet.
+fn listed(listed: Result<Vec<BlockInfo>, Option<String>>) -> Listed {
+    match listed {
+        Ok(blocks) => Listed::Blocks(blocks),
+        Err(Some(why)) => Listed::Failed(why),
+        Err(None) => Listed::Waiting,
     }
+}
+
+/// Whether a row is a link to a block that lives elsewhere, which does not unfold.
+fn is_reference(row: &TreeBlock) -> bool {
+    row.container
+        .is_some_and(|id| row.block.parent != Some(BlockParent::Block(id)))
 }
 
 /// Whether a block that references another is a place it is used, rather than a view that

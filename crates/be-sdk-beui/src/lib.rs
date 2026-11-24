@@ -8,6 +8,7 @@ pub use beui::reactive;
 
 pub mod beui_frame;
 mod block_link;
+pub mod block_tree;
 mod child;
 mod chrome;
 mod content;

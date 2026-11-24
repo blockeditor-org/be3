@@ -1,8 +1,10 @@
 use be_sdk_beui::beui::icons::Glyph;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use be_sdk_beui::beui::icons::{ICON_BOXES, ICON_USERS};
+use be_sdk_beui::block_tree::{BlockTree, Listed, TreeBlock, TreeEntry};
 use be_sdk_beui::sections::{is_workspace, shared_with_me, workspaces};
 use be_sdk_beui::{
     BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress, Failure,
@@ -455,89 +457,82 @@ struct Walk<'a> {
 }
 
 impl Walk<'_> {
-    fn matches(&self, block: &BlockInfo, name: &str) -> bool {
-        self.query.is_empty()
-            || name.to_lowercase().contains(&self.query)
-            || block.id.to_string().contains(&self.query)
-    }
-
-    fn block(
-        &mut self,
-        block: &BlockInfo,
-        path: &mut Vec<Uuid>,
-        depth: usize,
-        above: &str,
-    ) -> bool {
-        if path.contains(&block.id) || !(self.shown)(block) {
-            return false;
-        }
-        let label = block.label(self.catalog);
-        path.push(block.id);
-        let key = TreeKey(path.clone());
-        let searching = !self.query.is_empty();
-        let unfolded = (self.open)(&key, depth);
-        if unfolded {
-            self.unfolded.push(block.id);
-        }
-        let expanded = searching || unfolded;
-        let at = self.rows.len();
-        let listed = self.graph.listed.contains(&block.id);
-        let mut expandable = !listed && !block.references.is_empty();
-        let mut kept_child = false;
-        let children: Vec<BlockInfo> = match listed {
-            true => self.graph.children(block).cloned().collect(),
-            false => Vec::new(),
+    /// Walks `blocks` at `depth` below `under` (be_sdk_beui's `BlockTree`), each under a row
+    /// named `above`, and answers whether it kept any.
+    fn blocks(&mut self, blocks: Vec<BlockInfo>, under: &[Uuid], above: &str) -> bool {
+        let catalog = self.catalog;
+        let graph = self.graph;
+        let query = self.query.clone();
+        let unfolded = RefCell::new(Vec::new());
+        let open = |row: &TreeBlock| {
+            let open = (self.open)(&TreeKey(row.path.clone()), row.depth);
+            if open {
+                unfolded.borrow_mut().push(row.block.id);
+            }
+            open
         };
-        for child in &children {
-            if path.contains(&child.id) || !(self.shown)(child) {
-                continue;
-            }
-            expandable = true;
-            if expanded {
-                kept_child |= self.block(child, path, depth + 1, &label.name);
-            }
-        }
-        path.pop();
-        let matched = self.matches(block, &label.name);
-        if !matched && !kept_child {
-            self.rows.truncate(at);
-            return false;
-        }
-        self.rows.insert(
-            at,
-            TreeRow {
-                key,
-                block_type: block.block_type,
-                icon: label_glyph(&label),
-                detail: (self.detail)(block),
-                above: above.to_owned(),
-                depth,
-                expandable,
-                expanded: expandable && expanded,
-                section: depth == 0,
-                enabled: (self.enabled)(block),
-                name: label.name,
+        let matches = |block: &BlockInfo| {
+            block.label(catalog).name.to_lowercase().contains(&query)
+                || block.id.to_string().contains(&query)
+        };
+        let mut entries = Vec::new();
+        let kept = BlockTree {
+            children: &mut |block| {
+                graph
+                    .listed
+                    .contains(&block.id)
+                    .then(|| Listed::Blocks(graph.children(block).cloned().collect()))
             },
-        );
-        true
+            open: &open,
+            shown: self.shown,
+            matches: (!query.is_empty()).then_some(&matches as &dyn Fn(&BlockInfo) -> bool),
+        }
+        .walk(blocks, under, under.len(), false, &mut entries);
+        self.unfolded.extend(unfolded.into_inner());
+        let mut names: HashMap<Vec<Uuid>, String> = HashMap::new();
+        for entry in entries {
+            let TreeEntry::Block(row) = entry else {
+                continue;
+            };
+            let label = row.block.label(catalog);
+            let cycle = row.path[..row.path.len() - 1].contains(&row.block.id);
+            let expandable = !cycle
+                && row
+                    .has_children
+                    .unwrap_or(!row.block.references.is_empty());
+            let parent = &row.path[..row.path.len() - 1];
+            let above = names
+                .get(parent)
+                .map_or(above, String::as_str)
+                .to_owned();
+            names.insert(row.path.clone(), label.name.clone());
+            self.rows.push(TreeRow {
+                key: TreeKey(row.path),
+                block_type: row.block.block_type,
+                icon: label_glyph(&label),
+                detail: (self.detail)(&row.block),
+                above,
+                depth: row.depth,
+                expandable,
+                expanded: expandable && row.expanded,
+                section: row.depth == 0,
+                enabled: (self.enabled)(&row.block),
+                name: label.name,
+            });
+        }
+        kept
     }
 
-    fn shared(&mut self, loose: &[BlockInfo]) {
+    fn shared(&mut self, loose: Vec<BlockInfo>) {
         let key = TreeKey(vec![SHARED]);
         let expanded = !self.query.is_empty() || (self.open)(&key, 0);
-        let at = self.rows.len();
-        let mut kept = false;
-        let mut expandable = false;
-        for block in loose {
-            if !(self.shown)(block) {
-                continue;
-            }
-            expandable = true;
-            if expanded {
-                kept |= self.block(block, &mut vec![SHARED], 1, "Shared with me");
-            }
+        let expandable = loose.iter().any(|block| (self.shown)(block));
+        if !expandable {
+            return;
         }
-        if !expandable || (!self.query.is_empty() && !kept) {
+        let at = self.rows.len();
+        let kept = expanded && self.blocks(loose, &[SHARED], "Shared with me");
+        if !self.query.is_empty() && !kept {
             return;
         }
         self.rows.insert(
@@ -617,10 +612,8 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> T
         detail: &detail,
         open: &|key: &TreeKey, depth: usize| pick.unfolded.get(key).copied().unwrap_or(depth == 0),
     };
-    for section in graph.sections(catalog) {
-        walk.block(&section, &mut Vec::new(), 0, "");
-    }
-    walk.shared(&graph.loose());
+    walk.blocks(graph.sections(catalog), &[], "");
+    walk.shared(graph.loose());
     tree(walk, this)
 }
 
@@ -661,12 +654,8 @@ pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> 
         detail: &detail,
         open: &open,
     };
-    for section in graph.sections(catalog) {
-        walk.block(&section, &mut Vec::new(), 0, "");
-    }
-    for block in graph.loose() {
-        walk.block(&block, &mut Vec::new(), 0, "");
-    }
+    walk.blocks(graph.sections(catalog), &[], "");
+    walk.blocks(graph.loose(), &[], "");
     tree(walk, current)
 }
 
