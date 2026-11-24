@@ -1862,23 +1862,35 @@ Each step lands on its own.
            hangs (`frame-report.anchored`). `Embedded::anchored` shows each painted one as a
            `Surface::Anchored` layer at its rect, over everything the session places
            (`Children::anchored_layers`), with the children placed in it, which takes it as a
-           placer (its `AnchoredView::request`). The root's input reaches it as a screen; one
-           that asks for the keyboard (`keyboard`) gets it as it opens, once; a press outside
-           a chain of them (not on its trigger) closes the views that ask to be
-           (`dismiss-on-outside-press`), told to the app on the screen of the view the chain
-           hangs from (`input-batch.dismissed`) before the press, which still lands. The root's
+           placer (its `AnchoredView::request`), within the bounds of the view it hangs from,
+           stacked in the order they opened across apps. The root's input reaches it as a
+           screen, where it takes presses (`frame-report.floating`), and a press on it leaves
+           the keyboard where it is. One that asks for the keyboard (`keyboard`) gives it to
+           the child placed in it once that shows, else leaves it with the screen of the view
+           it hangs from, which hands its keys on and takes it back once the view closes, as
+           be-host-runtime's `gives_keyboard` says (`Embedding::key_anchored`), once per view
+           while its app keeps it open. A press closes what be-sdk-app-host's
+           `anchored::dismissed_by_press` says (shared with be-host's compositor), told to the
+           app on the screen of the view the chain hangs from (`input-batch.dismissed`) before
+           the press, which still lands. A view a layout no longer has places nothing, so a
+           closed popover's picker closes with it. The root's
            paintings carry anchored views too, and be-host places each painting at its own
            size within its layer's clip, as a screen asked to fit its content paints only the
            room it used. A dialog child is available at once, as under be-host, so its placer
            keeps it open while its editor opens; a child placed to fit its content reports
            the room its layout said it used (`layout-commit.sizes`, `Embedded::used`); and a
            dialog's editor registers no dock, so its placer's block keeps its own editor's.
-           Tests: be-sdk-root's `anchored_views_hang_in_chains_from_their_editors_views`, and
-           the host test `be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places`,
-           which opens the canvas's block picker and closes it with a press outside.
+           Tests: be-sdk-root's `anchored_views_hang_in_chains_from_their_editors_views`,
+           be-sdk-app-host's `a_press_in_a_menu_closes_its_submenu_and_one_outside_closes_both`,
+           and the host test `be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places`,
+           which opens the canvas's block picker, moves its highlight with Down, closes it with
+           a press outside, opens it again, closes it with Escape and opens it once more with
+           Enter on the Block button, which has the keyboard back.
            Left for later: `blocks-owner` (a modal anchored view that keeps input from its
            owner) is not honoured; an anchored view that leaves its bounds is not moved back
-           into them (`AnchoredScreen`'s shift under be-host).
+           into them (`AnchoredScreen`'s shift under be-host); no test yet has a submenu under
+           the root, a zoomed or nested child anchoring a view, an editor closed while its view
+           is open, or a raster other than 1.
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).
        - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and

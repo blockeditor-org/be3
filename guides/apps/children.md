@@ -146,9 +146,13 @@ placer's, moved to its place and scaled by its zoom. So an editor's menus,
 popovers and sheets open as anchored views (guides/apps/framework.md, Anchored
 views), which the root shows over everything the session places, at the rect
 the app reported (`Embedded::anchored`, `Children::anchored_layers`), each a
-placer of the children placed in it, as a popover places a picker. One that
-asks for the keyboard gets it as it opens, and a press outside a chain of them,
-not on its trigger, closes those that ask to be (`input-batch.dismissed`).
+placer of the children placed in it, as a popover places a picker, stacked in
+the order they opened across apps. One that asks for the keyboard gives it to
+the child placed in it once that shows, else the screen of the view it hangs
+from keeps it and hands its keys on; that screen takes it back once the view
+closes. A press closes what be-sdk-app-host's `anchored::dismissed_by_press`
+says, as be-host's compositor does, where each view takes presses
+(`frame-report.floating`), told to the app as `input-batch.dismissed`.
 
 Creations, artifact settings, host panels, web views and program windows
 (plans/host_as_platform_adapter.md, 4g7b3g) are not there yet: a child of
