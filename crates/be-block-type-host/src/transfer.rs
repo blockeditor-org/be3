@@ -161,6 +161,10 @@ pub async fn collect<S: ObjectStore>(
             true => peer.export_log(summary.id).await?,
             false => Vec::new(),
         };
+        // Not asked at all when not to be had, and checked again after, as it may find out only
+        // as it is asked. Kept as one check after the await: returning before it makes rustc
+        // 1.98 fail (an internal error, drop glue of this function's body) on be-host's wasi
+        // build.
         let content = match open.not_yet(summary.id) {
             true => None,
             false => open.content(summary.id).await,

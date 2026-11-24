@@ -385,6 +385,7 @@ fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Opti
             role: &format!("{:?}", node.role()),
             label,
             value,
+            description: node.description().filter(|said| !said.is_empty()),
             toggled: toggled.as_deref(),
             disabled: node.is_disabled(),
             selected: node.is_selected() == Some(true),

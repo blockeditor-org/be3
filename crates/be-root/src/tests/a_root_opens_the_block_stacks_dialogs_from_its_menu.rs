@@ -25,6 +25,7 @@ fn organization() -> CoreView {
         hosting: vec![HostedBlock {
             block: [7; 16],
             name: "Board".to_owned(),
+            now: true,
         }],
         unsent: vec![UnsentEdit {
             block: [9; 16],

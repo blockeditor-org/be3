@@ -337,6 +337,16 @@ Depends on #686 (session catch-ups replaced by server ordering).
   without it, whose `attach` sends the snapshot. What leaves a link unattached while the
   replica still holds its editor is the thing to find first.
 
+- **Edits typed after a demotion, once under load.**
+  be-host-stack's `edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again`
+  failed once in a whole-crate run (its `count_of` was not `Some(11)` after the flush, line 114)
+  and passed 6 of 6 alone. Done: the cause found, from a rerun under the same load that keeps
+  its output, and fixed at its source.
+- **A paired device that stays loading its files.**
+  `keep_hosting_outlives_the_editor_until_stop` timed out in 3 of 200 `stress` runs (8 at a
+  time) before any hosting: a device just paired (`Approve`) stays on "Loading the files" and
+  never shows `#file-tree.new`. Done: the cause found from those runs' logs and fixed at its
+  source.
 - **A folder's mirror once under load.**
   be-host-stack's `a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it`
   failed once in 1010 runs (202 tests five times, 12 at a time) and passed 40

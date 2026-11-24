@@ -8,6 +8,8 @@ pub struct Description<'a> {
     pub role: &'a str,
     pub label: Option<&'a str>,
     pub value: Option<&'a str>,
+    /// What a screen reader says after the label and value (a menu item's detail).
+    pub description: Option<&'a str>,
     pub toggled: Option<&'a str>,
     pub disabled: bool,
     pub selected: bool,
@@ -56,6 +58,9 @@ pub fn describe<N>(depth: usize, description: Description, node: N) -> Line<N> {
     }
     if let Some(value) = description.value.filter(|value| !value.is_empty()) {
         let _ = write!(text, " value={value:?}");
+    }
+    if let Some(description) = description.description.filter(|said| !said.is_empty()) {
+        let _ = write!(text, " description={description:?}");
     }
     if let Some(toggled) = description.toggled {
         let _ = write!(text, " toggled={toggled}");

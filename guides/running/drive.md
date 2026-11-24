@@ -91,7 +91,9 @@ succeeds and the program exits cleanly. crates/be-host-tests uses it (guides/tes
       Pane "Checklist" at 253,51 size 837x608
         CheckBox "buy milk" toggled=True at 307,307 size 624x18
 
-Coordinates are pixels from the window's corner. In be-host each app region is a `Pane` (guides/apps/editor.md, Accessibility) named
+A line names the node's role, its label, then any `value=`, `description=` (what a screen
+reader says after them, such as a menu item's detail), state (`toggled=`, `disabled`,
+`selected`, `focused`) and test ids. Coordinates are pixels from the window's corner. In be-host each app region is a `Pane` (guides/apps/editor.md, Accessibility) named
 after its app, holding the nodes its editor describes, so apps read like the host's own
 controls. An app's anchored view (a menu or popover past its frame) is an untitled container
 beside its `Pane`.

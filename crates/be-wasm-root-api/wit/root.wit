@@ -862,6 +862,9 @@ interface host {
     record hosted-block {
         block: block-id,
         name: string,
+        /// Whether it hosts it now: its component runs and the server names
+        /// this device host, rather than standing by while another hosts it.
+        now: bool,
     }
 
     /// What the block stack shows the person, once it differs from the

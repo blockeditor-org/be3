@@ -1,7 +1,7 @@
 use super::*;
 
 const STOP: &str = "MenuItem \"Stop hosting Counter\"";
-const HOSTING_NOW: &str = "MenuItem \"Stop hosting Counter\" #host.menu.hosting-now.";
+const HOSTING_NOW: &str = "MenuItem \"Stop hosting Counter\" description=\"Hosting here now\"";
 
 /// The count the open counter shows.
 fn count(host: &mut HostTest) -> String {

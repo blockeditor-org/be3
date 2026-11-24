@@ -124,7 +124,10 @@ pub(super) fn HostMenu(
             <MenuItem
                 label={move || kept.with(|kept| format!("Stop hosting {}", kept.name))}
                 glyph=ICON_RADIO_TOWER
-                detail="Kept hosting here"
+                detail={move || kept.with(|kept| match kept.now {
+                    true => "Hosting here now".to_owned(),
+                    false => "Kept here, standing by".to_owned(),
+                })}
                 on_click={move || ask_core(CoreCommand::StopHosting(kept.with_untracked(|kept| kept.block)))}
             />
         </ForEach>

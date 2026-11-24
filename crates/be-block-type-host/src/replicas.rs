@@ -1234,6 +1234,11 @@ impl<H: Host> Replicas<H> {
         self.left > 0
     }
 
+    /// Whether `block`'s replica was asked to close and has yet to go (`Open::closing`).
+    pub fn is_closing(&self, block: Uuid) -> bool {
+        self.replica_of(block).is_some_and(|(_, open)| open.closing)
+    }
+
     /// Whether a replica of `block` is about to leave its session, or leaving it.
     pub fn is_leaving(&self, block: Uuid) -> bool {
         self.left_blocks.contains_key(&block) || self.leaving.contains(&block)

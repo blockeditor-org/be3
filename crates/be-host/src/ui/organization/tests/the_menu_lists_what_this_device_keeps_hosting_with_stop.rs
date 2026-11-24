@@ -25,7 +25,8 @@ fn the_menu_lists_what_this_device_keeps_hosting_with_stop() {
         ],
         ..Default::default()
     });
-    let id = format!("host.menu.hosting-now.{world}");
+    // Each block keeps one id, whether it hosts now or stands by: its detail says which.
+    let id = format!("host.menu.hosting.{world}");
     assert!(shown.stepped.document().find_test_id(&id).is_some());
     assert!(
         shown
@@ -33,7 +34,7 @@ fn the_menu_lists_what_this_device_keeps_hosting_with_stop() {
             .document()
             .find_test_id(&format!("host.menu.hosting.{farm}"))
             .is_some(),
-        "one kept but hosted elsewhere stands by"
+        "one kept but hosted elsewhere is listed too"
     );
     shown.painted("the_menu_lists_what_this_device_keeps_hosting_with_stop");
     crate::ui::take_commands();

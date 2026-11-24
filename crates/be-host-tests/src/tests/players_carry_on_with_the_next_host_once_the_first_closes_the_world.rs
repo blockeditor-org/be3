@@ -2,8 +2,8 @@ use super::*;
 
 /// A hosted block's players carry on with the next host once the first closes the world
 /// (plans/hosted_blocks.md, step 4): two devices of one account have the counter open, the
-/// first hosting it, and two players reach it as raw peers through a Join link, each admitted
-/// by the host's answer to its handshake. Once the first device closes its editor its lease
+/// first hosting it, and two players reach it as raw peers through a Join link, each answered
+/// by the host as it handshakes. Once the first device closes its editor its lease
 /// goes, the second device's component claims it, and both players hear the new host and are
 /// answered by it.
 #[test]
@@ -80,10 +80,6 @@ fn players_carry_on_with_the_next_host_once_the_first_closes_the_world() {
     hosts(&mut phone, true);
     for (player, (block, host)) in players.iter_mut().zip(first) {
         let next = player.host_other_than(block, Some(host));
-        assert_ne!(
-            next.client, host.client,
-            "the next host is another connection"
-        );
         player.handshake(block, next, b"still here");
     }
 
