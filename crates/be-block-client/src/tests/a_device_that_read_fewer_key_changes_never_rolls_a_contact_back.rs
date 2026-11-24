@@ -21,6 +21,8 @@ async fn a_device_that_read_fewer_key_changes_never_rolls_a_contact_back() {
         .find(|contact| contact.account == owner.account())
         .and_then(|contact| contact.record())
         .unwrap();
+    // Its write is refused on purpose: on a manual clock its backoff waits for no real time.
+    harness.on_manual_clock(&slow).await;
     let block =
         crate::AccountRecords::open(&slow.connection(), slow.account(), slow.keys().identity())
             .await

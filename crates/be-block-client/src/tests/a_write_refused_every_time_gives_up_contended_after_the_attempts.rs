@@ -10,6 +10,8 @@ async fn a_write_refused_every_time_gives_up_contended_after_the_attempts() {
     let author = harness.owner("first@example.com").await;
     let other = harness.second(&author).await;
     let block = note(&author).await;
+    // Its writes are refused on purpose: on a manual clock its backoff waits for no real time.
+    harness.on_manual_clock(&author).await;
     let organization = author.organization();
 
     let made = AtomicUsize::new(0);
