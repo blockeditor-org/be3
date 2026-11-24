@@ -60,8 +60,9 @@ component's schema, and the blocks and databases component values name, in the
 order `CanvasEntity::blocks_mut` walks them) travel in the item's refs, so the
 host can translate them, and a paste fills them back in that order, refusing a
 clip whose count does not match. Beside it go
-`be3/blocks` for the blocks the entities show, a PNG of the selection rendered
-only when a paste asks for it (`Exporter::render`), and the text of text items.
+`be3/blocks` for the blocks the entities show, a PNG of the selection the PNG
+exporter makes only when a paste asks for it (`ExporterOf::once`), and the text
+of text items.
 A paste of entities that show blocks waits for `paste-blocks`, and leaves out
 those the host refuses.
 
@@ -165,8 +166,13 @@ reads; edits read `stored`), with lines bound to it following.
 
 ## Export
 
-`root/export.rs` reads the same sketches, for the selection, a selected frame
-(clipped) or the whole canvas. SVG writes paths, text as `<text>` with a
+`root/export.rs` is the canvas's two exporters (guides/apps/editor.md,
+"Exporting"): `png` makes an image block and `svg` a plain file block, from
+`ImageExport` settings (scale, background, and the items: what was selected,
+a selected frame, clipped, or none for the whole canvas). Each reads the
+canvas through a `CanvasReader`, the entities and the graph's labels without
+the document a `CanvasState` needs, and draws in the dark theme's colours
+whoever exports. It reads the same sketches as the canvas. SVG writes paths, text as `<text>` with a
 `<tspan>` per run, and raster layers as pixelated PNG images. PNG paints into
 an offscreen beui context and rasterizes on the CPU
 (`beui_paint_format::rasterize`), since an app cannot read pixels back from

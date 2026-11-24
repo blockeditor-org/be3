@@ -67,12 +67,15 @@ pub fn rename_block(editor: Editor, id: Uuid, name: &str) {
 }
 
 /// What a block is exported as.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ExportFormat {
     /// The file of its own kind (a text block's text file), for a type that has one.
     Own,
     /// A block file, which any host imports whole.
     BlockFile,
+    /// What an exporter its editor declares makes, through the block's Export dialog, which
+    /// the host runs in that editor's app, open or not (guides/apps/editor.md, "Exporting").
+    Exporter(String),
 }
 
 /// Saves blocks as files, one at a time: an export started cancels the one before.
@@ -113,6 +116,10 @@ impl Exporter {
                 )
             }
             ExportFormat::BlockFile => self.editor.then(host.export_block(id), saved),
+            ExportFormat::Exporter(name) => {
+                host.export_block_with(id, &name, Vec::new());
+                return;
+            }
         };
         if let Some(earlier) = self.saving.with(|saving| saving.replace(Some(task))) {
             earlier.cancel();
@@ -129,15 +136,22 @@ impl Exporter {
                 false => format!("{name} file"),
             }
         });
+        let exporters = types.exporters(block_type).iter().map(|exporter| {
+            (
+                ExportFormat::Exporter(exporter.name.clone()),
+                exporter.label.clone(),
+            )
+        });
         own.map(|label| (ExportFormat::Own, label))
             .into_iter()
             .chain([(ExportFormat::BlockFile, "Block file".to_owned())])
+            .chain(exporters)
             .collect()
     }
 }
 
 /// "Export as", named `named` for tests, with an item for each format `block` exports as,
-/// `{named}.own` and `{named}.block`.
+/// `{named}.own`, `{named}.block` and `{named}.<exporter>`.
 #[component]
 pub fn ExportAs(exporter: Exporter, block: Memo<Option<MenuBlock>>, named: String) -> MenuItem {
     let block = create_memo(move || {
@@ -152,7 +166,12 @@ pub fn ExportAs(exporter: Exporter, block: Memo<Option<MenuBlock>>, named: Strin
             .map_or_else(Vec::new, |(_, block_type)| exporter.formats(block_type))
     });
     let keys = create_memo(move || {
-        shown.with(|shown| shown.iter().map(|(format, _)| *format).collect::<Vec<_>>())
+        shown.with(|shown| {
+            shown
+                .iter()
+                .map(|(format, _)| format.clone())
+                .collect::<Vec<_>>()
+        })
     });
     let prefix = named.clone();
     view! {
@@ -163,18 +182,20 @@ pub fn ExportAs(exporter: Exporter, block: Memo<Option<MenuBlock>>, named: Strin
             @test_id={named}
         >
             <ForEach value={keys}>|format: ExportFormat| {
+                let item = match &format {
+                    ExportFormat::Own => format!("{prefix}.own"),
+                    ExportFormat::BlockFile => format!("{prefix}.block"),
+                    ExportFormat::Exporter(name) => format!("{prefix}.{name}"),
+                };
+                let listed = format.clone();
                 let label = move || {
                     shown.with(|shown| {
                         shown
                             .iter()
-                            .find(|(shown, _)| *shown == format)
+                            .find(|(shown, _)| *shown == listed)
                             .map(|(_, label)| label.clone())
                             .unwrap_or_default()
                     })
-                };
-                let item = match format {
-                    ExportFormat::Own => format!("{prefix}.own"),
-                    ExportFormat::BlockFile => format!("{prefix}.block"),
                 };
                 view! {
                     <MenuItem
@@ -182,7 +203,7 @@ pub fn ExportAs(exporter: Exporter, block: Memo<Option<MenuBlock>>, named: Strin
                         @test_id={item}
                         on_click={move || {
                             if let Some((id, _)) = block.get_untracked() {
-                                exporter.export(id, format);
+                                exporter.export(id, format.clone());
                             }
                         }}
                     />
