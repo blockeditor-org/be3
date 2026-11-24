@@ -340,9 +340,9 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     // An invitation is offered only where the server would make its share link.
     let invites = create_memo(move || {
-        let policy = policy.with(OrganizationPolicies::link_sharing);
+        let outside = policy.with(OrganizationPolicies::shares_outside);
         listing.with(|listing| match listing {
-            Ok(listing) => Share::invites(policy, listing.company),
+            Ok(listing) => Share::invites(outside, listing.company),
             Err(_) => false,
         })
     });

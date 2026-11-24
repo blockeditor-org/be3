@@ -600,9 +600,9 @@ impl ServerStore {
             let rows = statement.query_map([organization.to_string()], |row| {
                 Ok((
                     link_row(row)?,
-                    row.get::<_, String>(16)?,
-                    row.get::<_, String>(17)?,
-                    row.get::<_, String>(18)?,
+                    row.get::<_, String>(11)?,
+                    row.get::<_, String>(12)?,
+                    row.get::<_, String>(13)?,
                 ))
             })?;
             let mut invitations = Vec::new();
