@@ -70,7 +70,7 @@ pub use be_sdk_api::{
     RemapState, RemapsWatch, ResizeMode, Revision, RoleWatch, Rotation, ScreenInput,
     ScreenInputState, ScreenInputWatch, ScreenLockedWatch, ScreenPlacement, ScreenRegion,
     ScreenRegionState, ScreenSide, ScreenWall, ScreenWallState, ScrollDelta, SessionEnd, ShareLink,
-    ShellDialog, Signer, Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory,
+    ExportRequest, ExporterDescriptor, ShellDialog, Signer, Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory,
     TemplateDescriptor, TerminalHostBe, TerminalHostDownload, TerminalHostFile, TerminalHostSource,
     TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest,
     TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind,
@@ -101,7 +101,7 @@ pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, BlockMember, ClipRender, EditorHost,
     FileDrop, FileFilter, FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, Pasted,
     PeerMessage, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickedFile,
-    PickerRequest, Pushed, RenameRequest, RevisionPreview, SavedFile, SeededContent, SentToPeers,
+    ExportDialogRequest, PickerRequest, Pushed, RenameRequest, RevisionPreview, SavedFile, SeededContent, SentToPeers,
     ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use layered_settings::{

@@ -19,6 +19,7 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
             .iter()
             .map(|extension| (*extension).to_owned())
             .collect(),
+        exporters: Vec::new(),
     };
     fixture.test.catalog(Catalog {
         types: vec![BlockTypeDescriptor {

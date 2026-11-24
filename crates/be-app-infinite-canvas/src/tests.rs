@@ -66,6 +66,7 @@ mod a_png_export_draws_formatted_text_as_the_canvas_does;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale;
 mod a_raster_layer_is_drawn_pixel_sharp_with_its_grid;
+mod a_png_exported_to_the_workspace_follows_the_canvas;
 mod a_raster_layer_is_exported_pixel_sharp;
 mod a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger;
 mod a_raster_stroke_is_one_undo_step_and_escape_calls_it_off;
@@ -548,3 +549,60 @@ fn pressed(editor: &BeuiTest<CanvasRoot>, test_id: &str) -> bool {
 
 const RED: CanvasPixel = CanvasPixel::new(220, 40, 40, 255);
 const BLACK: CanvasPixel = CanvasPixel::new(0, 0, 0, 255);
+
+/// The Export dialog of the canvas `editor` shows, run as its exporter `name`: the editor's
+/// `editor.export.<name>` asks the host for it, and the host runs it in the canvas's app, here
+/// a test of its own that holds the canvas as it is now, and the blocks it embeds.
+fn export_dialog(editor: &mut BeuiTest<CanvasRoot>, name: &str) -> BeuiTest<CanvasRoot> {
+    editor.run_action(&format!("editor.export.{name}"));
+    let asked = editor.take_export_requests();
+    let [(block, request)] = asked.as_slice() else {
+        panic!("exporting asks the host for one Export dialog, asked {asked:?}");
+    };
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let mut dialog = BeuiTest::export(
+        host,
+        be_sdk_beui::ExportDialogRequest {
+            source: *block,
+            source_type: <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+            exporter: request.exporter.clone(),
+            settings: request.settings.clone(),
+        },
+    )
+    .with_size(Vec2::new(420.0, 300.0));
+    hold_canvas(editor, &mut dialog, *block);
+    dialog.run();
+    dialog
+}
+
+/// Holds in `test` the canvas `block` that `editor` shows, as it is now, with what the graph
+/// says of the blocks it embeds: as the host holds it for an instance that reads it.
+fn hold_canvas(editor: &BeuiTest<CanvasRoot>, test: &mut BeuiTest<CanvasRoot>, block: Uuid) {
+    test.store().register(be_type_image::registrations());
+    test.store().register(be_type_workspace::registrations());
+    for entity in entities(editor) {
+        if let Some(info) = entity.block.and_then(|embedded| editor.store().block(embedded)) {
+            test.store().add_block(info);
+        }
+    }
+    test.store().add_block(BlockInfo::new(
+        block,
+        <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+        BlockParent::Root,
+    ));
+    test.hold(Some(block), editor.content::<CanvasContent>(None));
+}
+
+/// What the canvas `editor` shows copies as, exported by its exporter `name` with the settings
+/// the open canvas starts from (what is selected): the file the Export dialog's Copy puts on
+/// the clipboard, in `format`.
+fn copied_export(editor: &mut BeuiTest<CanvasRoot>, name: &str, format: &str) -> Vec<u8> {
+    let mut dialog = export_dialog(editor, name);
+    dialog.click("export.copy");
+    let copied = dialog.take_copied(format);
+    let [item] = copied.as_slice() else {
+        panic!("Copy puts one {format} on the clipboard, put {}", copied.len());
+    };
+    item.data.clone()
+}

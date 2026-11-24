@@ -258,11 +258,23 @@ impl FocusedBlock {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Artifact {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub source: Uuid,
+    /// The exporter of the source's editor that makes it.
+    pub exporter: String,
+}
+
+/// The Export dialog an instance opened as (`opening-kind.export`): of block `source`, running
+/// `exporter` from `settings` (empty for the exporter's own defaults).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExportDialogRequest {
+    pub source: Uuid,
+    pub source_type: Uuid,
+    pub exporter: String,
+    pub settings: Vec<u8>,
 }
 
 /// A block a paste of `be3/blocks` placed (`EditorHost::paste_blocks`).
@@ -386,6 +398,7 @@ enum Identity {
     DockTab(be_sdk_api::DockTabPath),
     Picker(BlockFilter),
     Rename([u8; 16]),
+    Export([u8; 16], String),
 }
 
 impl Identity {
@@ -402,6 +415,9 @@ impl Identity {
             ChildContent::DockTab(tab) => Self::DockTab(tab.clone()),
             ChildContent::Picker { filter, .. } => Self::Picker(filter.clone()),
             ChildContent::Rename(block_id) => Self::Rename(*block_id),
+            ChildContent::Export { block_id, request } => {
+                Self::Export(*block_id, request.exporter.clone())
+            }
         }
     }
 }
@@ -1313,6 +1329,18 @@ impl EditorHost {
         self.command(block_id, BlockCommand::Share);
     }
 
+    /// Shows the Export dialog of `block_id`, running its editor's exporter `exporter` from
+    /// `settings` (empty for the exporter's defaults; guides/apps/editor.md, "Exporting").
+    pub fn export_block_with(&self, block_id: Uuid, exporter: &str, settings: Vec<u8>) {
+        self.command(
+            block_id,
+            BlockCommand::Export(be_sdk_api::ExportRequest {
+                exporter: exporter.to_owned(),
+                settings,
+            }),
+        );
+    }
+
     pub fn leave_block(&self, block_id: Uuid) {
         self.command(block_id, BlockCommand::Leave);
     }
@@ -1755,6 +1783,12 @@ impl EditorHost {
         self.write_content(block, content, true);
     }
 
+    /// Replaces `block`'s content with `bytes`, encoded content of `content_type`, as
+    /// `replace_content` does with content it encodes.
+    pub fn replace_bytes(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        self.seed_bytes(block, content_type, bytes, true);
+    }
+
     fn write_content<C: be_block_content::BlockContent>(
         &self,
         block: Uuid,
@@ -2066,6 +2100,19 @@ impl EditorHost {
 
     pub fn read_plain_file(&self, block_id: Uuid) -> Asked<Result<SavedFile, Failure>> {
         Asked::of(self.ask(|| host_services::read_plain_file(block_id.into_bytes())))
+    }
+
+    /// `content`, of `block_type`, as the plain file its type writes it as, named after `name`
+    /// unless the file names itself: what `read_plain_file` reads for a block holding it.
+    pub fn file_of_content(
+        &self,
+        block_type: Uuid,
+        content: Vec<u8>,
+        name: String,
+    ) -> Asked<Result<SavedFile, Failure>> {
+        Asked::of(self.ask(|| {
+            host_services::file_of_content(block_type.into_bytes(), content, name)
+        }))
     }
 
     pub fn import_blocks(

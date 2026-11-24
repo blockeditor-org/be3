@@ -30,22 +30,6 @@ fn placed(id: u128, shape: CanvasShape, center: CanvasPoint) -> CanvasEntity {
     entity
 }
 
-pub(super) fn palette_runs(editor: &mut BeuiTest<CanvasRoot>, typed: &str) {
-    let ctrl = Modifiers {
-        ctrl: true,
-        ..Modifiers::NONE
-    };
-    editor.key(
-        Key::P,
-        Modifiers {
-            shift: true,
-            ..ctrl
-        },
-    );
-    editor.type_text(typed);
-    editor.key(Key::Enter, Modifiers::NONE);
-}
-
 #[test]
 fn copying_as_svg_writes_every_shape_kind() {
     let mut rectangle = placed(1, CanvasShape::Rectangle, CanvasPoint::new(0.0, 0.0));
@@ -87,9 +71,9 @@ fn copying_as_svg_writes_every_shape_kind() {
             ..Modifiers::NONE
         },
     );
-    palette_runs(&mut editor, "copy as svg");
+    let copied = vec![String::from_utf8(copied_export(&mut editor, "svg", "image/svg+xml"))
 
-    let copied = editor.take_copied_text();
+        .expect("the SVG is text")];
     let [svg] = copied.as_slice() else {
         panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
     };

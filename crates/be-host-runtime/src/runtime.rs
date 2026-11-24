@@ -1845,6 +1845,7 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         editor,
         block,
         source,
+        exporter,
         data,
         resync,
     } = slot;
@@ -1865,6 +1866,7 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
                 editor,
                 block,
                 source,
+                exporter,
                 data,
                 resync,
             );
@@ -2586,6 +2588,7 @@ pub fn mount_view(slot: ViewSlot<'_>) {
                     | InstanceRole::Artifact(..)
                     | InstanceRole::Picker(_)
                     | InstanceRole::Rename(..)
+                    | InstanceRole::Export(..)
                     | InstanceRole::Host(..) => None,
                 },
             );

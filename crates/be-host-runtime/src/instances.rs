@@ -3,7 +3,7 @@ use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
-    EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenExport,
     OpenCreation, OpenHost, OpenJoin, OpenPicker, OpenRename, Opening, OpeningKind,
     PerformanceMeasurement, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View,
     ViewAnchor, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
@@ -345,6 +345,7 @@ pub struct EditorView {
 
 #[derive(Default)]
 struct ArtifactState {
+    exporter: String,
     data: Vec<u8>,
     description: Option<ArtifactDescription>,
     draft: Option<Vec<u8>>,
@@ -414,7 +415,8 @@ impl Instance {
                 InstanceRole::Creation(..)
                 | InstanceRole::Artifact(..)
                 | InstanceRole::Picker(..)
-                | InstanceRole::Rename(..) => None,
+                | InstanceRole::Rename(..)
+                | InstanceRole::Export(..) => None,
             },
         }
     }
@@ -2164,6 +2166,7 @@ impl Instances {
         editor: Uuid,
         block: EditorBlock,
         source: Uuid,
+        exporter: &str,
         data: &[u8],
         resync: bool,
     ) -> Vec<Outbound> {
@@ -2173,6 +2176,7 @@ impl Instances {
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
             let mut entry = Instance::new(InstanceRole::Artifact(editor, block, source));
+            entry.artifact.exporter = exporter.to_owned();
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -2484,7 +2488,21 @@ impl Instances {
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
                             source: source.into_bytes(),
+                            exporter: entry.artifact.exporter.clone(),
                             data: entry.artifact.data.clone(),
+                        }),
+                    ),
+                    InstanceRole::Export(editor, block) => (
+                        editor,
+                        OpeningKind::Export(OpenExport {
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            request: super::export_request(instance).unwrap_or_else(|| {
+                                be_sdk_api::ExportRequest {
+                                    exporter: String::new(),
+                                    settings: Vec::new(),
+                                }
+                            }),
                         }),
                     ),
                 };
@@ -3036,6 +3054,10 @@ impl Instances {
                     parent: *parent,
                 },
                 ChildContent::Rename(block) => super::HostContent::Rename(Uuid::from_bytes(*block)),
+                ChildContent::Export { block_id, request } => super::HostContent::Export {
+                    block: Uuid::from_bytes(*block_id),
+                    request: request.clone(),
+                },
                 ChildContent::WebView(_) => continue,
             };
             if !child.rect.is_positive() && child.mode != ChildMode::Hidden {
@@ -3383,6 +3405,7 @@ impl Instances {
                         InstanceRole::Creation(..) => "creation",
                         InstanceRole::Picker(..) => "picker",
                         InstanceRole::Rename(..) => "rename",
+                        InstanceRole::Export(..) => "export",
                         InstanceRole::Artifact(..) => "artifact",
                         InstanceRole::Host(..) => "host",
                     },

@@ -176,8 +176,15 @@ pub struct Thumbhash {
 pub struct Artifact {
     pub source: BlockRef,
     pub source_type: Uuid,
+    /// The exporter of the source's editor that makes the block (guides/apps/editor.md,
+    /// "Exporting").
+    pub exporter: String,
     #[serde(with = "be_block_model::bytes")]
     pub settings: Vec<u8>,
+    /// A fingerprint of the content the exporter last made, so whoever makes it again writes
+    /// it only when it differs; none until it is first made.
+    #[serde(default)]
+    pub made: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

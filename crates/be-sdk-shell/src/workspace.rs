@@ -469,6 +469,9 @@ impl Workspace {
                 // An editor never swaps the block of a share dialog the person has open.
                 ShellDialog::Share if self.share.with_untracked(Option::is_some) => {}
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
+                ShellDialog::Export(request) => {
+                    self.open_dialog(OpenDialog::Export(block, request));
+                }
                 ShellDialog::Close => {
                     let showing: Vec<TabId> = self.tabs.with_untracked(|tabs| {
                         tabs.iter()
@@ -525,7 +528,8 @@ impl Workspace {
 
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
         self.forget_share();
-        if let OpenDialog::Share(block) = dialog {
+        if let OpenDialog::Share(block) = &dialog {
+            let block = *block;
             self.share.set(Some(Share::new(block)));
             self.relist_links();
         }

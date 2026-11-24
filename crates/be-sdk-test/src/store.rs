@@ -1253,6 +1253,37 @@ impl ContentStore {
             .expect("this editor has no block of its own; name the block")
     }
 
+    /// `bytes` of `content_type` as the plain file its registered type writes it as, named
+    /// after `name` unless the file names itself, as be-host's `file-of-content` answers.
+    pub fn file_of(
+        &self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        name: &str,
+    ) -> Result<be_sdk_beui::SavedFile, be_sdk_api::Failure> {
+        use be_sdk_type_guest::api::guest::exports::replicas::Guest as _;
+        let inner = self.0.borrow();
+        let mut asked = inner.module.to_file(content_type, bytes);
+        let std::task::Poll::Ready(file) = asked
+            .as_mut()
+            .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+        else {
+            panic!("a type module makes a file at once");
+        };
+        let file = file
+            .map_err(|failure| be_sdk_api::Failure::Failed(format!("{failure:?}")))?
+            .ok_or_else(|| {
+            be_sdk_api::Failure::Failed("This block has no plain-file form.".to_owned())
+        })?;
+        Ok(be_sdk_beui::SavedFile {
+            name: file.name.unwrap_or_else(|| {
+                be_sdk_beui::be_block_content::plain::export_name(name, &file.extension)
+            }),
+            mime_type: file.media_type,
+            data: file.bytes,
+        })
+    }
+
     pub fn register(&self, registrations: impl IntoIterator<Item = Registration>) {
         let inner = self.0.borrow_mut();
         for registration in registrations {

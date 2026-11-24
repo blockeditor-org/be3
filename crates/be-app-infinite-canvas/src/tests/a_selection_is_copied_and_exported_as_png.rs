@@ -1,4 +1,3 @@
-use super::copying_as_svg_writes_every_shape_kind::palette_runs;
 use super::*;
 use be_sdk_beui::SavedFile;
 use be_sdk_test::HostCall;
@@ -15,18 +14,7 @@ fn a_selection_is_copied_and_exported_as_png() {
     let mut editor = editor(std::slice::from_ref(&card));
     editor.click(format!("infinite-canvas.entity.{}", card.id));
 
-    palette_runs(&mut editor, "copy as png");
-    let copied = editor
-        .take_copied(be_sdk_beui::beui::clipboard::formats::PNG)
-        .into_iter()
-        .map(|item| item.data)
-        .collect::<Vec<_>>();
-    let [png] = copied.as_slice() else {
-        panic!(
-            "Copy as PNG puts one image on the clipboard, put {}",
-            copied.len()
-        );
-    };
+    let png = &copied_export(&mut editor, "png", be_sdk_beui::beui::clipboard::formats::PNG);
     let copied = pixels(png);
     let side = |world: f32| ((world + 2.0 * (2.0 + 2.0 + 16.0)) * 2.0).ceil() as u32;
     assert_eq!(
@@ -46,11 +34,11 @@ fn a_selection_is_copied_and_exported_as_png() {
         "the theme's background is behind it by default"
     );
 
-    palette_runs(&mut editor, "export as png");
-    editor.click("infinite-canvas.export.background");
-    editor.snapshot("a_selection_is_copied_and_exported_as_png");
-    editor.click("infinite-canvas.export.confirm");
-    let saved: Vec<SavedFile> = editor
+    let mut dialog = export_dialog(&mut editor, "png");
+    dialog.click("infinite-canvas.export.background");
+    dialog.snapshot("a_selection_is_copied_and_exported_as_png");
+    dialog.click("export.save");
+    let saved: Vec<SavedFile> = dialog
         .take_requests()
         .into_iter()
         .filter_map(|call| match call {

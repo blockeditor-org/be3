@@ -110,6 +110,17 @@ pub struct EditorDocument {
     /// early as the shell's.
     #[serde(default)]
     pub opens: Vec<String>,
+    /// What the editor exports its block as, by the name its code registers each under, in
+    /// the order menus list them. An editor with any lists `ArtifactSettings` among its views.
+    #[serde(default)]
+    pub exporters: InOrder<ExporterDocument>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExporterDocument {
+    /// What menus call it ("PNG image").
+    pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -373,6 +384,15 @@ impl EditorDocument {
                         .map_err(|_| ManifestError::InvalidEditorId)
                 })
                 .collect::<Result<_, _>>()?,
+            exporters: self
+                .exporters
+                .0
+                .into_iter()
+                .map(|(name, exporter)| crate::ExporterManifest {
+                    name,
+                    label: exporter.label,
+                })
+                .collect(),
         })
     }
 }

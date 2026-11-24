@@ -1,9 +1,7 @@
 use be_sdk_beui::beui::styled::Root;
-use std::cell::RefCell;
 
 use be_sdk_beui::Loaded;
-use be_sdk_beui::{Artifacts, Creation, Editor};
-use beui::NodeId;
+use be_sdk_beui::{Creation, Editor};
 use beui::reactive::*;
 
 use super::ui::LogicGridView;
@@ -28,46 +26,7 @@ impl be_sdk_beui::BeuiRoot for LogicGridRoot {
         Ok(creation.create(&LogicGridContent::default()))
     }
 
-    fn connect_artifact(artifacts: &Artifacts) {
-        let regeneration: Rc<RefCell<Option<dynamic_artifact::CompileRegeneration>>> =
-            Rc::new(RefCell::default());
-        let failure: Rc<RefCell<Option<String>>> = Rc::new(RefCell::default());
-        let host = artifacts.host().clone();
-        let block_id = artifacts.block_id();
-        let block_type = artifacts.block_type();
-        let source = artifacts.source();
-        let started = Rc::clone(&regeneration);
-        let reported = Rc::clone(&failure);
-        artifacts.on_regenerate(move |data| {
-            match dynamic_artifact::regenerate(&host, block_id, block_type, source, data) {
-                Ok(started_regeneration) => {
-                    *started.borrow_mut() = Some(started_regeneration);
-                    reported.borrow_mut().take();
-                }
-                Err(error) => {
-                    started.borrow_mut().take();
-                    *reported.borrow_mut() = Some(error);
-                }
-            }
-        });
-        artifacts.on_poll(move || {
-            if let Some(error) = failure.borrow_mut().take() {
-                return Some(Err(error));
-            }
-            let result = regeneration.borrow_mut().as_mut()?.poll()?;
-            regeneration.borrow_mut().take();
-            Some(result)
-        });
-    }
-
-    fn describe_artifact(data: &[u8]) -> Result<String, String> {
-        Ok(dynamic_artifact::summary(data))
-    }
-
-    #[component]
-    fn ArtifactSettings(artifacts: Artifacts) -> NodeId {
-        view! {
-            <dynamic_artifact::Settings artifacts={artifacts} />
-        }
+    fn exporters() -> Vec<be_sdk_beui::Exporter> {
+        vec![dynamic_artifact::exporter().into()]
     }
 }
