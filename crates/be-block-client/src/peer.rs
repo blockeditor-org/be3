@@ -1806,6 +1806,17 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
+    /// Whether `block`'s newest save holds more than the first part a type loads
+    /// (`be_block_content::Loads::FirstPart`): what bytes alone do not carry.
+    pub async fn has_later_parts(&self, block: Uuid) -> Result<bool, ClientError> {
+        let Some(head) = self.newest_head(block).await? else {
+            return Ok(false);
+        };
+        let commit = self.load_head(block, head).await?;
+        let first = self.load_first_part(&commit.manifest).await?;
+        Ok((first.bytes.len() as u64) < commit.manifest.length())
+    }
+
     /// A range of a saved part's bytes, fetching only the objects under it.
     /// The block of the key `part`'s top object is sealed under, as this device placed that
     /// key (`KeyBook::block_of`), fetching the object if it is not held: none for a key this

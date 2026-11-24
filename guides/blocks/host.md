@@ -21,7 +21,7 @@ app that declares a taken type or edits an undeclared one is refused. The
 registry (`be_block_type_host::modules`, sources listed in
 `be-host-stack/src/types.rs`) starts an app's module only once a block of its
 types needs it, so `be_host_stack::kind_of` is `None` until then and the worker
-asks `Replicas::kind`, which starts the module. Merging, describing and
+asks `Modules::kind`, which starts the module. Merging, describing and
 validating are requests to the module (`Replicas::merge`, by parts for a type
 that merges by parts, guides/type_modules.md "Merging by parts"; `describe`). A block
 whose type no module has has no content in the host (`be_host_stack::provided`).
@@ -825,15 +825,23 @@ index and search it locally.
 
 ## Exporting and importing
 
-A block file (`be_block_client::transfer`, what `be download` writes) holds a
-tree. host-services' `export-block` lists the tree a level at a time and fills
-each block's bytes from its open session, or its head with the journal
-replayed (`Modules::readable`), so it works for types the host does not know
-(they read the head alone). A type with a signed log carries it too, opened
-with each entry's signature (`Peer::export_log`; guides/type_modules.md,
-"Signed logs"), which verifies against the original block wherever the file
-is imported; an import keeps the entries in the file and does not append them
-to the new block yet (plans/signed_logs.md, step 5).
+A block file (`be_block_client::transfer`) holds a tree. host-services'
+`export-block` and `be download` both collect it with
+`be_block_type_host::transfer::collect`: it refuses a block only its owner can
+read (a block file opens for anyone), starts from the parent when that
+parent's type is `exported_whole` in its manifest (a database view with its
+database), and lists the tree a level at a time, leaving out what this
+account cannot view and what only its owner can read. Each block's bytes come
+from what the caller holds open (`transfer::Open`: the host's open sessions,
+and the derived metadata its graph keeps; `Modules` alone holds nothing open),
+or its head with the journal replayed (`Modules::readable`), so it works for
+types the host does not know (they read the head alone). A type with a signed
+log carries it too, opened with each entry's signature (`Peer::export_log`;
+guides/type_modules.md, "Signed logs"), which verifies against the original
+block wherever the file is imported; an import keeps the entries in the file
+and does not append them to the new block yet (plans/signed_logs.md, step 5).
+A type whose bytes do not carry all its parts is refused for a block that has
+parts after its first (guides/type_modules.md, "Whole bytes").
 
 `import-blocks(parent)` takes any file: non-`.block` files go to
 `be_host_stack::import_file`, which picks a type the way `be sync` does

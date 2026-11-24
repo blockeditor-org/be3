@@ -1573,7 +1573,7 @@ async fn puts_of(
     // same commit in full, which replaces it (`Put::partial`), and searches here stay complete.
     let readable = has_module(shared, replicas, content_type)
         && !held_off(shared, content_type)
-        && replicas.kind(content_type).await.is_some();
+        && replicas.modules.kind(content_type).await.is_some();
     if !readable {
         let put = Put {
             doc: DocId {

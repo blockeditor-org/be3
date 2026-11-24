@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 pub mod modules;
 pub mod replicas;
+pub mod transfer;
 
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
