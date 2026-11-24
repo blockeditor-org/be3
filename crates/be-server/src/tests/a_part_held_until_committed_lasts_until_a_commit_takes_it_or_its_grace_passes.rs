@@ -210,6 +210,10 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
             Ok(())
         })
     };
+    assert!(
+        rebase(taken_objects.clone()).await.is_err(),
+        "a base may not name objects its block does not hold"
+    );
     rebase(based_objects.clone()).await.unwrap();
     assert_eq!(
         impatient.collect_uploads().await.unwrap(),
