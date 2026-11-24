@@ -93,18 +93,14 @@ Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backl
     - What remains of the plan is plans/seal_states_go_by_part.md: the 4 MiB ceiling when not alone.
 
 **Work in progress:**
-- `claude/flush-after-revoke` @ 78176b42 (one `wip:` commit on b5d4bcfa): fixing `a_publish_right_after_a_revoke_lands_without_waiting`, which stalls only under verify's load. That test is out of verify since 5b, so it doesn't run now.
-  - When it stalls, the status reads "owes a seal: true, publishes unanswered: 0", so no seal was tried. The module skipped it: the replica wasn't the lease holder, nothing was owed yet, or it was reloading. These tests' clock never moves the quiet-spell seal, so a skipped seal is never redone.
-  - The commit holds:
-    - the test, moved back from 5b;
-    - the stall report, which now shows whether the replica holds the lease;
-    - an unconfirmed candidate fix: `Served` notes a flush that ran while commands waited their turn, and the worker seals again once they have run (`take_flushed_ahead` → `seal_now`);
-    - an attempt at a deterministic test, which passes even without the fix and so doesn't reproduce the stall.
-  - Left:
-    - Catch one failure under load with the lease field shown.
-    - Make it deterministic by holding the lease move or the rejoin, not the lane.
-    - Fix the source, so a seal skipped for a reason that later clears is asked for again. Then drop whichever of the attempt test and the `flushed_ahead` change doesn't hold up.
-    - Add a backlog line pointing at the branch.
+- `claude/flush-after-revoke-2` (on 61b08a86): fixes `a_publish_right_after_a_revoke_lands_without_waiting`, which stalled only under verify's load with "owes a seal: true, publishes unanswered: 0".
+  - Likely cause (reproduced in the module, not caught under load): a flush asked the module to seal while the holder's edit still waited for its place in the order, so nothing was owed yet and the seal was declined. Nothing asked again, and these tests' clock never brings the quiet-spell seal.
+  - Fix, in be-sdk-type-guest: the replica remembers a seal the host asked for and declined while its own edits or a reload were on their way (`seal_asked`). It seals once they land.
+  - `a_seal_asked_for_while_an_edit_waits_for_its_place_goes_once_it_has_one` reproduces it deterministically by holding the submission, and fails without the fix.
+  - The stall report now shows whether the replica holds the lease.
+  - Dropped:
+    - the worker's `flushed_ahead` reseal: a flush is answered only after its own `keep_all` once the line is quiet, so it was redundant;
+    - the attempt test, which never reproduced the stall.
   - Separate and not started: the counter-seal flake `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` ("never counted 5, last 2"). After reopening, the replica opened on the older seal and was never told the server's newer head, which looks like a lost head announcement.
 
 **Not started:**
