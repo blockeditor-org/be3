@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use be_block_client::transfer::Saved;
+use be_block_client::transfer::SavedBlock;
 use be_block_client::{Peer, Saved as Published, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockMetadata, ChildChange, EXECUTABLE, Entries, NAME};
@@ -1095,7 +1095,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                         }
                     };
                     defined.derived = folder.derived;
-                    Saved {
+                    SavedBlock {
                         id,
                         block_type: folder.block_type,
                         parent: None,
@@ -1127,7 +1127,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                         }
                     };
                     defined.derived = block.derived;
-                    Saved {
+                    SavedBlock {
                         id,
                         block_type: block.block_type,
                         parent: None,

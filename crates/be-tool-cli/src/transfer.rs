@@ -1,4 +1,4 @@
-use be_block_client::transfer::{Saved, renumber};
+use be_block_client::transfer::{SavedBlock, renumber};
 use be_block_graph::BlockParent;
 use be_block_store::ObjectStore;
 use uuid::Uuid;
@@ -15,7 +15,7 @@ pub struct Uploaded {
 impl<S: ObjectStore> Tracker<S> {
     /// `entry` and everything inside it, for a block file, as be-host exports it
     /// (`be_block_type_host::transfer::collect`), with the entry it starts from.
-    pub async fn download(&self, entry: &Entry) -> Result<(Entry, Vec<Saved>), String> {
+    pub async fn download(&self, entry: &Entry) -> Result<(Entry, Vec<SavedBlock>), String> {
         let blocks = be_block_type_host::transfer::collect(
             self.peer(),
             entry.id,
@@ -29,7 +29,7 @@ impl<S: ObjectStore> Tracker<S> {
 
     pub async fn upload(
         &self,
-        blocks: Vec<Saved>,
+        blocks: Vec<SavedBlock>,
         parent: BlockParent,
     ) -> Result<Uploaded, String> {
         let blocks = renumber(blocks);

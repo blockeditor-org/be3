@@ -325,7 +325,7 @@ pub(super) enum Command {
         block: Uuid,
         reply: PlainReply,
     },
-    Import(Vec<(be_block_client::transfer::Saved, BlockParent)>),
+    Import(Vec<(be_block_client::transfer::SavedBlock, BlockParent)>),
     ContentOfFile {
         name: String,
         #[serde(with = "serde_bytes")]

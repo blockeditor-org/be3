@@ -12,7 +12,7 @@ async fn an_import_another_device_of_the_account_made_first_stands() {
     let store = MemoryStore::new();
     let laptop = harness.device(&account, &refs, &store).await;
     let phone = harness.second(&account).await;
-    let saved = crate::transfer::Saved {
+    let saved = crate::transfer::SavedBlock {
         id: Uuid::now_v7(),
         block_type: TextContent::CONTENT_TYPE,
         parent: None,

@@ -296,7 +296,7 @@ taken unproven.
   own proof first: one that does not prove is `Tampered`, not a fork. `forget` drops a log's entries
   but keeps its head.
 - **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
-  export carries it (`ExportedEntry`, `transfer::Saved::log`), each entry
+  export carries it (`ExportedEntry`, `transfer::SavedBlock::log`), each entry
   naming the block it was written in, and `Peer::verify_exported` checks an
   entry against that block and its salt, wherever the file was imported, with
   no key of the block. A redacted entry, or one this device cannot open, is
