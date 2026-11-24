@@ -46,6 +46,9 @@ pub struct Sizing {
     pub shrink: f32,
     pub align: Option<Align>,
     pub gap: Option<f32>,
+    /// Stays at the start edge of what is visible of its list (the scroll around it) once
+    /// scrolled to it, within the list, as CSS `position: sticky` does.
+    pub sticky: bool,
 }
 
 impl Default for Sizing {
@@ -57,6 +60,7 @@ impl Default for Sizing {
             shrink: 0.0,
             align: None,
             gap: None,
+            sticky: false,
         }
     }
 }

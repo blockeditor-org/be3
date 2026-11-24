@@ -1,6 +1,6 @@
 # Dialogs are dock windows
 
-Depends on: plans/kept_content_and_one_scroller.md, step 4.
+Depends on: none.
 
 beui has three ways to show something over a frame: `Modal` (centred, filling or a sheet, with a
 scrim), `Anchored` (a card with a beak, or a sheet on finger touch) and `Dialog`, which
@@ -22,7 +22,7 @@ blocking its owner becomes a property of a window, not another kind of overlay.
    tab) takes no presses and shows a scrim while the window is open; focus is trapped in it and
    given back on close. `DockDialog`'s `modal` is this.
 3. **Phones show windows as sheets.** In the stacked and gathered modes the dock shows a window
-   as a sheet (plans/kept_content_and_one_scroller.md, step 4), full height for a large form.
+   as a sheet (a `ModalSheet`, one `Scroll`), full height for a large form.
 4. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
    - Small forms (1): an anchored window with a beak.
    - Confirmations (2): a window centred on its frame that blocks it.
