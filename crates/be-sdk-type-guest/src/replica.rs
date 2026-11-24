@@ -943,7 +943,7 @@ where
         let appends = std::mem::take(&mut self.appends)
             .into_iter()
             .map(|(call, (editor, token))| (call, EditorAsk::Append { editor, token }));
-        // Only an editor still attached waits for an answer, which bounds what is carried.
+        // A detaching editor drops what it asked (`Input::Detach`), which bounds what carries.
         let asks = std::mem::take(&mut self.asked_before)
             .into_iter()
             .map(|((epoch, call), ask)| (epoch, call, ask))
@@ -953,7 +953,6 @@ where
                     .chain(appends)
                     .map(|(call, ask)| (epoch, call, ask)),
             )
-            .filter(|(_, _, ask)| self.editors.contains_key(&ask.editor()))
             .collect();
         Carried {
             snapshots_shown: std::mem::take(&mut self.snapshots_shown),
@@ -982,7 +981,10 @@ where
             (Some(EditorAsk::Append { editor, token }), Input::Appended { result, .. }) => {
                 self.tell_editor(editor, &ToEditor::Appended { token, result });
             }
-            _ => {}
+            (ask, _) => debug_assert!(
+                ask.is_none(),
+                "a call carried as {ask:?} was answered as another kind"
+            ),
         }
         self.run(out);
     }
