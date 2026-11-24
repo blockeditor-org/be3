@@ -2955,20 +2955,7 @@ where
             .filter_map(|journal| crate::wire::BaseState::decode(&journal.base.state)?.part);
         journal
             .flat_map(|journal| &journal.entries)
-            .filter(|entry| entry.base >= entry.floor)
-            .filter_map(|entry| match Submitted::decode(&entry.payload) {
-                Some(Submitted {
-                    entry:
-                        Entry::Operation(Payload::Part(part))
-                        | Entry::Reload {
-                            restart: true,
-                            state: Payload::Part(part),
-                            ..
-                        },
-                    ..
-                }) if part.length() <= LARGEST_PART => Some(part),
-                _ => None,
-            })
+            .filter_map(needed_part)
             .chain(base.filter(|part| part.length() <= LARGEST_PART))
             .filter(|part| {
                 !self.payloads.contains_key(part)
@@ -2987,20 +2974,8 @@ where
             || journal
                 .entries
                 .iter()
-                .filter(|entry| entry.sequence > journal.base.sequence && entry.base >= entry.floor)
-                .filter_map(|entry| match Submitted::decode(&entry.payload) {
-                    Some(Submitted {
-                        entry:
-                            Entry::Operation(Payload::Part(part))
-                            | Entry::Reload {
-                                restart: true,
-                                state: Payload::Part(part),
-                                ..
-                            },
-                        ..
-                    }) if part.length() <= LARGEST_PART => Some(part),
-                    _ => None,
-                })
+                .filter(|entry| entry.sequence > journal.base.sequence)
+                .filter_map(needed_part)
                 .any(|part| lost(&part))
     }
 
@@ -5446,6 +5421,23 @@ fn ordered_bytes(op: &SessionOp) -> usize {
         _ => 0,
     };
     op.payload.len().saturating_add(parted)
+}
+
+/// The part a journal's entry needs to replay: an operation's, unless the order passed it over
+/// (its base below its floor), and a restart's state, which applies whatever its floor
+/// (`replay_restart`). None for one longer than `LARGEST_PART`, which every replica passes over
+/// unread alike.
+fn needed_part(entry: &be_sdk_type_api::JournalEntry) -> Option<PartRef> {
+    let part = match Submitted::decode(&entry.payload)?.entry {
+        Entry::Operation(Payload::Part(part)) if entry.base >= entry.floor => part,
+        Entry::Reload {
+            restart: true,
+            state: Payload::Part(part),
+            ..
+        } => part,
+        _ => return None,
+    };
+    (part.length() <= LARGEST_PART).then_some(part)
 }
 
 /// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a
