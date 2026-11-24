@@ -6,9 +6,19 @@ One branch that collects reviewed work, so it lands together instead of as many 
 
 Nothing is added until it has passed review and `./scripts/verify` has passed on the exact commit the branch moves to. The branch is treated like main: rebased onto main when main moves, and force-pushed only for that.
 
-## Open work (2026-11-22, paused)
+## Open work (resumed 2026-11-24)
 
-Development is paused, and no agent is working. Nothing below is on this branch yet. Each item says where it stopped, so it can be picked up later. Branches are on origin.
+Development resumed on 2026-11-24, with eight builders. Nothing below is on this branch yet. Branches are on origin.
+
+**Being built:**
+- Hosted blocks: 4e-2 rebased with its review fixes, then acceptance-2 rebased, then the backlog's "keep hosting through a closed editor, under verify load" flake.
+- Restart carry (b): `journaled-edits-restart-carries` rebased, with its must-fix.
+- `flush-after-revoke`, then the counter-seal flake.
+- `chat-stall` rebased for review; the block-rows-guard follow-up; then an editor's in-flight put or append dropped on a reopen.
+- `flakes-server-runtime` rebased for review, then plans/one_way_in_the_block_stack.md.
+- Host adapter 4g7a2, then 4g7b and on.
+- The member list leak through the organization's log, then the owner transfer's accept step.
+- plans/kept_content_and_one_scroller.md, then plans/dialogs_are_dock_windows.md.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
 
