@@ -952,8 +952,28 @@ pub(crate) fn banned(
     )
 }
 
-/// Whom `block` is offered to and by whom (`append-log(owner)`), until accepted or withdrawn.
+/// Whom `block` is offered to and by whom (`append-log(owner)`), while its log still offers it.
 pub(crate) fn offered(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<(Uuid, Uuid)>, ServerError> {
+    let Some((to, from)) = offer_row(connection, organization, block)? else {
+        return Ok(None);
+    };
+    // Standing only while the log still offers it: a revocation, a ban or a grant naming other
+    // keys since ends it there (`Checked::offered`).
+    let entries = entries(connection, LogKind::Block, organization, block)?;
+    let standing = !entries.is_empty()
+        && checked_block_log(connection, organization, block, &entries)?
+            .offered
+            .is_some_and(|(account, _)| account == to.into_bytes());
+    Ok(standing.then_some((to, from)))
+}
+
+/// The offer recorded for `block`, whom to and by whom, whether or not its log still offers it:
+/// an acceptance appended to the log is checked there anyway.
+pub(crate) fn offer_row(
     connection: &Connection,
     organization: Uuid,
     block: Uuid,
@@ -986,9 +1006,16 @@ pub(crate) fn offers_to(
             Ok((row.get(0)?, row.get(1)?))
         })?
         .collect::<Result<_, _>>()?;
-    rows.into_iter()
-        .map(|(block, from)| Ok((crate::store::parse_uuid(&block)?, crate::store::parse_uuid(&from)?)))
-        .collect()
+    let mut offers = Vec::new();
+    for (block, _) in rows {
+        let block = crate::store::parse_uuid(&block)?;
+        if let Some((to, from)) = offered(connection, organization, block)?
+            && to == account
+        {
+            offers.push((block, from));
+        }
+    }
+    Ok(offers)
 }
 
 /// Records whom `block` is offered to and by whom, or that no one is (`offer` none).

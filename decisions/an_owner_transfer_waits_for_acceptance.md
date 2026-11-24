@@ -8,6 +8,13 @@ named. Only the acceptance makes them the owner and leaves the former owner
 Edit. The owner may withdraw an offer by offering the block to themselves, or
 replace it by offering the block to someone else.
 
+An offer ends with the access of the account it was made to. A revocation
+below View, a grant naming other keys, or a ban ends it in the log. Access
+taken away on a block above is not in this log, so the server refuses an
+acceptance, and stops listing the offer, once the account can no longer read
+the block. A new phrase moves the offer to the account's new keys, so a stolen
+old phrase cannot accept it.
+
 ## Why
 
 Ownership is responsibility as well as power. The new owner can leave the
@@ -21,6 +28,9 @@ also shows that the account holding those keys is the one taking the block.
 - **A transfer that takes effect at once**, as owner records first worked: it
   needs one record and no answer, but it hands a block, and its place in the
   recipient's quota, to someone who never asked for it.
+- **An offer that outlives its account's access**, checked only against the
+  keys the offer named: a member removed after the offer could still take the
+  block, and with it the right to grant it back to themselves.
 - **An acceptance only the server records**, with the owner's single record
   appended once it says yes: the log would not show that the new owner agreed,
   so a server could move a block on its own word.
