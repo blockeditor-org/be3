@@ -1,5 +1,6 @@
 /// `forget_blocks` deletes a block's rows table by table: a table with a `block_id` column that
-/// neither list names would keep rows of a forgotten block.
+/// neither list names would keep rows of a forgotten block, and each other column that names a
+/// block says how it is handled.
 #[test]
 fn every_block_table_is_forgotten_with_its_block() {
     let connection = rusqlite::Connection::open_in_memory().unwrap();
@@ -39,4 +40,17 @@ fn every_block_table_is_forgotten_with_its_block() {
         unknown.is_empty(),
         "{unknown:?} are listed but have no block_id column"
     );
+
+    // The other columns that name a block each say how forget_blocks handles them.
+    for (table, column, how) in crate::blocks::BLOCK_COLUMNS {
+        let exists: bool = connection
+            .query_row(
+                "SELECT EXISTS (SELECT 1 FROM pragma_table_info(?1) WHERE name = ?2)",
+                rusqlite::params![table, column],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "{table}.{column} is listed but not in the schema");
+        assert!(!how.is_empty(), "{table}.{column} says how it is handled");
+    }
 }
