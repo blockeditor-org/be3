@@ -2,15 +2,16 @@
 
 No host holds keys, anywhere, and nothing waits on an editor to claim a key or the keyboard. A key
 goes to whatever has the keyboard at the moment it is routed. If that is a child whose app does
-not run yet, the key is dropped, as is everything an app that is not running would hear; it is
-not queued for when the app starts.
+not run yet, the key is dropped, as is every press and move an app that is not running would
+hear; it is not queued for when the app starts. Only where the keyboard is (`Input::Focus`),
+state rather than input, reaches the app once it runs.
 
 Moving the keyboard into a child is declarative: the child's placement asks for it
 (`child-placement.keyboard-ask`, the serial of the editor's latest ask, which grows with each
 ask). At the layout commit that carries a serial above every one it acted on for the editor,
-the host moves the keyboard out of the placer at once, and the view that shows the child takes
-it as it is built (or at once if it is), without waiting for the child's app; keys typed in
-between reach nothing. It still does so only while the keyboard is inside the placer's views and
+the host moves the keyboard to the view that shows the child if it is up, or else out of the
+placer's own view at once, the child's view taking it once it is up; keys typed in between
+reach nothing. It still does so only while the keyboard is inside the placer's views and
 no popover or keyboard-taking layer is open, which it checks synchronously at that commit;
 otherwise the ask does nothing. An editor that makes a block to type into ("Add notes") places
 its child asking once it places it; a `ChildBlock` or `Subregion` in a dock tab asks each time

@@ -139,21 +139,23 @@ counts its window's raises and calls for attention.
 
 The host acts on the layout commit that carries a serial above every one it
 acted on for the editor (be-host-runtime's `Instances::set_children`, which
-names the child to the compositor with `InstanceEvent::KeyboardAsked`). If the
-keyboard is inside the placer's views or the children they show and no view
-that takes the keyboard is open, it leaves them at once (be-host's
-`keyboard_into_child`), so it never steals focus from elsewhere; otherwise the
-ask does nothing. The view that shows the child takes it as it is built, or at
-once if it is, without waiting for the child's app, while nothing else took
-the keyboard meanwhile (`focus_when_given`); keys typed in between reach
-nothing. An app given the keyboard for a view whose window it has yet to make
-focuses that window once it makes it (be-sdk-beui-platform's `window_made`), so
-the field it would focus takes the keyboard once it is up. A window child (a
-program window) takes the keyboard from the host directly.
+names the child to the compositor with `InstanceEvent::KeyboardAsked`). A
+child whose view is up takes the keyboard at once, if it is inside the
+placer's views or the children they show and no view that takes the keyboard
+is open, so it never steals focus from elsewhere (be-host's
+`focus_when_given`). For a child whose view is not up yet (not built, or its
+app has not laid it out), the keyboard leaves the placer's own view at once
+(`keyboard_into_child`; one already in another of its children stays there),
+and the child's view takes it once it is up, while nothing else took it
+meanwhile. Keys typed in between reach nothing. An app that does not run yet
+still hears which view has the keyboard (`Input::Focus`), so it focuses the
+field once it runs. A window child (a program window) takes the keyboard from
+the host directly.
 
 Keys are never held (decisions/keys_are_never_held.md): a key goes to whatever
 has the keyboard when it is routed, and one routed to a child whose app does
-not run yet is dropped, as is everything an app that is not running would hear.
+not run yet is dropped, as is everything an app that is not running would hear
+but where the keyboard is.
 Nothing waits for an editor to claim a key or the keyboard.
 
 The keyboard is kept by view, not by the node that catches its input: when the
