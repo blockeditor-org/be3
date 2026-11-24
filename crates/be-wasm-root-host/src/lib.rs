@@ -206,6 +206,9 @@ struct Core<G> {
     /// Where the host's editors the root shows as placed children show their content
     /// (`host.place-content`), until the host takes them.
     placed_contents: Vec<be_wasm_root_api::PlacedContent>,
+    /// The sizes the root assigned the editors it lays out at an intrinsic size
+    /// (`host.assign-size`), by instance and editor, in order, until taken.
+    assigned_sizes: Vec<(u64, u64, be_wasm_root_api::ViewSize)>,
     /// The dock updates the root made for the host's editors (`host.dock`), by the root's
     /// instance and the editor, each as the app protocol encodes them, until the host takes them.
     dock_updates: Vec<(u64, u64, Vec<u8>)>,
@@ -213,7 +216,7 @@ struct Core<G> {
 
 /// The children an editor the host opened placed in one of its views, as the root shows them
 /// (`host.show-children`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ShownChildren {
     /// The op of the sandbox `instance` resource the editor's app runs in.
     pub instance: u64,
@@ -355,6 +358,7 @@ impl<G: Inline> Core<G> {
             placer_events: Vec::new(),
             dock_updates: Vec::new(),
             placed_contents: Vec::new(),
+            assigned_sizes: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -740,6 +744,12 @@ impl<G: Inline> Core<G> {
     /// last call (`host.place-content`), in order.
     fn take_placed_contents(&mut self) -> Vec<be_wasm_root_api::PlacedContent> {
         std::mem::take(&mut self.placed_contents)
+    }
+
+    /// The sizes the root assigned the host's editors it lays out at an intrinsic size since the
+    /// last call (`host.assign-size`), in order.
+    fn take_assigned_sizes(&mut self) -> Vec<(u64, u64, be_wasm_root_api::ViewSize)> {
+        std::mem::take(&mut self.assigned_sizes)
     }
 
     /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
@@ -1243,6 +1253,15 @@ impl<G: Inline> Core<G> {
             }
             embed::Call::Host(embed::host::Call::PlaceContent { placed, reply }) => {
                 self.placed_contents.push(placed);
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::AssignSize {
+                instance,
+                editor,
+                size,
+                reply,
+            }) => {
+                self.assigned_sizes.push((instance, editor, size));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {

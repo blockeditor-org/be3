@@ -6,6 +6,7 @@ fn a_view_holding_the_editors_content_is_the_one_whose_frame_a_child_takes() {
         &placed(rect((0.0, 0.0), (300.0, 200.0)), ChildMode::Live),
         EditorInstanceId(1),
         1.0,
+        1.0,
     );
     main.screen = ScreenId(1);
     let mut bar = main.clone();

@@ -88,6 +88,14 @@ impl Forwarded {
         self.instances.set_view(instance, view);
     }
 
+    /// Tells the editor `instance` the size it is laid out at as a child placed with an
+    /// intrinsic size (`editor-event.resized`), as be-host tells a child it lays out so, sent
+    /// with the next `step` once it changed.
+    pub fn resized(&mut self, instance: EditorInstanceId, size: beui::Vec2) {
+        let told = self.instances.resized(instance, size);
+        self.wire.send(told);
+    }
+
     /// Asks the editor `instance` to show the block `open` names, as be-host asks the editor
     /// that handles show requests (`show-request.block`), sent with the next `step`.
     pub fn show_block(&mut self, instance: EditorInstanceId, open: crate::BlockOpen) {

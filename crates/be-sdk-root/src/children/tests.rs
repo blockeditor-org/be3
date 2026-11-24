@@ -6,6 +6,8 @@ use super::*;
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
 mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
 mod a_child_placed_in_a_dock_tabs_body_joins_its_placers_dock;
+mod a_child_placed_to_fit_its_content_is_asked_for_at_most_that_room;
+mod a_child_placed_with_an_intrinsic_size_is_laid_out_at_it_and_drawn_at_its_zoom;
 mod a_child_takes_the_presses_only_where_it_shows;
 mod a_child_taking_its_placers_frame_is_asked_for_that_frame_with_its_place_as_content;
 mod a_child_taking_the_frame_is_hit_but_where_its_placers_world_shows;
@@ -16,9 +18,11 @@ mod a_keyboard_ask_for_a_child_not_up_takes_the_keyboard_out_and_gives_it_once_u
 mod a_keyboard_ask_never_takes_the_keyboard_from_outside_its_editor;
 mod a_new_keyboard_ask_moves_the_keyboard_into_a_child_that_shows;
 mod a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are;
+mod a_placers_occluders_take_the_presses_over_its_children;
 mod a_press_outside_a_child_taking_the_frame_takes_the_frame_back;
 mod a_press_outside_an_active_child_or_escape_in_its_placer_takes_it_back;
 mod a_preview_shows_its_editors_preview_view_and_keeps_its_editor_once_promoted;
+mod a_turned_child_is_drawn_turned_about_the_middle_of_its_place;
 mod a_view_holding_the_editors_content_is_the_one_whose_frame_a_child_takes;
 mod each_placer_above_a_child_hears_the_keyboard_went_into_it;
 mod only_an_active_or_live_child_with_no_frame_of_its_own_takes_a_framed_view;
@@ -56,8 +60,14 @@ fn placed(rect: Rect, mode: ChildMode) -> ChildPlacement {
 
 /// The child `placement` places in editor 1's main view, as `settle` takes it in.
 fn wanted(placement: ChildPlacement) -> Child {
-    Child::placed(EditorInstanceId(1), ViewId::MAIN, 1.0, placement)
-        .expect("a block child placed to run its editor is shown")
+    Child::placed(
+        EditorInstanceId(1),
+        ViewId::MAIN,
+        1.0,
+        placement,
+        Vec::new(),
+    )
+    .expect("a block child placed to run its editor is shown")
 }
 
 /// The layer showing editor 1's main view, in app 5.

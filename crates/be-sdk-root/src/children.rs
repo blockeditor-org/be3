@@ -41,13 +41,17 @@
 //! nowhere. One whose editor draws no preview runs no app: its placer draws its block's label.
 //! Promoted (a canvas focusing its card), it keeps its editor, asked for its main view.
 //!
+//! Each child's layer is placed through its placer's (`placed_transform`): turned by its
+//! rotation, faded by its opacity, and drawn at the zoom of its place over its intrinsic size
+//! when it has one (`placed_zoom`). A child placed to fit its content is asked for at most that
+//! room, and a view's occluders give their presses to the placer.
+//!
 //! Left for later (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g): an ask acted on only
 //! while no popover or keyboard-taking layer of the editor's is open (the editor's own popovers
 //! are in its screen, so the root does not see them), the press that promotes a child replayed in
 //! it, a joined dock's tab menus, picks and details (the editors' menus reach the root's host as
 //! shell messages it does not take yet), drags, a block shown in several places sharing one
-//! editor (a preview included, which be-host draws once at the largest), occluders, a child
-//! sized to its content (`fit`), one placed in place at its zoom, rotation and opacity, and every
+//! editor (a preview included, which be-host draws once at the largest), and every
 //! other kind of child (web views, host panels, program windows, pickers, creations, artifact
 //! settings and rename forms), which the placer hears are unavailable.
 
@@ -220,6 +224,12 @@ struct Child {
     /// Where its content shows in its main view and the size it wants, as the host was told
     /// last (`host.place-content`).
     told_content: Option<(Rect, Option<be_lib_geometry::Vec2>)>,
+    /// The size it is laid out at, placed with an intrinsic size, as the host was told last
+    /// (`host.assign-size`).
+    told_size: Option<be_lib_geometry::Vec2>,
+    /// The occluders of its placer's view placed after it, which hide it there: rects in the
+    /// view's points where presses reach its placer.
+    occluders: Vec<Rect>,
     /// The views of its dock a joined dock places, each a screen of its app.
     tabs: Vec<TabScreen>,
     /// The children its own editor places.
@@ -250,6 +260,7 @@ impl Child {
         view: ViewId,
         raster: f32,
         placement: ChildPlacement,
+        occluders: Vec<Rect>,
     ) -> Option<Self> {
         let ChildContent::Block {
             block_id,
@@ -282,6 +293,8 @@ impl Child {
             framing: false,
             main: None,
             told_content: None,
+            told_size: None,
+            occluders,
             tabs: Vec::new(),
             nested: Children::default(),
         })
@@ -332,6 +345,59 @@ impl Child {
     /// Whether it is placed as a preview, which shows its editor's preview view.
     fn previewed(&self) -> bool {
         self.placement.mode == ChildMode::Preview
+    }
+
+    /// The size it is laid out at and the zoom it is drawn at, as be-host's placed zoom says: a
+    /// child placed with an intrinsic size, whose editor does not pan and zoom its own world,
+    /// keeps that layout size and is drawn at its place's zoom, so it grows with a canvas's
+    /// camera without laying out again. Any other is laid out at its place's size, at zoom 1.
+    fn zoom(&self) -> Option<(be_lib_geometry::Vec2, f32)> {
+        if !self.placed || self.framing || self.previewed() {
+            return None;
+        }
+        let pans = match &*self.showing.borrow() {
+            Showing::Shown { hosted, .. } => hosted.pan_and_zoom,
+            Showing::Opening | Showing::Label | Showing::Failed(_) => false,
+        };
+        placed_zoom(&self.placement, pans)
+    }
+
+    /// Tells the host the size it is laid out at, placed with an intrinsic size, once that
+    /// changed (`host.assign-size`), as be-host tells a child it lays out so.
+    fn assign_size(&mut self, app: &Embedded, editor: EditorInstanceId) {
+        let Some((size, _)) = self.zoom() else {
+            return;
+        };
+        if self.told_size == Some(size) {
+            return;
+        }
+        self.told_size = Some(size);
+        let told = host::assign_size(
+            app.instance(),
+            editor.0,
+            ViewSize {
+                width: size.x,
+                height: size.y,
+            },
+        );
+        be_wasm_ops::guest::spawn(async move {
+            // A host that stopped answering stops the root too.
+            let _ = told.await;
+        });
+    }
+
+    /// The room it took, placed to fit its content (`child-placement.fit`), in its placer's
+    /// view's points, once it drew: its painted screen's size at its zoom.
+    fn fitted(&self) -> Option<ViewSize> {
+        self.placement.fit?;
+        let (app, _) = self.hosted()?;
+        let layer = app.layer(self.screen(), pos2(0.0, 0.0))?;
+        let zoom = self.zoom().map_or(1.0, |(_, zoom)| zoom);
+        let points = layer.transform.across().length() * zoom;
+        Some(ViewSize {
+            width: layer.size.0 as f32 * points,
+            height: layer.size.1 as f32 * points,
+        })
     }
 
     /// The screen its app is asked for where it is placed: its editor's preview view while placed
@@ -476,6 +542,7 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
             Some(shown) => {
                 child.showing = shown.showing;
                 child.told_content = shown.told_content;
+                child.told_size = shown.told_size;
                 child.layer = shown.layer;
                 child.up = shown.up;
                 child.nested = shown.nested;
@@ -576,7 +643,7 @@ impl Children {
             let told = views
                 .entry((placements.instance, placements.view))
                 .or_default();
-            for placement in &placements.children {
+            for (index, placement) in placements.children.iter().enumerate() {
                 let child = placement.child;
                 let ask = asking.entry(placements.instance).or_insert((0, child));
                 if placement.keyboard_ask > ask.0 {
@@ -598,11 +665,13 @@ impl Children {
                     }
                     continue;
                 }
+                let occluders = occluders_of(placements, index);
                 match Child::placed(
                     placements.instance,
                     placements.view,
                     raster,
                     in_view(placement, placements.view),
+                    occluders,
                 ) {
                     Some(child) => wanted.push(child),
                     None => told.push(ShownChild {
@@ -611,6 +680,7 @@ impl Children {
                         active: false,
                         error: Some(NOT_SHOWN_YET.to_owned()),
                         preview: ShownPreview::None,
+                        intrinsic: None,
                     }),
                 }
             }
@@ -706,7 +776,12 @@ impl Children {
                     });
                     let mut main = match placer.filter(|_| child.framing) {
                         Some(placer) => framing_screen(placer, &child.placement, *editor),
-                        None => child_screen(&child.placement, *editor, child.raster),
+                        None => child_screen(
+                            &child.placement,
+                            *editor,
+                            child.raster,
+                            child.zoom().map_or(1.0, |(_, zoom)| zoom),
+                        ),
                     };
                     main.docked = settling.docks.docked(*editor);
                     child.main = Some(main);
@@ -746,6 +821,7 @@ impl Children {
                     // Told afresh once placed so again.
                     child.told_content = None;
                 }
+                child.assign_size(app, *editor);
             } else {
                 child.tabs.clear();
             }
@@ -767,6 +843,7 @@ impl Children {
                             Showing::Opening | Showing::Label | Showing::Shown { .. } => None,
                         },
                         preview: child.shown_preview(),
+                        intrinsic: child.fitted(),
                     });
             }
             if let Some((app, _)) = hosted {
@@ -802,6 +879,7 @@ impl Children {
                     active: true,
                     error: None,
                     preview: ShownPreview::None,
+                    intrinsic: None,
                 });
         }
         self.tell(views);
@@ -1194,6 +1272,8 @@ impl Children {
         let mut below = Vec::new();
         let mut over = Vec::new();
         let mut holes = Vec::new();
+        // The occluders over the holes, in the placer's pixels, which it is hit in still.
+        let mut occluders = Vec::new();
         let placed_in = |editor: EditorInstanceId, view: ViewId| {
             (editor, view) == (screen.instance, screen.view)
         };
@@ -1205,31 +1285,50 @@ impl Children {
                 continue;
             };
             let placement = &child.placement;
-            let (at, clip) = match child.framing {
-                true => {
-                    let whole = Rect::from_min_max(
-                        pos2(0.0, 0.0),
-                        pos2(screen.metrics.logical.x, screen.metrics.logical.y),
-                    );
-                    let at = to_window.bounds(whole);
-                    (at, at.intersect(shown))
-                }
-                false => (
-                    to_window.bounds(placement.rect),
-                    to_window
-                        .bounds(placement.clip.intersect(placement.rect))
-                        .intersect(shown),
-                ),
-            };
-            let Some(mut shown_child) = app.layer(child.screen(), at.min) else {
+            let Some(mut shown_child) = app.layer(child.screen(), pos2(0.0, 0.0)) else {
                 continue;
             };
+            // From its view's points to its placer's, and what of its placer's it may show: the
+            // whole of its placer's view while it takes the frame, else its place, laid out at
+            // its zoom and turned by its rotation about its middle, within its clip.
+            let (to_placer, clip, opacity) = match child.framing {
+                true => (
+                    Affine::IDENTITY,
+                    Rect::from_min_max(
+                        pos2(0.0, 0.0),
+                        pos2(screen.metrics.logical.x, screen.metrics.logical.y),
+                    ),
+                    1.0,
+                ),
+                false => {
+                    let zoom = child.zoom().map_or(1.0, |(_, zoom)| zoom);
+                    let to_placer = placed_transform(placement, zoom);
+                    let swept = to_placer.bounds(Rect::from_min_size(
+                        pos2(0.0, 0.0),
+                        placement.rect.size() / zoom,
+                    ));
+                    (
+                        to_placer,
+                        placement.clip.intersect(swept),
+                        placement.opacity,
+                    )
+                }
+            };
+            shown_child.transform = shown_child.transform.then(&to_placer).then(&to_window);
             let Some(from_window) = shown_child.transform.inverse() else {
                 continue;
             };
+            let clip = to_window.bounds(clip).intersect(shown);
             shown_child.clip = shown_child.clip.intersect(from_window.bounds(clip));
+            shown_child.opacity = layer.opacity * opacity.clamp(0.0, 1.0);
             shown_child.input.placer = Some(layer.id);
             let active = child.takes_input(&self.revoked);
+            // The occluders placed after it, in its pixels: presses there reach its placer.
+            let occluded: Vec<Rect> = child
+                .occluders
+                .iter()
+                .map(|occluder| from_window.bounds(to_window.bounds(*occluder)))
+                .collect();
             shown_child.input.hit = match (child.framing, active) {
                 (true, _) => framing_hit(
                     shown_child.size,
@@ -1237,18 +1336,38 @@ impl Children {
                     app.content(CHILD_SCREEN),
                     placement.rect.intersect(placement.clip),
                 ),
-                (false, true) => shown_child.input.hit,
+                (false, true) => without(shown_child.size, &occluded),
                 (false, false) => Area::Nowhere,
             };
             if active && !child.framing && placement.layer == ChildLayer::Below {
-                holes.push(hole(placement, pixels, layer.clip));
+                let swept = placed_transform(placement, 1.0)
+                    .bounds(Rect::from_min_size(pos2(0.0, 0.0), placement.rect.size()));
+                holes.push(hole(
+                    &ChildPlacement {
+                        rect: swept,
+                        ..placement.clone()
+                    },
+                    pixels,
+                    layer.clip,
+                ));
+                occluders.extend(
+                    child
+                        .occluders
+                        .iter()
+                        .map(|occluder| scaled(*occluder, pixels)),
+                );
             }
             let request = child
                 .main
                 .clone()
                 .unwrap_or_else(|| match child.previewed() {
                     true => preview_screen(placement, editor, child.raster),
-                    false => child_screen(placement, editor, child.raster),
+                    false => child_screen(
+                        placement,
+                        editor,
+                        child.raster,
+                        child.zoom().map_or(1.0, |(_, zoom)| zoom),
+                    ),
                 });
             let into = match (child.framing, placement.layer) {
                 (false, ChildLayer::Below) => &mut below,
@@ -1292,7 +1411,7 @@ impl Children {
             };
             owner.nested.layers(&request, body, into);
         }
-        layer.input.hit = placer_hit(layer.size, holes);
+        layer.input.hit = placer_hit(layer.size, holes, occluders);
         layers.extend(below);
         layers.push(layer);
         layers.extend(over);
@@ -1345,13 +1464,61 @@ fn hole(placement: &ChildPlacement, pixels: f32, clip: Rect) -> Rect {
 }
 
 /// Where a placer's layer `size` pixels big is hit, with `holes` (in its pixels) where children
-/// that take input are: everywhere else.
-fn placer_hit(size: (u32, u32), holes: Vec<Rect>) -> Area {
+/// that take input are and `occluders` over them, which hide them: everywhere but in a hole,
+/// unless an occluder is over it there, as be-host-runtime's holes say.
+fn placer_hit(size: (u32, u32), holes: Vec<Rect>, occluders: Vec<Rect>) -> Area {
     if holes.is_empty() {
         return Area::Whole;
     }
     let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(size.0 as f32, size.1 as f32));
-    Area::Region(whole.subtract(&holes))
+    let mut hit = whole.subtract(&holes);
+    hit.extend(
+        occluders
+            .into_iter()
+            .map(|occluder| occluder.intersect(whole)),
+    );
+    Area::Region(hit)
+}
+
+/// The occluders of `placements` that hide its child `index`: those placed after it, as
+/// be-host-runtime's `Instances` says, in the view's points.
+fn occluders_of(placements: &ChildPlacements, index: usize) -> Vec<Rect> {
+    placements
+        .occluders
+        .iter()
+        .filter(|occluder| occluder.after as usize > index)
+        .map(|occluder| occluder.rect)
+        .collect()
+}
+
+/// Where a child's layer `size` pixels big is hit with `occluded` (in its pixels) hidden by its
+/// placer's occluders: everywhere else.
+fn without(size: (u32, u32), occluded: &[Rect]) -> Area {
+    if occluded.is_empty() {
+        return Area::Whole;
+    }
+    let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(size.0 as f32, size.1 as f32));
+    Area::Region(whole.subtract(occluded))
+}
+
+/// From the points of a child's view, laid out at `zoom`, to its placer's: at its place as
+/// `placement` says, scaled by `zoom` and turned by its rotation (radians, clockwise on screen)
+/// about the middle of its place, as be-host draws a placed child.
+fn placed_transform(placement: &ChildPlacement, zoom: f32) -> Affine {
+    let (sin, cos) = match placement.rotation.is_finite() {
+        true => placement.rotation.sin_cos(),
+        false => (0.0, 1.0),
+    };
+    let middle = placement.rect.size() / 2.0;
+    let turned = be_lib_geometry::vec2(
+        cos * middle.x - sin * middle.y,
+        sin * middle.x + cos * middle.y,
+    );
+    Affine::from_axes(
+        be_lib_geometry::vec2(cos * zoom, sin * zoom),
+        be_lib_geometry::vec2(-sin * zoom, cos * zoom),
+        placement.rect.min + middle - turned,
+    )
 }
 
 /// Whether a child placed in `mode` runs its block's editor: to show it where it is placed, or
@@ -1388,12 +1555,21 @@ fn takes_input(mode: ChildMode) -> bool {
 
 /// The screen a child placed as `placement` asks of its editor `editor`: its main view the size
 /// of its place, at its placer's `raster`, in a frame of its own when it was placed with one.
+/// Drawn at `zoom` (`Child::zoom`), it is laid out at its place's size over that zoom, painted at
+/// its placer's pixels all the same, as be-host lays out a child placed with an intrinsic size.
+/// Placed to fit its content (`fit`), it is asked for at most that room, and takes what it needs.
 pub fn child_screen(
     placement: &ChildPlacement,
     editor: EditorInstanceId,
     raster: f32,
+    zoom: f32,
 ) -> ScreenRequest {
-    let size = placement.rect.size();
+    let fit = placement
+        .fit
+        .map(|fit| be_lib_geometry::vec2(fit.x, fit.y))
+        .filter(|fit| fit.x > 0.0 && fit.y > 0.0);
+    let size = fit.unwrap_or(placement.rect.size()) / zoom;
+    let raster = raster * zoom;
     let origin = placement.rect.min.to_vec2();
     ScreenRequest {
         screen: CHILD_SCREEN,
@@ -1404,7 +1580,9 @@ pub fn child_screen(
             chrome: FrameChrome::Drawn,
             top_bar: placement.top_bar,
             dialog: placement.dialog.clone(),
-            anchor: placement.anchor.map(|anchor| anchor.translate(-origin)),
+            anchor: placement
+                .anchor
+                .map(|anchor| scaled(anchor.translate(-origin), 1.0 / zoom)),
             ..FrameSpec::default()
         }),
         metrics: ViewportMetrics {
@@ -1422,9 +1600,29 @@ pub fn child_screen(
         host_place: None,
         docked: false,
         anchor_space: None,
-        fit: false,
+        fit: fit.is_some(),
         origin: None,
     }
+}
+
+/// The size a child placed as `placement` is laid out at and the zoom it is drawn at
+/// (`Child::zoom`), placed with an intrinsic size and an editor that does not pan and zoom
+/// (`pans`): its place's size over the zoom that fits its intrinsic size in it.
+fn placed_zoom(placement: &ChildPlacement, pans: bool) -> Option<(be_lib_geometry::Vec2, f32)> {
+    let size = placement.intrinsic.filter(|size| {
+        !pans && size.x > 0.0 && size.y > 0.0 && size.x.is_finite() && size.y.is_finite()
+    })?;
+    let rect = placement.rect;
+    let zoom = (rect.width() / size.x).min(rect.height() / size.y);
+    (zoom.is_finite() && zoom > 0.0).then_some((rect.size() / zoom, zoom))
+}
+
+/// `rect` with its corners scaled by `by` about the origin.
+fn scaled(rect: Rect, by: f32) -> Rect {
+    Rect::from_min_max(
+        pos2(rect.min.x * by, rect.min.y * by),
+        pos2(rect.max.x * by, rect.max.y * by),
+    )
 }
 
 /// Where a child placed as `placement` shows its content in its main view's points: its placed
@@ -1448,6 +1646,11 @@ pub fn preview_screen(
     editor: EditorInstanceId,
     raster: f32,
 ) -> ScreenRequest {
+    // A preview is drawn the size of its place, never sized to its content.
+    let placement = &ChildPlacement {
+        fit: None,
+        ..placement.clone()
+    };
     let size = placement.rect.size();
     let longest = size.x.max(size.y) * raster;
     let raster = match longest > PREVIEW_PIXELS {
@@ -1459,7 +1662,7 @@ pub fn preview_screen(
         view: ViewId::PREVIEW,
         placement: ViewPlacement::Parent(ParentView::Preview),
         frame: None,
-        ..child_screen(placement, editor, raster)
+        ..child_screen(placement, editor, raster, 1.0)
     }
 }
 
@@ -1504,7 +1707,7 @@ fn tab_screen(
     ask: &TabAsk,
     content: bool,
 ) -> ScreenRequest {
-    let mut request = child_screen(&ask.placement, editor, ask.raster);
+    let mut request = child_screen(&ask.placement, editor, ask.raster, 1.0);
     let origin = ask.placement.rect.min.to_vec2();
     request.screen = screen;
     request.view = ViewId(ask.tab);
@@ -1636,7 +1839,7 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
             screens: Box::new(move |editor| {
                 vec![match placement.mode == ChildMode::Preview {
                     true => preview_screen(&placement, editor, raster),
-                    false => child_screen(&placement, editor, raster),
+                    false => child_screen(&placement, editor, raster, 1.0),
                 }]
             }),
             surface: spawning.surface.clone(),

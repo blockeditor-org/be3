@@ -81,6 +81,8 @@ pub struct Hosted {
     pub name: String,
     /// Whether the editor draws a preview of its block (`host.editor-of`'s `preview`).
     pub preview: bool,
+    /// Whether the editor pans and zooms its own world (`host.editor-of`'s `pan-and-zoom`).
+    pub pan_and_zoom: bool,
 }
 
 /// Why `Embedded::spawn_block` spawned nothing.
@@ -217,6 +219,7 @@ impl Embedded {
             })?;
         let name = editor.name;
         let preview = editor.preview;
+        let pan_and_zoom = editor.pan_and_zoom;
         if spawn.preview && !preview {
             return Err(SpawnFailure {
                 name: Some(name),
@@ -250,6 +253,7 @@ impl Embedded {
             editor,
             name,
             preview,
+            pan_and_zoom,
         })
     }
 
