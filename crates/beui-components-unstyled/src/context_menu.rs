@@ -49,7 +49,6 @@ pub fn ContextMenu(
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
@@ -101,11 +100,6 @@ pub fn ContextMenu(
         true => SheetWhen::Never,
         false => SheetWhen::Touched,
     };
-    let mut ever_open = false;
-    let built = create_memo(move || {
-        ever_open |= open.get();
-        ever_open
-    });
     let toolbar_style = menu.toolbar();
     let has_toolbar = toolbar_style.is_some();
     let toolbar_open = create_memo(move || {
@@ -155,22 +149,19 @@ pub fn ContextMenu(
         >
             <List spacing=0.0>
                 <ListItem grow=child_grow>{children}</ListItem>
-                <Show value={built}>
-                    <MenuPopup
-                        overlay
-                        content
-                        items={items.clone()}
-                        menu={menu}
-                        anchor={holder}
-                        open
-                        at
-                        placement
-                        bounds
-                        keep_alive
-                        sheet
-                        focusing
-                    />
-                </Show>
+                <MenuPopup
+                    overlay
+                    content
+                    items={items.clone()}
+                    menu={menu}
+                    anchor={holder}
+                    open
+                    at
+                    placement
+                    bounds
+                    sheet
+                    focusing
+                />
                 {toolbar_style.map(|(button, panel)| view! {
                     <Show value={toolbar_open}>
                         <Toolbar

@@ -200,7 +200,6 @@ fn AnchoredPopover(
             placement
             beak
             open
-            keep_alive=false
             sheet=SheetWhen::Never
             surface
         >|_: PopoverHandle|

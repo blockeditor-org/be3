@@ -29,7 +29,6 @@ pub fn MenuButton(
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     accessibility: Option<Prop<Node>>,
     on_click: Callback<()>,
     on_secondary_click: Callback<()>,
@@ -109,7 +108,6 @@ pub fn MenuButton(
                 at
                 placement
                 bounds
-                keep_alive
                 trigger={button}
             />
         </List>

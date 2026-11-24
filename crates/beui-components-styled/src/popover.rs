@@ -30,7 +30,6 @@ pub fn Popover(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = true)] keep_alive: bool,
     /// Points an arrow at what it opened from while it is above or below it; give the
     /// placement a gap for the arrow to fill.
     #[prop(default = false)]
@@ -55,7 +54,6 @@ pub fn Popover(
             at
             placement
             bounds
-            keep_alive
             beak={beak}
             band
             surface

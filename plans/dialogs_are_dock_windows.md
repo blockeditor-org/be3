@@ -1,6 +1,6 @@
 # Dialogs are dock windows
 
-Depends on: plans/kept_content_and_one_scroller.md, steps 1, 2 and 4.
+Depends on: plans/kept_content_and_one_scroller.md, step 4.
 
 beui has three ways to show something over a frame: `Modal` (centred, filling or a sheet, with a
 scrim), `Anchored` (a card with a beak, or a sheet on finger touch) and `Dialog`, which

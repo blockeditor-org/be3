@@ -1,4 +1,4 @@
-use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::components::overlay::Overlay;
 use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -11,7 +11,8 @@ use beui_view::types::{Pos2, Rect, Vec2};
 pub struct AnchoredSheetHandle {
     pub open: Memo<bool>,
     pub on_close: Callback<()>,
-    pub content: Build<NodeId>,
+    /// Builds the content, each time the sheet opens.
+    pub content: BuildFn<NodeId>,
 }
 
 #[derive(Clone, Copy)]
@@ -76,9 +77,9 @@ pub enum SheetWhen {
 /// at the point `at`, pinned to the anchor's node) when a mouse or pen opened it, the
 /// same content in a sheet when a finger did (`touched_by_finger`), unless `sheet` says
 /// otherwise. A dismiss writes `open` false; an `Inert` one (a tooltip) takes no
-/// dismissal, so it never claims Back or a press outside. Content is built once per look the first
-/// time that look opens, and removed on close unless `keep_alive` keeps it, with its
-/// state, while closed; bind focus to the handle's `shown`, not to `open`. `beak` points
+/// dismissal, so it never claims Back or a press outside. Content is built each time a look
+/// opens and removed once it has closed (a caller keeps its state while closed by wrapping it
+/// in a `Kept`); bind focus to the handle's `shown`, not to `open`. `beak` points
 /// an arrow at the anchor from the frame the look binds to `Dropdown::pointer`.
 #[component]
 pub fn Anchored(
@@ -87,9 +88,6 @@ pub fn Anchored(
     #[prop(default = None)] at: Prop<Option<Pos2>>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    /// Every popup takes one; only `Popover` keeps its content by default.
-    #[prop(default = false)]
-    keep_alive: bool,
     #[prop(default = 0.0)] beak: Prop<f32>,
     open: Binding<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
@@ -126,23 +124,7 @@ pub fn Anchored(
     let anchor = create_memo(move || at_point(anchor.get(), at.get()));
     let close = Callback::new(move |()| open.set(false));
     let pointer = NodeRef::new();
-    let look = move |sheet: bool, shown: Memo<bool>| {
-        let built = move || content.call(AnchoredHandle { sheet, shown });
-        match keep_alive {
-            false => built(),
-            true => {
-                let presence = use_overlay_presence();
-                view! {
-                    <Kept key={sheet}>|| {
-                        if let Some(presence) = presence {
-                            presence.provide();
-                        }
-                        built()
-                    }</Kept>
-                }
-            }
-        }
-    };
+    let look = move |sheet: bool, shown: Memo<bool>| content.call(AnchoredHandle { sheet, shown });
     let dropdown = move || {
         view! {
             <Overlay
@@ -168,7 +150,7 @@ pub fn Anchored(
     };
     // A popup that never becomes a sheet (a tooltip) is its overlay alone: no list around it
     // and no empty `Show` for a sheet it never builds.
-    let surfaces = move || match never_sheet {
+    match never_sheet {
         true => dropdown(),
         false => view! {
             <List spacing=0.0>
@@ -177,16 +159,10 @@ pub fn Anchored(
                     style.sheet.call(AnchoredSheetHandle {
                         open: raised,
                         on_close: close,
-                        content: Build::new(move || look(true, raised)),
+                        content: BuildFn::new(move || look(true, raised)),
                     })
                 }</Show>
             </List>
-        },
-    };
-    match keep_alive {
-        false => surfaces(),
-        true => view! {
-            <KeepAlive>{surfaces()}</KeepAlive>
         },
     }
 }

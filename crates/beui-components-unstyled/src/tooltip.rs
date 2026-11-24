@@ -75,7 +75,6 @@ pub fn Tooltip(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     children: Child,
     content: RenderFn<TooltipHandle, NodeId>,
 ) -> NodeId {
@@ -202,7 +201,6 @@ pub fn Tooltip(
                     at
                     placement
                     bounds
-                    keep_alive
                     sheet=SheetWhen::Never
                     policy=LayerPolicy::Inert
                     traps_focus=false

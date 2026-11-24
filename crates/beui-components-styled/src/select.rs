@@ -43,7 +43,6 @@ pub fn Select<T>(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,
@@ -62,7 +61,6 @@ where
             at
             placement
             bounds
-            keep_alive
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />
