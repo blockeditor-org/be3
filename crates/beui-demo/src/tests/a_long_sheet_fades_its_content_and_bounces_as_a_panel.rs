@@ -58,13 +58,39 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     }
     assert!(bounced);
     test.settle();
-    test.scroll(pos2(200.0, 300.0), vec2(0.0, 10000.0));
-    test.settle();
+    // The bounce lowered it to a stop: a wheel raises it to its top first, then scrolls on.
+    for _ in 0..2 {
+        test.scroll(pos2(200.0, 300.0), vec2(0.0, 10000.0));
+        test.settle();
+    }
     test.snapshot("sheet_fades_at_the_end");
     let from = test.rect_of("sheet.handle").center();
     touch(&mut test, TouchPhase::Start, from);
     touch(&mut test, TouchPhase::Move, from + vec2(0.0, 160.0));
     test.snapshot("scrolled_sheet_dragged_by_the_handle");
+    touch(&mut test, TouchPhase::End, from + vec2(0.0, 160.0));
+    test.settle();
+    // Raised to its top again, it scrolls what it holds on from where it shows: a pull down
+    // scrolls that back rather than lowering the sheet.
+    for _ in 0..3 {
+        test.scroll(pos2(200.0, 500.0), vec2(0.0, 1.0));
+        test.settle();
+    }
+    assert_eq!(test.rect_of("sheet.handle").top(), 60.0);
+    touch(&mut test, TouchPhase::Start, pos2(200.0, 300.0));
+    touch(&mut test, TouchPhase::Move, pos2(200.0, 360.0));
+    touch(&mut test, TouchPhase::Move, pos2(200.0, 420.0));
+    assert_eq!(
+        test.rect_of("sheet.handle").top(),
+        60.0,
+        "what it holds scrolls back under the grip"
+    );
+    touch(&mut test, TouchPhase::Cancel, pos2(200.0, 420.0));
+    test.settle();
+    // Lowered again for the drag from above.
+    let from = test.rect_of("sheet.handle").center();
+    touch(&mut test, TouchPhase::Start, from);
+    touch(&mut test, TouchPhase::Move, from + vec2(0.0, 160.0));
     touch(&mut test, TouchPhase::End, from + vec2(0.0, 160.0));
     test.settle();
     let from = test.rect_of("sheet.outside").center();

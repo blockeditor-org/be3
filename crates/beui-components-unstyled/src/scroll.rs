@@ -1048,6 +1048,15 @@ fn Scrolling(
         if from == 0.0 {
             return position;
         }
+        // Short of it there is nothing to show: what lies past it has not been reached (a
+        // sheet lowered below its highest stop).
+        if position.offset < from - EDGE_SLACK {
+            return ScrollPosition {
+                offset: 0.0,
+                content: position.viewport,
+                ..position
+            };
+        }
         ScrollPosition {
             offset: (position.offset - from).max(0.0),
             content: (position.content - from).max(0.0),
