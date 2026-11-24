@@ -1599,7 +1599,7 @@ Each step lands on its own.
            - building `core-view` only when the stack or one of the core's areas changed
              (`stack_changes`, the areas' own state), rather than each frame, and comparing it
              with the last view handed (`root/block_stack.rs`'s `view`).
-         - 4g7b3. Children: their placements, focus, the keyboard, drags and gifts, through
+         - 4g7b3. Children: their placements, focus, the keyboard and drags, through
            the root's layers. Desktop windows stay with 4g7e. In parts:
            - 4g7b3a (built). Block children placed. be-sdk-root's `Embedded` keeps the
              children each view placed (`Embedded::placed`), those that come or go with the
@@ -1625,9 +1625,11 @@ Each step lands on its own.
              later: a block's revision error (`be_host_stack::revisions::error`) reaches the
              placer's status only when the root shows its children again, not as the revision
              changes.
-           - 4g7b3b. The keyboard: `focus-child` and the gifts of keys held for a child
-             (be-host-runtime's `gift`), promoting an active child and taking it back (a press
-             outside, Escape, the press replayed), and `on_focus` to the editors above.
+           - 4g7b3b. The keyboard: a child's placement asking for it (`keyboard-ask`), applied as
+             the root settles the commit that carries it, with no keys held
+             (decisions/keys_are_never_held.md); promoting an active child and taking it back
+             (a press outside, Escape, the press replayed), and `on_focus` to the editors
+             above.
            - 4g7b3c. A child that takes its placer's frame, and docks that join across apps
              (a child placed in a dock tab asked `docked`, its bars spliced; be-sdk-app-host's
              `Docks`).

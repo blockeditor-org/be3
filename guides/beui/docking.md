@@ -125,8 +125,8 @@ Pressing a pane's chrome (bar, tab, grip) gives the keyboard to the tab it shows
 `Interactive` with `press_focus=false` (guides/beui_keyboard.md) and
 `beui-dock-host/src/unstyled/keyboard.rs` puts the focus back where that tab last had it, or on its
 first focusable. Content whose keyboard lives in another document (a program's window, a child
-block) follows `DockTabControl::keyboard` and `brought_forward` and asks its host for the keys
-(`focus_child`, guides/apps/children.md, Focus). The other way, when such content takes the focus
+block) follows `DockTabControl::keyboard` and `brought_forward` and asks its host for the
+keyboard in its placement (`keyboard-ask`, guides/apps/children.md, Focus). The other way, when such content takes the focus
 there it shows its tab (`DockTabControl::content_focused`) or, in an empty pane's view, focuses
 that pane (`DockPaneControl::focus`), which brings the window in front. `content_focused` also
 records that the tab's content has the keyboard, until this document or an empty pane takes it,

@@ -537,8 +537,7 @@ parent paints. It reads a frame's placements against the state at that
 frame's serial (`be-sdk-app-host/src/sent.rs`).
 
 A present commit answers the input sent before its frame was asked for
-(`Pacing::answered`, which the keyboard gift's `GiftTo::Answer` waits on)
-unless it sets `input-waiting`: be-sdk-beui-platform does when input for a
+(`Pacing::answered`) unless it sets `input-waiting`: be-sdk-beui-platform does when input for a
 view whose window its frame opened was taken in only after that frame
 (guides/apps/framework.md), and the host then counts the next frame, up to
 `INPUT_WAITING_FRAMES` in a row.
