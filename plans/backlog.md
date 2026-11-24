@@ -340,8 +340,16 @@ Depends on #686 (session catch-ups replaced by server ordering).
 - **Edits typed after a demotion, once under load.**
   be-host-stack's `edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again`
   failed once in a whole-crate run (its `count_of` was not `Some(11)` after the flush, line 114)
-  and passed 6 of 6 alone. Done: the cause found, from a rerun under the same load that keeps
-  its output, and fixed at its source.
+  and passed 6 of 6 alone. Seen again later counting 21: the edit of 10 typed after the block
+  was editable again counted twice, in a run where the replica was told of a head another
+  device moved (`Replicas::moved`, not from this device) just before it reloaded. Done: the
+  cause found, from a rerun under the same load that keeps its output, and fixed at its source.
+- **An edit sealed offline onto a lost seal, once under load.**
+  be-host-stack's `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` failed once
+  under verify and once in 7 whole-crate runs: opened again after reconnecting, connected,
+  owing nothing and with the outbox drained, it stayed on the seal it opened on (a count of 2)
+  and never took the head (5). It passed alone. Done: the cause found, from a rerun under the
+  same load that keeps its output, and fixed at its source.
 - **A paired device that stays loading its files.**
   `keep_hosting_outlives_the_editor_until_stop` timed out in 3 of 200 `stress` runs (8 at a
   time) before any hosting: a device just paired (`Approve`) stays on "Loading the files" and
