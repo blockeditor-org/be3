@@ -43,6 +43,14 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     let camera = create_memo(move || {
         super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
     });
+    // A camera fitted to the stage (a preview's, with no view of the host's) has no scale
+    // before the stage is measured: the canvas is handed none until then, rather than one of
+    // nothing, at which it would draw its text until its raster settled on the next.
+    let shown_camera = create_memo(move || {
+        let unfitted =
+            view.get().is_none() && state.framed().is_some() && !placed.get().is_positive();
+        (!unfitted).then(|| camera.get())
+    });
     let ids = state.entities.ids();
     let embedding = create_memo(move || state.entities.embedding());
     let inset = create_memo(move || {
@@ -86,7 +94,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             <Frame padding={inset} fill={outside_frames}>
                 <CanvasSurface state={state}>
                     <Canvas
-                        view={create_memo(move || Some(camera.get()))}
+                        view={shown_camera}
                         on_reveal={reveal_by(state.editor())}
                         @test_id={"infinite-canvas.canvas"}
                     >
