@@ -138,7 +138,7 @@ struct Inner {
     /// The entries logged since the replicas were last handed them, by replica.
     logged: Vec<(Replica, Vec<be_sdk_type_guest::api::LogItem>)>,
     /// Who signed what each account appends, where a test says (`set_log_signer`).
-    signers: HashMap<Uuid, be_sdk_type_guest::api::Signer>,
+    signers: HashMap<Uuid, be_sdk_beui::be_block_content::Signer>,
     /// Whether the server holds submissions back (`hold_submissions`), and those it holds.
     hold_submissions: bool,
     held_submissions: Vec<(Option<Uuid>, Call)>,
@@ -744,7 +744,7 @@ impl Inner {
             .filter(|taken| taken.author == author)
             .map(|taken| {
                 taken.payload = None;
-                taken.signer = be_sdk_type_guest::api::Signer::Redacted;
+                taken.signer = be_sdk_beui::be_block_content::Signer::Redacted;
                 taken.clone()
             });
         if let Some(replica) = held.replica {
@@ -763,10 +763,10 @@ impl Inner {
 
     /// Who signed what `author` appended, as the host's verdict: a test's `set_signer`, or a
     /// contact's key.
-    fn signer_of(&self, author: Uuid) -> be_sdk_type_guest::api::Signer {
+    fn signer_of(&self, author: Uuid) -> be_sdk_beui::be_block_content::Signer {
         match self.signers.get(&author) {
             Some(signer) => *signer,
-            None => be_sdk_type_guest::api::Signer::Verified,
+            None => be_sdk_beui::be_block_content::Signer::Verified,
         }
     }
 
@@ -1422,7 +1422,7 @@ impl ContentStore {
             return;
         };
         taken.payload = None;
-        taken.signer = be_sdk_type_guest::api::Signer::Redacted;
+        taken.signer = be_sdk_beui::be_block_content::Signer::Redacted;
         let taken = taken.clone();
         if let Some(replica) = held.replica {
             inner.logged.push((replica, vec![taken]));
@@ -1455,18 +1455,7 @@ impl ContentStore {
     }
 
     /// Says who signed what `author` appends to a signed log, as the host would tell.
-    pub fn set_log_signer(&self, author: Uuid, signer: be_sdk_beui::be_block_content::LogSigner) {
-        use be_sdk_beui::be_block_content::LogSigner;
-        use be_sdk_type_guest::api::Signer;
-        let signer = match signer {
-            LogSigner::Verified => Signer::Verified,
-            LogSigner::Unverified => Signer::Unverified,
-            LogSigner::Changed => Signer::Changed,
-            LogSigner::Replaced => Signer::Replaced,
-            LogSigner::Bad => Signer::Bad,
-            LogSigner::Unknown => Signer::Unknown,
-            LogSigner::Redacted => Signer::Redacted,
-        };
+    pub fn set_log_signer(&self, author: Uuid, signer: be_sdk_beui::be_block_content::Signer) {
         self.0.borrow_mut().signers.insert(author, signer);
     }
 

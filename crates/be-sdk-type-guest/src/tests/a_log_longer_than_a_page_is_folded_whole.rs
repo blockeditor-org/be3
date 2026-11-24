@@ -6,13 +6,13 @@ use super::*;
 #[test]
 fn a_log_longer_than_a_page_is_folded_whole() {
     let mut sim = Sim::<Logbook>::new(1, logbook_module);
-    let item = |seq: u64| be_sdk_type_api::LogItem {
+    let item = |seq: u64| be_block_content::LogItem {
         seq,
         id: Uuid::from_u64_pair(1, seq),
         author: Uuid::from_u128(1),
         arrival: seq as i64,
         payload: Some(seq.to_string().into_bytes()),
-        signer: be_sdk_type_api::Signer::Verified,
+        signer: be_block_content::Signer::Verified,
         imported: None,
     };
     for seq in 0..600 {

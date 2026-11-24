@@ -345,7 +345,6 @@ impl Scope {
     pub fn take(&mut self, connection: &mut Connection, op: OpId, call: Call) -> Under {
         match call {
             Call::ReadPart { reply, part, range } => {
-                let part = be_block_store::PartRef::from(part);
                 match self.allows(part) {
                     true => {
                         self.read.push(part);
@@ -1057,29 +1056,9 @@ impl Modules {
         let Some(module) = self.module_of(content_type) else {
             return bytes;
         };
-        let journal = match journal.tag.as_bytes() == &self.tag(module).0 {
-            true => be_sdk_type_api::Journal {
-                base: be_sdk_type_api::JournalBase {
-                    commit: journal.base.commit,
-                    sequence: journal.base.sequence,
-                    state: journal.base.state,
-                },
-                entries: journal
-                    .entries
-                    .into_iter()
-                    .map(|entry| be_sdk_type_api::JournalEntry {
-                        sequence: entry.sequence,
-                        origin: entry.origin,
-                        counter: entry.counter,
-                        base: entry.base,
-                        floor: entry.floor,
-                        received: entry.received,
-                        payload: entry.payload,
-                    })
-                    .collect(),
-            },
-            false => return bytes,
-        };
+        if journal.tag.as_bytes() != &self.tag(module).0 {
+            return bytes;
+        }
         let head = bytes.clone();
         match self
             .ask_type(content_type, |connection| {

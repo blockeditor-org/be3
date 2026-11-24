@@ -5,13 +5,13 @@ use be_block_content::{
     Landed, LiveEdit, Merge, Settling,
     history::{GestureId, GestureKind, Stepped},
 };
-use be_block_protocol::{ClientId, SessionState};
+use be_block_protocol::{ClientId, Journal, JournalBase, SessionState};
 use be_block_session::Membership;
 use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission, Merging,
-    Recipients, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
+    Change, EditorId, Endpoint, FileChange, KeptSubmission, Merging, Recipients, ReplicaId,
+    SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
 
@@ -232,7 +232,7 @@ pub(crate) enum Input {
     /// Entries appended to the block's signed log (`replica.logged`).
     Logged(Vec<be_block_content::LogItem>),
     /// Every entry this device appended that the server refused and keeps (`replica.refused`).
-    Refused(Vec<(Uuid, Vec<u8>, String)>),
+    Refused(Vec<be_block_content::RefusedEntry>),
     Resumed {
         token: Token,
         result: Result<Resume, String>,
@@ -4589,7 +4589,7 @@ where
             Change::Child(change) => {
                 let Some(operations) = self
                     .visible
-                    .child_operations(crate::be_child(change), self.client)
+                    .child_operations(change, self.client)
                 else {
                     return self.reply(id, Answer::Changed(false));
                 };
@@ -4960,7 +4960,7 @@ where
                     let from = *through;
                     while self.signed_log.holds(*through) {
                         if let Some(item) = self.signed_log.items.get(&*through)
-                            && item.signer != be_block_content::LogSigner::Bad
+                            && item.signer != be_block_content::Signer::Bad
                         {
                             fold(folded, item);
                         }

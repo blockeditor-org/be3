@@ -149,7 +149,7 @@ pub(super) enum Command {
     ChangeChild {
         block: Uuid,
         content_type: Uuid,
-        change: be_sdk_type_api::ChildChange,
+        change: be_block_content::ChildChange,
         /// A `Replace` that puts a copy in place (`crate::replace_with_copy`): the source to copy
         /// into the new id once the type made the change.
         copying: Option<Uuid>,
@@ -4285,8 +4285,8 @@ async fn apply(
             }
             // The type's answer is awaited beside the loop, which goes on with other commands.
             let copy = match (&change, copying) {
-                (be_sdk_type_api::ChildChange::Replace(replace), Some(source)) => {
-                    Some((source, replace.new))
+                (be_block_content::ChildChange::Replace { new, .. }, Some(source)) => {
+                    Some((source, *new))
                 }
                 _ => None,
             };

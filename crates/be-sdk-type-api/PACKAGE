@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -35,6 +36,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -52,6 +54,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -69,6 +72,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -86,6 +90,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -103,6 +108,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -120,6 +126,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -137,6 +144,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -154,6 +162,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",
@@ -171,6 +180,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-session:be-block-session",
                 "//crates/be-block-store:be-block-store",

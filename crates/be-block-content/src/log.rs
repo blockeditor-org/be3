@@ -4,15 +4,29 @@
 
 use uuid::Uuid;
 
-/// Who signed a log entry as the app's, as far as the device can tell
-/// (`be_block_client::Signer`): `Unknown` while it cannot (offline, or unopened), and
-/// `Redacted` once its payload is gone, which leaves nothing to check the signature against.
+/// Who signed a log entry as the app's, as far as this device can tell. Verifying a signature
+/// answers one of the first five; a log entry is `Unknown` while that cannot be told (offline,
+/// or its payload unopened), and `Redacted` once its payload is gone, which leaves nothing to
+/// check the signature against.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub enum LogSigner {
+pub enum Signer {
+    /// The account's key, verified through a contact link or a key change sealed with the one
+    /// before (or this account's own).
     Verified,
+    /// The key the server named the first time this device asked, pinned since and never
+    /// verified.
     Unverified,
+    /// A key other than the account's current one: the server names one that is not the one
+    /// this device pinned, or a contact's key a new phrase replaced. The account took a new
+    /// phrase, or the server is lying, or someone holds the old phrase.
     Changed,
+    /// A contact's key it had replaced before the server took the record, after this device
+    /// learned of the new one: one of the account's devices not yet told of its new phrase, a
+    /// send held offline until after it, or someone holding the old phrase. Not proof of a
+    /// forgery, so not `Bad`, but louder than `Changed`.
     Replaced,
+    /// No key this device knows the account by, nor one the server names, made the signature:
+    /// a forgery, or bytes changed since they were signed.
     Bad,
     Unknown,
     Redacted,
@@ -29,7 +43,7 @@ pub struct LogItem {
     /// None once redacted, or while no key the device holds opens it.
     #[serde(with = "serde_bytes")]
     pub payload: Option<Vec<u8>>,
-    pub signer: LogSigner,
+    pub signer: Signer,
     /// For history an import brought from another block: where it was written. Its author and
     /// arrival are then the file's word, as written there.
     pub imported: Option<LogImport>,
@@ -48,7 +62,7 @@ pub struct LogImport {
 /// the log's entries folded in order, each id once, onto the content. The fold never changes
 /// the content anyone commits: it is applied to a copy. It is handed the run of entries from
 /// the log's start the replica holds, up to the first it lacks; never an entry signed as
-/// nobody's (`LogSigner::Bad`), and each other with its verdict, so a type decides what one
+/// nobody's (`Signer::Bad`), and each other with its verdict, so a type decides what one
 /// signed with a replaced key (`Replaced`), not yet told (`Unknown`) or redacted counts for.
 pub trait LogFold: crate::BlockContent {
     /// Whether what the content shows depends on its log at all. A type whose content shows
@@ -106,13 +120,31 @@ pub struct LogNotAppended {
 }
 
 /// A run of a block's signed log read: the log's length as the device verified it, the entries
-/// asked for, the entries the device appended that the server has not taken yet, each with its
-/// id and the bytes the app appended, and those the server refused that the device keeps until
-/// let go, each with why.
+/// asked for, the entries the device appended that the server has not taken yet, and those the
+/// server refused that the device keeps until let go.
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct LogPage {
     pub size: u64,
     pub items: Vec<LogItem>,
-    pub kept: Vec<(Uuid, Vec<u8>)>,
-    pub refused: Vec<(Uuid, Vec<u8>, String)>,
+    pub kept: Vec<KeptEntry>,
+    pub refused: Vec<RefusedEntry>,
+}
+
+/// An entry this device appended that waits for the server: its id and the bytes the app
+/// appended.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct KeptEntry {
+    pub id: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+}
+
+/// An entry this device appended that the server refused, kept until let go: its id, the bytes
+/// the app appended and why.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct RefusedEntry {
+    pub id: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+    pub why: String,
 }

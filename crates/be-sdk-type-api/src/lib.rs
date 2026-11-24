@@ -19,13 +19,34 @@ be_wasm_ops_bindgen::generate!({
         "participant": be_block_protocol::Participant,
         "session-state": be_block_protocol::SessionState,
         "resume": be_block_session::Resume,
+        "journal-entry": be_block_protocol::JournalEntry,
+        "journal-base": be_block_protocol::JournalBase,
+        "journal": be_block_protocol::Journal,
+        "chunk-ref": be_block_store::ChunkRef,
+        "node-ref": be_block_store::NodeRef,
+        "part-ref": be_block_store::PartRef,
+        "signer": be_block_content::Signer,
+        "log-import": be_block_content::LogImport,
+        "log-item": be_block_content::LogItem,
+        "kept-entry": be_block_content::KeptEntry,
+        "refused-entry": be_block_content::RefusedEntry,
+        "log-page": be_block_content::LogPage,
+        "log-search": be_block_content::LogSearch,
+        "announcement": be_block_content::Announcement,
+        "along": be_block_content::Along,
+        "child-change": be_block_content::ChildChange,
+        "search-document": be_block_content::SearchDocument,
         "entries": crate::Entries,
     },
     encodings: {
         "entries": ::be_wasm_ops::wire::Map<::be_wasm_ops::wire::Plain, ::be_wasm_ops::wire::Bytes>,
     },
-    copy: ["uuid", "hash", "commit-id", "session-tag"],
+    copy: [
+        "uuid", "hash", "commit-id", "session-tag", "chunk-ref", "node-ref", "part-ref", "signer",
+        "log-import", "child-change",
+    ],
     default: ["plain", "description", "plain-file", "status"],
+    inline: ["replace-child", "reorder-child"],
 });
 
 pub use host::PublishOutcome;
@@ -38,45 +59,11 @@ pub type ReplicaId = OpId;
 /// say): not a person's editing, so a replica keeps none of them in its undo history.
 pub const HOST_EDITOR: EditorId = u64::MAX;
 
-impl From<be_block_store::PartRef> for PartRef {
-    fn from(part: be_block_store::PartRef) -> Self {
-        let node = |node: be_block_store::NodeRef| NodeRef {
-            hash: *node.hash.as_bytes(),
-            length: node.length,
-        };
-        match part {
-            be_block_store::PartRef::Chunk(chunk) => Self::Chunk(ChunkRef {
-                hash: *chunk.hash.as_bytes(),
-                length: chunk.length,
-            }),
-            be_block_store::PartRef::Chunks(chunks) => Self::Chunks(node(chunks)),
-            be_block_store::PartRef::Node(parts) => Self::Node(node(parts)),
-        }
-    }
-}
-
-impl From<PartRef> for be_block_store::PartRef {
-    fn from(part: PartRef) -> Self {
-        let node = |node: NodeRef| be_block_store::NodeRef {
-            hash: be_block_store::Hash::from_bytes(node.hash),
-            length: node.length,
-        };
-        match part {
-            PartRef::Chunk(chunk) => Self::Chunk(be_block_store::ChunkRef {
-                hash: be_block_store::Hash::from_bytes(chunk.hash),
-                length: chunk.length,
-            }),
-            PartRef::Chunks(chunks) => Self::Chunks(node(chunks)),
-            PartRef::Node(parts) => Self::Node(node(parts)),
-        }
-    }
-}
-
 impl Loaded {
     pub fn of(stored: be_block_store::Stored) -> Self {
         fn flatten(part: &be_block_store::LoadedPart, parts: &mut Vec<LoadedPart>) {
             parts.push(LoadedPart {
-                part: part.reference.into(),
+                part: part.reference,
                 children: u32::try_from(part.children.len()).unwrap_or(u32::MAX),
                 references: part.references.clone(),
             });
@@ -102,7 +89,7 @@ impl Loaded {
             depth: usize,
         ) -> Option<be_block_store::LoadedPart> {
             let part = parts.next()?;
-            let reference = be_block_store::PartRef::from(part.part);
+            let reference = part.part;
             let mut children = Vec::new();
             let mut at = start;
             for _ in 0..part.children {
@@ -165,7 +152,7 @@ fn shape_into(
             shape.push(WrittenPart::Bytes(u32::try_from(held.len()).ok()?));
             bytes.extend_from_slice(held);
         }
-        be_block_store::Part::Reused(part) => shape.push(WrittenPart::Reused((*part).into())),
+        be_block_store::Part::Reused(part) => shape.push(WrittenPart::Reused(*part)),
         be_block_store::Part::Node { parts, references } => {
             shape.push(WrittenPart::Node(WrittenNode {
                 parts: u32::try_from(parts.len()).ok()?,
@@ -214,6 +201,6 @@ fn take_part<'a>(
             })
         }
         WrittenPart::Node(_) => None,
-        WrittenPart::Reused(part) => Some(be_block_store::Part::Reused((*part).into())),
+        WrittenPart::Reused(part) => Some(be_block_store::Part::Reused(*part)),
     }
 }

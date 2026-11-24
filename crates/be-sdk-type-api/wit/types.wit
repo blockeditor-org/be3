@@ -106,7 +106,8 @@ interface types {
         reads: option<content-type-id>,
     }
 
-    /// An entry of a block's signed log as the host read and verified it.
+    /// An entry of a block's signed log as the host read and verified it
+    /// (`be_block_content::LogItem`).
     record log-item {
         /// Its place in the log.
         seq: u64,
@@ -133,7 +134,7 @@ interface types {
         importer: account-id,
     }
 
-    /// Who signed a log entry (`be_block_client::Signer`), `unknown` when it
+    /// Who signed a log entry (`be_block_content::Signer`), `unknown` when it
     /// could not be told (offline, or its payload unopened), or `redacted` when
     /// its payload is gone and with it what was signed.
     enum signer {
@@ -146,8 +147,9 @@ interface types {
         redacted,
     }
 
-    /// A run of a block's signed log from where it was asked: `size` is the
-    /// log's length as the host verified it.
+    /// A run of a block's signed log from where it was asked
+    /// (`be_block_content::LogPage`): `size` is the log's length as the host
+    /// verified it.
     record log-page {
         size: u64,
         items: list<log-item>,
@@ -167,11 +169,10 @@ interface types {
         why: string,
     }
 
-    /// What an entry of a signed log changes in its block's searchable text:
-    /// the entry it is (`seq`), and the document of the entry at `place` now
-    /// says `text`, or is gone.
+    /// What an entry of a signed log changes in its block's searchable text
+    /// (`be_block_content::LogSearch`): the document of the entry at `place`
+    /// now says `text`, or is gone.
     record log-search {
-        seq: u64,
         place: u64,
         text: option<string>,
     }
@@ -233,11 +234,14 @@ interface types {
         length: u64,
     }
 
+    /// A part's bytes in one chunk (`be_block_store::ChunkRef`).
     record chunk-ref {
         hash: hash,
         length: u32,
     }
 
+    /// A sealed node and the length of the bytes under it
+    /// (`be_block_store::NodeRef`).
     record node-ref {
         hash: hash,
         length: u64,
@@ -328,6 +332,7 @@ interface types {
         after: option<block-id>,
     }
 
+    /// A change to a block's children (`be_block_content::ChildChange`).
     variant child-change {
         add(block-id),
         delete(block-id),
@@ -401,8 +406,9 @@ interface types {
         payload: list<u8>,
     }
 
-    /// One submission the order numbered, its payload opened: its place, its
-    /// id, its base, the last barrier (`floor`): one based below it is passed over, and when the
+    /// One submission the order numbered, its payload opened
+    /// (`be_block_protocol::JournalEntry`): its place, its id, its base, the
+    /// last barrier (`floor`): one based below it is passed over, and when the
     /// server took it (none for an order kept offline).
     record journal-entry {
         sequence: u64,
@@ -434,19 +440,23 @@ interface types {
         redacts: option<u64>,
     }
 
-    /// Where a journal starts: a commit (none for no content), the last
-    /// sequence number it holds and the session state as of it.
+    /// Where a journal starts (`be_block_protocol::JournalBase`): a commit
+    /// (none for no content), the last sequence number it holds and the
+    /// session state as of it.
     record journal-base {
         commit: option<commit-id>,
         sequence: u64,
         state: list<u8>,
     }
 
-    /// The session's order since `base`, which no commit holds yet, by this
-    /// module's build.
+    /// The session's order since `base`, which no commit holds yet
+    /// (`be_block_protocol::Journal`), by the build `tag` names. `lost`: a
+    /// rebase by another build dropped entries since the base's commit.
     record journal {
+        tag: session-tag,
         base: journal-base,
         entries: list<journal-entry>,
+        lost: bool,
     }
 
     record merged {
