@@ -1847,7 +1847,9 @@ Each step lands on its own.
                editor places its pickers, rename forms and Export dialogs in views it
                anchored (a popover, a dialog), which the root shows only with 4g7c, so these
                wait for it to be seen. An Export dialog's height (be-host's `view_size` of
-               it) is not reported yet.
+               it) is not reported yet; a picker is never opened as a phone's sheet
+               (`PickerRequest.sheet`, which be-host's compositor sets from its layout); a
+               dialog's status is worded as a block's while it opens or when no app runs it.
              - Left: creations (be-host steps a `PendingCreation` per child, with the
                placer's `commit-child`, host-side), artifact settings (be-host's own settings
                UI), host panels (the block stack, performance, apps and menu panels are
