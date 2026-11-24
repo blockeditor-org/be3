@@ -16,7 +16,7 @@ use be_sdk_type_api::{
 use uuid::Uuid;
 
 use crate::holds::{Holds, This, Took};
-use crate::lacking::{Carried, Lacking};
+use crate::lacking::{Carried, EditorAsk, Lacking};
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
@@ -153,8 +153,13 @@ pub(crate) trait AnyReplica {
 
     fn released(&self) -> bool;
 
-    /// What the server lacks of the edits made here, for the block's next replica.
-    fn carry(&mut self) -> Carried;
+    /// What the server lacks of the edits made here, for the block's next replica, with the
+    /// calls made for editors under `epoch` the host has not answered yet.
+    fn carry(&mut self, epoch: u64) -> Carried;
+
+    /// The host's answer to a call a replica of the block before this one made under `epoch`:
+    /// one made for an editor is handed on to it (`asked_before`), and any other goes.
+    fn late(&mut self, now: u64, epoch: u64, input: Input, out: &mut Vec<Effect>);
 
     fn adopt(&mut self, carried: Carried);
 }
@@ -590,12 +595,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     log_read: bool,
     /// Appends an editor asked for, by the token of the call: the editor and its token.
     appends: BTreeMap<Token, (EditorId, u64)>,
-    /// Reads of the log, by the token of the call: the editor's, or none for the replica's own
-    /// as it opens.
-    log_reads: BTreeMap<Token, Option<crate::lacking::EditorRead>>,
-    /// The editors' reads a replica of the block before this one had not answered as this one
-    /// opened (`Carried::log_reads`), which it asks for again as it starts.
-    reads_carried: Vec<crate::lacking::EditorRead>,
+    /// Reads of the log, by the token of the call: the editor and its token, or none for the
+    /// replica's own as it opens.
+    log_reads: BTreeMap<Token, Option<(EditorId, u64)>>,
+    /// Calls replicas of the block before this one made for editors, by the epoch and token
+    /// they were made under, whose answers this one hands on (`late`, `Carried::asks`).
+    asked_before: BTreeMap<(u64, Token), EditorAsk>,
     state: SessionState,
     /// The order applied so far.
     confirmed: C,
@@ -825,18 +830,6 @@ where
             (Some(head), None) => self.read(vec![Some(head)], Then::Load),
             (None, _) => self.load(C::default()),
         }
-        for read in std::mem::take(&mut self.reads_carried) {
-            match self.has_log {
-                true => self.read_log_for(read),
-                false => self.tell_editor(
-                    read.editor,
-                    &ToEditor::LogRead {
-                        token: read.token,
-                        result: Err("this type keeps no log".to_owned()),
-                    },
-                ),
-            }
-        }
         self.run(out);
     }
 
@@ -942,21 +935,70 @@ where
         self.released
     }
 
-    fn carry(&mut self) -> Carried {
+    fn carry(&mut self, epoch: u64) -> Carried {
+        let reads = std::mem::take(&mut self.log_reads)
+            .into_iter()
+            .filter_map(|(call, read)| {
+                let (editor, token) = read?;
+                Some((call, EditorAsk::LogRead { editor, token }))
+            });
+        let puts = std::mem::take(&mut self.puts)
+            .into_iter()
+            .filter_map(|(call, put)| match put {
+                Putting::Editor { editor, token } => {
+                    Some((call, EditorAsk::PartPut { editor, token }))
+                }
+                Putting::Operation(_) => None,
+            });
+        let appends = std::mem::take(&mut self.appends)
+            .into_iter()
+            .map(|(call, (editor, token))| (call, EditorAsk::Append { editor, token }));
+        let asks = std::mem::take(&mut self.asked_before)
+            .into_iter()
+            .map(|((epoch, call), ask)| (epoch, call, ask))
+            .chain(
+                reads
+                    .chain(puts)
+                    .chain(appends)
+                    .map(|(call, ask)| (epoch, call, ask)),
+            )
+            .collect();
         Carried {
             snapshots_shown: std::mem::take(&mut self.snapshots_shown),
-            log_reads: std::mem::take(&mut self.log_reads)
-                .into_values()
-                .flatten()
-                .filter(|read| self.editors.contains_key(&read.editor))
-                .collect(),
+            asks,
             ..self.lacking.carry()
         }
     }
 
+    fn late(&mut self, now: u64, epoch: u64, input: Input, out: &mut Vec<Effect>) {
+        self.now = self.now.max(now);
+        let call = match &input {
+            Input::LogRead { token, .. }
+            | Input::PartPut { token, .. }
+            | Input::Appended { token, .. } => *token,
+            _ => return,
+        };
+        match (self.asked_before.remove(&(epoch, call)), input) {
+            (Some(EditorAsk::LogRead { editor, token }), Input::LogRead { result, .. }) => {
+                self.log_page_read(Some((editor, token)), result);
+            }
+            (Some(EditorAsk::PartPut { editor, token }), Input::PartPut { result, .. }) => {
+                self.tell_editor(editor, &ToEditor::PartPut { token, result });
+            }
+            (Some(EditorAsk::Append { editor, token }), Input::Appended { result, .. }) => {
+                self.tell_editor(editor, &ToEditor::Appended { token, result });
+            }
+            _ => {}
+        }
+        self.run(out);
+    }
+
     fn adopt(&mut self, mut carried: Carried) {
         self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
-        self.reads_carried = std::mem::take(&mut carried.log_reads);
+        self.asked_before = std::mem::take(&mut carried.asks)
+            .into_iter()
+            .map(|(epoch, call, ask)| ((epoch, call), ask))
+            .collect();
         self.lacking.adopt(carried);
         self.lacking
             .opened_with(self.commits_kept, &self.refused_commits);
@@ -996,7 +1038,7 @@ where
             log_read: false,
             appends: BTreeMap::new(),
             log_reads: BTreeMap::new(),
-            reads_carried: Vec::new(),
+            asked_before: BTreeMap::new(),
             state: opened.session,
             projected: Settling::new(empty.clone(), Vec::new()),
             sealed_state: Vec::new(),
@@ -1914,7 +1956,7 @@ where
                 self.editors.remove(&editor);
                 // Its reads of the log are answered to no one, and carry to no next replica.
                 self.log_reads
-                    .retain(|_, read| read.is_none_or(|read| read.editor != editor));
+                    .retain(|_, read| read.is_none_or(|(asker, _)| asker != editor));
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
                 self.snapshots_shown.remove(&editor);
@@ -4194,12 +4236,14 @@ where
             }
             FromEditor::LetGoRefused { .. } => {}
             FromEditor::ReadLog { token, from, limit } if self.has_log => {
-                self.read_log_for(crate::lacking::EditorRead {
-                    editor,
-                    token,
+                let call = self.token();
+                self.out.push(Effect::ReadLog {
+                    replica: self.id,
+                    token: call,
                     from,
                     limit,
                 });
+                self.log_reads.insert(call, Some((editor, token)));
             }
             FromEditor::ReadLog { token, .. } => self.tell_editor(
                 editor,
@@ -4263,19 +4307,17 @@ where
         }
     }
 
-    fn read_log_for(&mut self, read: crate::lacking::EditorRead) {
-        let call = self.token();
-        self.out.push(Effect::ReadLog {
-            replica: self.id,
-            token: call,
-            from: read.from,
-            limit: read.limit,
-        });
-        self.log_reads.insert(call, Some(read));
-    }
-
     fn answer_log_read(&mut self, token: Token, result: Result<be_block_content::LogPage, String>) {
         let reader = self.log_reads.remove(&token).flatten();
+        self.log_page_read(reader, result);
+    }
+
+    /// A page of the log read for `reader` (an editor and its token), or for the replica.
+    fn log_page_read(
+        &mut self,
+        reader: Option<(EditorId, u64)>,
+        result: Result<be_block_content::LogPage, String>,
+    ) {
         if let Ok(page) = &result {
             self.log_size = self.log_size.max(page.size);
             self.take_log(page.items.clone());
@@ -4287,14 +4329,8 @@ where
             }
         }
         match (reader, result) {
-            (Some(read), result) => {
-                self.tell_editor(
-                    read.editor,
-                    &ToEditor::LogRead {
-                        token: read.token,
-                        result,
-                    },
-                );
+            (Some((editor, token)), result) => {
+                self.tell_editor(editor, &ToEditor::LogRead { token, result });
             }
             // The replica's own read as it opens fails when the host is stopping, restarting
             // its module, or offline with nothing kept: it describes the content without the
