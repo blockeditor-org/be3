@@ -53,6 +53,10 @@ trait Inline {
     fn take_outbound(&mut self) -> Vec<Vec<u8>>;
     /// Whether the root woke itself since the last call.
     fn take_wake(&mut self) -> bool;
+    /// Whether the root woke itself since `take_wake` last took it, leaving it to take. Only a
+    /// native host waits on the root to settle (be-host's root mode, `Core::unsettled`).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn woken(&self) -> bool;
 }
 
 /// Where a frame got to.
@@ -70,7 +74,13 @@ enum Progress {
 
 /// The frame being drawn.
 struct Drawing {
-    ticket: Ticket<FrameDone>,
+    /// The frame asked of the root, once it was: the root first takes in what it has waiting
+    /// (`Core::advance`), so the frame's `owed` counts what its apps sent before it.
+    ticket: Option<Ticket<FrameDone>>,
+    /// The request, until the frame is asked for.
+    request: Option<FrameRequest>,
+    /// The steps the root was taken through before the frame was asked for.
+    drained: usize,
     deadline: Instant,
     /// When the root itself counts as stopped: its patience past the deadline.
     give_up: Instant,
@@ -82,7 +92,8 @@ struct Drawing {
 type PasteReply = Reply<Option<Vec<u8>>, be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>>;
 
 /// The most steps a frame takes the root through, before asking it for the frame, to take in
-/// what it has waiting (`Core::begin`).
+/// what it has waiting (`Core::advance`): a root that keeps waking itself is asked for the frame
+/// after these, and stepped further by it.
 const DRAIN_STEPS: usize = 16;
 
 /// The stepping both platforms share: the root, its connection, its sandbox and the frame it
@@ -199,9 +210,11 @@ struct Core<G> {
     /// What the root told the host's editors of their children (`host.tell-placer`), by the
     /// root's instance and the editor, until the host takes it.
     placer_events: Vec<(u64, u64, be_wasm_root_api::PlacerEvent)>,
-    /// Whether the host answered an ask for an editor of the root's since the root was last
-    /// stepped: what it opens the root shows from its next frame.
-    editors_answered: bool,
+    /// Whether the host answered the root (an editor it asked for, frames its apps sent) since
+    /// the root was last stepped: what that changes, the root says from its next frame. A flag,
+    /// not the connection's outbound: a frame's `deadline` calls are answered as it ends, and
+    /// wait there until the next.
+    held_answers: bool,
 }
 
 /// The children an editor the host opened placed in one of its views, as the root shows them
@@ -339,7 +352,7 @@ impl<G: Inline> Core<G> {
             relay_watcher: None,
             shown_children: Vec::new(),
             placer_events: Vec::new(),
-            editors_answered: false,
+            held_answers: false,
         };
         core.received()?;
         Ok(core)
@@ -620,7 +633,7 @@ impl<G: Inline> Core<G> {
             return false;
         };
         reply.send(&mut self.connection, &editor);
-        self.editors_answered = true;
+        self.held_answers = true;
         true
     }
 
@@ -640,7 +653,7 @@ impl<G: Inline> Core<G> {
             return false;
         };
         reply.send(&mut self.connection, &opened);
-        self.editors_answered = true;
+        self.held_answers = true;
         true
     }
 
@@ -652,22 +665,33 @@ impl<G: Inline> Core<G> {
         Some(self.editor_replies.remove(at).1)
     }
 
-    /// Why the apps the root spawned have yet to finish with what they were sent: frames the
-    /// host relays them that the root has yet to take, what the root asked of the host for
-    /// their editors that the host has yet to take, or what the sandbox says of them
-    /// (`Server::unsettled`). What they send back is the root's to act on in its next frame, so
-    /// a host waiting for the root to settle waits for these as it waits for its own apps.
+    /// Why the root and the apps it spawned have yet to finish with what they were sent, apart
+    /// from the frame the root says it owes: what the root says it owes is only what it knew
+    /// when it drew, so a host waiting for it to settle (drive's `settle`) waits for these as it
+    /// waits for its own apps. Each is work under way, which the root's next frame (asked for
+    /// by its wake) takes in: none of it holds a frame back. Only a native host waits on the
+    /// root to settle (be-host's root mode).
+    #[cfg(not(target_arch = "wasm32"))]
     fn unsettled(&self) -> Option<&'static str> {
         if !self.relaying.is_empty() {
             return Some("frames relayed to an app wait for the root to take them");
         }
-        // What the root asked of its host for its apps' editors, the host has yet to take, or
-        // answered and the root has yet to take in.
-        if self.editors_answered
-            || !self.editor_asks.is_empty()
+        // Answers the root holds but has not stepped with, and a wake it has not stepped for.
+        if self.held_answers {
+            return Some("answers wait for the root to take them in");
+        }
+        if self.guest.woken() {
+            return Some("the root woke itself and has yet to step");
+        }
+        // What the root asked of its host for its apps' editors and told them of their
+        // children, which the host takes as it steps the root (be-host's `serve_editors`, after
+        // each frame) and so is empty whenever its busy is read; counted all the same, so a host
+        // that takes them later still waits for them.
+        if !self.editor_asks.is_empty()
             || !self.openings.is_empty()
             || !self.forwarded.is_empty()
             || !self.shown_children.is_empty()
+            || !self.placer_events.is_empty()
         {
             return Some("the root's asks for its apps' editors wait for its host to take them");
         }
@@ -719,6 +743,7 @@ impl<G: Inline> Core<G> {
     fn stop_instance(&mut self, instance: u64, why: &str) {
         self.sandbox.fail(instance, why);
         self.sandbox.poll(&mut self.connection);
+        self.held_answers |= self.sandbox.take_answered();
     }
 
     /// The staged app the root's sandbox instance `instance` runs, while it runs: none once it
@@ -756,44 +781,15 @@ impl<G: Inline> Core<G> {
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
         }
-        self.drain()?;
-        let ticket = embed::exports::frames::frame(&mut self.connection, request);
         self.drawing = Some(Drawing {
-            ticket,
+            ticket: None,
+            request: Some(request),
+            drained: 0,
             deadline,
             give_up: deadline.max(Instant::now()) + self.patience,
             passed: false,
         });
         Ok(())
-    }
-
-    /// Steps the root through what it has waiting, before a frame asks it what it owes: what
-    /// its apps sent it is taken in first, so the frame's `owed` counts an app that asked for a
-    /// frame for content it was relayed, which drive's settle waits on. A root that keeps
-    /// waking itself stops being stepped here after a few steps: the frame steps it further.
-    fn drain(&mut self) -> Result<(), String> {
-        if let Some(failure) = &self.failure {
-            return Err(failure.clone());
-        }
-        for _ in 0..DRAIN_STEPS {
-            self.serve();
-            match self.step() {
-                Ok(true) => {}
-                Ok(false) => break,
-                Err(failure) => {
-                    self.failure = Some(failure.clone());
-                    return Err(failure);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Whether an app the root spawned is still stepping on frames it was sent
-    /// (`Server::unsettled`), whose answer a frame should take in before it begins.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn apps_stepping(&self) -> bool {
-        self.sandbox.unsettled().is_some()
     }
 
     /// Steps the root as far as it goes without waiting: until it answers the frame, or waits
@@ -818,10 +814,42 @@ impl<G: Inline> Core<G> {
                 self.pass_deadline();
             }
             self.serve();
-            let Some(drawing) = &self.drawing else {
+            let Some(drawing) = &mut self.drawing else {
                 continue;
             };
-            let ticket = drawing.ticket;
+            // Before the frame is asked for, the root takes in what it has waiting (what its
+            // apps sent, the host's answers), so what the frame says it owes counts them: an
+            // app that asked for a frame for content it was relayed, which drive's settle waits
+            // on. The checks above and the slice below hold while it does.
+            if drawing.ticket.is_none() {
+                let ask = drawing.passed || drawing.drained >= DRAIN_STEPS;
+                drawing.drained += 1;
+                let stepped = match ask {
+                    true => Ok(false),
+                    false => self.step(),
+                };
+                match stepped {
+                    Ok(true) if yield_at.is_some_and(|at| Instant::now() >= at) => {
+                        return Progress::Yielded;
+                    }
+                    Ok(true) => {}
+                    Ok(false) => {
+                        if let Some(drawing) = &mut self.drawing
+                            && let Some(request) = drawing.request.take()
+                        {
+                            drawing.ticket = Some(embed::exports::frames::frame(
+                                &mut self.connection,
+                                request,
+                            ));
+                        }
+                    }
+                    Err(failure) => return self.finish(Err(failure)),
+                }
+                continue;
+            }
+            let Some(ticket) = drawing.ticket else {
+                continue;
+            };
             // Past the deadline, the root itself may take until its patience runs out.
             let until = match drawing.passed {
                 true => drawing.give_up,
@@ -878,7 +906,7 @@ impl<G: Inline> Core<G> {
             return Ok(false);
         }
         self.guest.deliver(frames);
-        self.editors_answered = false;
+        self.held_answers = false;
         self.guest.step()?;
         self.received()?;
         Ok(true)
@@ -1022,10 +1050,14 @@ impl<G: Inline> Core<G> {
             }
         }
         self.sandbox.poll(&mut self.connection);
+        self.held_answers |= self.sandbox.take_answered();
     }
 
     fn drawing_op(&self) -> Option<OpId> {
-        self.drawing.as_ref().map(|drawing| drawing.ticket.op())
+        self.drawing
+            .as_ref()
+            .and_then(|drawing| drawing.ticket)
+            .map(|ticket| ticket.op())
     }
 
     fn call(&mut self, call: embed::Call) {

@@ -267,11 +267,12 @@ impl Instance {
         self.failure.clone().map_or(Ok(()), Err)
     }
 
-    /// Why the instance is still working on frames it was sent (`Worker::unsettled`): a step on
-    /// them in flight, or frames waiting for one. None once it stopped.
+    /// Why the instance is still working on frames it was sent: it is starting, frames sent
+    /// to it wait for it, or it steps on them (`Worker::unsettled`). None once it stopped.
     pub fn unsettled(&self) -> Option<&'static str> {
         match self.failure {
             Some(_) => None,
+            None if !self.worker.ready() => Some("an instance is starting"),
             None => self.worker.unsettled(),
         }
     }

@@ -743,6 +743,11 @@ impl App {
         self.wake.take()
     }
 
+    /// Whether the guest woke itself since `take_wake` last took it, leaving it to take.
+    pub fn woken(&self) -> bool {
+        self.wake.woken()
+    }
+
     pub(crate) fn state(&self) -> &State {
         self.running.state()
     }

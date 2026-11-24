@@ -159,7 +159,18 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   none) and whether it owes work now (`owed`: a child starting, or a frame
   due or in flight; not an animation or a frame wanted later), and natively
   `Root::on_wake` tells the host whenever the bell rings, so a host that
-  draws on demand draws for both and counts as busy only while one is owed.
+  draws on demand draws for both and counts as busy only while one is owed
+  or `Root::unsettled` names work under way that the root's next frame takes
+  in. That work is frames relayed to an app that the root has yet to take,
+  answers the root holds but has not stepped with, a wake it has not
+  stepped for, the root's editor asks the host has yet to take, and sandbox
+  instances still starting, waiting for or stepping on frames they were sent,
+  or holding frames the root has yet to take (`Server::unsettled`); none of
+  it holds a frame back. Before a frame asks the root for `frame-done`,
+  `Core::advance` steps the root through what it has waiting (at most
+  `DRAIN_STEPS`, under the same deadline, patience and slice), so `owed`
+  counts an app that asked for a frame for something it was sent before the
+  frame.
   A frame also says what the root asks of the host's one window: its input
   method's area (`ime`), the cursor shape by its CSS name (`cursor`), the
   pointer lock (`pointer-locked`) and every sample of the pointer's moves

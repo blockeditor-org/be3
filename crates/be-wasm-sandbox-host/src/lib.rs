@@ -60,6 +60,9 @@ pub struct Server {
     modules: HashMap<ModuleId, Module>,
     compiling: Vec<(Compiling, Answer<Result<ModuleId, String>>)>,
     instances: BTreeMap<OpId, Served>,
+    /// Whether `poll` answered the guest an instance's frames, or why one stopped, since
+    /// `take_answered`.
+    answered: bool,
     /// The device the staged apps it spawns draw on: the host's, given only to the root guest.
     #[cfg(not(target_arch = "wasm32"))]
     display: Option<(wgpu::Device, wgpu::Queue)>,
@@ -85,6 +88,7 @@ impl Server {
             modules: HashMap::new(),
             compiling: Vec::new(),
             instances: BTreeMap::new(),
+            answered: false,
             #[cfg(not(target_arch = "wasm32"))]
             display: None,
         }
@@ -248,15 +252,25 @@ impl Server {
     /// host waiting for its guest to settle waits for these, since what the instance sends back
     /// (an app asking for a frame for content it was sent) is the guest's to act on.
     pub fn unsettled(&self) -> Option<&'static str> {
-        self.instances
-            .values()
-            .find_map(|served| match &served.instance {
-                Ok(instance) => instance.unsettled().or_else(|| {
-                    (!served.received.is_empty())
-                        .then_some("an instance sent frames the guest has yet to take")
-                }),
+        if !self.compiling.is_empty() {
+            return Some("a module compiles");
+        }
+        self.instances.values().find_map(|served| {
+            let working = match &served.instance {
+                Ok(instance) => instance.unsettled(),
                 Err(_) => None,
+            };
+            working.or_else(|| {
+                (!served.received.is_empty())
+                    .then_some("an instance sent frames the guest has yet to take")
             })
+        })
+    }
+
+    /// Whether `poll` answered the guest an instance's frames, or why one stopped, since the
+    /// last call: what the guest has yet to take in.
+    pub fn take_answered(&mut self) -> bool {
+        std::mem::take(&mut self.answered)
     }
 
     /// Stops the instance the guest spawned with the op `instance` for `why`, as one that broke
@@ -327,6 +341,7 @@ impl Server {
             if let Some((_, next)) = served.next.take() {
                 let (op, outcome) = next(&answer);
                 connection.complete(op, outcome);
+                self.answered = true;
             }
         }
     }

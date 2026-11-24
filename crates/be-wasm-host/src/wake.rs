@@ -22,6 +22,10 @@ impl Wake {
         }
     }
 
+    pub(crate) fn woken(&self) -> bool {
+        self.woken.load(Ordering::Acquire)
+    }
+
     pub(crate) fn take(&self) -> bool {
         self.woken.swap(false, Ordering::AcqRel)
     }

@@ -413,7 +413,9 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   store have nothing left to do, and fails with what kept them busy. `HostTest::record` (so
   `snapshot`) paints twice with a settle between and fails with "the painting is not settled"
   if the two differ, whatever the test did: a hover, an animation's last step or an app's late
-  frame is caught the first time it shows, on any machine. Wait for it, not for time.
+  frame is caught the first time it shows, on any machine. Wait for it, not for time. Under a
+  root guest (`HostTest::root_with_dev_workspace`) `settle` and `paint` also wait on the apps the
+  root runs, through `Root::unsettled` (guides/apps/runtime.md).
 - `paint` does not wait for the outbox: a painting that shows whether everything is saved (the
   host menu's first row) waits for `synced` first, or it shows "Syncing changes..." on a busy
   machine.
