@@ -36,7 +36,10 @@ fn a_pull_from_a_sheets_content_top_lowers_it_and_one_below_its_lowest_stop_clos
     harness.finger_drag_and_hold(pos2(200.0, 500.0), pos2(200.0, 200.0));
     harness.settle();
     let scrolled = offset(&harness);
-    assert!(scrolled > 700.0, "then what it holds scrolls, to {scrolled}");
+    assert!(
+        scrolled > 700.0,
+        "then what it holds scrolls, to {scrolled}"
+    );
     assert_eq!(
         harness.rect(handle).top(),
         60.0,

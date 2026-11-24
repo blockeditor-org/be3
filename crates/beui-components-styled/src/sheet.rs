@@ -119,19 +119,19 @@ fn SheetGrip(focused: ReadSignal<bool>) -> NodeId {
     // Filled, as it stays over what the sheet holds while that scrolls under it.
     view! {
         <Frame fill=ColorRole::Surface>
-        <List spacing=Space::None>
-            <Separator />
-            <Frame height=HANDLE_HEIGHT align=Align::Center>
-                <FocusRing focused offset=Stroke::Focus>
-                    <Frame
-                        width=GRIP_WIDTH
-                        height=GRIP_HEIGHT
-                        radius=Radius::Xs
-                        fill=ColorRole::TextMuted
-                    />
-                </FocusRing>
-            </Frame>
-        </List>
+            <List spacing=Space::None>
+                <Separator />
+                <Frame height=HANDLE_HEIGHT align=Align::Center>
+                    <FocusRing focused offset=Stroke::Focus>
+                        <Frame
+                            width=GRIP_WIDTH
+                            height=GRIP_HEIGHT
+                            radius=Radius::Xs
+                            fill=ColorRole::TextMuted
+                        />
+                    </FocusRing>
+                </Frame>
+            </List>
         </Frame>
     }
 }

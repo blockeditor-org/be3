@@ -35,7 +35,11 @@ fn a_fitted_sheet_pulled_past_its_top_carries_its_surface_to_the_bottom() {
     let from = pos2(200.0, fitted + 60.0);
     touch(&mut test, TouchPhase::Start, from);
     for step in 1..=20 {
-        touch(&mut test, TouchPhase::Move, from - vec2(0.0, step as f32 * 10.0));
+        touch(
+            &mut test,
+            TouchPhase::Move,
+            from - vec2(0.0, step as f32 * 10.0),
+        );
     }
     assert!(
         test.rect_of("sheet.handle").top() < fitted - 20.0,

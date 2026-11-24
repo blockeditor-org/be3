@@ -399,7 +399,10 @@ impl Momentum {
         }
         // A free coast coming back below the last stop settles on a stop from there, or, held
         // to its floor (a wheel's), stops at the last.
-        if let Some(last) = self.snaps.last().map(|last| last.clamp(0.0, position.max_offset()))
+        if let Some(last) = self
+            .snaps
+            .last()
+            .map(|last| last.clamp(0.0, position.max_offset()))
             && from > last
             && raw <= last
         {
@@ -924,7 +927,11 @@ impl Motion {
         let mut momentum = self.momentum.borrow_mut();
         self.take_snaps(&mut momentum);
         let max_offset = position.max_offset();
-        let Some(last) = momentum.snaps.last().map(|last| last.clamp(0.0, max_offset)) else {
+        let Some(last) = momentum
+            .snaps
+            .last()
+            .map(|last| last.clamp(0.0, max_offset))
+        else {
             return offset;
         };
         let forwards = offset > position.offset;
@@ -950,11 +957,14 @@ impl Motion {
         let goes_on = momentum.asked
             && momentum.drag.is_none()
             && momentum.stretch == 0.0
-            && momentum.snap.zip(self.placed()).is_some_and(|(stop, position)| {
-                let stop = stop.clamp(0.0, position.max_offset());
-                let (to, from) = (stop - position.offset, stop - from);
-                to * from > 0.0 && to.abs() <= from.abs()
-            });
+            && momentum
+                .snap
+                .zip(self.placed())
+                .is_some_and(|(stop, position)| {
+                    let stop = stop.clamp(0.0, position.max_offset());
+                    let (to, from) = (stop - position.offset, stop - from);
+                    to * from > 0.0 && to.abs() <= from.abs()
+                });
         if !goes_on {
             momentum.rest();
         }
@@ -966,9 +976,9 @@ impl Motion {
         };
         let mut momentum = self.momentum.borrow_mut();
         let autoscroll = momentum.autoscroll;
-        let settled = momentum
-            .snap
-            .map_or(position.offset, |stop| stop.clamp(0.0, position.max_offset()));
+        let settled = momentum.snap.map_or(position.offset, |stop| {
+            stop.clamp(0.0, position.max_offset())
+        });
         momentum.rest();
         momentum.autoscroll = autoscroll;
         self.publish(&momentum, &position, settled);
@@ -1519,8 +1529,8 @@ fn BrowserScroll(
         let Some(position) = reported.get_untracked() else {
             return;
         };
-        if let Some(stop) = nearest_stop(position.offset)
-            .filter(|stop| (stop - position.offset).abs() < 1.0)
+        if let Some(stop) =
+            nearest_stop(position.offset).filter(|stop| (stop - position.offset).abs() < 1.0)
         {
             tell(stop);
         }
@@ -1608,7 +1618,9 @@ fn BrowserScroll(
         let content = escape.embed(content);
         let markers = snapping.then(|| {
             let markers = view! {
-                <html::Div @attr={("style", "position: absolute; inset: 0; pointer-events: none")} />
+                <html::Div
+                    @attr={("style", "position: absolute; inset: 0; pointer-events: none")}
+                />
             };
             let marked = markers.clone();
             let stops = snaps.clone();
@@ -1756,7 +1768,9 @@ fn BrowserScroll(
             }
             if gesture.ended || gesture.cancelled {
                 dragging.set(false);
-                let at = reported.get_untracked().map_or(0.0, |position| position.offset);
+                let at = reported
+                    .get_untracked()
+                    .map_or(0.0, |position| position.offset);
                 if let Some(stop) = nearest_stop(at) {
                     scroll_to(stop);
                     refresh();
@@ -1892,7 +1906,12 @@ fn navigates(key: Key) -> bool {
 /// A scroll's handle. On the HTML core its motion is the browser's, so it carries the browser
 /// scroll's own ways to its end and to an offset.
 #[derive(Clone, Copy)]
-pub struct ScrollApi(Stored<Motion>, Callback<()>, Callback<f32>, Callback<DragGesture>);
+pub struct ScrollApi(
+    Stored<Motion>,
+    Callback<()>,
+    Callback<f32>,
+    Callback<DragGesture>,
+);
 
 impl ScrollApi {
     /// Whether it is moving on its own (settling, coasting, springing back), read

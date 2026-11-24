@@ -273,7 +273,9 @@ pub fn Sheet(
     });
     let take = Callback::new(move |from: f32| {
         start.set(from);
-        if laid_out() && let Some(api) = api() {
+        if laid_out()
+            && let Some(api) = api()
+        {
             api.scroll_to(from);
             entering.set(false);
             settle_on(Aim::Rest);
@@ -475,7 +477,6 @@ pub fn Sheet(
     });
     let sheet = panel.call(view! {
         <List spacing=0.0>
-            // Sticky only while what it holds scrolls under it: a sheet that fits moves whole.
             <ListItem sticky={move || height.get() > top.get() + SETTLED}>
                 <SheetHandle placed raised extent focused step drag grip_taken>{grip}</SheetHandle>
             </ListItem>
@@ -502,34 +503,38 @@ pub fn Sheet(
     let filling = create_memo(move || open_below.get() > 0.0);
     view! {
         <Frame height={move || Extent::px(length.get())} fade_edges={edges}>
-        <Layers>
-            <Show value={filling}>|| {
-                let filler = panel.call(view! { <Frame /> });
-                view! {
-                    <List spacing=0.0>
-                        <ListItem grow=1.0><Frame /></ListItem>
-                        <ListItem length={move || Some(open_below.get())}>{filler}</ListItem>
-                    </List>
-                }
-            }</Show>
-            <Scroll
-                api=scroll
-                offset={start}
-                snaps={snaps}
-                keep_past_last_stop=true
-                on_snap={snapped}
-                bar_from={top}
-                style={style.fading(0.0)}
-                on_change={move |at: ScrollPosition| position.set(Some(at))}
-            >
-                <ListItem length={move || Some(top.get())}>
-                    <Interactive on_click={move || close.call(())}>
+            <Layers>
+                <Show value={filling}>|| {
+                    let filler = panel.call(view! {
                         <Frame />
-                    </Interactive>
-                </ListItem>
-                {sheet}
-            </Scroll>
-        </Layers>
+                    });
+                    view! {
+                        <List spacing=0.0>
+                            <ListItem grow=1.0>
+                                <Frame />
+                            </ListItem>
+                            <ListItem length={move || Some(open_below.get())}>{filler}</ListItem>
+                        </List>
+                    }
+                }</Show>
+                <Scroll
+                    api=scroll
+                    offset={start}
+                    snaps={snaps}
+                    keep_past_last_stop=true
+                    on_snap={snapped}
+                    bar_from={top}
+                    style={style.fading(0.0)}
+                    on_change={move |at: ScrollPosition| position.set(Some(at))}
+                >
+                    <ListItem length={move || Some(top.get())}>
+                        <Interactive on_click={move || close.call(())}>
+                            <Frame />
+                        </Interactive>
+                    </ListItem>
+                    {sheet}
+                </Scroll>
+            </Layers>
         </Frame>
     }
 }

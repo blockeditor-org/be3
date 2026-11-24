@@ -31,11 +31,23 @@ fn a_wheel_raises_a_sheet_and_scrolls_what_it_holds_but_never_lowers_it() {
     assert_eq!(offset(&harness), 300.0, "it opens at its rest");
 
     wheel(&mut harness, 40.0);
-    assert_eq!(offset(&harness), 300.0, "a wheel down short of the top stop leaves it");
+    assert_eq!(
+        offset(&harness),
+        300.0,
+        "a wheel down short of the top stop leaves it"
+    );
     wheel(&mut harness, -40.0);
-    assert_eq!(offset(&harness), 540.0, "a wheel up steps it to the next stop");
+    assert_eq!(
+        offset(&harness),
+        540.0,
+        "a wheel up steps it to the next stop"
+    );
     wheel(&mut harness, -100.0);
-    assert_eq!(offset(&harness), 640.0, "and at the top, scrolls what it holds");
+    assert_eq!(
+        offset(&harness),
+        640.0,
+        "and at the top, scrolls what it holds"
+    );
     wheel(&mut harness, 60.0);
     assert_eq!(offset(&harness), 580.0);
     wheel(&mut harness, 200.0);
@@ -45,6 +57,10 @@ fn a_wheel_raises_a_sheet_and_scrolls_what_it_holds_but_never_lowers_it() {
         "scrolled back past the start of what it holds, it stops at the top stop"
     );
     wheel(&mut harness, 200.0);
-    assert_eq!(offset(&harness), 540.0, "and the wheel lowers it no further");
+    assert_eq!(
+        offset(&harness),
+        540.0,
+        "and the wheel lowers it no further"
+    );
     assert_eq!(closed.get_untracked(), 0, "nor closes it");
 }

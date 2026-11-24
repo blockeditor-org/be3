@@ -38,16 +38,28 @@ fn a_pager_wheels_and_keys_back_between_its_stops() {
     };
 
     wheel(&mut harness, -40.0);
-    assert_eq!(offset(&harness), 200.0, "a wheel forwards steps to the next stop");
+    assert_eq!(
+        offset(&harness),
+        200.0,
+        "a wheel forwards steps to the next stop"
+    );
     wheel(&mut harness, 40.0);
     assert_eq!(offset(&harness), 0.0, "and back, to the one before");
     wheel(&mut harness, -40.0);
     wheel(&mut harness, -40.0);
     assert_eq!(offset(&harness), 400.0);
     wheel(&mut harness, -100.0);
-    assert_eq!(offset(&harness), 500.0, "past the last stop it scrolls freely");
+    assert_eq!(
+        offset(&harness),
+        500.0,
+        "past the last stop it scrolls freely"
+    );
     wheel(&mut harness, 300.0);
-    assert_eq!(offset(&harness), 400.0, "coming back no further than the last stop");
+    assert_eq!(
+        offset(&harness),
+        400.0,
+        "coming back no further than the last stop"
+    );
     wheel(&mut harness, 40.0);
     assert_eq!(offset(&harness), 200.0, "and from there steps back");
 
@@ -58,7 +70,11 @@ fn a_pager_wheels_and_keys_back_between_its_stops() {
     key(&mut harness, Key::ArrowDown);
     assert_eq!(offset(&harness), 400.0);
     key(&mut harness, Key::End);
-    assert_eq!(offset(&harness), 1800.0, "past the last stop keys move freely");
+    assert_eq!(
+        offset(&harness),
+        1800.0,
+        "past the last stop keys move freely"
+    );
     key(&mut harness, Key::Home);
     assert_eq!(offset(&harness), 400.0, "coming back to the last stop");
     key(&mut harness, Key::PageUp);

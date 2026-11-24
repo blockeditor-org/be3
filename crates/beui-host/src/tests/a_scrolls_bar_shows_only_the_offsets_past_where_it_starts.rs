@@ -15,7 +15,9 @@ fn a_scrolls_bar_shows_only_the_offsets_past_where_it_starts() {
             8.0,
             RenderFn::new(move |handle: ScrollHandle| {
                 shown.set(Some((handle.position, handle.visibility, handle.scroll_to)));
-                view! { <Frame /> }
+                view! {
+                    <Frame />
+                }
             }),
         );
         view! {
@@ -43,7 +45,11 @@ fn a_scrolls_bar_shows_only_the_offsets_past_where_it_starts() {
 
     assert_eq!(
         position.get_untracked(),
-        ScrollPosition { offset: 0.0, content: 700.0, viewport: 200.0 },
+        ScrollPosition {
+            offset: 0.0,
+            content: 700.0,
+            viewport: 200.0
+        },
         "the bar reads what lies past where it starts"
     );
     scroll_by(&mut harness, 250.0);
@@ -54,7 +60,11 @@ fn a_scrolls_bar_shows_only_the_offsets_past_where_it_starts() {
         "moving short of where it starts shows no bar"
     );
     scroll_by(&mut harness, 400.0);
-    assert_eq!(position.get_untracked().offset, 100.0, "past it, the bar follows");
+    assert_eq!(
+        position.get_untracked().offset,
+        100.0,
+        "past it, the bar follows"
+    );
     assert_eq!(visibility.get_untracked(), 1.0, "and shows");
 
     with_installed(harness.document_mut(), |_| scroll_to.call(200.0));

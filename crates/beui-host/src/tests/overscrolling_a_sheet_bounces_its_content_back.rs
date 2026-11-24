@@ -41,9 +41,5 @@ fn overscrolling_a_sheet_bounces_its_content_back() {
     );
     harness.settle();
     assert_eq!(harness.document().scroll_overscroll(sheet), 0.0);
-    assert_eq!(
-        sheet_scrolled(&harness, sheet),
-        end,
-        "and rests at its end"
-    );
+    assert_eq!(sheet_scrolled(&harness, sheet), end, "and rests at its end");
 }

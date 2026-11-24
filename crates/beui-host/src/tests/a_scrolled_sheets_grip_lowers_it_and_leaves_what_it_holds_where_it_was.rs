@@ -51,7 +51,11 @@ fn a_scrolled_sheets_grip_lowers_it_and_leaves_what_it_holds_where_it_was() {
         harness.rect(handle).top() > top + 60.0,
         "the grip lowers the sheet at once"
     );
-    assert_eq!(under(&harness), held, "and what it holds moves with it, not scrolled back");
+    assert_eq!(
+        under(&harness),
+        held,
+        "and what it holds moves with it, not scrolled back"
+    );
     harness.touch(TouchPhase::Move, from + vec2(0.0, 60.0));
     harness.touch(TouchPhase::Move, from + vec2(0.0, 30.0));
     harness.touch(TouchPhase::End, from + vec2(0.0, 30.0));
@@ -64,7 +68,11 @@ fn a_scrolled_sheets_grip_lowers_it_and_leaves_what_it_holds_where_it_was() {
     assert_eq!(offset(&harness), 840.0, "with the scroll where it was");
     assert_eq!(closed.get_untracked(), 0);
     wheel(&mut harness, -40.0);
-    assert_eq!(offset(&harness), 880.0, "and a wheel scrolls on from there by its step");
+    assert_eq!(
+        offset(&harness),
+        880.0,
+        "and a wheel scrolls on from there by its step"
+    );
 
     let from = harness.center(handle);
     harness.touch(TouchPhase::Start, from);
@@ -73,7 +81,11 @@ fn a_scrolled_sheets_grip_lowers_it_and_leaves_what_it_holds_where_it_was() {
     assert!(harness.rect(handle).top() > top + 20.0);
     harness.touch(TouchPhase::Cancel, from + vec2(0.0, 80.0));
     harness.settle();
-    assert_eq!(harness.rect(handle).top(), top, "a cancelled grip touch lets it go back up");
+    assert_eq!(
+        harness.rect(handle).top(),
+        top,
+        "a cancelled grip touch lets it go back up"
+    );
     assert_eq!(offset(&harness), 880.0, "with the scroll where it was");
     assert_eq!(closed.get_untracked(), 0, "and nothing closed it");
     wheel(&mut harness, -40.0);

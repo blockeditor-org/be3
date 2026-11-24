@@ -27,7 +27,10 @@ fn a_sheet_rises_as_it_opens_on_a_spring() {
     let mut tops = Vec::new();
     for _ in 0..120 {
         harness.frame(Vec::new());
-        if let Some(rect) = content.try_get().and_then(|node| harness.document().node_rect(node)) {
+        if let Some(rect) = content
+            .try_get()
+            .and_then(|node| harness.document().node_rect(node))
+        {
             tops.push(rect.top());
         }
     }
@@ -45,5 +48,9 @@ fn a_sheet_rises_as_it_opens_on_a_spring() {
         rises.iter().all(|rise| *rise >= 0.0),
         "and eases onto its stop without passing it: {tops:?}"
     );
-    assert_eq!(tops.last().copied(), Some(480.0), "where it rests: {tops:?}");
+    assert_eq!(
+        tops.last().copied(),
+        Some(480.0),
+        "where it rests: {tops:?}"
+    );
 }

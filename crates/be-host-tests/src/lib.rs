@@ -406,7 +406,13 @@ impl HostTest {
             tree.lines()
                 .find(|line| line.split_whitespace().any(|word| word == target))
                 .and_then(|line| line.split(" at ").nth(1))
-                .map(|place| place.split_whitespace().take(3).collect::<Vec<_>>().join(" "))
+                .map(|place| {
+                    place
+                        .split_whitespace()
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
         };
         let mut was = placed(self);
         for _ in 0..STILL_STEPS {
@@ -417,7 +423,9 @@ impl HostTest {
             }
             was = now;
         }
-        self.fail(&format!("{target} was still moving after {STILL_STEPS} steps of {STILL_STEP} ms"));
+        self.fail(&format!(
+            "{target} was still moving after {STILL_STEPS} steps of {STILL_STEP} ms"
+        ));
     }
 
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {

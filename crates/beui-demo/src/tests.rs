@@ -8,7 +8,6 @@ use beui_host::native::build;
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
-mod a_fitted_sheet_pulled_past_its_top_carries_its_surface_to_the_bottom;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_bar_carried_into_a_band_moves_the_bars_beside_its_slot_aside;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
@@ -28,6 +27,7 @@ mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped;
 mod a_fade_shows_what_it_holds_at_its_opacity;
 mod a_failure_shows_retry_and_retrying_waits_for_the_next_answer;
+mod a_fitted_sheet_pulled_past_its_top_carries_its_surface_to_the_bottom;
 mod a_fixed_side_pane_keeps_its_width_when_the_window_resizes;
 mod a_fraction_wide_frame_keeps_its_width_where_its_parent_stretches;
 mod a_frame_moves_turns_and_fades_what_it_holds;

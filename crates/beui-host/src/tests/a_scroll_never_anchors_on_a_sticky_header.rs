@@ -51,5 +51,9 @@ fn a_scroll_never_anchors_on_a_sticky_header() {
         200.0,
         "the reveal scrolls the last row just into view, once"
     );
-    assert_eq!(harness.rect(header.get()).top(), 0.0, "under the header still stuck");
+    assert_eq!(
+        harness.rect(header.get()).top(),
+        0.0,
+        "under the header still stuck"
+    );
 }

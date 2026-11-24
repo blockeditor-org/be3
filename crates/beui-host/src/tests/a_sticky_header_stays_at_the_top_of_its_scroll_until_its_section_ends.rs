@@ -16,13 +16,19 @@ fn a_sticky_header_stays_at_the_top_of_its_scroll_until_its_section_ends() {
             view! {
                 <List spacing=0.0>
                     <ListItem sticky=true>
-                        <Interactive on_press={move |_: PointerPress| pressed.update(|pressed| pressed.push("header"))}>
+                        <Interactive
+                            on_press={move |_: PointerPress| pressed.update(|pressed| pressed.push("header"))}
+                        >
                             <Frame @node_ref=&header height=40.0 />
                         </Interactive>
                     </ListItem>
-                    {row.map(|row| view! { <Frame @node_ref=&row height=40.0 /> })}
+                    {row.map(|row| view! {
+                        <Frame @node_ref=&row height=40.0 />
+                    })}
                     <ForEach value={indices(if row.is_some() { 4 } else { 5 })}>|_: usize|
-                        <Interactive on_press={move |_: PointerPress| pressed.update(|pressed| pressed.push("row"))}>
+                        <Interactive
+                            on_press={move |_: PointerPress| pressed.update(|pressed| pressed.push("row"))}
+                        >
                             <Frame height=40.0 />
                         </Interactive>
                     </ForEach>
@@ -62,7 +68,11 @@ fn a_sticky_header_stays_at_the_top_of_its_scroll_until_its_section_ends() {
         0.0,
         "scrolled past, a sticky header stays at the top of what is shown"
     );
-    assert_eq!(top(&harness, first_row), -60.0, "while its section's rows scroll on under it");
+    assert_eq!(
+        top(&harness, first_row),
+        -60.0,
+        "while its section's rows scroll on under it"
+    );
 
     scroll_to(&mut harness, 220.0);
     assert_eq!(
@@ -73,7 +83,11 @@ fn a_sticky_header_stays_at_the_top_of_its_scroll_until_its_section_ends() {
     assert_eq!(top(&harness, headers[1]), 20.0);
 
     scroll_to(&mut harness, 300.0);
-    assert_eq!(top(&harness, headers[1]), 0.0, "and the next header sticks in its place");
+    assert_eq!(
+        top(&harness, headers[1]),
+        0.0,
+        "and the next header sticks in its place"
+    );
 
     harness.click(pos2(100.0, 20.0));
     assert_eq!(

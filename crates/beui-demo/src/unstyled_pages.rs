@@ -11,8 +11,8 @@ use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, 
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
     DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle,
-    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, SlideCurves,
-    TreeRevealHandle, TreeRowHandle, TreeToggleHandle, emoji_completer,
+    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, SlideCurves, TreeRevealHandle,
+    TreeRowHandle, TreeToggleHandle, emoji_completer,
 };
 use beui::{PointerPress, Pos2, TouchDrags, Vec2};
 

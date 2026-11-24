@@ -392,7 +392,10 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="FirstFit" code={vec![FittingLabels::SOURCE, Tile::SOURCE]}>
                 <FittingLabels />
             </Sample>
-            <Sample title="Sticky items" code={vec![StickyHeaders::SOURCE, StickyHeader::SOURCE, Tile::SOURCE]}>
+            <Sample
+                title="Sticky items"
+                code={vec![StickyHeaders::SOURCE, StickyHeader::SOURCE, Tile::SOURCE]}
+            >
                 <StickyHeaders />
             </Sample>
         </ScrollPage>
@@ -531,8 +534,15 @@ fn ListJustify() -> NodeId {
 fn StickyHeaders() -> NodeId {
     let groups = vec![("Inner", &PLANETS[..4]), ("Outer", &PLANETS[4..])];
     view! {
-        <Frame @test_id="demo.lists.sticky" width={Extent::px(PANEL_WIDTH)} height={Extent::px(180.0)}>
-            <beui::unstyled::Scroll offset=60.0 style={beui::styled::scroll::scroll_style().fading(0.0)}>
+        <Frame
+            @test_id="demo.lists.sticky"
+            width={Extent::px(PANEL_WIDTH)}
+            height={Extent::px(180.0)}
+        >
+            <beui::unstyled::Scroll
+                offset=60.0
+                style={beui::styled::scroll::scroll_style().fading(0.0)}
+            >
                 <ForEach value={groups}>|(name, planets): (&'static str, &'static [&'static str])|
                     <List spacing=8.0>
                         <ListItem sticky=true>
