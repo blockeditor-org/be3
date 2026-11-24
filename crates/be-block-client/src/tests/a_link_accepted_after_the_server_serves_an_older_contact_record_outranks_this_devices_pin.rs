@@ -38,10 +38,10 @@ async fn a_link_accepted_after_the_server_serves_an_older_contact_record_outrank
     };
     block
         .update(|_| {
-            vec![be_block::AccountBlock::set_contact(
+            crate::peer::account_block::answered(vec![be_block::AccountBlock::set_contact(
                 rosa.account(),
                 Some(newer.kept()),
-            )]
+            )])
         })
         .await
         .unwrap();
@@ -51,10 +51,10 @@ async fn a_link_accepted_after_the_server_serves_an_older_contact_record_outrank
     );
     block
         .update(|_| {
-            vec![be_block::AccountBlock::set_contact(
+            crate::peer::account_block::answered(vec![be_block::AccountBlock::set_contact(
                 rosa.account(),
                 Some(old.kept()),
-            )]
+            )])
         })
         .await
         .unwrap();

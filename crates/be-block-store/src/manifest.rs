@@ -128,6 +128,18 @@ impl Part<'_> {
         }
     }
 
+    /// The same tree holding its own bytes.
+    pub fn into_owned(self) -> Part<'static> {
+        match self {
+            Self::Bytes(bytes) => Part::Bytes(Cow::Owned(bytes.into_owned())),
+            Self::Reused(part) => Part::Reused(part),
+            Self::Node { parts, references } => Part::Node {
+                parts: parts.into_iter().map(Part::into_owned).collect(),
+                references,
+            },
+        }
+    }
+
     /// The stored form this tree describes, for a part that holds no `Reused` part.
     pub fn flatten(&self) -> Option<Vec<u8>> {
         let mut bytes = Vec::with_capacity(usize::try_from(self.length()).unwrap_or(0));

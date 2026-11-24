@@ -21,7 +21,6 @@ async fn a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit
         held.read()
             .await
             .unwrap()
-            .content
             .root()
             .contact(guest.account())
             .is_some(),
@@ -38,7 +37,6 @@ async fn a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit
             .read()
             .await
             .unwrap()
-            .content
             .root()
             .contact(guest.account())
             .is_some(),
@@ -46,10 +44,10 @@ async fn a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit
     );
     renewed
         .update(|_| {
-            vec![be_block::AccountBlock::set_contact(
+            crate::peer::account_block::answered(vec![be_block::AccountBlock::set_contact(
                 Uuid::new_v4(),
                 Some(vec![1]),
-            )]
+            )])
         })
         .await
         .unwrap();
