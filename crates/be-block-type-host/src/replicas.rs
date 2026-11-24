@@ -1984,7 +1984,9 @@ impl<H: Host> Replicas<H> {
                 heard_through: journal_through(opening_journal.as_ref()),
                 // A block opened for the first time on this device keeps its origin at once.
                 edits_changed: !recovered_any,
-                flush_owed: false,
+                // Opened while a flush waits on commands sent before it (`flush_waits`), as an
+                // import in the lane does: those may edit it too.
+                flush_owed: self.flush_waits,
                 reporting: None,
                 held: None,
                 publish_error: None,
@@ -2905,6 +2907,9 @@ impl<H: Host> Replicas<H> {
         if !open.flush_owed {
             return;
         }
+        // Settled only once it is clean and holds the lease. One that does not hold it keeps its
+        // mark until a later flush, so should the lease come to it, it seals what it then owes at
+        // once.
         if open.status.clean && !open.unreported() && open.status.holder && !self.flush_waits {
             open.flush_owed = false;
             return;
@@ -2912,7 +2917,9 @@ impl<H: Host> Replicas<H> {
         if !open.status.owes_seal || !open.status.holder || open.publishing > 0 || sealing {
             return;
         }
-        open.flush_owed = false;
+        // The mark stays while the seal is asked: an ask that is never sent, or one the module
+        // passes over (a reload started meanwhile), is asked again at the next status or once
+        // the ask ends (`completed`), until a status says it is clean.
         let block = open.block;
         self.seal_later(block, false);
     }

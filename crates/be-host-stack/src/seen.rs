@@ -388,6 +388,9 @@ pub struct Seen, delta SeenDelta {
     pub session_hosts: imbl::OrdMap<Uuid, Option<bool>>,
     /// Counts each change of `hosted`.
     pub leases_changed: u64,
+    /// How many times this device's replica of each block had its join of the block's session
+    /// answered: a joining again waited for is one this counts past.
+    pub session_joins: imbl::OrdMap<Uuid, u64>,
     /// What each block's host component has yet to hear of its host channel's members
     /// (`crate::hosting`, `Edit::TookMemberNews`).
     pub member_news: NewsQueue<MemberNews>,

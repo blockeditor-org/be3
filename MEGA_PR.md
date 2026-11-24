@@ -111,6 +111,10 @@ Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backl
     - `a_flush_answered_before_the_lease_comes_back_seals_once_it_does`
   - The stall report shows whether the replica holds the lease.
   - Dropped: the worker's `flushed_ahead` reseal, the earlier attempt test, and a guest-side re-ask (`seal_asked`), which raced the flush's own late keep.
+  - `-6` on top, folding in the review:
+    - A block's flush mark stays while its seal is asked, so an ask never sent or passed over is asked again. It also stays on a block that doesn't hold the lease, until a later flush. A replica opened while a flush waits on the lane starts marked.
+    - `a_device_hosts_only_once_its_component_claims_the_lease` was flaky because the other device could leave before this device's rejoin. The test now waits for the rejoin's answer (`Seen::session_joins`).
+    - Not fixed: a Host event held during a join can replay after the join's answer and override it. A trace showed a late rejoin answered "no one hosts", then a held event made this device host again.
   - Separate and not started: the counter-seal flake `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` ("never counted 5, last 2"). After reopening, the replica opened on the older seal and was never told the server's newer head, which looks like a lost head announcement.
 
 **Not started:**
