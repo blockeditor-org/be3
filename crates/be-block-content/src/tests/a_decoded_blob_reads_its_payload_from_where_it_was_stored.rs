@@ -21,6 +21,8 @@ fn a_decoded_blob_reads_its_payload_from_where_it_was_stored() {
     decoded.set_header(header("other.png"));
     assert_eq!(
         decoded.payload_offset() as usize,
-        BytesContent::new(header("other.png"), Vec::new()).encode().len()
+        BytesContent::new(header("other.png"), Vec::new())
+            .encode()
+            .len()
     );
 }
