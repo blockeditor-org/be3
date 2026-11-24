@@ -50,6 +50,7 @@ import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { launch } from "./browser.mjs";
 import { signIn } from "./web-sign-in.mjs";
 
 const TIMEOUT = 120;
@@ -67,16 +68,6 @@ if (!bundle || !server || !caddy || !caddyfile || !script) {
     process.exit(2);
 }
 caddy = join(caddy, "caddy");
-
-function playwright() {
-    const require = createRequire(import.meta.url);
-    try {
-        return require("playwright");
-    } catch {
-        console.error("Playwright is missing: NODE_PATH names its modules on a worker.");
-        process.exit(1);
-    }
-}
 
 // A port nothing listens on yet.
 function freePort() {
@@ -303,18 +294,9 @@ try {
     await new Promise((done) => pushServer.listen(push, "127.0.0.1", done));
     await served(`${origin}/`, 30);
 
-    const { chromium } = playwright();
-    browser = await chromium.launch({
-        executablePath: process.env.BE3_CHROME || chromium.executablePath(),
-        args: [
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-features=WebGPU",
-            "--use-angle=swiftshader",
-            "--enable-unsafe-swiftshader",
-            "--ignore-gpu-blocklist",
-        ],
-        env: { ...process.env, TMPDIR: directory },
+    browser = await launch({
+        args: ["--disable-features=WebGPU", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+        temporary: directory,
     });
 
     const account = async ({ name, email }) => {

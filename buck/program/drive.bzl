@@ -24,7 +24,7 @@ def headless(name, program, program_name, args = [], data = False, archive = Non
 
 # What a browser test needs on a worker, where it runs: Node, Playwright and the headless Chromium it installs, all
 # pinned downloads (buck/tools), and the libraries that Chromium loads and the workers' image lacks
-# (buck/sysroot:amd64-browser). Chromium runs as root with no sandbox, which web-test.mjs and page-test.mjs ask for.
+# (buck/sysroot:amd64-browser). Chromium runs as root with no sandbox, which browser.mjs asks for.
 _BROWSER_ENV = {
     "BE3_CHROME": "$(location //buck/tools:chrome-headless-shell)/chrome-headless-shell",
     "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-browser)/usr/lib/x86_64-linux-gnu",
@@ -71,14 +71,19 @@ def web_drive_test(name, bundle, scripts, checks = False):
 # web_drive_test does, with the same browser.
 def _page_test_impl(ctx: AnalysisContext) -> list[Provider]:
     page = ctx.actions.copied_dir("page", ctx.attrs.files)
-    command = cmd_args(cmd_args(ctx.attrs._node[DefaultInfo].default_outputs[0], format = "{}/bin/node"), ctx.attrs.script, page)
+    runner = ctx.attrs._scripts[DefaultInfo].default_outputs[0]
+    command = cmd_args(
+        cmd_args(ctx.attrs._node[DefaultInfo].default_outputs[0], format = "{}/bin/node"),
+        cmd_args(runner, format = "{}/page-test.mjs"),
+        page,
+    )
     return [DefaultInfo(default_output = page), RunInfo(args = command)]
 
 _page_test = rule(
     attrs = {
         "files": attrs.dict(key = attrs.string(), value = attrs.source()),
-        "script": attrs.source(default = "root//buck/program:page-test.mjs"),
         "_node": attrs.default_only(attrs.dep(default = "root//buck/tools:node")),
+        "_scripts": attrs.default_only(attrs.dep(default = "root//buck/program:drive-browser")),
     },
     impl = _page_test_impl,
 )
@@ -125,3 +130,43 @@ _web_host_test = rule(
 def web_host_test(name, bundle, server, caddyfile, test):
     _web_host_test(name = name + "-harness", bundle = bundle, caddyfile = caddyfile, server = server, test = test)
     be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness", labels = [THOROUGH])
+
+# A program that drives Chromium itself, here rather than on a worker, through a Node script:
+# be-tool-browser-rasterizer, which CI downloads to draw the browser paintings in the paint
+# previews. Everything it runs is laid out in one directory, which is the default output, so it
+# runs wherever that was downloaded with nothing installed:
+#
+#   DIR/<name>            program, which finds the rest beside its own path
+#   DIR/<script's name>   each of scripts
+#   DIR/node              the browser tests' Node, its executable alone
+#   DIR/node_modules/     their Playwright, which a script beside it requires
+#   DIR/chrome/chrome-headless-shell   their Chromium
+#   DIR/lib/              the libraries it loads (buck/sysroot:amd64-browser), for LD_LIBRARY_PATH
+#
+# Each is copied, so the program's own path is in DIR. `./scripts/buck run :<name>` runs it. It is
+# about 650 MB, two fifths of it Chromium and two fifths the libraries (Mesa's, which libgbm
+# brings, are most of those).
+def _browser_program_impl(ctx: AnalysisContext) -> list[Provider]:
+    files = {
+        ctx.attrs.name: ctx.attrs.program[DefaultInfo].default_outputs[0],
+        "chrome": ctx.attrs._chrome[DefaultInfo].default_outputs[0],
+        "lib": ctx.attrs._libraries[DefaultInfo].default_outputs[0].project("usr/lib/x86_64-linux-gnu"),
+        "node": ctx.attrs._node[DefaultInfo].default_outputs[0].project("bin/node"),
+        "node_modules": ctx.attrs._modules[DefaultInfo].default_outputs[0],
+    }
+    for script in ctx.attrs.scripts:
+        files[script.basename] = script
+    directory = ctx.actions.copied_dir(ctx.attrs.name, files)
+    return [DefaultInfo(default_output = directory), RunInfo(args = cmd_args(directory, format = "{}/" + ctx.attrs.name))]
+
+browser_program = rule(
+    attrs = {
+        "program": attrs.dep(),
+        "scripts": attrs.list(attrs.source()),
+        "_chrome": attrs.default_only(attrs.dep(default = "root//buck/tools:chrome-headless-shell")),
+        "_libraries": attrs.default_only(attrs.dep(default = "root//buck/sysroot:amd64-browser")),
+        "_modules": attrs.default_only(attrs.dep(default = "root//buck/tools:playwright-modules")),
+        "_node": attrs.default_only(attrs.dep(default = "root//buck/tools:node")),
+    },
+    impl = _browser_program_impl,
+)
