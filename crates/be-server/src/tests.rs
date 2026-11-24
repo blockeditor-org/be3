@@ -98,7 +98,6 @@ mod a_passkey_assertion_counts_once;
 mod a_passkey_for_an_old_origin_is_no_way_in;
 mod a_passkey_for_another_rp_id_or_origin_is_refused;
 mod a_passkey_signs_in_with_no_email_typed;
-mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_provider_email_matching_an_account_links_only_after_the_emailed_code;
 mod a_provider_is_called_only_so_often_whatever_strangers_send;
 mod a_provider_sign_in_is_not_spent_by_its_callback_in_another_browser;
@@ -2008,10 +2007,10 @@ impl TestClient {
         personal
     }
 
-    async fn link(&mut self, grant: Option<be_block_protocol::PendingGrant>) -> Uuid {
+    async fn link(&mut self) -> Uuid {
         let link = Uuid::new_v4();
         let response = self
-            .create_link(link, be_block_protocol::LinkKind::Contact(grant), None)
+            .create_link(link, be_block_protocol::LinkKind::Contact, None)
             .await;
         assert!(response.is_ok(), "{response:?}");
         link
@@ -3451,7 +3450,7 @@ async fn viewer_of(
     let mut member = harness.member(email).await;
     let account = member.id();
     member.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let accepted = member.accept(link, &[]).await;
     assert!(accepted.is_ok(), "{accepted:?}");
     let granted = owner

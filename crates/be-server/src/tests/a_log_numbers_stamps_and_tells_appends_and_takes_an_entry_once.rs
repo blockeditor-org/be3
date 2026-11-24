@@ -14,7 +14,7 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
     let chat = owner.create_block(BlockParent::Root).await;
     let granted = owner.grant(chat, guest_id, Access::Edit).await;

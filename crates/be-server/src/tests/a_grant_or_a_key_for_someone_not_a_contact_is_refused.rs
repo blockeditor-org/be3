@@ -34,7 +34,7 @@ async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
         "the share list showed a member who is neither a grantee nor a contact"
     );
 
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let accepted = stranger.accept(link, &[]).await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let (granted, keyed) = attempts(&mut owner, &shared, stranger_id).await;

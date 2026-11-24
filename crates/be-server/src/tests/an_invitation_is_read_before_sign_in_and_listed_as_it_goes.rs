@@ -72,7 +72,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     assert_eq!(row.state, InvitationState::Opened);
     assert!(row.opened > 0);
     // A contact link, or a guess, reads as no link.
-    let contact = admin.link(None).await;
+    let contact = admin.link().await;
     for id in [contact, Uuid::new_v4()] {
         let read = harness
             .once(move |peer| {

@@ -13,7 +13,7 @@ async fn removing_a_contact_revokes_what_the_two_shared() {
     let mine = owner.create_block(BlockParent::Root).await;
     let theirs = other.create_block(BlockParent::Root).await;
 
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = other.accept(link, &[]).await;
     for (granter, block, grantee) in [(&mut owner, mine, other_id), (&mut other, theirs, owner_id)]
     {

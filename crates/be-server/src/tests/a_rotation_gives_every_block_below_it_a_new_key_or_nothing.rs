@@ -12,7 +12,7 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     reader.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, _) = owner.inside(&shared).await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = reader.accept(link, &[]).await;
     let granted = owner.grant(shared.block, reader_id, Access::View).await;
     assert!(matches!(granted, Ok(())), "{granted:?}");

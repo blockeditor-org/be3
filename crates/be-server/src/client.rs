@@ -150,7 +150,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
             ..
         } => Rule::Administrator,
         Op::CreateLink {
-            kind: LinkKind::Contact(_),
+            kind: LinkKind::Contact,
             ..
         }
         | Op::CreateOrganization { .. }
@@ -2399,15 +2399,6 @@ impl Client {
                     .store
                     .accept_link(account, link, card, contact, key, member)
                     .await?;
-                if let Some(granted) = accepted.granted {
-                    connection
-                        .after(After::Regranted {
-                            organization: granted.organization,
-                            block: granted.block,
-                            before: granted.before,
-                        })
-                        .await;
-                }
                 connection
                     .after(After::MailboxChanged(vec![account, accepted.owner]))
                     .await;

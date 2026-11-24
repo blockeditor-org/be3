@@ -40,7 +40,7 @@ async fn a_join_members_message_reaches_only_the_host() {
     let mut second = harness.member("second@example.com").await;
     for other in [&mut viewer, &mut first, &mut second] {
         other.personal().await;
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let accepted = other.accept(link, &[]).await;
         assert!(accepted.is_ok(), "{accepted:?}");
     }

@@ -48,7 +48,7 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
     let mut editor = harness.member("editor@example.com").await;
     let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

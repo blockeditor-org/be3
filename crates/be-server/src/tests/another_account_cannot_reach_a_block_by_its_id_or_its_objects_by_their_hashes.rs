@@ -168,7 +168,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let mut viewer = harness.member("viewer@example.com").await;
     let viewer_account = viewer.id();
     viewer.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let accepted = viewer.accept(link, &[]).await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let granted = owner.grant(block, viewer_account, Access::View).await;

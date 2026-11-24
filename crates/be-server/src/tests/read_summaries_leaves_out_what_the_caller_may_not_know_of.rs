@@ -28,7 +28,7 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
     let mut viewer = harness.member("viewer@example.com").await;
     let viewer_id = viewer.id();
     viewer.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = viewer.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

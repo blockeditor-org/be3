@@ -37,8 +37,7 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
             &ada.peer.connection(),
             &ada.someone.phrase.secret(),
             &ada.someone.me().card(),
-            None,
-        ))
+))
         .expect("Ada makes a contact link");
     let teo_peer = ada.runtime.block_on(teo.peer(&harness.url, personal));
     ada.runtime

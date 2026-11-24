@@ -70,7 +70,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         let mut client = harness.member(email).await;
         let account = client.id();
         client.personal().await;
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let _ = client.accept(link, &[]).await;
         accounts.push((client, account));
     }

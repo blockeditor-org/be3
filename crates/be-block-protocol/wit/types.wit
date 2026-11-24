@@ -210,15 +210,6 @@ interface types {
         sealed: list<u8>,
     }
 
-    /// A grant waiting in a contact link until its accepter is known.
-    record pending-grant {
-        organization: organization-id,
-        block: block-id,
-        access: access-level,
-        key: key-id,
-        sealed: list<u8>,
-    }
-
     /// One connection in a block's live session: the build of the block's
     /// type it runs, whether it may edit the block, and the index of the
     /// membership entry of its last claim since it joined.

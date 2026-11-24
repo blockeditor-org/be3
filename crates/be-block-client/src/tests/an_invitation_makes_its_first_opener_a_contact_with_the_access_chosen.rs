@@ -34,7 +34,7 @@ async fn open(peer: &Peer<MemoryStore>, code: &be_block_keys::InviteCode) -> Res
     .map(|(link, _)| link)
 }
 
-/// An invitation (plans/invitations_without_pending_grants.md) is a contact link and a share
+/// An invitation (guides/blocks/keys.md, "An invitation") is a contact link and a share
 /// link that admits one, with one code. A new person who opens it becomes a contact through the
 /// contact link and gains the access chosen through the share link, which they sign
 /// themselves: the server applies no grant. A second person who opens it becomes nobody's

@@ -9,7 +9,7 @@ async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
     let mut owner = harness.member("owner@example.com").await;
     let mut other = harness.member("other@example.com").await;
     let (owner_id, other_id) = (owner.id(), other.id());
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     other.accept(link, &[]).await.unwrap();
     let database = metadata_database(&harness.directory);
     let count = |sql: &str| -> i64 {

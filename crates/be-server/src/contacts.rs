@@ -2,25 +2,22 @@ use std::collections::BTreeSet;
 
 use be_block_graph::Access;
 use be_block_protocol::{
-    ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind, Letter,
-    Link, LinkKind, OrganizationRole, PendingGrant, WrappedBy,
+    ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, Letter, Link,
+    LinkKind, OrganizationRole,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
 use crate::{
     ServerError,
-    blocks::{visibility, write_grant},
-    keys::{encode_wrapped_by, key_row},
+    blocks::visibility,
     store::{
-        Identity, ServerStore, decode_access, decode_role, encode_access, encode_role,
-        is_member_of, parse_uuid, portal::now,
+        Identity, ServerStore, decode_role, encode_role, is_member_of, parse_uuid, portal::now,
     },
 };
 
 pub struct Accepted {
     pub owner: Uuid,
-    pub granted: Option<Granted>,
 }
 
 pub struct Granted {
@@ -182,67 +179,37 @@ fn invitation_ended(state: InvitationState) -> ServerError {
     )
 }
 
-const LINK_COLUMNS: &str = "owner_id, card, grant_organization, grant_block, grant_access,
-    grant_key, grant_sealed, invite_organization, invite_escrow, accepter_id,
+const LINK_COLUMNS: &str = "owner_id, card, invite_organization, invite_escrow, accepter_id,
     invite_created, invite_expires, invite_opened, invite_ended, invite_revoked, invite_key";
 
-type LinkRow = (
-    (String, Vec<u8>),
-    (String, String, String, String, Vec<u8>),
-    (String, Vec<u8>, String),
-    Invited,
-    Vec<u8>,
-);
+type LinkRow = ((String, Vec<u8>), (String, Vec<u8>, String), Invited, Vec<u8>);
 
 fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
     Ok((
         (row.get(0)?, row.get(1)?),
-        (
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            row.get(5)?,
-            row.get(6)?,
-        ),
-        (row.get(7)?, row.get(8)?, row.get(9)?),
+        (row.get(2)?, row.get(3)?, row.get(4)?),
         Invited {
-            created: row.get(10)?,
-            expires: row.get(11)?,
-            opened: row.get(12)?,
-            ended: row.get(13)?,
-            revoked: row.get(14)?,
+            created: row.get(5)?,
+            expires: row.get(6)?,
+            opened: row.get(7)?,
+            ended: row.get(8)?,
+            revoked: row.get(9)?,
         },
-        row.get(15)?,
+        row.get(10)?,
     ))
 }
 
 fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
-    let (
-        (owner, card),
-        (organization, block, access, key, sealed),
-        (invited_to, escrow, accepter),
-        invited,
-        invitation_key,
-    ) = row;
-    let (kind, invited) = match (invited_to.is_empty(), organization.is_empty()) {
-        (false, _) => (
+    let ((owner, card), (invited_to, escrow, accepter), invited, invitation_key) = row;
+    let (kind, invited) = match invited_to.is_empty() {
+        false => (
             LinkKind::Invitation(Invitation {
                 organization: parse_uuid(&invited_to)?,
                 escrow,
             }),
             Some(invited),
         ),
-        (true, true) => (LinkKind::Contact(None), None),
-        (true, false) => (
-            LinkKind::Contact(Some(PendingGrant {
-                organization: parse_uuid(&organization)?,
-                block: parse_uuid(&block)?,
-                access: decode_access(&access)?,
-                key: parse_uuid(&key)?,
-                sealed,
-            })),
-            None,
-        ),
+        true => (LinkKind::Contact, None),
     };
     Ok(StoredLink {
         owner: parse_uuid(&owner)?,
@@ -356,48 +323,26 @@ fn mark_accepted(
     )
 }
 
-/// What a link's kind stores in its row's grant and invitation columns.
-struct KindColumns {
-    grant: (String, String, String, String, Vec<u8>),
-    invitation: (String, Vec<u8>),
-}
-
-fn kind_columns(kind: &LinkKind) -> KindColumns {
+/// What a link's kind stores in its row's invitation columns.
+fn invitation_columns(kind: &LinkKind) -> (String, Vec<u8>) {
     match kind {
-        LinkKind::Contact(None) => KindColumns {
-            grant: Default::default(),
-            invitation: Default::default(),
-        },
-        LinkKind::Contact(Some(grant)) => KindColumns {
-            grant: (
-                grant.organization.to_string(),
-                grant.block.to_string(),
-                encode_access(grant.access).unwrap_or_default().to_owned(),
-                grant.key.to_string(),
-                grant.sealed.clone(),
-            ),
-            invitation: Default::default(),
-        },
-        LinkKind::Invitation(invitation) => KindColumns {
-            grant: Default::default(),
-            invitation: (
-                invitation.organization.to_string(),
-                invitation.escrow.clone(),
-            ),
-        },
+        LinkKind::Contact => Default::default(),
+        LinkKind::Invitation(invitation) => (
+            invitation.organization.to_string(),
+            invitation.escrow.clone(),
+        ),
     }
 }
 
 impl ServerStore {
     /// Makes a link. The dispatcher checked that an invitation's caller administers its
-    /// organization (`client::rule`); a grant is checked here, since its block's organization
-    /// need not be the one open.
+    /// organization (`client::rule`).
     pub async fn create_link(
         &self,
         owner: Uuid,
         link: Uuid,
         card: Vec<u8>,
-        mut kind: LinkKind,
+        kind: LinkKind,
         signed: Option<Vec<u8>>,
     ) -> Result<(), ServerError> {
         crate::limits::at_most(
@@ -405,16 +350,8 @@ impl ServerStore {
             card.len(),
             crate::limits::MAX_SEALED_BYTES,
         )?;
-        match &mut kind {
-            LinkKind::Contact(Some(grant)) => {
-                crate::limits::at_most(
-                    "a pending grant",
-                    grant.sealed.len(),
-                    crate::limits::MAX_SEALED_BYTES,
-                )?;
-                self.check_grant(owner, grant.clone()).await?;
-            }
-            LinkKind::Contact(None) => {}
+        match &kind {
+            LinkKind::Contact => {}
             LinkKind::Invitation(_) if signed.is_none() => {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
@@ -437,16 +374,16 @@ impl ServerStore {
                 }
             }
         }
-        if matches!(kind, LinkKind::Contact(_)) && signed.is_some() {
+        if matches!(kind, LinkKind::Contact) && signed.is_some() {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
                 "a contact link carries no record".into(),
             ));
         }
-        let columns = kind_columns(&kind);
+        let (invited_to, escrow) = invitation_columns(&kind);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            if let LinkKind::Contact(_) = &kind {
+            if let LinkKind::Contact = &kind {
                 let open: i64 = transaction
                     .prepare_cached(
                         "SELECT COUNT(*) FROM links WHERE owner_id = ?1 AND invite_organization = ''",
@@ -502,7 +439,7 @@ impl ServerStore {
             }
             let (created, expires) = match &kind {
                 LinkKind::Invitation(_) => (now(), now() + crate::limits::INVITATION_LIFETIME),
-                LinkKind::Contact(_) => (0, 0),
+                LinkKind::Contact => (0, 0),
             };
             // An invitation opens in the organization's log, by its key, as it is made.
             let invitation_key = match (&kind, &signed) {
@@ -520,25 +457,15 @@ impl ServerStore {
                 }
                 _ => Vec::new(),
             };
-            let KindColumns {
-                grant: (organization, block, access, key, sealed),
-                invitation: (invited_to, escrow),
-            } = columns;
             let inserted = transaction.execute(
                 "INSERT OR IGNORE INTO links
-                    (id, owner_id, card, grant_organization, grant_block, grant_access,
-                     grant_key, grant_sealed, invite_organization, invite_escrow, invite_created,
+                    (id, owner_id, card, invite_organization, invite_escrow, invite_created,
                      invite_expires, invite_key)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     link.to_string(),
                     owner.to_string(),
                     card,
-                    organization,
-                    block,
-                    access,
-                    key,
-                    sealed,
                     invited_to,
                     escrow,
                     created,
@@ -553,55 +480,6 @@ impl ServerStore {
                 ));
             }
             transaction.commit()?;
-            Ok(())
-        })
-        .await
-    }
-
-    /// Refuses a pending grant its owner may not make: on a block it does not manage, one only
-    /// its author reads, in an organization that shares nothing outside, or without the block's
-    /// own scope key.
-    async fn check_grant(&self, owner: Uuid, grant: PendingGrant) -> Result<(), ServerError> {
-        let role = self.membership(owner, grant.organization).await?;
-        let identity = Identity {
-            account: owner,
-            organization: grant.organization,
-            role,
-            bound: None,
-        };
-        self.with_graph(grant.organization, move |store, graph, database| {
-            if !visibility(identity).can_manage(graph, grant.block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!("block {} is not managed by this account", grant.block),
-                ));
-            }
-            if graph.owner_only_root(grant.block).is_some() {
-                return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!(
-                        "block {} is readable by its author alone, so it is shared with no one",
-                        grant.block
-                    ),
-                ));
-            }
-            if !store
-                .policies(graph, database, grant.organization)?
-                .shares_outside()
-            {
-                return Err(crate::organization::refused(
-                    "this organization shares nothing outside it, and a link reaches whoever holds it",
-                ));
-            }
-            let key = key_row(database, grant.organization, grant.key)?;
-            if !key.is_some_and(|key| key.block == grant.block && key.kind == KeyKind::Scope)
-                || grant.access == Access::None
-            {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "a pending grant needs an access level and the block's own scope key".into(),
-                ));
-            }
             Ok(())
         })
         .await
@@ -630,7 +508,7 @@ impl ServerStore {
                 ));
             }
             let organization_name = match &stored.kind {
-                LinkKind::Contact(_) => String::new(),
+                LinkKind::Contact => String::new(),
                 LinkKind::Invitation(invitation) => {
                     // An invitation into an organization gone since is no link at all.
                     let name = organization_name(&database, invitation.organization)?
@@ -646,7 +524,7 @@ impl ServerStore {
                 }
             };
             let head = match &stored.kind {
-                LinkKind::Contact(_) => None,
+                LinkKind::Contact => None,
                 LinkKind::Invitation(invitation) => {
                     crate::access::organization_head(&database, invitation.organization)?
                 }
@@ -777,27 +655,22 @@ impl ServerStore {
         }
         let found = self.link(caller, link).await?;
         let owner = found.owner;
-        if matches!(found.kind, LinkKind::Contact(_)) && member.is_some() {
+        if matches!(found.kind, LinkKind::Contact) && member.is_some() {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
                 "accepting a contact link signs no one in".into(),
             ));
         }
-        let grant = match found.kind {
-            LinkKind::Contact(Some(grant)) => grant,
-            LinkKind::Contact(None) => {
-                return self
-                    .with_database(move |_, database| {
-                        let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                        mark_accepted(&transaction, link, owner, caller, card)?;
-                        befriend(&transaction, owner, &[], caller, &contact)?;
-                        transaction.commit()?;
-                        Ok(Accepted {
-                            owner,
-                            granted: None,
-                        })
-                    })
-                    .await;
+        match found.kind {
+            LinkKind::Contact => {
+                self.with_database(move |_, database| {
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                    mark_accepted(&transaction, link, owner, caller, card)?;
+                    befriend(&transaction, owner, &[], caller, &contact)?;
+                    transaction.commit()?;
+                    Ok(Accepted { owner })
+                })
+                .await
             }
             LinkKind::Invitation(invitation) => {
                 let member = member.ok_or_else(|| {
@@ -807,8 +680,7 @@ impl ServerStore {
                             .into(),
                     )
                 })?;
-                return self
-                    .with_database(move |_, database| {
+                self.with_database(move |_, database| {
                         let transaction = be_block_sqlite_schema::write_transaction(database)?;
                         // Checked again where it is taken: an inviter no longer administering
                         // the organization ended it, and an account that joined meanwhile
@@ -855,72 +727,11 @@ impl ServerStore {
                             ],
                         )?;
                         transaction.commit()?;
-                        Ok(Accepted {
-                            owner,
-                            granted: None,
-                        })
+                        Ok(Accepted { owner })
                     })
-                    .await;
+                    .await
             }
-        };
-        let granted = self
-            .with_graph(grant.organization, move |store, graph, database| {
-                let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                mark_accepted(&transaction, link, owner, caller, card)?;
-                befriend(&transaction, owner, &[], caller, &contact)?;
-                let owner_role = role_in(&transaction, owner, grant.organization)?;
-                let may_grant = is_member_of(&transaction, caller, grant.organization)?
-                    && graph.contains(grant.block)
-                    && graph.owner_only_root(grant.block).is_none()
-                    && owner_role.is_some_and(|role| {
-                        visibility(Identity {
-                            account: owner,
-                            organization: grant.organization,
-                            role,
-                            bound: None,
-                        })
-                        .can_manage(graph, grant.block)
-                    })
-                    && store
-                        .policies(graph, &transaction, grant.organization)
-                        .is_ok_and(|policies| policies.shares_outside());
-                let mut granted = None;
-                if may_grant {
-                    let before = graph.audience(grant.block);
-                    write_grant(
-                        store,
-                        graph,
-                        &transaction,
-                        grant.organization,
-                        grant.block,
-                        caller,
-                        grant.access,
-                    )?;
-                    if !key.is_empty() {
-                        transaction.execute(
-                            "INSERT OR REPLACE INTO wrapped_keys
-                                (organization_id, key_id, wrapped_by, sender, sealed)
-                             VALUES (?1, ?2, ?3, ?4, ?5)",
-                            params![
-                                grant.organization.to_string(),
-                                grant.key.to_string(),
-                                encode_wrapped_by(WrappedBy::Account(caller)),
-                                caller.to_string(),
-                                key
-                            ],
-                        )?;
-                    }
-                    granted = Some(Granted {
-                        organization: grant.organization,
-                        block: grant.block,
-                        before,
-                    });
-                }
-                transaction.commit()?;
-                Ok(granted)
-            })
-            .await?;
-        Ok(Accepted { owner, granted })
+        }
     }
 
     /// Ends a link: a contact link of the caller's goes; an invitation, the caller's own or one

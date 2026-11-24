@@ -14,7 +14,7 @@ async fn accepting_either_kind_of_link_makes_two_contacts() {
 
     let mut friend = harness.member("friend@example.com").await;
     let friend_id = friend.id();
-    let link = admin.link(None).await;
+    let link = admin.link().await;
     let accepted = friend.accept(link, &[]).await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     assert!(knows(&mut friend, admin_id).await);

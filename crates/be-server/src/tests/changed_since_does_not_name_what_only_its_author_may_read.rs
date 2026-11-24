@@ -42,7 +42,7 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
         let mut client = harness.member(email).await;
         let account = client.id();
         client.personal().await;
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let _ = client.accept(link, &[]).await;
         accounts.push((client, account));
     }

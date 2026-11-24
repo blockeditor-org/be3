@@ -15,7 +15,7 @@ pub(super) async fn shared_tree(harness: &Harness) -> SharedTree {
     let mut editor = harness.member("editor@example.com").await;
     let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let accepted = editor.accept(link, &[]).await;
     assert!(accepted.is_ok(), "{accepted:?}");
     let shared = owner.create_block(BlockParent::Root).await;
