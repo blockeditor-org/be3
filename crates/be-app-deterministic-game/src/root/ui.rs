@@ -365,7 +365,7 @@ fn GameDock(
                 </DockPane>
                 <DockPane>
                     <DockTab title="History">
-                        <MoveTable table shown steps />
+                        <MoveTable @test_id={"game.history"} table shown steps />
                     </DockTab>
                 </DockPane>
             </DockSplit>

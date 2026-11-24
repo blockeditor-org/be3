@@ -143,7 +143,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     }}
                 >
                     <DockSplit direction=Direction::Vertical size={SplitSize::Second(LAYERS_HEIGHT)}>
-                        <DockPane>
+                        <DockPane id="inspector">
                             <DockTab id=INSPECTOR title="Inspector">
                                 <CanvasInspector state={state} />
                             </DockTab>
