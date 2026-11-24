@@ -584,7 +584,7 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   (`inside_viewers`) and may view the block. A block's agent may not ask it, and a guest is named only
   itself, so it learns no member. An
   `append-log(owner)` (`owner_record`) offers ownership, only from the owner to a
-  member who is their contact, or withdraws an offer, keeping the one standing
+  member who is their contact and may read the block, or withdraws an offer, keeping the one standing
   in `owner_offers` (listed to the account offered it by `query.owner-offers`
   and in `access-list.offered`); or, from the account offered the block, it
   accepts and moves ownership, the block counting against the new owner's bound

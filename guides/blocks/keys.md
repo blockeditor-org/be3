@@ -270,7 +270,9 @@ signing one naming another account and the keys it verified for them
 block's keys with it, so they read it the moment they accept. An offer moves
 nothing and lowers no one; it stands as `Checked::offered` until the next owner
 record, and the owner withdraws it by signing one naming themselves, or replaces
-it by offering the block to someone else. The account offered it accepts by
+it by offering the block to someone else. A grant taking that account below
+View or naming other keys for it, or a ban of it, ends the offer; a retirement
+moves it to the account's new keys, so the old ones accept nothing. The account offered it accepts by
 signing one naming itself with exactly the keys the offer named
 (`Peer::accept_ownership`, the share dialog's Accept, which the server lists as
 `query.owner-offers` and in `access-list.offered`): it checks the log from a
@@ -288,9 +290,10 @@ view the parent) and refuses it for blocks that belong to what holds them
 (owner-only blocks, settings, edit kinds, search indexes, an Unfiled). The
 new owner can leave the block only by giving ownership on, since no grant names
 or lowers an owner; holding Manage, they may also trash it. The server takes an
-offer only to a member who is a contact of the giver, keeps the one standing
-per block (`owner_offers`), lets the account offered it read the block's log to
-accept, and refuses the acceptance of an account already at
+offer only to a member who is a contact of the giver and may read the block, keeps the one standing
+per block (`owner_offers`, standing only while the log still offers it), lets
+the account offered it read the block's log to accept only while it may read
+the block, which also covers access taken away on a block above, and refuses the acceptance of an account already at
 `MAX_BLOCKS_PER_ACCOUNT`, which the giver never learns of. The former owner, the creator included, is then
 a member like any other, whom the new owner may revoke.
 
