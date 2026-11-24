@@ -2,8 +2,10 @@ use be_type_workspace::{FolderContent, WorkspaceContent};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use be_sdk_beui::BlockQuery;
 use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::block_menu::{MenuBlock, can_move_out_of};
+use be_sdk_beui::sections::workspaces;
+use be_sdk_beui::{AccessLevel, BlockParent, BlockQuery};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor};
@@ -37,6 +39,8 @@ pub(crate) struct Entry {
     pub(crate) glyph: Option<be_sdk_beui::beui::icons::Glyph>,
     pub(crate) automatic: bool,
     pub(crate) loaded: bool,
+    pub(crate) access: AccessLevel,
+    pub(crate) parent: Option<BlockParent>,
 }
 
 #[derive(Clone, Copy)]
@@ -76,9 +80,12 @@ impl Listing {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Folder {
+    editor: Editor,
     entries: Memo<Vec<Entry>>,
     index: Listing,
+    destinations: Memo<Vec<(Uuid, String)>>,
 }
 
 impl Folder {
@@ -121,13 +128,74 @@ impl Folder {
                         glyph: label.as_ref().and_then(be_sdk_beui::label_glyph),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),
+                        access: found.map_or(AccessLevel::None, |found| found.access),
+                        parent: found.and_then(|found| found.parent),
                     }
                 })
                 .collect();
             sort_entries(&mut entries, sort.get(), descending.get());
             entries
         });
-        Self { entries, index }
+        let roots = editor.blocks().watch(BlockQuery::Roots);
+        let host = editor.host();
+        let destinations = create_memo(move || {
+            let types = editor.block_types();
+            workspaces(
+                roots.read().unwrap_or_default(),
+                host.organization_id(),
+                host.account_id(),
+                types.as_ref(),
+            )
+            .into_iter()
+            .map(|workspace| (workspace.id, workspace.label(types.as_ref()).name))
+            .collect()
+        });
+        Self {
+            editor,
+            entries,
+            index,
+            destinations,
+        }
+    }
+
+    /// The workspaces an entry can be moved to.
+    pub(crate) fn destinations(&self) -> Memo<Vec<(Uuid, String)>> {
+        self.destinations
+    }
+
+    /// Entry `key` as its menu acts on it: listed in this folder, which it lives in unless it
+    /// is a link.
+    pub(crate) fn menu_block(&self, key: Uuid) -> Memo<Option<MenuBlock>> {
+        let (editor, entries) = (self.editor, self.entries);
+        create_memo(move || {
+            let entry = entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())?;
+            let (id, block_type) = (entry.id?, entry.block_type?);
+            let folder = editor.block_id();
+            let source = BlockParent::Block(folder);
+            let is_reference = entry.parent != Some(source);
+            let types = editor.block_types();
+            let can_delete = can_move_out_of(
+                &editor.blocks(),
+                types.as_ref(),
+                &editor
+                    .host()
+                    .block_type()
+                    .map(|folder_type| (folder, folder_type))
+                    .into_iter()
+                    .collect(),
+                source,
+                id,
+                is_reference,
+            );
+            Some(MenuBlock {
+                id,
+                block_type,
+                source,
+                is_reference,
+                access: entry.access,
+                can_delete,
+            })
+        })
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {

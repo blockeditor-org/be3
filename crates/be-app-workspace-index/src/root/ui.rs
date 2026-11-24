@@ -2,10 +2,11 @@ use beui::Overflow;
 use uuid::Uuid;
 
 use be_sdk_beui::Editor;
+use be_sdk_beui::block_menu::{DeleteBlock, ExportAs, Exporter, MoveTo, rename_block};
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
-use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
+use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER, ICON_PENCIL_LINE};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
@@ -47,8 +48,12 @@ impl FolderView {
 #[derive(Clone, Copy)]
 struct Cells {
     editor: Editor,
+    folder: Folder,
     entries: Memo<Vec<Entry>>,
     selected: Signal<Option<Uuid>>,
+    /// The entry whose name is being edited in place.
+    renaming: Signal<Option<Uuid>>,
+    exporter: Exporter,
 }
 
 impl Cells {
@@ -64,6 +69,18 @@ impl Cells {
         create_memo(move || {
             entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())
         })
+    }
+
+    /// Edits entry `key`'s name in place, if it may be renamed.
+    fn rename(&self, key: Uuid) {
+        let editable = self
+            .folder
+            .menu_block(key)
+            .get_untracked()
+            .is_some_and(|block| block.access.can_edit());
+        if editable {
+            self.renaming.set(Some(key));
+        }
     }
 
     fn open(&self, entry: Memo<Option<Entry>>) -> impl Fn() + use<> {
@@ -109,8 +126,11 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     };
     let cells = Cells {
         editor,
+        folder,
         entries,
         selected,
+        renaming: create_signal(None),
+        exporter: Exporter::new(editor),
     };
 
     let chrome = editor.chrome_shown();
@@ -144,31 +164,35 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                                 </Frame>
                             </Show>
                             <ListItem grow=1.0>
-                                <Scroll>
-                                    <Frame padding=PADDING>
-                                        <Dynamic value={mode}>|shown: FolderView| {
-                                            match shown {
-                                                FolderView::List => view! {
-                                                    <EntryRows cells={cells} />
-                                                },
-                                                FolderView::LargeGrid => view! {
+                                <Dynamic value={mode}>|shown: FolderView| {
+                                    match shown {
+                                        FolderView::List => view! {
+                                            <EntryRows cells={cells} />
+                                        },
+                                        FolderView::LargeGrid => view! {
+                                            <Scroll>
+                                                <Frame padding=PADDING>
                                                     <EntryTiles
                                                         cells={cells}
                                                         tile=LARGE_TILE
                                                         icon_size=LARGE_ICON
                                                     />
-                                                },
-                                                FolderView::SmallGrid => view! {
+                                                </Frame>
+                                            </Scroll>
+                                        },
+                                        FolderView::SmallGrid => view! {
+                                            <Scroll>
+                                                <Frame padding=PADDING>
                                                     <EntryTiles
                                                         cells={cells}
                                                         tile=SMALL_TILE
                                                         icon_size=SMALL_ICON
                                                     />
-                                                },
-                                            }
-                                        }</Dynamic>
-                                    </Frame>
-                                </Scroll>
+                                                </Frame>
+                                            </Scroll>
+                                        },
+                                    }
+                                }</Dynamic>
                             </ListItem>
                         </List>
                     </Frame>
@@ -253,37 +277,99 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     }
 }
 
+/// The entries as rows, each edited in place and with the menu every block row has (Rename,
+/// Move to, Delete, Export as; be_sdk_beui's `block_menu`).
 #[component]
 fn EntryRows(cells: Cells) -> NodeId {
     let keys = cells.keys();
-    let selected = cells.selected;
-    let chosen = create_selector(move || selected.get());
+    let Cells {
+        editor,
+        entries,
+        selected,
+        renaming,
+        ..
+    } = cells;
+    let item = move |key: Uuid| {
+        entries.with(|entries| {
+            entries
+                .iter()
+                .find(|entry| entry.reference == key)
+                .map(|entry| TreeItem {
+                    label: entry.name.clone(),
+                    ..TreeItem::default()
+                })
+                .unwrap_or_default()
+        })
+    };
+    let open = move |key: Uuid| (cells.open(cells.entry(key)))();
+    let rename = move |(key, name): (Uuid, String)| {
+        if let Some(block) = cells.folder.menu_block(key).get_untracked() {
+            rename_block(editor, block.id, &name);
+        }
+        renaming.set(None);
+    };
     view! {
-        <List spacing=Space::Xs2>
-            <ForEach value={keys}>|key: Uuid| {
-                let entry = cells.entry(key);
-                let open = cells.open(entry);
-                let here = chosen.memo(Some(key));
-                view! {
-                    <ListRow
-                        selected={here}
-                        @test_id={entry_test_id(key)}
-                        on_click={move || selected.set(Some(key))}
-                        on_activate={open}
-                    >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <EntryGlyph entry={entry} size=ROW_ICON />
-                            <ListItem grow=1.0>
-                                <Text overflow=Overflow::Ellipsis color={name_color(entry)}>
-                                    {name_of(entry)}
-                                </Text>
-                            </ListItem>
-                            <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
-                        </List>
-                    </ListRow>
-                }
-            }</ForEach>
-        </List>
+        <Tree
+            keys={keys}
+            item={item}
+            selected={selected}
+            spacing=Space::Xs2
+            padding=PADDING
+            row_test_id={entry_test_id}
+            menu={move |key: Uuid| Some(view! {
+                <EntryMenu cells key />
+            })}
+            editing={renaming}
+            on_select={move |key: Uuid| selected.set(Some(key))}
+            on_open={open}
+            on_edit={move |key: Uuid| cells.rename(key)}
+            on_rename={rename}
+            on_cancel_edit={move |_: Uuid| renaming.set(None)}
+            leading={move |face: TreeRowFace<Uuid>| {
+                Children::from([into_segment(view! {
+                    <EntryGlyph entry={cells.entry(face.key)} size=ROW_ICON />
+                })])
+            }}
+        >|face: TreeRowFace<Uuid>| {
+            let entry = cells.entry(face.key);
+            view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <Text overflow=Overflow::Ellipsis color={name_color(entry)}>
+                            {name_of(entry)}
+                        </Text>
+                    </ListItem>
+                    <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
+                </List>
+            }
+        }</Tree>
+    }
+}
+
+#[component]
+fn EntryMenu(cells: Cells, key: Uuid) -> TreeMenu {
+    let Cells {
+        editor,
+        folder,
+        exporter,
+        ..
+    } = cells;
+    let block = folder.menu_block(key);
+    let destinations = folder.destinations();
+    let named = entry_test_id(key);
+    let uneditable = move || !block.with(|block| block.as_ref().is_some_and(|block| block.access.can_edit()));
+    TreeMenu {
+        items: view! {
+            <MenuItem
+                label="Rename"
+                glyph=ICON_PENCIL_LINE
+                disabled={uneditable}
+                on_click={move || cells.rename(key)}
+            />
+            <MoveTo editor block destinations named={format!("{named}.move-to")} />
+            <DeleteBlock editor block />
+            <ExportAs exporter block named={format!("{named}.export")} />
+        },
     }
 }
 
