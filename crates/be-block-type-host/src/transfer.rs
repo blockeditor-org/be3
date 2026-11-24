@@ -1,6 +1,7 @@
 //! A block and everything inside it, collected for a block file (`be_block_client::transfer`):
 //! the one export the host's and `be download` share. Import is `Peer::queue_import`.
 
+use std::collections::HashMap;
 use std::future::Future;
 
 use be_block_client::transfer::Saved;
@@ -42,12 +43,14 @@ impl Open for Modules {
 }
 
 /// `top` and every block below it this account may view, breadth first, the first the outermost
-/// (a `parent` is a position in the list): from the parent instead when that parent's type is
-/// one `exported_whole` says goes only whole (a database view with its database). A block only
-/// its owner can read is refused, since a block file opens for anyone, and one below is left
-/// out. Each carries its content as readers outside its session see it, and its signed log when
-/// its type keeps one. A type that keeps parts after its first, which bytes do not carry, is
-/// refused until a block file carries parts.
+/// (a `parent` is a position in the list). A block only its author can read, or one inside
+/// such a block, is refused, since a block file opens for anyone; one below that only its
+/// author reads is left out. When `top`'s parent is a type `exported_whole` says goes only whole
+/// (a database view with its database), the export starts from that parent, if this account
+/// may view it; otherwise, or when the parent's summary cannot be read, from `top` alone. Each
+/// block carries its content as `open` holds it, or else as readers outside its session see it,
+/// and its signed log when its type keeps one. A type that keeps parts after its first, which
+/// bytes do not carry, is refused until a block file carries parts.
 pub async fn collect<S: ObjectStore>(
     peer: &Peer<S>,
     top: Uuid,
@@ -55,19 +58,30 @@ pub async fn collect<S: ObjectStore>(
     open: &mut impl Open,
 ) -> Result<Vec<Saved>, ClientError> {
     let picked = peer.summary(top).await?;
-    if picked.owner_only {
-        return Err(ClientError::Refused(
-            ErrorCode::PermissionDenied,
-            "a block only you can read is not exported, since a block file opens for anyone".into(),
-        ));
+    // The server marks only the block made readable by its author alone, not what lies in it,
+    // so each block above is asked too, as far as this account can read summaries.
+    let mut parent = None;
+    let mut above = Some(picked.clone());
+    while let Some(summary) = above {
+        if summary.owner_only {
+            return Err(ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                "a block only you can read is not exported, since a block file opens for anyone"
+                    .into(),
+            ));
+        }
+        above = match summary.parent {
+            Some(BlockParent::Block(up)) => peer.summary(up).await.ok(),
+            _ => None,
+        };
+        if summary.id == picked.id {
+            parent = above.clone();
+        }
     }
-    let mut top = picked.clone();
-    if let Some(BlockParent::Block(parent)) = picked.parent
-        && let Ok(whole) = peer.summary(parent).await
-        && exported_whole(whole.content_type)
-    {
-        top = whole;
-    }
+    let top = match parent {
+        Some(whole) if whole.access.can_view() && exported_whole(whole.content_type) => whole,
+        _ => picked,
+    };
     let mut found: Vec<(BlockSummary, Option<usize>)> = vec![(top.clone(), None)];
     let mut level = vec![(top.id, 0)];
     while !level.is_empty() {
@@ -93,14 +107,25 @@ pub async fn collect<S: ObjectStore>(
     }
     let summaries: Vec<BlockSummary> = found.iter().map(|(summary, _)| summary.clone()).collect();
     peer.learn(&summaries).await?;
+    // Per type, once: whether its bytes drop parts after the first (chat's closed segments),
+    // and whether it keeps a signed log.
+    let mut kinds: HashMap<Uuid, (bool, bool)> = HashMap::new();
     let mut blocks = Vec::with_capacity(found.len());
     for (summary, parent) in found {
-        let kind = open.modules().kind(summary.content_type).await;
-        // A block file carries bytes, which drop the parts after the first of a type that
-        // loads only its first part (chat's closed segments).
-        if kind.as_ref().is_some_and(|kind| !kind.whole_bytes)
-            && peer.has_later_parts(summary.id).await?
-        {
+        let (partial, logged) = match kinds.get(&summary.content_type) {
+            Some(kind) => *kind,
+            None => {
+                let kind = open
+                    .modules()
+                    .kind(summary.content_type)
+                    .await
+                    .map_or((false, false), |kind| (!kind.whole_bytes, kind.log));
+                kinds.insert(summary.content_type, kind);
+                kind
+            }
+        };
+        // A block file carries bytes, which drop the parts after the first.
+        if partial && peer.has_later_parts(summary.id).await? {
             return Err(ClientError::Encoding(format!(
                 "block {} keeps parts after its first, which a block file does not carry yet",
                 summary.id
@@ -108,7 +133,7 @@ pub async fn collect<S: ObjectStore>(
         }
         // A type with a signed log carries it, opened, each entry with its author's signature
         // in the block it was written in (`Peer::verify_exported`).
-        let log = match kind.is_some_and(|kind| kind.log) {
+        let log = match logged {
             true => peer.export_log(summary.id).await?,
             false => Vec::new(),
         };
