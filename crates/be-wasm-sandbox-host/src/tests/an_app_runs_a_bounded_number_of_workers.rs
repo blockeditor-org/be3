@@ -13,9 +13,13 @@ fn an_app_runs_a_bounded_number_of_workers() {
             worker.receive().await.expect("the worker starts");
             workers.push(worker);
         }
-        let refused = Worker::<Vec<u8>, Vec<u8>>::spawn(be_sdk_worker_echo::MODULE).receive().await;
+        let refused = Worker::<Vec<u8>, Vec<u8>>::spawn(be_sdk_worker_echo::MODULE)
+            .receive()
+            .await;
         drop(workers.pop());
-        let replaced = Worker::<Vec<u8>, Vec<u8>>::spawn(be_sdk_worker_echo::MODULE).receive().await;
+        let replaced = Worker::<Vec<u8>, Vec<u8>>::spawn(be_sdk_worker_echo::MODULE)
+            .receive()
+            .await;
         (refused, replaced)
     });
     assert_eq!(

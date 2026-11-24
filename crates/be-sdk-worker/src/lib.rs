@@ -335,7 +335,10 @@ impl<W: Work> Hosted<W> {
         W::Out: DeserializeOwned,
     {
         let mut outbound = Vec::new();
-        self.step(vec![frame(Address::WORKER, &encode(message))], &mut outbound)?;
+        self.step(
+            vec![frame(Address::WORKER, &encode(message))],
+            &mut outbound,
+        )?;
         outbound
             .iter()
             .map(|frame| {

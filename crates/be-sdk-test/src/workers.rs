@@ -15,7 +15,9 @@ type Start = fn(&mut Vec<Vec<u8>>) -> Result<Step, String>;
 
 fn start<W: Work>(outbound: &mut Vec<Vec<u8>>) -> Result<Step, String> {
     let mut hosted = Hosted::<W>::start(outbound)?;
-    Ok(Box::new(move |frames, outbound| hosted.step(frames, outbound)))
+    Ok(Box::new(move |frames, outbound| {
+        hosted.step(frames, outbound)
+    }))
 }
 
 type Frames = Result<Vec<Vec<u8>>, String>;

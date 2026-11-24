@@ -177,7 +177,9 @@ impl Client {
             });
         }
         let client = self.client;
-        self.running.sender.send_as(Address { client, job }, message);
+        self.running
+            .sender
+            .send_as(Address { client, job }, message);
         self.running.generation
     }
 

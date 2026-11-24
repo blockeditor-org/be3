@@ -49,5 +49,8 @@ fn a_shared_worker_s_answer_goes_to_the_job_it_answers() {
             (after, Ok([ECHOED, b"after"].concat())),
         ]
     );
-    assert_eq!(in_flight, 1, "the job it did not answer is still in flight: {silent:?}");
+    assert_eq!(
+        in_flight, 1,
+        "the job it did not answer is still in flight: {silent:?}"
+    );
 }
