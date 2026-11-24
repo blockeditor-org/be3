@@ -37,18 +37,24 @@ pub(crate) fn canvas(
         let view = view.get();
         with_document(|document| document.set_canvas_view(canvas, view))
     });
-    let scale = create_memo(move || view.get().map_or(1.0, |view| view.scale));
+    // Text is rasterised at the first view's scale at once, and at a later one only once it
+    // has held for `RASTER_SETTLE`, so a zoom draws glyphs again once it stops rather than every
+    // frame. With no view there is no zoom, and the next view's scale is taken at once.
+    let scale = create_memo(move || view.get().map(|view| view.scale));
     let settle = create_timer(move || {
         let raster = scale.get_untracked();
-        with_document(|document| document.set_canvas_raster(canvas, Some(raster)));
+        with_document(|document| document.set_canvas_raster(canvas, raster));
         None
     });
     create_effect(move || {
         let scale = scale.get();
         let unset = with_document(|document| document.canvas_raster(canvas).is_none());
-        match unset {
-            true => with_document(|document| document.set_canvas_raster(canvas, Some(scale))),
-            false => settle.restart(RASTER_SETTLE),
+        match (scale, unset) {
+            (None, _) | (Some(_), true) => {
+                settle.stop();
+                with_document(|document| document.set_canvas_raster(canvas, scale));
+            }
+            (Some(_), false) => settle.restart(RASTER_SETTLE),
         }
     });
     create_effect(move || {

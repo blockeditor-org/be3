@@ -1722,14 +1722,13 @@ Each step lands on its own.
              and zoom editor on a canvas) and `..._opens_a_block_its_files_open`. An embedded
              app asked for no screens (a child shown as its label) is asked for no frame and owes
              the root none (`Embedded::draws`): it presents nothing, so a frame asked of it waited
-             out the root's stopped-clock budget. Left for later:
-             - with no pause after the restart, `..._shows_a_presentations_slides_as_previews`
-               paints one glyph of the slide's preview at a stray place in about a quarter of its
-               runs (4 of 15): a preview's repaint is held a while (be-sdk's `Cooldown`), and
-               what shows meanwhile is not yet understood; the test keeps a pause. With 4g7b3e's
-               shared editors it still does (1 in 8, the same glyph: shape 124, a 7 by 8 point
-               glyph at 371,134 stretched to about 1.5e6 points), and asking no preview of a
-               place with an empty rect did not change it;
+             out the root's stopped-clock budget. A preview's camera, fitted to its stage, had no
+             scale before the stage was measured: beui's `Canvas` took that first scale (f32's
+             epsilon) as its text raster at once and the next only after its settle, so a glyph
+             drawn meanwhile was a quad millions of points across, and a preview whose repaint
+             its `Cooldown` held showed it (`..._shows_a_presentations_slides_as_previews`
+             without a pause, 4 runs in 15). The canvas is handed no view until its stage is
+             measured, and a `Canvas` with no view keeps no raster. Left for later:
              - a search hit's place handed to the block it opens (be-host's `reveals`);
              - each preview is an app of its own rather than drawn once at its largest (built
                with 4g7b3e).
