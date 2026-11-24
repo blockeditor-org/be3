@@ -102,7 +102,11 @@ fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
     let offer = sign(&creator, creator_id, &opened, false, owner(heir.identity()));
     let closed = sign(&creator, creator_id, &offer, true, link(false));
     let linked = vec![root.clone(), made, opened, offer, closed.clone()];
-    assert!(check(&linked).is_ok());
+    assert_eq!(
+        check(&linked).unwrap().offered,
+        None,
+        "revoking the link the account came in by leaves the offer standing"
+    );
     let late = sign(&heir, heir_id, &closed, true, owner(heir.identity()));
     assert!(
         check(&[linked, vec![late]].concat()).is_err(),
