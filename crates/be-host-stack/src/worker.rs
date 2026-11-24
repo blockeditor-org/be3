@@ -1992,6 +1992,9 @@ impl Session<'_> {
                     }
                 }
             }
+            if self.served.deferred() == 0 && self.uploads.deferred() == 0 {
+                self.replicas.lane_settled();
+            }
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()
@@ -2019,7 +2022,9 @@ impl Session<'_> {
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .importing;
-                    self.replicas.flushed();
+                    self.replicas.flushed(
+                        self.served.deferred() > 0 || self.uploads.deferred() > 0,
+                    );
                     for done in flushes.drain(..) {
                         let _ = done.send(unsaved);
                     }

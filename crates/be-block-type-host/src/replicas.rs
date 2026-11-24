@@ -1076,6 +1076,9 @@ pub struct Replicas<H: Host> {
     /// replicas reopened under it until it detaches: what a reopened replica is told of the
     /// editor's operations it holds (`acknowledged`).
     forwarded: HashMap<(Uuid, EditorId), u64>,
+    /// A flush answered while commands sent before it still waited their turn (`flushed`):
+    /// until they have run (`lane_settled`), a block clean now may yet owe what they edit.
+    flush_waits: bool,
     answers: UnboundedReceiver<Io>,
     open: HashMap<ReplicaId, Open>,
     blocks: HashMap<Uuid, ReplicaId>,
@@ -1181,6 +1184,7 @@ impl<H: Host> Replicas<H> {
             key_searches: 0,
             #[cfg(test)]
             hold_kept_edits: false,
+            flush_waits: false,
             #[cfg(test)]
             failing_seals: 0,
             #[cfg(test)]
@@ -2864,11 +2868,26 @@ impl<H: Host> Replicas<H> {
     /// A flush answers while open blocks may still hold edits no seal took: one whose edits
     /// wait for their place in the order, or whose module has yet to report on them, owes
     /// nothing it can seal yet; one whose module does not hold the lease leaves its edits to
-    /// the holder's seal, and owes that seal itself if the lease comes to it. Each is asked once
-    /// it reports a seal it owes and can make, rather than at its next quiet spell.
-    pub fn flushed(&mut self) {
+    /// the holder's seal, and owes that seal itself if the lease comes to it; and with commands
+    /// sent before the flush still waiting their turn (`waiting`), any block may be edited yet.
+    /// Each is asked once it owes a seal it can make, rather than at its next quiet spell.
+    pub fn flushed(&mut self, waiting: bool) {
+        self.flush_waits |= waiting;
         for open in self.open.values_mut() {
-            open.flush_owed = !open.status.clean || open.unreported() || !open.status.holder;
+            open.flush_owed =
+                waiting || !open.status.clean || open.unreported() || !open.status.holder;
+        }
+    }
+
+    /// The commands a flush answered ahead of have run (`flushed`): a block they left clean,
+    /// and holding the lease, owes the flush nothing more.
+    pub fn lane_settled(&mut self) {
+        if !std::mem::take(&mut self.flush_waits) {
+            return;
+        }
+        let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
+        for replica in replicas {
+            self.seal_flushed(replica);
         }
     }
 
@@ -2886,7 +2905,7 @@ impl<H: Host> Replicas<H> {
         if !open.flush_owed {
             return;
         }
-        if open.status.clean && !open.unreported() && open.status.holder {
+        if open.status.clean && !open.unreported() && open.status.holder && !self.flush_waits {
             open.flush_owed = false;
             return;
         }
@@ -4768,7 +4787,11 @@ impl<H: Host> Replicas<H> {
         op: OpId,
         outcome: Outcome,
     ) -> bool {
-        self.asked.remove(&(module, op));
+        // A seal asked of it ended: one a flush left owing may be asked again now
+        // (`seal_flushed`), as no status need follow an ask that sealed nothing.
+        if let Some((replica, Asked::Seal(_))) = self.asked.remove(&(module, op)) {
+            self.seal_flushed(replica);
+        }
         if let Some(answer) = self.replies.remove(&(module, op)) {
             // Its asker takes the scope back, unless it stopped waiting.
             if answer.send(outcome).is_err() {
