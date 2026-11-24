@@ -350,6 +350,45 @@ impl<S: ObjectStore> Peer<S> {
         access: Access,
         admits: Admits,
     ) -> Result<InviteCode, ClientError> {
+        let code = InviteCode::generate();
+        self.make_share_link_with(&code, block, access, admits)
+            .await?;
+        Ok(code)
+    }
+
+    /// An invitation to one new person (plans/invitations_without_pending_grants.md): a share
+    /// link on `block` at `access` that admits the first to open it, and a plain contact link,
+    /// both with one code, which is all the person is sent. Opening it makes the contact, then
+    /// opens the share link, as each does alone. Answers the code; the invitation is the
+    /// contact link, `{server}/#contact/{CODE}`.
+    pub async fn make_invitation(
+        &self,
+        me: &be_block_keys::ContactCard,
+        block: Uuid,
+        access: Access,
+    ) -> Result<InviteCode, ClientError> {
+        let code = InviteCode::generate();
+        // The share link first: one the organization's policy refuses leaves no contact link.
+        self.make_share_link_with(&code, block, access, Admits::One)
+            .await?;
+        crate::contacts::make_link_with(
+            &self.connection(),
+            self.keys().identity(),
+            me,
+            None,
+            &code,
+        )
+        .await?;
+        Ok(code)
+    }
+
+    async fn make_share_link_with(
+        &self,
+        code: &InviteCode,
+        block: Uuid,
+        access: Access,
+        admits: Admits,
+    ) -> Result<(), ClientError> {
         let level = level_of(access)?;
         // A Join link carries no key: its opener reads nothing stored, and joins whoever hosts.
         let scope = match access {
@@ -362,8 +401,7 @@ impl<S: ObjectStore> Peer<S> {
                 })
             }
         };
-        let code = InviteCode::generate();
-        let link = link_id(&code);
+        let link = link_id(code);
         // The root of the block's log as this account pinned it: the opener checks by it.
         let handed_root = match self.keys().root_pin(block) {
             crate::keys::RootPin::Pinned(root) => root,
@@ -420,7 +458,7 @@ impl<S: ObjectStore> Peer<S> {
             },
         )
         .await??;
-        Ok(code)
+        Ok(())
     }
 
     /// The share links open on `block`, for a manager of it, each with its code when this

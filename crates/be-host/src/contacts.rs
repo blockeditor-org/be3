@@ -8,7 +8,7 @@ use be_host_stack::invite_link::InviteLink;
 enum Reply {
     Link(Result<String, String>),
     Opened(InviteCode, Result<ContactCard, String>),
-    Accepted(Result<ContactCard, String>),
+    Accepted(InviteCode, Result<ContactCard, String>),
 }
 
 struct Offered {
@@ -40,7 +40,11 @@ impl Default for Contacts {
             error: None,
             connected: None,
             replies: crate::desk().mailbox(|core: &mut crate::HostCore, reply| {
-                core.contacts.replied(reply);
+                // An invitation is a contact link that carries a share link with its code: the
+                // share link opens as a pasted one does, once the contact is made.
+                if let Some(code) = core.contacts.replied(reply) {
+                    core.share_links.follow_invitation(code);
+                }
             }),
         }
     }
@@ -107,9 +111,10 @@ impl Contacts {
             return;
         };
         let post = self.replies.1.clone();
+        let code = offered.code.clone();
         self.busy = true;
         be_host_stack::accept_contact_link(offered.code, move |accepted| {
-            post.send(Reply::Accepted(accepted));
+            post.send(Reply::Accepted(code, accepted));
         });
     }
 
@@ -151,16 +156,22 @@ impl Contacts {
         }
     }
 
-    fn replied(&mut self, reply: Reply) {
+    /// Takes a reply; answers the code of a contact link just accepted, whose share link, if
+    /// it carries one, opens next.
+    fn replied(&mut self, reply: Reply) -> Option<InviteCode> {
         self.busy = false;
         match reply {
             Reply::Link(Ok(link)) => self.link = Some(link),
             Reply::Opened(code, Ok(card)) => self.offered = Some(Offered { code, card }),
-            Reply::Accepted(Ok(card)) => self.connected = Some(described(&card)),
+            Reply::Accepted(code, Ok(card)) => {
+                self.connected = Some(described(&card));
+                return Some(code);
+            }
             Reply::Link(Err(error))
             | Reply::Opened(_, Err(error))
-            | Reply::Accepted(Err(error)) => self.error = Some(error),
+            | Reply::Accepted(_, Err(error)) => self.error = Some(error),
         }
+        None
     }
 
     pub(crate) fn view(&self) -> Option<ContactsView> {
