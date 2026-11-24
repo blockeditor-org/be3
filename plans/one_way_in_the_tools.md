@@ -1,7 +1,7 @@
 # One way each in the tools
 
-Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release and a new pin
-(guides/bootstrap.md).
+Depends on: none. Steps 2 and 3 need a bootstrap release and a new pin (guides/bootstrap.md),
+which only CI's publish-bootstrap job and its pin round make.
 
 ## Steps
 
@@ -14,25 +14,16 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
    library and runs each attempt through run-test, built in the same buck invocation, which
    also hands it the test's environment. It stays local
    (decisions/host_tests_stay_flake_free.md).
-2. **One acceptance of paintings.** be-tool-verify's `Run::paintings` copies a painting from
+2. **One acceptance of paintings** (needs a bootstrap release: CI's publish-bootstrap plus its
+   pin round). be-tool-verify's `Run::paintings` copies a painting from
    `changed/` into `snapshots/` only when `used/NAME`'s hash matches the accepted file, and
    otherwise reports it stale; the bootstrap's `test.rs` `report()` (`./scripts/test --update`)
    copies without that check, so it can overwrite a painting edited after its test compared it.
    One `accept(package, record_dir) -> Accepted { changed, stale }` in a small library both
    use.
-4. **One build-helper protocol.** be-tool-build-helper's `products.rs` (`Product`, `State`,
-   `Status`, `Manifest`, `ManifestFile`, `PLATFORMS`) and be-tool-launcher's `helper.rs`
-   (`Product::name`, `platform()`, `State` with `Refused`/`Unknown`, `Status`, `Manifest`,
-   `File`) each define the wire. A serde-only `be-tool-build-helper-protocol`, as
-   be-tool-paint-review-manifest is for paint review; the launcher's extra states become
-   client-side outcomes.
-6. **One storage client and one copy of the small helpers.** be-tool-local's `deploy.rs`
-   (ureq, a `Checksum` header, `stored_sha256`) and be-tool-build-helper's `host.rs` (curl by
-   content hash) share one blocking client: put if absent by sha256, get, head. be-server's
-   backup keeps its own, and CI's upload step stays separate as the only step that holds the
-   key. About nine sha256-to-hex helpers across the tool crates use the `hex` crate already in
-   Cargo.lock through one function, and be-tool-verify's and be-tool-local's `git()` and
-   `git_bytes()` become one.
-7. **One gate and one disk in servers/.** `gate.html` and `disk.nix` are near copies in
-   servers/api and servers/build (labels, the cookie name and the disk id differ). Each becomes
-   one function in `common.nix` taking those.
+3. **The bootstrap's copies of the small helpers** (needs a bootstrap release: CI's
+   publish-bootstrap plus its pin round). The other tools hash through be-lib-sha256 and run git
+   through be-lib-git; crates/be-tool-bootstrap keeps its own: `download.rs`'s `hex()` and
+   `sha256_file()` and `lock.rs`'s hex of its hasher become be-lib-sha256's `sha256_read` and
+   `finish`, and `verify.rs`'s `git` closure in `changed_paintings` becomes be-lib-git's `git`
+   with `-C`.
