@@ -20,14 +20,6 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
    copies without that check, so it can overwrite a painting edited after its test compared it.
    One `accept(package, record_dir) -> Accepted { changed, stale }` in a small library both
    use.
-3. **One Playwright.** buck/tools/BUCK pins Node Playwright and chrome-headless-shell for the
-   `.mjs` drivers in buck/program/; be-tool-browser-rasterizer instead runs `render.py` on
-   Python Playwright from pip, which needs a venv, `BE3_PLAYWRIGHT_PYTHON` and a step of its own
-   in `.github/workflows/ci.yml`. Port `render.py` to a `render.mjs` on the pinned Node
-   Playwright, and drop the venv, the variable and the CI step. The `playwright()` locator and
-   the static server copied in `page-test.mjs`, `web-test.mjs` and `web-host-test.mjs` move into
-   one module beside `drive-words.mjs`. Accept the browser previews' paintings once if the
-   versions draw them differently.
 4. **One build-helper protocol.** be-tool-build-helper's `products.rs` (`Product`, `State`,
    `Status`, `Manifest`, `ManifestFile`, `PLATFORMS`) and be-tool-launcher's `helper.rs`
    (`Product::name`, `platform()`, `State` with `Refused`/`Unknown`, `Status`, `Manifest`,

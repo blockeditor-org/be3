@@ -1,12 +1,21 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_package")
 load("@root//buck/platforms:profile.bzl", "released")
+load("@root//buck/program:drive.bzl", "browser_program")
 
 cargo_package()
 
 cargo_binary()
 
+# The rasterizer with the Node, Playwright and Chromium it runs render.mjs on, in one directory
+# (browser_program in buck/program/drive.bzl): `./scripts/buck run :browser-rasterizer -- IN OUT`.
+browser_program(
+    name = "browser-rasterizer",
+    program = ":bin",
+    scripts = ["src/render.mjs"],
+)
+
 # What CI downloads to draw the paint previews (the previews part of buck/dev/verify.bxl).
 released(
     name = "release",
-    actual = ":bin",
+    actual = ":browser-rasterizer",
 )

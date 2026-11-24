@@ -8,16 +8,10 @@
 //! animations, and fails on a missing resource or a failed script rather than drawing an
 //! incomplete page.
 //!
-//! It needs a Python with Playwright (`BE3_PLAYWRIGHT_PYTHON`), set up once with:
-//!
-//! ```text
-//! python3 -m venv ~/.cache/be3/browser-rasterizer
-//! ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/be-tool-browser-rasterizer/requirements.txt
-//! ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
-//! export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
-//! ```
-//!
-//! `BE3_CHROME` names a Chrome or Chromium to use instead of Playwright's download, as CI does.
+//! It runs `render.mjs` on Node with Playwright, the same pinned downloads the browser tests run
+//! (buck/tools), which `browser_program` (buck/program/drive.bzl) copies into the directory this
+//! binary is in: `./scripts/buck run //crates/be-tool-browser-rasterizer:browser-rasterizer --
+//! IN OUT`.
 
 use std::io::Write as _;
 use std::process::{Command, Stdio};
@@ -44,14 +38,17 @@ fn run() -> Result<(), String> {
         }
     }
     let bytes = serde_json::to_vec(&snapshot).map_err(|error| error.to_string())?;
-    let python = std::env::var_os("BE3_PLAYWRIGHT_PYTHON").unwrap_or_else(|| "python3".into());
-    let mut child = Command::new(python)
-        .args(["-c", include_str!("render.py")])
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    let directory = exe.parent().ok_or("the rasterizer is in no directory")?;
+    let mut child = Command::new(directory.join("node"))
+        .arg(directory.join("render.mjs"))
+        .env("BE3_CHROME", directory.join("chrome/chrome-headless-shell"))
+        .env("LD_LIBRARY_PATH", directory.join("lib"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("could not start Python: {error}"))?;
+        .map_err(|error| format!("could not start Node in {}: {error}", directory.display()))?;
     let written = child.stdin.take().unwrap().write_all(&bytes);
     let result = child
         .wait_with_output()

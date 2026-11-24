@@ -40,26 +40,13 @@
 // it. The browser is BE3_CHROME when set, else Playwright's Chromium; with
 // neither, it fails rather than skipping.
 
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { createServer } from "node:http";
-import { createRequire } from "node:module";
-import { basename, extname, join, normalize, resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
+import { launch, serve } from "./browser.mjs";
 import { Failure, chord, commands, leadingOptions, shownPlaces, wheelPixels } from "./drive-words.mjs";
 
 const SIZE = { width: 1100, height: 720 };
-const TYPES = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".mjs": "text/javascript",
-    ".json": "application/json",
-    ".wasm": "application/wasm",
-    ".ttf": "font/ttf",
-    ".woff2": "font/woff2",
-    ".css": "text/css",
-};
 
 let bundle;
 let checks = false;
@@ -83,63 +70,10 @@ if (!bundle) {
     process.exit(1);
 }
 
-function playwright() {
-    const require = createRequire(import.meta.url);
-    const places = [undefined];
-    try {
-        places.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
-    } catch {}
-    for (const place of places) {
-        try {
-            return require(place ? join(place, "playwright") : "playwright");
-        } catch {}
-    }
-    console.error(
-        "Playwright is missing: install it with `npm install -g playwright`. The browser tests need it and fail without it.",
-    );
-    process.exit(1);
-}
-
-const { chromium } = playwright();
-const executablePath = process.env.BE3_CHROME || chromium.executablePath();
-if (!executablePath || !existsSync(executablePath)) {
-    console.error(
-        `No browser: ${executablePath || "Playwright names no Chromium"} is not there. Set BE3_CHROME to a Chrome or Chromium, or run \`npx playwright install chromium\`.`,
-    );
-    process.exit(1);
-}
-
-const server = createServer(async (request, response) => {
-    const path = normalize(decodeURIComponent(new URL(request.url, "http://localhost").pathname));
-    const file = join(bundle, path === "/" ? "index.html" : path);
-    if (!file.startsWith(bundle)) {
-        response.writeHead(403).end();
-        return;
-    }
-    try {
-        const body = await readFile(file);
-        response.writeHead(200, {
-            "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Embedder-Policy": "require-corp",
-            "Cache-Control": "no-store",
-        });
-        response.end(body);
-    } catch {
-        response.writeHead(404).end();
-    }
-});
-await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
-const origin = `http://127.0.0.1:${server.address().port}/`;
-
-// Chromium's singleton socket lives in TMPDIR, and buck's is too long a path
-// for a Unix socket.
+const server = await serve(bundle);
+const origin = `${server.origin}/`;
 const temporary = await mkdtemp("/tmp/be3-web-test-");
-const browser = await chromium.launch({
-    executablePath,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    env: { ...process.env, TMPDIR: temporary },
-});
+const browser = await launch({ temporary });
 
 async function open(query, colorScheme = "light") {
     const context = await browser.newContext({ viewport: SIZE, colorScheme });

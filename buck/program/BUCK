@@ -16,21 +16,19 @@ export_file(
 )
 
 # The browser's side of drive: web-drive.mjs for web-dev.sh, web-test.mjs for
-# web_drive_test and web-host-test.mjs for web_host_test (drive.bzl), and the command
-# parsing and sign-in they share.
+# web_drive_test, web-host-test.mjs for web_host_test and page-test.mjs for page_test
+# (drive.bzl), and the command parsing, sign-in, Chromium and static server they share.
 filegroup(
     name = "drive-browser",
     srcs = [
+        "browser.mjs",
         "drive-words.mjs",
+        "page-test.mjs",
         "web-drive.mjs",
         "web-host-test.mjs",
         "web-sign-in.mjs",
         "web-test.mjs",
     ],
-)
-
-export_file(
-    name = "page-test.mjs",
 )
 
 # A web bundle served as it is, with Caddy: what `./scripts/buck run` of a
