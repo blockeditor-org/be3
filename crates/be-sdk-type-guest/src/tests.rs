@@ -1645,9 +1645,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         };
                         loaded
                             .map(be_sdk_type_api::Loaded::of)
-                            .map_err(|error| error.to_string())
+                            .map_err(|error| be_sdk_type_api::LoadError::Unreadable(error.to_string()))
                     }
-                    None => Err("no such commit".to_owned()),
+                    None => Err(be_sdk_type_api::LoadError::Unreadable("no such commit".to_owned())),
                 };
                 self.to(device, |host| reply.send(host, &result));
             }
