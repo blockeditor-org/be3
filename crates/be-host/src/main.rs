@@ -4701,10 +4701,12 @@ fn artifact_of(id: Uuid) -> Option<be_block_content::Artifact> {
 }
 
 fn set_artifact(id: Uuid, artifact: Option<be_block_content::Artifact>) {
-    be_host_stack::define(
-        id,
-        vec![be_block_content::ARTIFACT.definition(artifact.as_ref())],
-    );
+    let mut defined = vec![be_block_content::ARTIFACT.definition(artifact.as_ref())];
+    // An unlinked block keeps what was made, and no longer says what made it.
+    if artifact.is_none() {
+        defined.push(be_block_content::ARTIFACT_MADE.definition(None));
+    }
+    be_host_stack::define(id, defined);
 }
 
 /// What Restore knows of a deleted block: where it was, and what it was deleted from when its

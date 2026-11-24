@@ -2263,6 +2263,11 @@ pub fn close(app_id: &str, instance: EditorInstanceId) {
     mark(app_id);
 }
 
+/// Why the artifact instance could not make its artifact again as its source last changed.
+pub fn artifact_failure(app_id: &str, instance: EditorInstanceId) -> Option<String> {
+    with(app_id, |runtime| runtime.instances.artifact_failure(instance)).flatten()
+}
+
 pub fn artifact_draft(app_id: &str, instance: EditorInstanceId) -> Option<Vec<u8>> {
     with(app_id, |runtime| runtime.instances.artifact_draft(instance)).flatten()
 }

@@ -348,6 +348,8 @@ pub struct EditorView {
 #[derive(Default)]
 struct ArtifactState {
     exporter: String,
+    /// Why the instance could not make the artifact again, last it said.
+    failure: Option<String>,
     data: Vec<u8>,
     description: Option<ArtifactDescription>,
     draft: Option<Vec<u8>>,
@@ -2204,6 +2206,10 @@ impl Instances {
         self.entries.get(&instance)?.artifact.description.clone()
     }
 
+    pub(super) fn artifact_failure(&self, instance: EditorInstanceId) -> Option<String> {
+        self.entries.get(&instance)?.artifact.failure.clone()
+    }
+
     pub(super) fn artifact_draft(&self, instance: EditorInstanceId) -> Option<Vec<u8>> {
         self.entries.get(&instance)?.artifact.draft.clone()
     }
@@ -2500,12 +2506,10 @@ impl Instances {
                         OpeningKind::Export(OpenExport {
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
-                            request: super::export_request(instance).unwrap_or_else(|| {
-                                be_sdk_api::ExportRequest {
-                                    exporter: String::new(),
-                                    settings: Vec::new(),
-                                }
-                            }),
+                            // Asked before it is placed (`AppPicker::export`), and forgotten
+                            // only as it closes.
+                            request: super::export_request(instance)
+                                .expect("an Export dialog instance is told what it runs"),
                         }),
                     ),
                 };
@@ -4181,6 +4185,9 @@ impl Instances {
             }
             ShellMessage::ArtifactDescribed(description) => {
                 entry.artifact.description = Some(description);
+            }
+            ShellMessage::ArtifactFailed(failure) => {
+                entry.artifact.failure = failure;
             }
             ShellMessage::ArtifactEdited(data) => {
                 let changed = entry.artifact.draft.as_ref() != Some(&data);
