@@ -68,8 +68,6 @@ pub(crate) struct CanvasActions {
     pub(crate) back: Action,
     pub(crate) select_all: Action,
     pub(crate) invert: Action,
-    /// The frame's `editor.zoom-fit`, which fits all the canvas holds.
-    pub(crate) fit_all: Option<Action>,
     pub(crate) ignore_touch: Action,
     pub(crate) touch: TouchChoice,
     pub(crate) grid: GridActions,
@@ -592,11 +590,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .register();
     // The frame zooms the canvas (`editor.zoom-*`); its fit is the canvas's fit-all.
     state.editor().fit_with(move || state.request_fit_all());
-    let fit_all = state
-        .editor()
-        .zoom_actions()
-        .get_untracked()
-        .map(|zoom| zoom.fit);
     let touch = TouchChoice::new();
     let ignore_touch = touch.action();
     let grid = grid_actions(state);
@@ -646,7 +639,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         back,
         select_all,
         invert,
-        fit_all,
         ignore_touch,
         touch,
         grid,

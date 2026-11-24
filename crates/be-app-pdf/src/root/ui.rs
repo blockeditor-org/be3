@@ -78,11 +78,17 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
     let back = move || pages.go(pages.page().saturating_sub(1));
     let forward = move || pages.go(pages.page() + 1);
-    let fitting = editor.keep_fitted(move || {
+    editor.keep_fitted(move || {
         let size = shown.get().size();
         (size.x > 0.0 && size.y > 0.0).then(|| Fit::Area(Rect::from_min_size(Pos2::ZERO, size)))
     });
-    let fit = move || fitting.fit();
+    // The frame's fit, as the palette's `editor.zoom-fit` and every zoom bar's.
+    let zoom = editor.zoom_actions();
+    let fit = move || {
+        if let Some(zoom) = zoom.get_untracked() {
+            zoom.fit.run();
+        }
+    };
 
     let read_only = editor.read_only();
     let busy = chooser.busy();

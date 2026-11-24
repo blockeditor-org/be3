@@ -128,7 +128,7 @@ fn profile_menu(actions: &CanvasActions) -> MenuNode {
     )
 }
 
-fn view_menu(actions: &CanvasActions) -> MenuNode {
+fn view_menu(actions: &CanvasActions, fit_all: Option<&Action>) -> MenuNode {
     MenuNode::submenu(
         "canvas.view",
         "View",
@@ -141,12 +141,13 @@ fn view_menu(actions: &CanvasActions) -> MenuNode {
             act(&actions.fit_frame),
         ]
         .into_iter()
-        .chain(actions.fit_all.as_ref().map(act))
+        .chain(fit_all.map(|fit| MenuNode::labelled(fit, "Fit all")))
         .collect(),
     )
 }
 
-pub(crate) fn frame_menu(actions: &CanvasActions) -> Vec<MenuNode> {
+/// The canvas's menu; `fit_all` is the frame's `editor.zoom-fit`, which fits all it holds.
+pub(crate) fn frame_menu(actions: &CanvasActions, fit_all: Option<&Action>) -> Vec<MenuNode> {
     vec![
         MenuNode::submenu(
             "canvas.edit-menu",
@@ -167,7 +168,7 @@ pub(crate) fn frame_menu(actions: &CanvasActions) -> Vec<MenuNode> {
         export_menu(actions),
         arrange_menu(actions),
         tools_menu(actions),
-        view_menu(actions),
+        view_menu(actions, fit_all),
         profile_menu(actions),
     ]
 }
