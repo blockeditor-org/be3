@@ -47,7 +47,9 @@ mod embedded;
 mod own;
 mod windows;
 
-pub use children::{ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, NOT_SHOWN_YET, Spawning, child_screen};
+pub use children::{
+    ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, GIFT_WAIT, NOT_SHOWN_YET, Spawning, child_screen,
+};
 pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants};
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
@@ -60,6 +62,9 @@ use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 pub struct Embedding {
     apps: Vec<Embedded>,
     windows: Windows,
+    /// The layers of apps' screens a press or Escape reached since `take_pressed`: what takes
+    /// back the active children of the editor that shows there (`Children::revoke`).
+    pressed: Vec<LayerId>,
 }
 
 impl Embedding {
@@ -69,6 +74,7 @@ impl Embedding {
         Self {
             apps: Vec::new(),
             windows: Windows::new(compositor),
+            pressed: Vec::new(),
         }
     }
 
@@ -111,7 +117,21 @@ impl Embedding {
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Vec<Delivery>, String> {
         let events = input::decode(events)?;
         let routed = self.windows.route(window, events);
+        for delivery in &routed {
+            if matches!(delivery.surface, Surface::Screen { .. })
+                && presses(&delivery.input)
+                && !self.pressed.contains(&delivery.target)
+            {
+                self.pressed.push(delivery.target);
+            }
+        }
         Ok(self.forward(routed))
+    }
+
+    /// The layers of apps' screens a press, or Escape pressed, reached since the last call, in
+    /// the order they first did.
+    pub fn take_pressed(&mut self) -> Vec<LayerId> {
+        std::mem::take(&mut self.pressed)
     }
 
     /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
@@ -201,6 +221,19 @@ impl Embedding {
             }
         }
         own
+    }
+}
+
+/// Whether `input` is a press, of a pointer, a finger or a pen, or Escape pressed: what takes
+/// the keyboard and the input back from an active child its placer shows.
+fn presses(input: &input::Input) -> bool {
+    use input::{Input, Key, PenPhase, TouchPhase};
+    match input {
+        Input::PointerButton { pressed, .. } => *pressed,
+        Input::Touch { phase, .. } => *phase == TouchPhase::Start,
+        Input::Pen { phase, .. } => matches!(phase, PenPhase::Down(_)),
+        Input::Key(stroke) => stroke.pressed && !stroke.repeat && stroke.key == Some(Key::Escape),
+        _ => false,
     }
 }
 

@@ -26,11 +26,11 @@ pub use frames::{FrameDone, FrameRequest, WindowSize};
 pub use host::{
     AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, ContactCard,
     ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,
-    CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp,
+    CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp, Gift, GiftTo,
     HostStatistics, HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea,
     Leaving, LockState, MemberRole, MemberRow, MembersArea, MemoryMinutes, MemoryPoint, NewAccount,
     Notice, NoticeAction, OpenedEditor, OpenedIn, OrganizationRow, OrganizationsArea, OrganizationsListed,
-    PairingApproval, PairingRequest, PowerAction, ProfileRow, Reauthenticating, RecoveryArea,
+    PairingApproval, PairingRequest, PlacerEvent, PowerAction, ProfileRow, Reauthenticating, RecoveryArea,
     Refusal, RelayedFrames, RoleChange, SavingState, SecretCommand, ServerAccount, SessionKind,
     SessionRow, SessionsArea, SetAside, ShareAccess, ShownBlock, ShownChild, ShareLinksArea, SharePreview, ShownNotices,
     SigningIn, StatisticRow, SyncState, UnlockArea, UnsentEdit,

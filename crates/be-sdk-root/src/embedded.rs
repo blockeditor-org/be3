@@ -321,6 +321,11 @@ impl Embedded {
         }
     }
 
+    /// The id of the layer that shows its screen `screen` (`layer`), painted or not.
+    pub fn layer_id(&self, screen: ScreenId) -> LayerId {
+        screen_layer(self.instance, screen)
+    }
+
     /// The children its editors' views placed, each view's as its last layout applied said:
     /// what a root shows of them is its own (`Children`).
     pub fn placed(&self) -> Vec<ChildPlacements> {

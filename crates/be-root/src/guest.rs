@@ -19,7 +19,7 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
+    AccountRow, AgentRow, Gift, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
     CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
     HostedBlock, InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes,
     NewAccount, Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction,
@@ -161,6 +161,12 @@ struct Root {
     session_rounds: Rc<Cell<u64>>,
     /// Whether the session's notice asked to start its app again, done with the next frame.
     session_reload: Rc<Cell<bool>>,
+    /// The gifts its host's editors asked for, until a frame gives them to the children their
+    /// editors place (`give_keyboard`).
+    gifts: Rc<RefCell<Vec<Gift>>>,
+    /// The layer the keyboard was in when the editors placing children last heard where it went
+    /// (`follow_focus`).
+    keyboard_at: Rc<Cell<Option<LayerId>>>,
     /// The notice over the session's editor (`SessionNotice`), which beui draws, made on its
     /// first frame.
     session_notice: Rc<RefCell<Option<BeuiSurface>>>,
@@ -379,6 +385,8 @@ impl Root {
             session: Rc::default(),
             session_rounds: Rc::default(),
             session_reload: Rc::default(),
+            gifts: Rc::default(),
+            keyboard_at: Rc::default(),
             session_notice: Rc::default(),
             session_notice_shown: Rc::default(),
             waker,
@@ -540,6 +548,7 @@ impl Root {
         be_wasm_ops::guest::spawn(self.clone().hear_saving());
         be_wasm_ops::guest::spawn(self.clone().hear_displays());
         be_wasm_ops::guest::spawn(self.clone().hear_core());
+        be_wasm_ops::guest::spawn(self.clone().hear_gifts());
         Ok(())
     }
 
@@ -1661,9 +1670,17 @@ impl frames::Guest for Root {
                     layers,
                 }],
             };
+            let drawn_layers: Vec<LayerId> = list
+                .windows
+                .iter()
+                .flat_map(|window| window.layers.iter().map(|layer| layer.id))
+                .collect();
+            let drawn = root.embedding.borrow_mut().drew(list);
+            // A gift to a child that now shows takes the keyboard there, unless the root's own
+            // takes it below.
+            let given = root.give_keyboard(&drawn_layers, time);
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
-            let drawn = embedding.drew(list);
             // The lock screen, or else the dialog, or else the accounts, drawn for the first time
             // takes the focus.
             let focus = match (
@@ -1697,7 +1714,9 @@ impl frames::Guest for Root {
             });
             drop(embedding);
             root.heard(&drawn.own);
+            root.heard(&given);
             root.heard(&focus);
+            root.follow_focus();
             let embedding = root.embedding.borrow();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
@@ -1768,6 +1787,8 @@ impl input::Guest for Root {
             .input(window, &events)
             .unwrap_or_default();
         self.heard(&own);
+        self.revoke_children();
+        self.follow_focus();
         // What it asked of the dialog is done with the next frame, which this asks for.
         if self.asked.get().is_some() {
             self.waker.wake();

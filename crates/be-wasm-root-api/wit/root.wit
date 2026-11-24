@@ -1151,6 +1151,45 @@ interface host {
     /// the manifest of the app shown in it says), until the next call for
     /// that view; a child left out it no longer reports.
     show-children: async func(instance: u64, editor: u64, view: u64, children: list<shown-child>);
+
+    /// What an editor asks the keyboard be given to (the app protocol's
+    /// `focus-child` and `focus-block-child`).
+    variant gift-to {
+        /// A child it placed, by its `child-id`.
+        child(u64),
+        /// The child that shows this block once it places one.
+        block(block-id),
+    }
+
+    /// An editor the host opened asking the root to give the keyboard to one
+    /// of its children.
+    record gift {
+        /// The op of the sandbox `instance` resource the editor's app runs in.
+        instance: u64,
+        /// The editor, as `open-editor` named it.
+        editor: u64,
+        to: gift-to,
+    }
+
+    /// The gifts the editors the host opened asked for since the last call,
+    /// in order. Answered once there are some. The root gives the keyboard
+    /// to the child's view once it shows, if the keyboard is still within
+    /// the editor's views and their children, and says a child no longer
+    /// placed was missed (`tell-placer`).
+    gifts: async func() -> list<gift>;
+
+    /// What happened to a child an editor placed, for the editor to hear.
+    variant placer-event {
+        /// The keyboard went into the child, by its `child-id`: given, or
+        /// pressed into it or into a child of it.
+        child-focused(u64),
+        /// A gift to the child found it no longer placed.
+        gift-missed(u64),
+    }
+
+    /// Tells the editor `editor`, opened in the root's `instance`, `event`
+    /// (the app protocol's `editor-event`s `child-focused` and `gift-missed`).
+    tell-placer: async func(instance: u64, editor: u64, event: placer-event);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

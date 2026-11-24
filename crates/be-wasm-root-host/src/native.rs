@@ -295,6 +295,20 @@ impl Root {
         self.core.take_shown_children()
     }
 
+    /// Hands the root gifts the host's editors asked for (`host.gifts`). If the root waited for
+    /// them, it is stepped for them.
+    pub fn give(&mut self, gifts: Vec<be_wasm_root_api::Gift>) {
+        if self.core.give(gifts) {
+            self.bell.ring();
+        }
+    }
+
+    /// What the root told the host's editors of their children since the last call
+    /// (`host.tell-placer`): by the root's instance and the editor, in order.
+    pub fn take_placer_events(&mut self) -> Vec<(u64, u64, be_wasm_root_api::PlacerEvent)> {
+        self.core.take_placer_events()
+    }
+
     /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
     /// host asks of it: the root hears it stopped, and is stepped for that.
     pub fn stop_instance(&mut self, instance: u64, why: &str) {

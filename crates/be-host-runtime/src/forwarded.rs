@@ -8,7 +8,13 @@
 
 use std::sync::Arc;
 
-use be_sdk_api::{EditorInstanceId, ViewId};
+use be_sdk_api::{
+    ChildId, EditorInstanceId, ViewId,
+    app::EditorEvent,
+    embed::shell::Call as ShellCall,
+    ops::OpError,
+    shell_types::ShellMessage,
+};
 use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
 
@@ -24,6 +30,18 @@ use be_host_base::host;
 pub struct Forwarded {
     wire: Wire,
     instances: Instances,
+    /// The keyboard its editors asked be given to their children, in order, until the host
+    /// hands the root them (`take_gifts`).
+    gifts: Vec<(EditorInstanceId, GiftAsked)>,
+}
+
+/// What an editor a root embeds asked the keyboard be given to (`focus-child`,
+/// `focus-block-child`), which the root, placing its children, gives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GiftAsked {
+    Child(ChildId),
+    /// The child that shows this block once the editor places one.
+    Block(Uuid),
 }
 
 impl Forwarded {
@@ -40,6 +58,7 @@ impl Forwarded {
                 .offering(super::published::offered)
                 .relayed(),
             instances,
+            gifts: Vec::new(),
         }
     }
 
@@ -70,6 +89,17 @@ impl Forwarded {
             .instances
             .set_forwarded_statuses(instance, view, statuses);
         self.wire.send(told);
+    }
+
+    /// The keyboard its editors asked be given to their children since the last call, in order.
+    pub fn take_gifts(&mut self) -> Vec<(EditorInstanceId, GiftAsked)> {
+        std::mem::take(&mut self.gifts)
+    }
+
+    /// Tells the editor `instance` what its root saw of a child it placed (`child-focused`,
+    /// `gift-missed`), sent with the next `step`.
+    pub fn tell_placer(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+        self.wire.send(vec![Outbound::Event(instance, event)]);
     }
 
     /// Takes the frames the root forwarded, in order, and serves what they ask: the frames that
@@ -141,6 +171,7 @@ impl Forwarded {
             Heard::Service(service) => instances.serve(service),
             Heard::Network(instance, call) => instances.network(instance, call),
             Heard::Withdrawn(op) => instances.withdraw(op),
+            Heard::Shell(call) => self.shell(call),
             // The root runs the app: nothing else of it reaches here, since the root forwards only
             // the editors' ops and those under them.
             Heard::Hello(_)
@@ -151,9 +182,40 @@ impl Forwarded {
             | Heard::Presented(_)
             | Heard::ShutDown
             | Heard::Unanswered(_)
-            | Heard::Shell(_)
             | Heard::Answer(..)
             | Heard::Paintings(_) => {}
+        }
+    }
+}
+
+impl Forwarded {
+    /// Answers what an editor tells the shell around it, and keeps the keyboard it asks be given
+    /// to a child for the root (`take_gifts`). The rest of what it tells, and every other shell
+    /// call, the root's views do not take yet (plans/host_as_platform_adapter.md, 4g7b3d and
+    /// 4g7c to 4g7e): told, it is dropped; asked, it is refused.
+    fn shell(&mut self, call: ShellCall) {
+        let ShellCall::Tell {
+            instance,
+            messages,
+            reply,
+        } = call
+        else {
+            let (op, outcome) = call.refuse(OpError::Unsupported);
+            self.wire.answer(op, outcome);
+            return;
+        };
+        let (op, outcome) = reply.answer(&());
+        self.wire.answer(op, outcome);
+        for message in messages {
+            match message {
+                ShellMessage::FocusChild(child) => {
+                    self.gifts.push((instance, GiftAsked::Child(child)));
+                }
+                ShellMessage::FocusBlockChild(block) => self
+                    .gifts
+                    .push((instance, GiftAsked::Block(Uuid::from_bytes(block)))),
+                _ => {}
+            }
         }
     }
 }

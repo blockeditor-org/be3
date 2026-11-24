@@ -17,7 +17,7 @@ mod docks;
 mod events;
 mod fonts;
 mod forwarded;
-pub use forwarded::Forwarded;
+pub use forwarded::{Forwarded, GiftAsked};
 
 pub use fonts::bundled as bundled_fonts;
 mod headless;

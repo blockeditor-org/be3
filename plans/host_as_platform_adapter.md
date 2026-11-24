@@ -1616,9 +1616,28 @@ Each step lands on its own.
              its editor's children, waits for those still opening before it settles, and
              paints their screens. Tests: be-sdk-root's `children::tests`; host test
              `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`.
-           - 4g7b3b. The keyboard: `focus-child` and the gifts of keys held for a child
-             (be-host-runtime's `gift`), promoting an active child and taking it back (a press
-             outside, Escape, the press replayed), and `on_focus` to the editors above.
+           - 4g7b3b. The keyboard. In parts:
+             - 4g7b3b1 (built). be-host-runtime's `Forwarded` answers an editor's shell
+               calls (it dropped them unanswered), refusing all but `tell`, and keeps its
+               `focus-child` and `focus-block-child` (`take_gifts`, `GiftAsked`); be-host hands
+               them to the root through `be3:root`'s `host.gifts`. The root's `Children` keeps
+               each editor's latest gift (`ask`) and gives it once the child's layer is drawn
+               (`give`): only while the keyboard is within the editor's views and their
+               children, for at most `GIFT_WAIT` (3 s), and a child no longer placed is
+               `gift-missed` (`host.tell-placer`, which `Forwarded::tell_placer` sends as the
+               editor's event). Each time the keyboard goes into a child, given or pressed into,
+               every placer above it hears `child-focused`, from the innermost out
+               (`Children::focused_into`). A press or Escape that reaches a placer's view
+               (`Embedding::take_pressed`) takes back its active children (`Children::revoke`),
+               as be-host's `revoke_active` does: they turn passive, and their placers hear
+               `active` false until they place them other than active. be-sdk-root test
+               `a_press_or_escape_takes_back_an_active_child_and_a_release_does_not`; host test
+               `be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it`.
+             - 4g7b3b2. The keys held for a gift until the child is ready, and typed into a
+               view right after a press until its app answered it (be-host-runtime's `gift`,
+               `GiftTo::Answer`), which the root would hold and replay; the press that promotes
+               a child replayed in it (`app_view/handoff.rs`); and the rest an editor tells its
+               shell (its focus, titles, menus, dialogs, drags), which `Forwarded` drops.
            - 4g7b3c. A child that takes its placer's frame, and docks that join across apps
              (a child placed in a dock tab asked `docked`, its bars spliced; be-sdk-app-host's
              `Docks`).
