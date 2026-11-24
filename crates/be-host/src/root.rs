@@ -56,7 +56,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use std::collections::HashMap;
+
 use be_host_base::notices;
+use be_host_runtime::{EditorBlock, Forwarded, InstanceRole};
+use be_wasm_root_api::{EditorApp, OpenedEditor};
+use be_wasm_root_host::EditorOpening;
+use uuid::Uuid;
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
@@ -136,6 +142,8 @@ struct RootShell {
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
     /// The memory rows the root was last handed while it watches the host's statistics.
     memory: Option<MemoryRows>,
+    /// The editors be-host serves the root's apps, by the root's instance each runs in.
+    editors: HashMap<u64, Forwarded>,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -181,6 +189,7 @@ impl RootShell {
             notices: None,
             pasted: Rc::default(),
             memory: None,
+            editors: HashMap::new(),
         }
     }
 
@@ -264,6 +273,7 @@ impl RootShell {
             Err(why) => return self.stopped(&why),
         };
         clipboard(context, root, &self.pasted);
+        serve_editors(&self.core, root, &mut self.editors);
         refuse_unserved(root);
         let answers = root.take_answers();
         if !answers.is_empty() {
@@ -624,10 +634,7 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 ///   is not locked, so none reaches here.
 /// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
 /// - The block stack: it shows nothing and waits for nothing, so a command changes nothing,
-///   and a secret asked for is answered with none. It opens no block's editor either
-///   (`host.editor-of` and `host.open-editor` say why), so no app the root spawns has an editor
-///   whose calls the root forwards; be-host-runtime's `Forwarded` serves them once the stack
-///   runs here (plans/host_as_platform_adapter.md, 4g7b2).
+///   and a secret asked for is answered with none.
 fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
@@ -636,17 +643,83 @@ fn refuse_unserved(root: &mut Root) {
     for (id, _) in root.take_secret_requests() {
         root.answer_secret(id, None);
     }
-    for (id, _) in root.take_editor_asks() {
-        root.answer_editor(id, Err(NO_BLOCK_STACK.to_owned()));
-    }
-    for opening in root.take_openings() {
-        root.answer_opening(opening.id, Err(NO_BLOCK_STACK.to_owned()));
-    }
-    root.take_forwarded();
 }
 
-/// Why be-host opens no block's editor for its root yet.
-const NO_BLOCK_STACK: &str = "be-host runs no block stack under --root yet";
+/// Serves the root the editors of the blocks it shows (plans/host_as_platform_adapter.md,
+/// 4g7b1): names the app that edits each block it asks of (`host.editor-of`), opens the
+/// editor in the app it spawned for it (`host.open-editor`) with be-host-runtime's
+/// `Forwarded`, one for each of the root's instances, and serves what each app's editors ask
+/// through the root (`host.forward`, `host.forwarded`) as be-host serves its own apps. An
+/// instance the root let go of, or that stopped, it stops serving.
+fn serve_editors(core: &crate::HostCore, root: &mut Root, served: &mut HashMap<u64, Forwarded>) {
+    for (id, block) in root.take_editor_asks() {
+        let editor = core
+            .editor_of(Uuid::from_bytes(block))
+            .map(|(app, _, _)| EditorApp {
+                app: app.identity.id.clone(),
+                module: app.entry_point.clone(),
+            });
+        root.answer_editor(id, editor);
+    }
+    for opening in root.take_openings() {
+        let opened = open_editor(core, &opening, served);
+        root.answer_opening(opening.id, opened);
+    }
+    for (instance, frames) in root.take_forwarded() {
+        let Some(forwarded) = served.get_mut(&instance) else {
+            continue;
+        };
+        match forwarded.receive(frames) {
+            Ok(frames) => root.relay(instance, frames),
+            Err(why) => {
+                eprintln!("be-host: the root's app {instance} broke the app protocol: {why}");
+                served.remove(&instance);
+            }
+        }
+    }
+    served.retain(|instance, _| root.app_of(*instance).is_some());
+    for (instance, forwarded) in served.iter_mut() {
+        root.relay(*instance, forwarded.step());
+    }
+}
+
+/// Opens the editor `opening` asks for in the app the root's instance runs, which must be the
+/// one that edits the block.
+fn open_editor(
+    core: &crate::HostCore,
+    opening: &EditorOpening,
+    served: &mut HashMap<u64, Forwarded>,
+) -> Result<OpenedEditor, String> {
+    let (app, editor, opened) = core.editor_of(Uuid::from_bytes(opening.block))?;
+    if opening.app.as_deref() != Some(app.identity.id.as_str()) {
+        return Err(format!(
+            "{} edits the block, which the root's instance does not run",
+            app.identity.id
+        ));
+    }
+    let instance = crate::editors::app::next_instance();
+    let role = InstanceRole::Editor(
+        editor,
+        EditorBlock {
+            id: opened.id,
+            block_type: opened.block_type,
+            view_block: opened.view_block,
+        },
+    );
+    let frames = served
+        .entry(opening.instance)
+        .or_insert_with(|| Forwarded::new(&app))
+        .open(
+            instance,
+            role,
+            core.client_id,
+            core.registry.app_block_types(),
+        );
+    Ok(OpenedEditor {
+        editor: instance.0,
+        frames,
+    })
+}
 
 /// The host's notices as `be3:root` carries them, oldest first.
 fn shown_notices() -> Vec<Notice> {
