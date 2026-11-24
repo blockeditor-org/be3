@@ -5,7 +5,7 @@ use be_sdk_api::{ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements
 fn a_click_outside_a_frame_child_hands_the_frame_back() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     instances.set_children(ChildPlacements {
         instance: INSTANCE,
         view: REGION,

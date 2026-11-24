@@ -4,7 +4,7 @@ use super::*;
 fn a_focused_screen_hears_it_has_the_keyboard_again_after_its_app_restarts() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     let (messages, _) = instances.forward(
         INSTANCE,
         REGION,
@@ -19,9 +19,8 @@ fn a_focused_screen_hears_it_has_the_keyboard_again_after_its_app_restarts() {
 
     restart(&mut instances);
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
     assert_eq!(
-        input_events(&instances.take_announced_input()),
+        input_events(&instances.announce(screens)),
         [Input::Focus(true)],
         "the restarted app's runner starts its views without the keyboard, so the focused one \
          hears it has it before any key"

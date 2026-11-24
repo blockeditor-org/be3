@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced() {
+fn input_for_a_screen_not_announced_yet_is_dropped_but_its_keyboard_is_told() {
     let mut instances = placed();
     let pressed = beui::Forwarded::Pointer {
         event: beui::PointerEvent {
@@ -20,45 +20,40 @@ fn input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced() {
         },
         over: None,
     };
+    let typed = |text: &str| beui::Forwarded::Input(beui::Event::Text(text.to_owned()));
     let (messages, _) = instances.forward(
         INSTANCE,
         REGION,
-        &forwarded(vec![beui::Forwarded::Focus(true), pressed], None, true),
+        &forwarded(
+            vec![beui::Forwarded::Focus(true), pressed, typed("a")],
+            None,
+            true,
+        ),
         &|_, _| beui::Aim::Own,
         &|_| None,
     );
     assert!(
         instances.gate(messages).is_empty(),
-        "a screen the app does not have yet hears nothing yet"
+        "a screen the app does not have yet hears nothing"
     );
-    assert!(instances.take_announced_input().is_empty());
 
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
-    let held = instances.take_announced_input();
-    let heard = input_events(&held);
+    let announced = instances.announce(screens);
     assert_eq!(
-        heard.first(),
-        Some(&Input::Focus(true)),
-        "once the screen is announced it hears the focus it missed first, got {heard:?}"
-    );
-    assert!(
-        heard
-            .iter()
-            .any(|input| matches!(input, Input::PointerButton { pressed: true, .. })),
-        "and then the press, rather than losing it, got {heard:?}"
+        input_events(&announced),
+        [Input::Focus(true)],
+        "once announced the screen hears it has the keyboard, and not the press or keys it missed"
     );
 
-    let typed = beui::Forwarded::Input(beui::Event::Text("a".to_owned()));
     let (messages, _) = instances.forward(
         INSTANCE,
         REGION,
-        &forwarded(vec![typed], None, true),
+        &forwarded(vec![typed("b")], None, true),
         &|_, _| beui::Aim::Own,
         &|_| None,
     );
     assert_eq!(
         input_events(&instances.gate(messages)),
-        [Input::Text("a".to_owned())]
+        [Input::Text("b".to_owned())]
     );
 }

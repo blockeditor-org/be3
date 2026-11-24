@@ -5,7 +5,7 @@ use be_sdk_api::{Key, Modifiers};
 fn a_key_intercepted_for_an_app_reaches_it_with_its_modifiers() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     let alt = beui::Modifiers::ALT;
 
     let press = beui::KeyPress {

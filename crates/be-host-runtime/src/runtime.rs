@@ -491,8 +491,7 @@ impl Runtime {
         messages.extend(next.opened);
         if drawing && self.run.screens != next.screens {
             self.run.screens.clone_from(&next.screens);
-            messages.push(AppCall::Screens(self.instances.screen_set(next.screens)).into());
-            messages.extend(self.instances.take_announced_input());
+            messages.extend(self.instances.announce(next.screens));
         }
         messages.extend(self.instances.pending());
         messages.extend(

@@ -40,8 +40,6 @@ FIXUPS = {
     # build.
     "accesskit_android": {"rustc_flags": ["-Coverflow-checks=off"]},
     "alsa-sys": _PKG_CONFIG,
-    "atk-sys": _PKG_CONFIG,
-    "cairo-sys-rs": _PKG_CONFIG,
     # The build script runs bindgen over the SDK's CoreAudio headers. It asks
     # xcrun where the SDK is unless it is told, and bindgen loads libclang from
     # the path it is given; both come from buck/tools. libclang does not find
@@ -54,18 +52,10 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
-    "gdk-pixbuf-sys": _PKG_CONFIG,
-    "gdk-sys": _PKG_CONFIG,
-    "gdkx11-sys": _PKG_CONFIG,
     # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
     # type-module library seeds a generator from its host and is getrandom's
     # custom backend (crates/be-sdk-type-guest/src/entropy.rs).
     "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
-    "gio-sys": _PKG_CONFIG,
-    "glib-sys": _PKG_CONFIG,
-    "gobject-sys": _PKG_CONFIG,
-    "gtk-sys": _PKG_CONFIG,
-    "javascriptcore-rs-sys": _PKG_CONFIG,
     # The build script lists the WebGL extensions for the library to include,
     # by absolute path into the directory it ran in. That directory is the
     # build script's own action's and is gone by the time the library
@@ -90,7 +80,6 @@ FIXUPS = {
     # The build script compiles Oboe against the NDK. PROFILE only names a
     # prebuilt it would otherwise fetch.
     "oboe-sys": {"build_script_env": _ANDROID_API | {"PROFILE": "debug"}},
-    "pango-sys": _PKG_CONFIG,
     # The build script asks pkg-config for gbm and compiles a probe against its
     # headers, with warnings as errors, to learn which of gbm's newer functions
     # the compositor can call. The compiler it is given carries the link's
@@ -106,7 +95,6 @@ FIXUPS = {
         },
         "overlay": {"src/xwayland/xwm/mod.rs": "overlays/smithay/xwm.rs"},
     },
-    "soup3-sys": _PKG_CONFIG,
     # V8, prebuilt and pinned per platform in third-party/v8, where cargo's
     # build script downloads it or builds it from source.
     "v8": {
@@ -122,7 +110,6 @@ FIXUPS = {
             "src/binding.rs": "overlays/v8/src/binding.rs",
         },
     },
-    "webkit2gtk-sys": _PKG_CONFIG,
     # What the app GPU API needs of wgpu 29. It cannot finish a custom backend's
     # render bundle encoder: `finish` takes the encoder by value, which a `dyn`
     # encoder cannot be called with, and the custom arm is `unimplemented!()`.

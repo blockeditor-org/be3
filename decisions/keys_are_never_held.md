@@ -22,16 +22,18 @@ children they show, or a keyboard-taking view is open, when the commit carries i
 ask also ends when its child is no longer placed, its app fails, or the editor's app restarts
 (the new run counts its asks from 1 again).
 
-One queue stays for now: be-host-runtime's `Instances::unannounced_input` keeps the input for
-a screen the host asked a running app for but the app has not announced yet (`gate`,
-`take_announced_input`), and hands it over once the app announces it. It waits for nothing an
-editor decides (no claim, no ask, no timer), only for the app to answer the host's own ask for
-the screen, and input for a screen no longer asked for is dropped, so it is bounded by the
-screen's life. It differs from the rule for an app that is not running (be-host-runtime's
-`forward_view`, which keeps only `Input::Focus`), and in practice it does carry keys typed while
-a child's editor opens in an app already running: keys typed right after "Add notes" reach the
-notes once the text app announces their screen. Whether that counts as holding, and so whether
-it keeps only `Input::Focus` too, is with the user.
+No queue is left. Input for a screen the host asked a running app for but has not announced
+to it yet is dropped (be-host-runtime's `Instances::gate`), as for an app that is not running
+(`forward_view`, which keeps only `Input::Focus`): the user decided that a screen not
+announced yet gets nothing special. Where the keyboard is stays state: when the host announces
+a screen that has the keyboard, it tells the app so (`Instances::announce`), which is also how
+a restarted app's focused view hears it has the keyboard. Keys typed right after "Add notes",
+before the text app has the notes' screen, reach nothing; typing once the notes are up does.
+
+Under a root, an Escape the active child does not handle does not take the keyboard back to
+its placer either: only a press outside the child or an Escape in the placer's own view takes
+the child back (be-sdk-root's `Children::revoke`, plans/host_as_platform_adapter.md), and
+the user decided it stays so.
 
 ## Why
 
@@ -56,6 +58,11 @@ since replaced, which a call had to be answered for (`gift-missed`).
   It needed a stage machine, a held-keys queue per view, keys owed between views as content
   moved, and a miss answer, and still made what a person typed depend on how slow an editor
   was.
+- **A queue for screens not announced yet** (be-host-runtime's `Instances::unannounced_input`,
+  `take_announced_input`, removed): it kept the input for a screen the app had not been told
+  of and handed it over once it was, so keys typed while a child's editor opened in a running
+  app reached it. It made that case unlike an app that is not running, and the user chose to
+  drop the input instead.
 - **A `bool` in the placement** ("should have the keyboard"): it cannot say that the dock gave
   the same tab the keyboard again, and two children asking in one commit cannot say which asked
   last. The serial says both.

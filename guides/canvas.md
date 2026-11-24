@@ -171,8 +171,10 @@ reads; edits read `stored`), with lines bound to it following.
 `ImageExport` settings (scale, background, and the items: what was selected,
 a selected frame, clipped, or none for the whole canvas). Each reads the
 canvas through a `CanvasReader`, the entities and the graph's labels without
-the document a `CanvasState` needs, and draws in the dark theme's colours
-whoever exports. It reads the same sketches as the canvas. SVG writes paths, text as `<text>` with a
+the document a `CanvasState` needs, and draws in the colours of the theme the
+app shows (`use_theme`), so an export looks as the canvas does and an artifact
+is made again when the theme changes. There is no direct Copy as PNG or SVG:
+the Export dialog's clipboard destination does that. It reads the same sketches as the canvas. SVG writes paths, text as `<text>` with a
 `<tspan>` per run, and raster layers as pixelated PNG images. PNG paints into
 an offscreen beui context and rasterizes on the CPU
 (`beui_paint_format::rasterize`), since an app cannot read pixels back from

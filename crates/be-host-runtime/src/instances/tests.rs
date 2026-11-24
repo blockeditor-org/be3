@@ -158,7 +158,7 @@ fn host_call<W: be_sdk_api::Watched, A: serde::Serialize>(
 fn configure(instances: &mut Instances) -> Option<AppCall> {
     let next = instances.next_screens(PASS);
     let mut messages = next.opened;
-    messages.push(AppCall::Screens(instances.screen_set(next.screens)).into());
+    messages.extend(instances.announce(next.screens));
     instances.configure(&messages)
 }
 
@@ -628,7 +628,7 @@ mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
 mod closing_an_editor_drops_the_tentative_gesture_it_left_open;
 mod host_calls_are_taken_by_kind_in_the_order_they_came;
-mod input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced;
+mod input_for_a_screen_not_announced_yet_is_dropped_but_its_keyboard_is_told;
 mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
 mod modifiers_let_go_in_one_view_are_held_again_in_another;

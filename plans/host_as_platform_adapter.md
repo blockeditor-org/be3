@@ -1637,7 +1637,10 @@ Each step lands on its own.
              `child-focused` (be-root's `follow_focus`, `Children::focused_into`, `be3:root`'s
              `host.tell-placer`, `Forwarded::tell_placer`). A press anywhere but in an active
              child, or Escape in its placer's view, takes it back (`Routed::pressed`,
-             `Children::revoke`), and its placer hears it is no longer active. `Forwarded`
+             `Children::revoke`), and its placer hears it is no longer active. An Escape that
+             reaches the active child and that it does not handle takes nothing back: the
+             keyboard stays in the child (the user's decision; decisions/keys_are_never_held.md),
+             and nothing in the root passes an unhandled key on to the placer. `Forwarded`
              answers what an editor tells the shell and refuses what it asks (the root's views
              take none of it yet). Tests: be-sdk-root's `children::tests` and `tests`; host test
              `be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it`. Left for later: an
@@ -1831,7 +1834,11 @@ Each step lands on its own.
                carried yet.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
-             then.
+             then. A web view stays as under be-host until real web views exist: its editor's
+             `web-view-new` reaches be-host (the root forwards it), which answers it failed
+             (`drive_web_views`), and the editor shows that message in the child's place
+             (be-app-browser-tab's `a_refused_web_view_shows_why_in_its_place`); no host has a
+             web view backend.
              - Built: dialogs, a picker, a rename form and an Export dialog. `be3:root`'s
                `editor-of` and `open-editor` take a `shown` (a block, or a dialog as its
                encoded `ChildContent`); be-host opens a dialog in the editor that runs it, as
