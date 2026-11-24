@@ -128,7 +128,11 @@ impl Player {
             .block_on(async {
                 tokio::time::timeout(
                     PATIENCE,
-                    connection.join(organization, block, be_block_store::Hash::from_bytes([0; 32])),
+                    connection.join(
+                        organization,
+                        block,
+                        be_block_store::Hash::from_bytes([0; 32]),
+                    ),
                 )
                 .await
             })
@@ -182,10 +186,7 @@ impl Player {
             .finish(&answer)
             .unwrap_or_else(|error| panic!("{}'s handshake failed: {error:?}", self.name));
         self.runtime
-            .block_on(
-                peer.connection()
-                    .send_host(block, None, channel.seal(said)),
-            )
+            .block_on(peer.connection().send_host(block, None, channel.seal(said)))
             .unwrap_or_else(|error| panic!("{} could not speak: {error:?}", self.name));
         channel
     }

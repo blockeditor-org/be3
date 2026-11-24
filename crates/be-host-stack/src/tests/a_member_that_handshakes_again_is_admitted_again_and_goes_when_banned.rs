@@ -105,13 +105,14 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
         account: viewer.account().into_bytes(),
         level: be_sdk_api::AccessLevel::View,
     });
-    take_member_events_until("admitted the viewer", block, |events| events.contains(&joined));
+    take_member_events_until("admitted the viewer", block, |events| {
+        events.contains(&joined)
+    });
 
     let _second = handshake(&mut events, host);
-    let heard =
-        take_member_events_until("admitted the viewer again", block, |events| {
-            events.contains(&joined)
-        });
+    let heard = take_member_events_until("admitted the viewer again", block, |events| {
+        events.contains(&joined)
+    });
     assert_eq!(
         heard.first(),
         Some(&MemberEvent::Left(member)),

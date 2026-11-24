@@ -31,9 +31,10 @@ fn who_hosts_a_block_this_device_left_is_not_taken() {
         account: Uuid::new_v4(),
     };
     hear_host(left, Some(another), false);
-    wait_until("heard another device hosts the block while it is open", |shared| {
-        shared.session_hosts.get(&left) == Some(&Some(false))
-    });
+    wait_until(
+        "heard another device hosts the block while it is open",
+        |shared| shared.session_hosts.get(&left) == Some(&Some(false)),
+    );
 
     close(left);
     wait_until("left its session", |shared| {

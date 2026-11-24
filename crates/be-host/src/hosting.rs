@@ -111,7 +111,11 @@ impl Hosts {
                 }
             })
             .collect();
-        kept.sort_by(|left, right| left.name.cmp(&right.name).then(left.block.cmp(&right.block)));
+        kept.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then(left.block.cmp(&right.block))
+        });
         kept
     }
 

@@ -153,7 +153,6 @@ fn HostMenu(
         </Show>
         <ForEach value={hosting}>|kept: KeptHost|
             <MenuItem
-                // Which it is shows in its id too, as drive reads no detail.
                 @test_id={match kept.now {
                     true => format!("host.menu.hosting-now.{}", kept.block),
                     false => format!("host.menu.hosting.{}", kept.block),
