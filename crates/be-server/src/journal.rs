@@ -17,8 +17,12 @@ use crate::ServerError;
 /// (`JOURNAL_BYTES` in be-sdk-type-guest), so this only stops a session nobody seals.
 pub const MAX_JOURNAL_BYTES: usize = 4 * 1024 * 1024;
 
-/// The session state a base holds at most.
+/// The session state a base holds at most: a larger one goes by a part it names.
 pub const MAX_BASE_STATE_BYTES: usize = 4 * 1024 * 1024;
+
+/// The objects a base names at most (`journal-base.parts`): a part of 64 MiB, the largest an
+/// entry names (`LARGEST_PART` in be-sdk-type-guest), in 64 KiB chunks, and its nodes.
+pub const MAX_BASE_PARTS: usize = 2048;
 
 struct Head {
     tag: Hash,
@@ -62,6 +66,7 @@ fn head(
                         commit: commit.map(|commit| parse_commit(&commit)).transpose()?,
                         sequence: base_sequence as u64,
                         state,
+                        parts: base_parts(database, organization, block)?,
                     },
                     order: Sequencer {
                         sequence: sequence as u64,
@@ -73,6 +78,23 @@ fn head(
             },
         )
         .transpose()
+}
+
+/// The objects the journal's base names, in no order.
+fn base_parts(
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Vec<Hash>, ServerError> {
+    let mut statement = database.prepare(
+        "SELECT hash FROM journal_base_parts WHERE organization_id = ?1 AND block_id = ?2",
+    )?;
+    let rows = statement.query_map(
+        params![organization.to_string(), block.to_string()],
+        |row| row.get::<_, String>(0),
+    )?;
+    rows.map(|row| Hash::from_hex(&row?).ok_or(ServerError::Corrupt))
+        .collect()
 }
 
 fn entries(
@@ -355,6 +377,17 @@ pub fn rebase(
             run as i64
         ],
     )?;
+    transaction.execute(
+        "DELETE FROM journal_base_parts WHERE organization_id = ?1 AND block_id = ?2",
+        params![org, id],
+    )?;
+    for part in &base.parts {
+        transaction.execute(
+            "INSERT OR IGNORE INTO journal_base_parts (organization_id, block_id, hash)
+             VALUES (?1, ?2, ?3)",
+            params![org, id, part.to_hex()],
+        )?;
+    }
     Ok(Some(Trimmed {
         sequence: order.sequence,
         restarted,
@@ -371,6 +404,10 @@ pub fn forget(database: &Connection, organization: Uuid, block: Uuid) -> Result<
     )?;
     database.execute(
         "DELETE FROM block_journals WHERE organization_id = ?1 AND block_id = ?2",
+        params![org, id],
+    )?;
+    database.execute(
+        "DELETE FROM journal_base_parts WHERE organization_id = ?1 AND block_id = ?2",
         params![org, id],
     )?;
     Ok(())

@@ -75,6 +75,7 @@ async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
                 commit: Some(second.0),
                 sequence: 1,
                 state: Vec::new(),
+                parts: Vec::new(),
             })),
         )
         .await;

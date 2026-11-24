@@ -5113,6 +5113,7 @@ impl<H: Host> Replicas<H> {
                 reply,
                 base,
                 restarts,
+                parts,
             } => {
                 self.acknowledge(module, reply);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
@@ -5120,6 +5121,7 @@ impl<H: Host> Replicas<H> {
                     commit: base.commit,
                     sequence: base.sequence,
                     state: base.state,
+                    parts: journal_parts(peer, &parts),
                 };
                 // The server's journal takes it from the lease holder alone, which it checks
                 // itself; one the module made in a session the host made up (offline, or while
@@ -5297,11 +5299,13 @@ impl<H: Host> Replicas<H> {
                 content,
                 sealed_through,
                 journal_state,
+                journal_parts: parts,
                 restarts,
             } => {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
                 };
+                let parts = journal_parts(peer, &parts);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let shared = Arc::clone(shared);
                 open.publishing += 1;
@@ -5360,6 +5364,7 @@ impl<H: Host> Replicas<H> {
                                 run: restarts,
                                 through,
                                 state,
+                                parts: parts.clone(),
                             }),
                     );
                     if let Some(merging) = merging {
@@ -5394,6 +5399,7 @@ impl<H: Host> Replicas<H> {
                             commit: Some(*head),
                             sequence,
                             state,
+                            parts,
                         };
                         let trim = matches!(saved, Some(Ok(Saved::Unchanged(_))))
                             && !made_up
@@ -5964,6 +5970,7 @@ fn mirror_afresh<S: be_block_store::ObjectStore>(
         commit: head,
         sequence: 0,
         state: Vec::new(),
+        parts: Vec::new(),
     };
     mirror.entries.clear();
     peer.keep_journal(block, &mirror)
@@ -6252,4 +6259,20 @@ fn note_opening(openings: &mut Vec<(Uuid, u64, Vec<u64>)>, opening: &Opening) {
 /// it was written in, with its place here).
 fn history_place(history: &HashMap<u64, (u64, Uuid, bool)>, seq: u64) -> bool {
     history.values().any(|(place, ..)| *place == seq)
+}
+
+/// The objects of the parts a replica's journal state names (`journal-parts`), which the server
+/// keeps while the journal's base names them. A part this device cannot list (its objects are
+/// not here) is left out: the server may then let it go after its grace, and a replica opening
+/// on that base reads it as it can.
+fn journal_parts<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    parts: &[be_sdk_type_api::PartRef],
+) -> Vec<be_block_store::Hash> {
+    let parts: Vec<be_block_store::PartRef> = parts
+        .iter()
+        .cloned()
+        .map(be_block_store::PartRef::from)
+        .collect();
+    peer.part_objects(&parts).unwrap_or_default()
 }

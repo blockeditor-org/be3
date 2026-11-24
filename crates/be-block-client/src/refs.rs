@@ -839,6 +839,7 @@ impl State {
                                 commit: None,
                                 sequence: 0,
                                 state: Vec::new(),
+                                parts: Vec::new(),
                             },
                             order: be_block_session::Sequencer::starting(0),
                         },
@@ -2130,6 +2131,7 @@ impl Refs {
                     commit: None,
                     sequence: 0,
                     state: Vec::new(),
+                    parts: Vec::new(),
                 },
                 order: be_block_session::Sequencer::starting(0),
             },
@@ -2196,6 +2198,7 @@ impl Refs {
                 commit: self.head(block),
                 sequence: 0,
                 state: Vec::new(),
+                parts: Vec::new(),
             };
             self.rebase_journal(block, tag, base)?;
         }

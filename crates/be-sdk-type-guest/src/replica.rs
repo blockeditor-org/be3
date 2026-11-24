@@ -332,6 +332,8 @@ impl<C> Job<C> {
 enum Putting {
     Editor { editor: EditorId, token: u64 },
     Operation(Hash),
+    /// A session state a journal's base goes by (`journal_state`), by the hash of its bytes.
+    State(Hash),
 }
 
 /// An operation too large to submit inline, as the part its bytes are put as.
@@ -783,6 +785,13 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     puts: BTreeMap<Token, Putting>,
     /// This replica's operations too large to submit inline, by the hash of their bytes.
     uploads: HashMap<Hash, Upload>,
+    /// The last session state too large for a journal's base to carry inline, by the hash of
+    /// its bytes, as the part it is put as (`journal_state`).
+    state_part: Option<(Hash, Upload)>,
+    /// A seal waiting for the part its state goes by: what it publishes once it is put.
+    seal_putting: Option<(Option<CommitId>, Option<Merging>, Written, AfterPublish)>,
+    /// A rebase of the journal waiting for the part its state goes by.
+    rebase_putting: bool,
     /// The bytes of operations sent by their part that this replica put or read, until it has
     /// applied them and nothing pending names them.
     payloads: HashMap<PartRef, Vec<u8>>,
@@ -1083,6 +1092,9 @@ where
             ranges: Vec::new(),
             puts: BTreeMap::new(),
             uploads: HashMap::new(),
+            state_part: None,
+            seal_putting: None,
+            rebase_putting: false,
             payloads: HashMap::new(),
             reading: BTreeMap::new(),
             read_failures: HashMap::new(),
@@ -1379,7 +1391,7 @@ where
 
     /// `content`, the type's session state, with how far the order holds each origin as of
     /// `sequence`: the most recently numbered `BaseState::KEPT_ORIGINS` of them.
-    fn base_state(&self, content: Vec<u8>, sequence: u64) -> Vec<u8> {
+    fn base_state(&self, content: Vec<u8>, part: Option<PartRef>, sequence: u64) -> Vec<u8> {
         let mut origins: Vec<(u64, u64, u64)> = self
             .origins
             .iter()
@@ -1390,6 +1402,7 @@ where
         origins.truncate(crate::wire::BaseState::KEPT_ORIGINS);
         crate::wire::BaseState {
             content,
+            part,
             origins,
             restarts: self.restarts,
         }
@@ -1415,20 +1428,90 @@ where
                 self.own_through = self.own_through.max(through);
             }
         }
-        Some(state.content)
+        match state.part {
+            // Read before the journal was replayed (`journal_parts`).
+            Some(part) => self.payloads.get(&part).cloned(),
+            None => Some(state.content),
+        }
+    }
+
+    /// The base state a journal starts from with `state`, the session state as of `sequence`,
+    /// and the parts it names: a state too large to carry inline goes by the part it is put as,
+    /// as a reload's does. None while that part is put.
+    fn journal_state(&mut self, state: Vec<u8>, sequence: u64) -> Option<(Vec<u8>, Vec<PartRef>)> {
+        if state.len() <= largest_inline() {
+            return Some((self.base_state(state, None, sequence), Vec::new()));
+        }
+        let hash = Hash::of(&state);
+        match self.state_part {
+            Some((put, Upload::Put(part))) if put == hash => {
+                Some((self.base_state(Vec::new(), Some(part), sequence), vec![part]))
+            }
+            Some((put, Upload::Putting)) if put == hash => None,
+            _ => {
+                let token = self.token();
+                self.out.push(Effect::PutPart {
+                    replica: self.id,
+                    token,
+                    bytes: state,
+                });
+                self.puts.insert(token, Putting::State(hash));
+                self.state_part = Some((hash, Upload::Putting));
+                None
+            }
+        }
+    }
+
+    /// The part a journal's state goes by was put, or could not be: what waited for it goes on.
+    fn state_put(&mut self, hash: Hash, result: Result<PartRef, String>) {
+        if !self.state_part.is_some_and(|(put, _)| put == hash) {
+            return;
+        }
+        match result {
+            Ok(part) => {
+                self.state_part = Some((hash, Upload::Put(part)));
+                if let Some((expected, merging, content, then)) = self.seal_putting.take() {
+                    self.publish(expected, merging, content, then);
+                }
+                if std::mem::take(&mut self.rebase_putting) {
+                    self.rebase_journal();
+                }
+            }
+            Err(error) => {
+                self.state_part = None;
+                self.error(format!(
+                    "a session state too large to carry inline could not be put: {error}"
+                ));
+                // The seal is tried again on its timer; the next seal rebases the journal.
+                if let Some((.., AfterPublish::Seal { reply, .. })) = self.seal_putting.take() {
+                    self.sealing = false;
+                    self.seal_failed();
+                    if let Some(id) = reply {
+                        self.reply(id, Answer::Sealed);
+                    }
+                }
+                self.rebase_putting = false;
+            }
+        }
     }
 
     /// Starts the journal from this holder's base: its last commit, the sequence it holds, and
     /// the session state as of it.
     fn rebase_journal(&mut self) {
+        let Some((state, parts)) = self.journal_state(self.sealed_state.clone(), self.sealed)
+        else {
+            self.rebase_putting = true;
+            return;
+        };
         self.out.push(Effect::Rebase {
             replica: self.id,
             restarts: self.restarts,
             base: JournalBase {
                 commit: self.base,
                 sequence: self.sealed,
-                state: self.base_state(self.sealed_state.clone(), self.sealed),
+                state,
             },
+            parts,
         });
     }
 
@@ -1842,7 +1925,7 @@ where
             // commit afresh and the order starts over.
             // It counts as a restart, and keeps how far the order holds each origin's edits.
             self.restarts += 1;
-            let state = self.base_state(Vec::new(), self.sealed);
+            let state = self.base_state(Vec::new(), None, self.sealed);
             self.out.push(Effect::Rebase {
                 replica: self.id,
                 restarts: self.restarts,
@@ -1851,6 +1934,7 @@ where
                     sequence: 0,
                     state,
                 },
+                parts: Vec::new(),
             });
         }
         self.out.push(Effect::Release { replica: self.id });
@@ -2458,16 +2542,20 @@ where
         content: Written,
         then: AfterPublish,
     ) {
-        let token = self.token();
         // A seal holds the order through what it applied when it began, and the journal starts
-        // from it with the session state as of then once it wins the head.
-        let (sealed_through, journal_state) = match &then {
-            AfterPublish::Seal { through, state, .. } => (
-                Some(*through),
-                Some(self.base_state(state.clone(), *through)),
-            ),
-            AfterPublish::Merged { .. } => (None, None),
+        // from it with the session state as of then once it wins the head: a state too large to
+        // carry inline is put first, and the seal waits for it.
+        let (sealed_through, journal_state, journal_parts) = match &then {
+            AfterPublish::Seal { through, state, .. } => {
+                let Some((state, parts)) = self.journal_state(state.clone(), *through) else {
+                    self.seal_putting = Some((expected, merging, content, then));
+                    return;
+                };
+                (Some(*through), Some(state), parts)
+            }
+            AfterPublish::Merged { .. } => (None, None, Vec::new()),
         };
+        let token = self.token();
         self.out.push(Effect::Publish {
             replica: self.id,
             token,
@@ -2476,6 +2564,7 @@ where
             content,
             sealed_through,
             journal_state,
+            journal_parts,
             restarts: self.restarts,
         });
         self.waiting = Some(Wait::Publish { token, then });
@@ -2754,11 +2843,17 @@ where
         self.waiting = Some(Wait::Payloads { loaded: content });
     }
 
-    /// The parts the journal opened on names that are not read yet.
+    /// The parts the journal opened on names that are not read yet: its base's state, when it
+    /// goes by one, and its entries'.
     fn journal_parts(&self) -> Vec<PartRef> {
-        self.opened_journal
+        let journal = self
+            .opened_journal
             .iter()
-            .filter(|journal| journal.base.commit == self.base)
+            .filter(|journal| journal.base.commit == self.base);
+        let base = journal
+            .clone()
+            .filter_map(|journal| crate::wire::BaseState::decode(&journal.base.state)?.part);
+        journal
             .flat_map(|journal| &journal.entries)
             .filter(|entry| entry.base >= entry.floor)
             .filter_map(|entry| match Submitted::decode(&entry.payload) {
@@ -2774,6 +2869,7 @@ where
                 }) if part.length() <= LARGEST_PART => Some(part),
                 _ => None,
             })
+            .chain(base.filter(|part| part.length() <= LARGEST_PART))
             .filter(|part| !self.payloads.contains_key(part) && !self.read_retry.contains_key(part))
             .collect()
     }
@@ -3859,7 +3955,7 @@ where
             head,
             replace: replace && !restart,
             restart,
-            state: self.base_state(state, self.applied),
+            state: self.base_state(state, None, self.applied),
             reply,
             through,
         };
@@ -4296,6 +4392,7 @@ where
                 self.tell_editor(editor, &ToEditor::PartPut { token, result });
             }
             Some(Putting::Operation(hash)) => self.put_answered(hash, result),
+            Some(Putting::State(hash)) => self.state_put(hash, result),
             None => {}
         }
     }
@@ -5188,8 +5285,12 @@ pub(crate) fn replay<C: LiveEdit + Default>(
         None => C::default(),
     };
     let state = crate::wire::BaseState::decode(&journal.base.state)
-        .ok_or("the journal's base state does not decode")?
-        .content;
+        .ok_or("the journal's base state does not decode")?;
+    // Only a replica reads a part.
+    if state.part.is_some() {
+        return Err("the journal's base state goes by its part".into());
+    }
+    let state = state.content;
     if !state.is_empty() {
         content
             .adopt_session_state(&state)

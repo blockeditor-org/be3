@@ -45,6 +45,7 @@ mod a_holder_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_r
 mod a_holder_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
 mod a_holder_whose_seal_a_peer_outpaces_restarts_and_loses_nothing;
 mod a_restart_replayed_on_a_journal_from_an_earlier_seal_carries_alike;
+mod a_session_whose_state_outgrows_a_base_still_seals_by_its_part;
 mod a_holder_with_nothing_to_do_sets_no_timer;
 mod a_holders_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod a_holders_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
@@ -647,6 +648,12 @@ struct Sim<C: LiveEdit + Clone + Default> {
     /// The largest submission the server takes (`MAX_RELAY_BYTES` in be-server): a larger one
     /// fails.
     largest_submission: usize,
+    /// The largest session state a journal's base carries (`MAX_BASE_STATE_BYTES` in
+    /// be-server): a seal carrying a larger one fails.
+    largest_base_state: usize,
+    /// The parts the journal's base names (`journal-base.parts`), as the last seal or rebase
+    /// that started it said.
+    base_parts: Vec<be_sdk_type_api::PartRef>,
     /// What the next `open` is told the host kept across a stop: the last restart its replica
     /// had applied and the number of the last kept edit (`opening.kept-restart`,
     /// `opening.kept-through`).
@@ -744,6 +751,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             resumed: vec![0; devices],
             stalled_submits: false,
             largest_submission: usize::MAX,
+            largest_base_state: usize::MAX,
+            base_parts: Vec::new(),
             kept_opening: None,
             kept_submitted: 0,
             kept_submissions: Vec::new(),
@@ -1452,8 +1461,18 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 content,
                 sealed_through,
                 journal_state,
+                journal_parts,
                 restarts,
             } if !self.stalled => {
+                if journal_state
+                    .as_ref()
+                    .is_some_and(|state| state.len() > self.largest_base_state)
+                {
+                    self.failed_publishes += 1;
+                    return self.to(device, |host| {
+                        reply.send(host, &Err("a journal's base is too large".to_owned()))
+                    });
+                }
                 if self.fail_publishes > 0 {
                     self.fail_publishes -= 1;
                     self.failed_publishes += 1;
@@ -1489,6 +1508,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     if let Some(base) = base(head)
                         && self.lease.is_holder(client)
                     {
+                        self.base_parts = journal_parts.clone();
                         self.trim(device, base, false);
                     }
                     let kept = self.kept_publishes;
@@ -1512,6 +1532,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.head = Some(head);
                 self.publishes += 1;
                 if let Some(base) = base(head) {
+                    if !self.lose_rebases {
+                        self.base_parts = journal_parts;
+                    }
                     self.trim(device, base, true);
                 }
                 let kept = self.kept_publishes;
@@ -1701,8 +1724,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     reply.send(host, &be_sdk_type_api::host::Submitted::Held)
                 });
             }
-            Call::RebaseJournal { reply, base, .. } => {
+            Call::RebaseJournal {
+                reply, base, parts, ..
+            } => {
                 self.to(device, |host| reply.send(host, &()));
+                if self.lease.is_holder(client) && base.commit == self.head {
+                    self.base_parts = parts;
+                }
                 // As the server: a trim with no new commit is the holder's, on the head.
                 if self.lease.is_holder(client) && base.commit == self.head {
                     self.trim(device, base, false);

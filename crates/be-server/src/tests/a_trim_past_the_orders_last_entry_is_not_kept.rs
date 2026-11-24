@@ -26,6 +26,7 @@ async fn a_trim_past_the_orders_last_entry_is_not_kept() {
         commit: Some(first.0),
         sequence: 5,
         state: Vec::new(),
+        parts: Vec::new(),
     };
     let answered = phone.trim(&author, block, first, of_build(past)).await;
     assert!(answered.is_ok(), "{answered:?}");

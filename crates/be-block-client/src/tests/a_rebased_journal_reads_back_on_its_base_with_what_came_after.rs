@@ -37,6 +37,7 @@ fn a_rebased_journal_reads_back_on_its_base_with_what_came_after() {
             commit: Some(seal),
             sequence: 2,
             state: b"the state".to_vec(),
+            parts: Vec::new(),
         },
     )
     .unwrap();
