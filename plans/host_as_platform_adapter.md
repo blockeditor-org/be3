@@ -1573,6 +1573,12 @@ Each step lands on its own.
              instance runs the app.
 
            Host test: `be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack`.
+           be-host's `root::block_stack` tests make agents for the root on a harness server:
+           one asked for while another is made waits and gets its own credentials, and one the
+           root stopped waiting for is removed. An editor whose frames break the protocol is
+           stopped toward the root: be-wasm-sandbox-host's
+           `an_instance_its_host_fails_stops_and_says_why` and be-wasm-root-host's
+           `an_app_its_host_stops_stops_toward_the_root_which_draws_on`.
          - 4g7b2b (built). The session's view, in be-root (`guest/session.rs`):
            - `core-view`'s `showing`, the session's block, is shown through
              `Embedded::spawn_block`, filling the window under the root's own UI and following
