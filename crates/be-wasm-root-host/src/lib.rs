@@ -28,8 +28,8 @@ use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 pub use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::BlockCatalog, host::HostStatistics, host::LockState, host::Notice,
-    host::PowerAction, host::ShownNotices, host::StatisticRow,
+    FrameDone, FrameRequest, embed, host::BlockCatalog, host::HostStatistics, host::LockState,
+    host::Notice, host::PowerAction, host::ShownNotices, host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};

@@ -85,6 +85,10 @@ interface shell-types {
 
     variant child-preview {
         hosted,
+        /// A child placed as a preview that the host composites in its place,
+        /// as it does a child that runs its editor (a root's): the placer
+        /// leaves a hole for it rather than drawing a picture.
+        composited,
         waiting,
         label,
         image(preview-image),
