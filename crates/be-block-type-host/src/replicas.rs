@@ -808,6 +808,9 @@ struct Open {
     /// Whether `replay`'s local edits or the counts beside them changed since they were kept
     /// on the device (`Replicas::keep_edits`).
     edits_changed: bool,
+    /// A flush answered while it held edits no seal took (`Replicas::flushed`): it is asked to
+    /// seal once it owes one it can make.
+    flush_owed: bool,
     reporting: Option<CommitId>,
     /// A join's answer held while the replica settles (`Replicas::settling`), handled once it
     /// has.
@@ -935,6 +938,8 @@ pub struct Owing {
     pub clean: bool,
     /// Whether its module says it owes a seal (`Status::owes_seal`).
     pub owes_seal: bool,
+    /// Whether its module holds the lease, without which it seals nothing (`Status::holder`).
+    pub holder: bool,
     /// Whether its module says it diverged from the order (`Status::diverged`).
     pub diverged: bool,
     /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
@@ -964,6 +969,7 @@ impl Owing {
             journaled: open.status.journaled,
             clean: open.status.clean,
             owes_seal: open.status.owes_seal,
+            holder: open.status.holder,
             diverged: open.status.diverged,
             unjournaled: open.status.unjournaled.clone(),
             now,
@@ -1024,11 +1030,12 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (clean: {}, owes a seal: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}{}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
+            "{} of type {} (clean: {}, owes a seal: {}, holds the lease: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}{}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
             self.clean,
             self.owes_seal,
+            self.holder,
             self.diverged,
             self.journaled,
             self.unjournaled
@@ -1069,6 +1076,9 @@ pub struct Replicas<H: Host> {
     /// replicas reopened under it until it detaches: what a reopened replica is told of the
     /// editor's operations it holds (`acknowledged`).
     forwarded: HashMap<(Uuid, EditorId), u64>,
+    /// A flush answered while commands sent before it still waited their turn (`flushed`):
+    /// until they have run (`lane_settled`), a block clean now may yet owe what they edit.
+    flush_waits: bool,
     answers: UnboundedReceiver<Io>,
     open: HashMap<ReplicaId, Open>,
     blocks: HashMap<Uuid, ReplicaId>,
@@ -1174,6 +1184,7 @@ impl<H: Host> Replicas<H> {
             key_searches: 0,
             #[cfg(test)]
             hold_kept_edits: false,
+            flush_waits: false,
             #[cfg(test)]
             failing_seals: 0,
             #[cfg(test)]
@@ -1973,6 +1984,7 @@ impl<H: Host> Replicas<H> {
                 heard_through: journal_through(opening_journal.as_ref()),
                 // A block opened for the first time on this device keeps its origin at once.
                 edits_changed: !recovered_any,
+                flush_owed: false,
                 reporting: None,
                 held: None,
                 publish_error: None,
@@ -2851,6 +2863,58 @@ impl<H: Host> Replicas<H> {
                 handle.refused(connection, entries);
             });
         }
+    }
+
+    /// A flush answers while open blocks may still hold edits no seal took: one whose edits
+    /// wait for their place in the order, or whose module has yet to report on them, owes
+    /// nothing it can seal yet; one whose module does not hold the lease leaves its edits to
+    /// the holder's seal, and owes that seal itself if the lease comes to it; and with commands
+    /// sent before the flush still waiting their turn (`waiting`), any block may be edited yet.
+    /// Each is asked once it owes a seal it can make, rather than at its next quiet spell.
+    pub fn flushed(&mut self, waiting: bool) {
+        self.flush_waits |= waiting;
+        for open in self.open.values_mut() {
+            open.flush_owed =
+                waiting || !open.status.clean || open.unreported() || !open.status.holder;
+        }
+    }
+
+    /// The commands a flush answered ahead of have run (`flushed`): a block they left clean,
+    /// and holding the lease, owes the flush nothing more.
+    pub fn lane_settled(&mut self) {
+        if !std::mem::take(&mut self.flush_waits) {
+            return;
+        }
+        let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
+        for replica in replicas {
+            self.seal_flushed(replica);
+        }
+    }
+
+    /// Asks `replica` to seal once a flush answered with its edits unsealed (`flushed`) and it
+    /// now owes a seal it can make, with none on its way. Its status reports drive this, so it
+    /// asks once, not every pass.
+    fn seal_flushed(&mut self, replica: ReplicaId) {
+        let sealing = self
+            .asked
+            .values()
+            .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)));
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        if !open.flush_owed {
+            return;
+        }
+        if open.status.clean && !open.unreported() && open.status.holder && !self.flush_waits {
+            open.flush_owed = false;
+            return;
+        }
+        if !open.status.owes_seal || !open.status.holder || open.publishing > 0 || sealing {
+            return;
+        }
+        open.flush_owed = false;
+        let block = open.block;
+        self.seal_later(block, false);
     }
 
     pub fn take_kept(&mut self) -> bool {
@@ -4618,6 +4682,7 @@ impl<H: Host> Replicas<H> {
                 }
             }
         }
+        self.seal_flushed(replica);
         H::status(shared, block, &status);
         self.counted(shared);
         true
@@ -4722,7 +4787,11 @@ impl<H: Host> Replicas<H> {
         op: OpId,
         outcome: Outcome,
     ) -> bool {
-        self.asked.remove(&(module, op));
+        // A seal asked of it ended: one a flush left owing may be asked again now
+        // (`seal_flushed`), as no status need follow an ask that sealed nothing.
+        if let Some((replica, Asked::Seal(_))) = self.asked.remove(&(module, op)) {
+            self.seal_flushed(replica);
+        }
         if let Some(answer) = self.replies.remove(&(module, op)) {
             // Its asker takes the scope back, unless it stopped waiting.
             if answer.send(outcome).is_err() {
