@@ -17,6 +17,8 @@ mod web;
 pub use bundle::open;
 #[cfg(not(target_arch = "wasm32"))]
 pub use bundle::use_assets;
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "testing")))]
+pub use bundle::{AssetsForTesting, assets_for_testing};
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};
 #[cfg(target_arch = "wasm32")]
