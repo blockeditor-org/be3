@@ -42,6 +42,9 @@ pub(crate) struct Owner {
     pub(crate) computation: Weak<Computation>,
     pub(crate) disposed: Cell<bool>,
     parent: Option<Rc<Owner>>,
+    /// Where context is read from past this owner's own, when not its parent
+    /// (`Scope::read_context_from`).
+    reads: RefCell<Option<Rc<Owner>>>,
     pub(crate) gate: RefCell<Option<Rc<Gate>>>,
     contexts: RefCell<HashMap<TypeId, Rc<dyn Any>>>,
     cleanups: RefCell<Vec<Cleanup>>,
@@ -53,6 +56,7 @@ impl Default for Owner {
             computation: no_computation(),
             disposed: Cell::default(),
             parent: None,
+            reads: RefCell::default(),
             gate: RefCell::default(),
             contexts: RefCell::default(),
             cleanups: RefCell::default(),
@@ -124,6 +128,7 @@ impl Owner {
         if self.disposed.replace(true) {
             return;
         }
+        self.reads.take();
         let cleanups = self.cleanups.take();
         let _context = Context::enter(no_computation(), Weak::new());
         let _body = leave_component_body();
@@ -279,6 +284,15 @@ impl Scope {
 
     pub fn context(&self) -> ScopeContext {
         ScopeContext(Rc::downgrade(&self.owner))
+    }
+
+    /// Reads context, past what is provided in this scope, from `from` instead of from the
+    /// scope it was opened under, until called again; `None` reads from that scope again.
+    /// Who owns, disposes and pauses it does not change. A subtree kept apart from where it is
+    /// shown (`Kept`) reads the context of the place that shows it.
+    pub fn read_context_from(&self, from: Option<&ScopeContext>) {
+        let from = from.and_then(|from| from.0.upgrade());
+        self.owner.reads.replace(from);
     }
 
     /// Runs now the queued effects owned by this scope and those under it, leaving every other
@@ -439,7 +453,11 @@ pub fn use_context<T: Clone + 'static>() -> Option<T> {
         if found.is_some() {
             return found;
         }
-        owner = current.parent.clone();
+        owner = current
+            .reads
+            .borrow()
+            .clone()
+            .or_else(|| current.parent.clone());
     }
     None
 }

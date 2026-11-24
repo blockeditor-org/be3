@@ -29,7 +29,6 @@ pub fn MenuButton(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     leading: Option<Child>,
     items: Children<MenuItem>,
     on_click: Callback<()>,
@@ -53,7 +52,6 @@ pub fn MenuButton(
             capture_presses
             placement
             bounds
-            keep_alive
             menu={menu_style()}
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace

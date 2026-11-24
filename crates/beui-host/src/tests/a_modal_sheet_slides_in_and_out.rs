@@ -26,7 +26,7 @@ fn a_modal_sheet_slides_in_and_out() {
     let top = |harness: &Harness| {
         harness
             .document()
-            .node_rect(content.get())
+            .node_rect(content.try_get()?)
             .map(|rect| rect.top())
     };
     open.set(true);

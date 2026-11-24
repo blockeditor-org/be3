@@ -25,8 +25,8 @@ struct State {
     trigger: NodeRef,
 }
 
-/// A trigger and an anchored panel, kept with its state while closed unless `keep_alive`
-/// is off, that traps Tab; its layer gives the focus back on close.
+/// A trigger and an anchored panel, built each time it opens (a form that keeps what was typed in it
+/// while closed is wrapped in a `Kept`), that traps Tab; its layer gives the focus back on close.
 ///
 /// Its layer passes input through (`LayerPolicy::Pass`): a press outside asks it
 /// to close and then lands on what was pressed, except a press on its own trigger,
@@ -53,9 +53,6 @@ pub fn Popover(
     band: Option<NodeRef>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    /// On by default here alone among popups: a popover's form keeps what was typed in it.
-    #[prop(default = true)]
-    keep_alive: bool,
     #[prop(default = 0.0)] beak: Prop<f32>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     accessibility: Option<Prop<Node>>,
@@ -114,7 +111,6 @@ pub fn Popover(
                 at
                 placement
                 bounds
-                keep_alive
                 beak
                 sheet
                 policy=LayerPolicy::Pass

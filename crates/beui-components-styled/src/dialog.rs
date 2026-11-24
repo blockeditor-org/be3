@@ -53,7 +53,7 @@ pub fn Modal(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Build<NodeId>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let theme = use_theme();
     let color = create_memo(move || match scrim {
@@ -92,18 +92,25 @@ pub fn Dialog(
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Build<Children<ListItem>>,
+    #[prop(children)] content: BuildFn<Children<ListItem>>,
 ) -> NodeId {
     view! {
         <DialogFrame open kind width size anchor on_dismiss={on_dismiss}>
-            <DialogBody kind title id actions scrolls on_dismiss={on_dismiss}>
+            <DialogBody
+                kind
+                title={title.clone()}
+                id={id.clone()}
+                actions={actions.clone()}
+                scrolls
+                on_dismiss={on_dismiss}
+            >
                 {content.call()}
             </DialogBody>
         </DialogFrame>
     }
 }
 
-/// A dialog's outer part. It builds its content once, on first open, and moves
+/// A dialog's outer part. It builds its content each time it opens, and moves
 /// it between card and sheet with a `Portal` if the presentation changes while
 /// open. Anchored presentations escape a window that has a layer space;
 /// centred ones stay in it.
@@ -116,7 +123,7 @@ pub fn DialogFrame(
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Build<NodeId>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let theme = use_theme();
     let scrim = create_memo(move || theme.scrim.get());
@@ -133,18 +140,18 @@ pub fn DialogFrame(
             beak=POINTER_REACH
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
-                <DialogCard width pointer={handle.pointer}>{handle.body}</DialogCard>
+                <DialogCard width={width.clone()} pointer={handle.pointer}>{handle.body}</DialogCard>
             }}
             sheet={|handle: DialogSheetHandle| {
                 let DialogSheetHandle { open, close, tall, body } = handle;
                 match tall {
                     true => view! {
-                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>
-                            {body}
+                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>||
+                            {body.call()}
                         </ModalSheet>
                     },
                     false => view! {
-                        <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+                        <ModalSheet open fit=true on_close={close}>||{body.call()}</ModalSheet>
                     },
                 }
             }}

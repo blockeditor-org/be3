@@ -88,9 +88,9 @@ struct KeepAliveCache(Rc<Cache>);
 /// lists keeps running while hidden, and counts as shown: what it serves is shown elsewhere (a
 /// dock tab whose own dock joined the one around it).
 ///
-/// A kept subtree belongs to the `KeepAlive`, so it reads the context provided around the
-/// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
-/// does.
+/// A kept subtree belongs to the `KeepAlive` and goes when it does. While a `Kept` shows it, it
+/// reads the context provided around that `Kept` (an overlay's presence, say); hidden, the
+/// context around the `KeepAlive`.
 #[component]
 pub fn KeepAlive<B, KS, AS>(keep: KS, awake: AS, #[prop(children)] content: Build<B>) -> B::Output
 where
@@ -142,7 +142,8 @@ where
 /// `KeepAlive`): built the first time, shown here through a portal, and kept, paused, after
 /// this `Kept` goes, until another `Kept` with that key shows it again. Inside it,
 /// `kept_shown()` says whether it is shown, so what it holds outside itself (a dock it
-/// joined) lets go while it is hidden. A `Kept` inside another one's subtree pauses with it.
+/// joined) lets go while it is hidden. It reads the context around the `Kept` showing it: what
+/// it reads while it builds comes from the `Kept` that first built it. A `Kept` inside another one's subtree pauses with it.
 #[component]
 pub fn Kept<K>(key: K, #[prop(children)] content: Build<NodeId>) -> NodeId
 where
@@ -154,6 +155,8 @@ where
     let me = cache.next.get();
     cache.next.set(me + 1);
     let around = kept_shown();
+    // The kept subtree reads the context of the place that shows it.
+    let here = current_scope();
     let found = cache.entries.borrow().get(&key).map(|entry| {
         (
             entry.node,
@@ -166,6 +169,7 @@ where
         Some((node, scope, borrower, held_around)) => {
             borrower.set(Some(me));
             held_around.set(around);
+            scope.read_context_from(here.as_ref());
             scope.resume();
             (node, borrower)
         }
@@ -180,6 +184,7 @@ where
             );
             let borrower = create_signal_in(&scope, Some(me));
             let held_around = create_signal_in(&scope, around);
+            scope.read_context_from(here.as_ref());
             let node = scope.context().run(|| {
                 let awake = cache.awake;
                 let named = key.clone();
@@ -236,6 +241,8 @@ where
         }
         entry.borrower.set(None);
         entry.around.set(None);
+        // Hidden, it reads the context around its `KeepAlive` again, not a place that is gone.
+        entry.scope.read_context_from(None);
         let keep = released.kept(&key);
         let scope = entry.scope.clone();
         drop(entries);

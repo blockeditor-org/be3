@@ -154,10 +154,9 @@ impl OverlayPresence {
         self.open
     }
 
-    /// Provides this presence, and whether it is modal, to what is built in it: what an
-    /// overlay's content reads, for a `Kept` inside the content to carry into its kept
-    /// subtree, which reads only the context around its `KeepAlive`.
-    pub fn provide(self) {
+    /// Provides this presence, and whether it is modal, to the overlay's content; a `Kept` in
+    /// the content reads it as the rest of the content does.
+    pub(crate) fn provide(self) {
         provide_context(self);
         provide_context(self.modality());
     }

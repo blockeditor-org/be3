@@ -1,7 +1,7 @@
 use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
-use beui_view::components::overlay::{Modality, Overlay, use_overlay_presence};
+use beui_view::components::overlay::{Modality, Overlay};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -347,7 +347,12 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     });
     let chrome = dock.dialog_chrome;
     let notice = create_memo(move || dock.notice(tab));
-    let face = Render::new(move |()| {
+    // The face is built each time the dialog shows; the tab's content, built once above, is
+    // the dock's and shows in it through a portal.
+    let face = move || {
+        let body = view! {
+            <Portal node={Some(body)} />
+        };
         let face = chrome.call(DockDialogHandle {
             tab,
             title,
@@ -370,8 +375,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             handles.insert(tab, (header, false));
         });
         face
-    })
-    .once();
+    };
     let call_attention = move || {
         dock.focus_dialog(tab);
         dock.focus_into_dialog();
@@ -425,7 +429,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         },
     );
     let view = view! {
-        <KeepAlive>
             <Overlay
                 @node_ref=&overlay
                 anchor={at}
@@ -444,25 +447,14 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                     Dismiss::Escape | Dismiss::Back => close.call(()),
                     Dismiss::OutsidePress | Dismiss::WithParent => {}
                 }}
-            >|| {
-                let presence = use_overlay_presence();
-                view! {
-                    <Kept>|| {
-                        if let Some(presence) = presence {
-                            presence.provide();
-                        }
-                        view! {
-                            <Interactive
-                                @node_ref=&frame
-                                on_press={move |_: PointerPress| dock.focus_dialog(tab)}
-                            >
-                                {face.call(())}
-                            </Interactive>
-                        }
-                    }</Kept>
-                }
-            }</Overlay>
-        </KeepAlive>
+            >||
+                <Interactive
+                    @node_ref=&frame
+                    on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                >
+                    {face()}
+                </Interactive>
+            </Overlay>
     };
     dock.dialog_layers.value().borrow_mut().insert(tab, overlay);
     on_cleanup(move || {
