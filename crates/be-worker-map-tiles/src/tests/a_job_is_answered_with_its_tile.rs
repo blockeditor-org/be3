@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_job_is_answered_with_its_tile() {
     let mut outbound = Vec::new();
-    let mut tiles = Hosted::start::<Tiles>(&mut outbound).expect("the rasterizer starts");
+    let mut tiles = Hosted::<Tiles>::start(&mut outbound).expect("the rasterizer starts");
     assert!(outbound.is_empty());
     let id = TileId {
         zoom: 0,
@@ -21,13 +21,13 @@ fn a_job_is_answered_with_its_tile() {
         source: id,
         body: Vec::new(),
     };
-    let empty: Vec<Rasterized> = tiles.ask(&job).expect("the rasterizer takes the job");
+    let empty = tiles.ask(&job).expect("the rasterizer takes the job");
     let not_a_tile = Job {
         id: elsewhere,
         source: elsewhere,
         body: vec![0x1f, 0x8b, 0],
     };
-    let broken: Vec<Rasterized> = tiles
+    let broken = tiles
         .ask(&not_a_tile)
         .expect("the rasterizer takes the job");
 

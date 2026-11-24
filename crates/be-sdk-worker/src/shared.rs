@@ -12,7 +12,7 @@ use std::{
 use be_wasm_sandbox_api::ops::guest;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{Raw, RawSender, Received, decode, encode};
+use crate::{Address, Raw, RawSender, Received, decode, encode};
 
 /// Which instance of a shared worker a message went to and an answer came from. A worker that
 /// stopped is started anew by the next `send`, as the next generation, so a client can tell what
@@ -25,9 +25,9 @@ struct Generation(u64);
 #[derive(Debug, PartialEq, Eq)]
 struct Heard {
     generation: Generation,
-    /// The worker's message, or why the generation stopped: nothing more sent to it will be
-    /// answered.
-    result: Result<Vec<u8>, String>,
+    /// The worker's message and the job it answers, or why the generation stopped: nothing more
+    /// sent to it will be answered.
+    result: Result<(u64, Vec<u8>), String>,
 }
 
 type Answers = Rc<RefCell<VecDeque<Heard>>>;
@@ -92,11 +92,11 @@ impl Running {
                 let answer = worker.receive_framed().await;
                 let routes = heard.borrow();
                 let why = match answer {
-                    Received::Message(client, message) => {
+                    Received::Message(Address { client, job }, message) => {
                         if let Some(route) = routes.get(&client) {
                             route.answers.borrow_mut().push_back(Heard {
                                 generation,
-                                result: Ok(message),
+                                result: Ok((job, message)),
                             });
                             (route.wake)();
                         }
@@ -164,10 +164,10 @@ impl Client {
         }
     }
 
-    /// Sends the worker one message, and answers the generation it went to. If the worker
-    /// stopped (a job it could not do stops it), this starts it anew first, as the next
+    /// Sends the worker one message as job `job`, and answers the generation it went to. If the
+    /// worker stopped (a job it could not do stops it), this starts it anew first, as the next
     /// generation, so one bad job fails only what was in flight.
-    fn send(&mut self, message: &[u8]) -> Generation {
+    fn send(&mut self, job: u64, message: &[u8]) -> Generation {
         if self.running.stopped.get() {
             self.leave();
             self.running = Running::of(&self.module);
@@ -176,7 +176,8 @@ impl Client {
                 wake: Rc::clone(&self.wake),
             });
         }
-        self.running.sender.send_as(self.client, message);
+        let client = self.client;
+        self.running.sender.send_as(Address { client, job }, message);
         self.running.generation
     }
 
@@ -204,8 +205,8 @@ impl Drop for Client {
 pub struct Ticket(u64);
 
 /// One editor's way to a worker of the app's that every editor shares (`Shared::new`): it sends
-/// that editor's `Job`s and hears only their `Answer`s, in order, each with the ticket its job
-/// was given. Every `Shared` of the same module in the app talks to one instance, which stops
+/// that editor's `Job`s and hears only their `Answer`s, each with the ticket its job was given.
+/// The worker's first answer to a job is that job's; any more it sends for it are dropped. Every `Shared` of the same module in the app talks to one instance, which stops
 /// once none holds it. A worker that stops (a job it could not do stops it) fails each ticket it
 /// was sent and had not answered, and the next `send` starts it anew, so one bad job fails only
 /// what was in flight.
@@ -236,12 +237,14 @@ impl<Job: Serialize, Answer: DeserializeOwned> Shared<Job, Answer> {
     pub fn send(&mut self, job: &Job) -> Ticket {
         let ticket = Ticket(self.next);
         self.next += 1;
-        let generation = self.client.send(&encode(job));
+        let generation = self.client.send(ticket.0, &encode(job));
         self.sent.push_back((ticket, generation));
         ticket
     }
 
-    /// The jobs sent and not yet answered or failed.
+    /// The jobs sent and not yet answered or failed: the backpressure an editor bounds what it
+    /// sends by. A job counts until `try_receive` takes its answer, or hears the stop that fails
+    /// it, and a job the worker never answers counts until the worker stops.
     pub fn in_flight(&self) -> usize {
         self.sent.len()
     }
@@ -255,9 +258,9 @@ impl<Job: Serialize, Answer: DeserializeOwned> Shared<Job, Answer> {
             }
             let Heard { generation, result } = self.client.try_receive()?;
             match result {
-                // The oldest job sent to that generation: a worker answers its client in order.
-                Ok(message) => {
-                    let Some(index) = self.sent.iter().position(|(_, sent)| *sent == generation)
+                // The job it answers, unless that was answered already.
+                Ok((job, message)) => {
+                    let Some(index) = self.sent.iter().position(|(ticket, _)| ticket.0 == job)
                     else {
                         continue;
                     };

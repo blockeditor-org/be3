@@ -106,9 +106,11 @@ pub(crate) struct TileWorker {
     /// Tiles to rasterize, oldest first, not yet sent to the rasterizer.
     pending: VecDeque<(TileId, TileId, Rc<Vec<u8>>)>,
     /// Tiles to rasterize that were not cancelled, pending or sent, and the ticket of the job
-    /// each pending one went as once it went: what the rasterizer answers for any other job, one
-    /// for a tile cancelled meanwhile, is dropped.
+    /// each went as once it went: what the rasterizer answers for any other job, one for a tile
+    /// cancelled meanwhile, is dropped.
     sent: HashMap<TileId, Option<Ticket>>,
+    /// The tile each job sent and not yet answered is for, cancelled or not.
+    tickets: HashMap<Ticket, TileId>,
     /// This map's way to the rasterizer (be-worker-map-tiles), which every map of the app shares,
     /// once it sent it a tile.
     rasterizer: Option<Shared<Job, Rasterized>>,
@@ -129,6 +131,7 @@ impl TileWorker {
             kept: VecDeque::new(),
             pending: VecDeque::new(),
             sent: HashMap::new(),
+            tickets: HashMap::new(),
             rasterizer: None,
         }
     }
@@ -264,6 +267,7 @@ impl TileWorker {
                 .rasterizer
                 .get_or_insert_with(|| Shared::new(be_worker_map::MODULE, move || waker.wake()))
                 .send(&job);
+            self.tickets.insert(ticket, id);
             if let Some(sent) = self.sent.get_mut(&id) {
                 *sent = Some(ticket);
             }
@@ -318,14 +322,12 @@ impl TileWorker {
         }
         // A job the rasterizer stopped on fails alone; the next tile starts it anew.
         while let Some((ticket, answer)) = self.rasterizer.as_mut().and_then(Shared::try_receive) {
-            let Some(id) = self
-                .sent
-                .iter()
-                .find(|(_, sent)| **sent == Some(ticket))
-                .map(|(id, _)| *id)
-            else {
+            let Some(id) = self.tickets.remove(&ticket) else {
                 continue;
             };
+            if self.sent.get(&id) != Some(&Some(ticket)) {
+                continue;
+            }
             self.sent.remove(&id);
             results.push(TileResult {
                 id,

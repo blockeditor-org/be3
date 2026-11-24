@@ -51,10 +51,10 @@ impl RenderClient {
         self.sent.insert(ticket, frame_time());
     }
 
-    /// The answer to the oldest job still unanswered, once it came, with what the renderer
-    /// measured recorded to `performance`.
-    /// A job the renderer stopped before answering fails alone: what was sent since is answered
-    /// by the renderer started anew.
+    /// The next answer to a job, once it came, with what the renderer measured recorded to
+    /// `performance`. A job the renderer stopped before answering fails alone: what was sent since is answered
+    /// by the renderer started anew. Each job that fails is its own `Err`, which is as it should
+    /// be: `Pane::ensure` keeps one job in flight, so a stop fails at most one.
     pub(crate) fn receive(&mut self, performance: &PerformanceReporter) -> Option<RenderJobResult> {
         let (ticket, answer) = self.renderer.try_receive()?;
         let sent = self.sent.remove(&ticket).flatten();
