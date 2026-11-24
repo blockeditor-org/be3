@@ -98,44 +98,42 @@ pub fn ZoomBar(editor: Editor) -> NodeId {
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     view! {
         <Frame>
-            <Show value={actions}>
-                |zoom: ReadSignal<ZoomActions>| {
-                    let zoom = zoom.get_untracked();
-                    let reset = zoom.reset.clone();
-                    view! {
-                        <DockBarSurface @test_id={"editor.zoom_bar"}>
-                            <Frame @test_id={"editor.zoom_bar.grip"}>
-                                <DockBarGrip />
-                            </Frame>
+            <Show value={actions}>|zoom: ReadSignal<ZoomActions>| {
+                let zoom = zoom.get_untracked();
+                let reset = zoom.reset.clone();
+                view! {
+                    <DockBarSurface @test_id={"editor.zoom_bar"}>
+                        <Frame @test_id={"editor.zoom_bar.grip"}>
+                            <DockBarGrip />
+                        </Frame>
+                        <Button
+                            icon_only=true
+                            action={zoom.zoom_out.clone()}
+                            @test_id={"editor.zoom_out"}
+                        />
+                        <Button
+                            label={readout}
+                            variant=ButtonVariant::Ghost
+                            on_click={move || {
+                                reset.run();
+                            }}
+                            @test_id={"editor.zoom"}
+                        />
+                        <Button
+                            icon_only=true
+                            action={zoom.zoom_in.clone()}
+                            @test_id={"editor.zoom_in"}
+                        />
+                        <Show value={zoom.fits}>
                             <Button
                                 icon_only=true
-                                action={zoom.zoom_out.clone()}
-                                @test_id={"editor.zoom_out"}
+                                action={zoom.fit.clone()}
+                                @test_id={"editor.zoom_fit"}
                             />
-                            <Button
-                                label={readout}
-                                variant=ButtonVariant::Ghost
-                                on_click={move || {
-                                    reset.run();
-                                }}
-                                @test_id={"editor.zoom"}
-                            />
-                            <Button
-                                icon_only=true
-                                action={zoom.zoom_in.clone()}
-                                @test_id={"editor.zoom_in"}
-                            />
-                            <Show value={zoom.fits}>
-                                <Button
-                                    icon_only=true
-                                    action={zoom.fit.clone()}
-                                    @test_id={"editor.zoom_fit"}
-                                />
-                            </Show>
-                        </DockBarSurface>
-                    }
+                        </Show>
+                    </DockBarSurface>
                 }
-            </Show>
+            }</Show>
         </Frame>
     }
 }

@@ -222,7 +222,9 @@ pub(crate) fn SelectionDock(
 pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
     let editor = state.editor();
     let content = Render::new(move |()| {
-        view! { <be_sdk_beui::ZoomBar editor /> }
+        view! {
+            <be_sdk_beui::ZoomBar editor />
+        }
     })
     .once();
     view! {

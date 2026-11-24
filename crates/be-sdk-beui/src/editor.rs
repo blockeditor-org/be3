@@ -388,7 +388,12 @@ struct EditorState {
 }
 
 impl Editor {
-    pub(crate) fn zoom_state(&self) -> (Signal<Option<crate::zoom::ZoomActions>>, Signal<Option<crate::zoom::Fitter>>) {
+    pub(crate) fn zoom_state(
+        &self,
+    ) -> (
+        Signal<Option<crate::zoom::ZoomActions>>,
+        Signal<Option<crate::zoom::Fitter>>,
+    ) {
         let state = self.state();
         (state.zoom, state.fit)
     }
