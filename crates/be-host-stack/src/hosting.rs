@@ -178,6 +178,7 @@ pub fn host_heard(shared: &Arc<Mutex<Shared>>, block: Uuid, host: Option<bool>) 
 pub fn left(shared: &Arc<Mutex<Shared>>, block: Uuid) {
     let mut held = lock(shared);
     held.hosting.claimed.remove(&block);
+    held.seen.session_joins.remove(&block);
     let mut changed = held.seen.session_hosts.remove(&block).is_some();
     changed |= stop_hosting(&mut held, block);
     if changed {
@@ -295,7 +296,11 @@ pub fn heard(
             joined,
         }) => {
             if *joined {
-                lock(shared).hosting.claimed.remove(block);
+                let mut held = lock(shared);
+                held.hosting.claimed.remove(block);
+                *held.seen.session_joins.entry(*block).or_insert(0) += 1;
+                drop(held);
+                crate::changes::wake();
             }
             host_heard(shared, *block, host.map(|_| *ours));
         }
