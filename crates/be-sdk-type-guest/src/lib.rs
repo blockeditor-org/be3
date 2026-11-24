@@ -869,8 +869,10 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::load(commit, first_part));
                 self.answer_later(replica, pending, move |result| Input::Read {
                     token,
+                    // A call the host did not answer (unsupported, refused, cancelled with the
+                    // replica) never will: no wait would end it.
                     result: result
-                        .map_err(be_sdk_type_api::LoadError::NotYet)
+                        .map_err(be_sdk_type_api::LoadError::Unreadable)
                         .and_then(|loaded| loaded)
                         .and_then(|loaded| {
                             loaded.into_stored().ok_or_else(|| {
