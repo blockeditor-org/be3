@@ -441,12 +441,15 @@ interface types {
     }
 
     /// Where a journal starts (`be_block_protocol::JournalBase`): a commit
-    /// (none for no content), the last sequence number it holds and the
-    /// session state as of it.
+    /// (none for no content), the last sequence number it holds, the
+    /// session state as of it, and the objects of the parts that state names
+    /// (`parts`). A replica's base names none: the host lists them from the
+    /// parts the replica put.
     record journal-base {
         commit: option<commit-id>,
         sequence: u64,
         state: list<u8>,
+        parts: list<hash>,
     }
 
     /// The session's order since `base`, which no commit holds yet

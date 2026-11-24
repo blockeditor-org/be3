@@ -5089,12 +5089,7 @@ impl<H: Host> Replicas<H> {
                         return false;
                     }
                 };
-                let base = be_block_protocol::JournalBase {
-                    commit: base.commit,
-                    sequence: base.sequence,
-                    state: base.state,
-                    parts,
-                };
+                let base = be_block_protocol::JournalBase { parts, ..base };
                 // The server's journal takes it from the lease holder alone, which it checks
                 // itself; one the module made in a session the host made up (offline, or while
                 // joining) is kept on this device only.
@@ -6154,7 +6149,7 @@ fn reopening<S: be_block_store::ObjectStore>(
 /// An opened journal as a replica of this module takes it: as it is when the module wrote it;
 /// otherwise with none of its entries, which this build cannot read, on `head` at the order's
 /// last number, as this build's (lost when it dropped any), so the replica follows the order on
-/// from there (and its holder starts the journal over, `opening.lost-edits`).
+/// from there (and its holder starts the journal over, `journal.lost`).
 fn replayable(
     journal: be_block_protocol::Journal,
     tag: be_sdk_type_api::SessionTag,
@@ -6174,6 +6169,7 @@ fn replayable(
             commit: head,
             sequence: last,
             state: Vec::new(),
+            parts: Vec::new(),
         },
         entries: Vec::new(),
         lost,

@@ -932,6 +932,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         .last()
                         .map_or(journal.base.sequence, |entry| entry.sequence),
                     state: Vec::new(),
+                    parts: Vec::new(),
                 },
                 lost: journal.lost || !journal.entries.is_empty(),
                 entries: Vec::new(),
@@ -1569,6 +1570,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                             commit: Some(commit),
                             sequence,
                             state,
+                            parts: Vec::new(),
                         })
                 };
                 if let Some(head) = expected
@@ -1890,6 +1892,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     commit: head,
                     sequence: 0,
                     state: Vec::new(),
+                    parts: Vec::new(),
                 },
                 entries: Vec::new(),
                 lost: false,
