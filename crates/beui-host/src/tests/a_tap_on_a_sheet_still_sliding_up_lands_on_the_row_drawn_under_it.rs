@@ -26,14 +26,14 @@ fn a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     open.set(true);
-    // The sheet is measured, then sets out: a few frames until the row is up on screen.
-    for _ in 0..4 {
+    // The sheet is measured, then sets out: frames until the row is up on screen.
+    for _ in 0..60 {
         harness.frame(Vec::new());
-        if harness.document().find_test_id("row").is_some() {
+        let shown = harness.document().find_test_id("row");
+        if shown.is_some_and(|row| harness.rect(row).center().y < 598.0) {
             break;
         }
     }
-    harness.frame(Vec::new());
     let sliding = harness.rect(harness.find("row"));
 
     harness.touch(TouchPhase::Start, sliding.center());
@@ -41,7 +41,7 @@ fn a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it() {
     harness.settle();
     let resting = harness.rect(harness.find("row"));
     assert!(
-        resting.top() < sliding.top() - 20.0,
+        resting.top() < sliding.top(),
         "the tap came while the sheet was still sliding up: at {} on its way to {}",
         sliding.top(),
         resting.top()

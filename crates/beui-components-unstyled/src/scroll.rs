@@ -199,6 +199,9 @@ struct Momentum {
     snap: Option<f32>,
     /// A stop a coast chose on its own, to tell `on_snap`.
     reached: Option<f32>,
+    /// Whether the stop it settles on was asked for (`ScrollApi::settle_to`) rather than
+    /// chosen by a release: that motion takes no press, so what is under it can be pressed.
+    asked: bool,
 }
 
 impl Momentum {
@@ -214,6 +217,7 @@ impl Momentum {
             snaps: Vec::new(),
             snap: None,
             reached: None,
+            asked: false,
         }
     }
 
@@ -230,7 +234,8 @@ impl Momentum {
     }
 
     fn coasting(&self) -> bool {
-        (self.fling.is_some() || self.snap.is_some() || self.stretch != 0.0) && self.drag.is_none()
+        (self.fling.is_some() || (self.snap.is_some() && !self.asked) || self.stretch != 0.0)
+            && self.drag.is_none()
     }
 
     /// The snap stop nearest where a coast from `offset` at the current velocity would come to
@@ -276,6 +281,7 @@ impl Momentum {
         self.velocity = 0.0;
         self.fling = None;
         self.snap = None;
+        self.asked = false;
         self.autoscroll = 0.0;
     }
 
@@ -284,6 +290,7 @@ impl Momentum {
         self.velocity = 0.0;
         self.fling = None;
         self.snap = None;
+        self.asked = false;
     }
 
     fn drag(&mut self, position: &mut ScrollPosition, delta: f32, banding: bool) {
@@ -299,6 +306,7 @@ impl Momentum {
 
     fn release(&mut self, velocity: f32, position: &ScrollPosition) {
         self.drag = None;
+        self.asked = false;
         self.velocity = velocity;
         if self.stretch == 0.0 {
             self.coast(position);
@@ -336,6 +344,9 @@ impl Momentum {
             if self.stretch == 0.0 {
                 self.velocity = back;
                 self.coast(position);
+                if self.snap.is_some() {
+                    self.reached = self.snap;
+                }
             }
             return;
         }
@@ -727,6 +738,7 @@ impl Motion {
         momentum.rest();
         // Clamped as it moves, to what it can reach then.
         momentum.snap = Some(offset.max(0.0));
+        momentum.asked = true;
         self.animate(&mut momentum);
     }
 
@@ -797,6 +809,7 @@ impl Motion {
             _ => return false,
         }
         .clamp(0.0, position.max_offset());
+        let offset = self.keyed(&position, offset);
         if offset == position.offset {
             return false;
         }
@@ -806,6 +819,27 @@ impl Motion {
             self.publish(&momentum, &position, offset);
         }
         true
+    }
+
+    /// Where a key that would go to `offset` goes, given stops: past the last stop it stays
+    /// past it (a sheet's keys scroll what it holds, never lower it); short of it, it steps to
+    /// the next stop that way.
+    fn keyed(&self, position: &ScrollPosition, offset: f32) -> f32 {
+        let mut snaps = self.snaps.get_untracked();
+        snaps.sort_by(f32::total_cmp);
+        let Some(last) = snaps.last().map(|last| last.clamp(0.0, position.max_offset())) else {
+            return offset;
+        };
+        if position.offset >= last - SNAP_SLACK {
+            return offset.max(last);
+        }
+        let forwards = offset > position.offset;
+        let mut stops = snaps.iter().map(|stop| stop.clamp(0.0, position.max_offset()));
+        let next = match forwards {
+            true => stops.find(|stop| *stop > position.offset + SNAP_SLACK),
+            false => stops.rev().find(|stop| *stop < position.offset - SNAP_SLACK),
+        };
+        next.unwrap_or(position.offset)
     }
 
     fn steer(&self) {
@@ -921,7 +955,7 @@ fn Scrolling(
     if let Some(offset) = motion.with(|motion| motion.node) {
         offset.on_steer(move |()| motion.value().steer());
     }
-    api.fill(ScrollApi(motion, Callback::empty()));
+    api.fill(ScrollApi(motion, Callback::empty(), Callback::empty()));
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
@@ -1459,6 +1493,11 @@ fn BrowserScroll(
             scroll_to(f32::MAX);
             refresh();
         }),
+        Callback::new(move |offset: f32| {
+            pinned.set(false);
+            scroll_to(offset);
+            refresh();
+        }),
     ));
     component_accessibility(create_memo(move || {
         scroll_view(reported.get(), direction.get())
@@ -1584,8 +1623,10 @@ fn navigates(key: Key) -> bool {
     )
 }
 
+/// A scroll's handle. On the HTML core its motion is the browser's, so it carries the browser
+/// scroll's own ways to its end and to an offset.
 #[derive(Clone, Copy)]
-pub struct ScrollApi(Stored<Motion>, Callback<()>);
+pub struct ScrollApi(Stored<Motion>, Callback<()>, Callback<f32>);
 
 impl ScrollApi {
     pub fn animating(&self) -> bool {
@@ -1600,16 +1641,24 @@ impl ScrollApi {
         self.0.with(|motion| motion.to_end());
     }
 
-    /// Moves to `offset` at once, stopping whatever motion it had. Natively only.
+    /// Moves to `offset` at once, stopping whatever motion it had.
     pub fn scroll_to(&self, offset: f32) {
+        if !self.2.is_empty() {
+            self.2.call(offset);
+            return;
+        }
         if let Some(motion) = self.0.try_value() {
             motion.scroll_to(offset);
         }
     }
 
     /// Moves to `offset` as it settles on a snap stop: on the overscroll spring, or at once
-    /// without motion. Natively only.
+    /// without motion; on the HTML core, at once.
     pub fn settle_to(&self, offset: f32) {
+        if !self.2.is_empty() {
+            self.2.call(offset);
+            return;
+        }
         if let Some(motion) = self.0.try_value() {
             motion.settle_to(offset);
         }

@@ -11,7 +11,7 @@ use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, 
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
     DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle,
-    NumberFaceHandle, NumberFieldHandle, SheetCurves, SheetGripHandle, SlideCurves,
+    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, SlideCurves,
     TreeRevealHandle, TreeRowHandle, TreeToggleHandle, emoji_completer,
 };
 use beui::{PointerPress, Pos2, TouchDrags, Vec2};
@@ -33,16 +33,6 @@ const BAR_WIDTH: f32 = 6.0;
 const RUBBER: beui::reactive::Spring = beui::reactive::Spring {
     stiffness: 180.0,
     damping: 26.832_815,
-};
-const PULL: beui::reactive::Spring = beui::reactive::Spring {
-    stiffness: 400.0,
-    damping: 38.0,
-};
-const SHEET_CURVES: SheetCurves = SheetCurves {
-    enter: beui::reactive::Easing::OutCubic,
-    settle: beui::reactive::Easing::OutCubic,
-    pull: PULL,
-    rubber: RUBBER,
 };
 const SLIDE_CURVES: SlideCurves = SlideCurves {
     enter: beui::reactive::Easing::OutCubic,
@@ -1770,7 +1760,7 @@ fn PullUpSheet() -> NodeId {
                 fit=true
                 rest=0.9
                 stops={vec![0.9]}
-                curves=SHEET_CURVES
+                style={thin_scrollbar()}
                 scrim={Color32::from_rgba_unmultiplied(0, 0, 0, 120)}
                 grip={move |_: SheetGripHandle| view! {
                     <SheetGrip />
