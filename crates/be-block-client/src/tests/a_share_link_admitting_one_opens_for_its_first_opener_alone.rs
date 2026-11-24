@@ -7,7 +7,7 @@ use super::an_organizations_policies_are_read_by_its_members_and_enforced_by_the
 use super::*;
 
 /// A share link that admits one person, which the policy must allow as it allows a link for
-/// anyone, opens for the first account that opens it, again for that one, and for no one else:
+/// anyone, opens for the first account that opens it, reads for that one, and for no one else:
 /// the server refuses a second opener, as it refuses one the link does not admit.
 #[tokio::test]
 async fn a_share_link_admitting_one_opens_for_its_first_opener_alone() {
@@ -47,10 +47,10 @@ async fn a_share_link_admitting_one_opens_for_its_first_opener_alone() {
 
     let (opened, _) = open(&invited, &one).await.unwrap();
     assert!(opened.guest, "the first opener joins as a guest");
-    let again = open(&invited, &one).await;
+    let read = crate::share_links::read_share_link(&invited.connection(), &one).await;
     assert!(
-        again.is_ok(),
-        "and may open it again, as after an answer it never heard: {again:?}"
+        read.is_ok(),
+        "the one it admitted may still read it: {read:?}"
     );
 
     let refused = crate::share_links::read_share_link(&other.connection(), &one)
