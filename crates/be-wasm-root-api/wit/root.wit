@@ -842,6 +842,10 @@ interface host {
         /// The server this build signs in to unless the person names another,
         /// which adding an account offers first.
         default-server: option<default-server>,
+        /// The block of the session this device shows, while the
+        /// organization's blocks are open: the root shows its editor
+        /// (`editor-of`), filling the window under its own UI.
+        showing: option<block-id>,
     }
 
     /// The server a build signs in to unless the person names another.
@@ -1055,6 +1059,8 @@ interface host {
     record editor-app {
         app: string,
         module: string,
+        /// The app's name, in words, as its manifest gives it.
+        name: string,
     }
 
     /// The editor that shows `block`, or why none does: no app edits its

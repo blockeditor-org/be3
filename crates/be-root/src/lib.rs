@@ -165,6 +165,20 @@ pub const MENU_SURFACE: u32 = 10;
 /// is hit there, and where the menu it opens shows.
 pub const MENU_BUTTON: f32 = 48.0;
 
+/// The layer showing `SESSION_NOTICE_SURFACE` over the session's editor while it loads, or once
+/// it stopped or could not start.
+pub const SESSION_NOTICE_LAYER: LayerId = LayerId(10);
+
+/// A surface of the root's own the size of the window that beui draws the session's notice on:
+/// its app loading, or why it stopped, as be-host's own UI says it.
+pub const SESSION_NOTICE_SURFACE: u32 = 11;
+
+/// What the session's notice says while its editor's app starts.
+pub const LOADING_APP: &str = "Loading app…";
+
+/// What the session's notice says when its host names no app for its block.
+pub const NOT_OPENED_TITLE: &str = "This block could not be opened";
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 
