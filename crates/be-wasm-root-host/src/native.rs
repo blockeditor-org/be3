@@ -316,6 +316,12 @@ impl Root {
         self.core.take_dock_updates()
     }
 
+    /// Where the host's editors the root shows as placed children show their content since the
+    /// last call (`host.place-content`), in order.
+    pub fn take_placed_contents(&mut self) -> Vec<be_wasm_root_api::PlacedContent> {
+        self.core.take_placed_contents()
+    }
+
     /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
     /// host asks of it: the root hears it stopped, and is stepped for that.
     pub fn stop_instance(&mut self, instance: u64, why: &str) {

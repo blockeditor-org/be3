@@ -69,7 +69,9 @@ use be_sdk_api::{
     ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_app_host::docks::{DockedChild, Docks};
-use be_wasm_root_api::{OpenedIn, ShownBlock, ShownChild, ShownPreview, guest::host};
+use be_wasm_root_api::{
+    OpenedIn, PlacedContent, ShownBlock, ShownChild, ShownPreview, ViewRect, ViewSize, guest::host,
+};
 use uuid::Uuid;
 
 use crate::{BlockSpawn, Embedded, Embedding, Hosted, Pressed, SpawnFailure};
@@ -215,6 +217,9 @@ struct Child {
     framing: bool,
     /// Its main view as asked last, which a docked child kept unplaced is asked for still.
     main: Option<ScreenRequest>,
+    /// Where its content shows in its main view and the size it wants, as the host was told
+    /// last (`host.place-content`).
+    told_content: Option<(Rect, Option<be_lib_geometry::Vec2>)>,
     /// The views of its dock a joined dock places, each a screen of its app.
     tabs: Vec<TabScreen>,
     /// The children its own editor places.
@@ -276,6 +281,7 @@ impl Child {
             placed: true,
             framing: false,
             main: None,
+            told_content: None,
             tabs: Vec::new(),
             nested: Children::default(),
         })
@@ -370,6 +376,37 @@ impl Child {
         tab.or(self.layer.filter(|_| self.placed))
     }
 
+    /// Tells the host where its content shows in its main view, and the size it wants, once
+    /// either changed (`host.place-content`): its placed rect while it takes its placer's frame,
+    /// else the whole view, which be-host's camera hands a placed child that pans and zooms as
+    /// its view.
+    fn place_content(&mut self, app: &Embedded, editor: EditorInstanceId) {
+        let content = placed_content(&self.placement, self.framing);
+        let intrinsic = app.intrinsic(editor);
+        if self.told_content == Some((content, intrinsic)) {
+            return;
+        }
+        self.told_content = Some((content, intrinsic));
+        let told = host::place_content(PlacedContent {
+            instance: app.instance(),
+            editor: editor.0,
+            content: ViewRect {
+                min_x: content.min.x,
+                min_y: content.min.y,
+                max_x: content.max.x,
+                max_y: content.max.y,
+            },
+            intrinsic: intrinsic.map(|size| ViewSize {
+                width: size.x,
+                height: size.y,
+            }),
+        });
+        be_wasm_ops::guest::spawn(async move {
+            // A host that stopped answering stops the root too.
+            let _ = told.await;
+        });
+    }
+
     /// The screen its app is asked for the view `tab` of its dock, kept while placed.
     fn tab_screen(&mut self, tab: u64) -> ScreenId {
         if let Some(held) = self.tabs.iter_mut().find(|held| held.tab == tab) {
@@ -438,6 +475,7 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
             }
             Some(shown) => {
                 child.showing = shown.showing;
+                child.told_content = shown.told_content;
                 child.layer = shown.layer;
                 child.up = shown.up;
                 child.nested = shown.nested;
@@ -692,6 +730,16 @@ impl Children {
                 child.tabs.retain(|tab| tab.asked);
                 child.nested.withdraw_chrome(app, &mut screens);
                 app.show(screens);
+                // Placed by its parent, as a card or taking its frame: a child with a frame of
+                // its own, or whose dock joined its placer's, keeps its own camera, as under
+                // be-host.
+                if child.placed
+                    && !child.previewed()
+                    && !child.placement.own_frame
+                    && !settling.docks.docked(*editor)
+                {
+                    child.place_content(app, *editor);
+                }
             } else {
                 child.tabs.clear();
             }
@@ -1367,6 +1415,19 @@ pub fn child_screen(
         anchor_space: None,
         fit: false,
         origin: None,
+    }
+}
+
+/// Where a child placed as `placement` shows its content in its main view's points: its placed
+/// rect, what shows of it, while it takes its placer's frame (`framing`), whose screen is its
+/// placer's, else the whole of its view, the size of its place.
+fn placed_content(placement: &ChildPlacement, framing: bool) -> Rect {
+    match framing {
+        true => placement.rect.intersect(placement.clip),
+        false => Rect::from_min_max(
+            pos2(0.0, 0.0),
+            pos2(placement.rect.width(), placement.rect.height()),
+        ),
     }
 }
 

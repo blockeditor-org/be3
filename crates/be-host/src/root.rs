@@ -829,6 +829,9 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
             forwarded.dock(EditorInstanceId(editor), updates);
         }
     }
+    for placed in root.take_placed_contents() {
+        place_content(editors, placed);
+    }
     editors
         .placers
         .retain(|child, _| editors.opened.contains_key(child));
@@ -836,6 +839,40 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     for (instance, forwarded) in editors.served.iter_mut() {
         root.relay(*instance, forwarded.step());
     }
+}
+
+/// Hands the editor `placed` names, shown as a placed child (`host.place-content`), the part of
+/// its world it shows, if it pans and zooms, as be-host's camera does for a placed child
+/// (`Camera`'s `shown`): where its content shows, at that rect's scale over the size its content
+/// wants.
+fn place_content(editors: &mut Editors, placed: be_wasm_root_api::PlacedContent) {
+    let pans = editors
+        .opened
+        .get(&(placed.instance, placed.editor))
+        .is_some_and(|opened| {
+            opened
+                .app
+                .editor(opened.editor.into_bytes())
+                .is_some_and(|editor| editor.capabilities.pan_and_zoom)
+        });
+    let Some(forwarded) = editors.served.get_mut(&placed.instance).filter(|_| pans) else {
+        return;
+    };
+    let content = placed.content;
+    let rect = beui::Rect::from_min_max(
+        beui::pos2(content.min_x, content.min_y),
+        beui::pos2(content.max_x, content.max_y),
+    );
+    let scale = placed
+        .intrinsic
+        .filter(|intrinsic| intrinsic.width > 0.0 && intrinsic.height > 0.0)
+        .map_or(1.0, |intrinsic| {
+            (rect.width() / intrinsic.width).min(rect.height() / intrinsic.height)
+        });
+    forwarded.set_view(
+        EditorInstanceId(placed.editor),
+        be_host_runtime::EditorView { rect, scale },
+    );
 }
 
 /// Hands each block the root's editors asked to open (`opens`, by the app and instance that

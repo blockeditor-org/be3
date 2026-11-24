@@ -98,7 +98,11 @@ show requests, as under be-host: the nearest of the asking editor and those
 placing it, which the root names in `host.show-children`, whose manifest
 accepts them, else the editor showing the session's block. The root tells
 every app it embeds the host's catalog (`be3:root`'s `host.block-types`),
-which names block types and draws their icons.
+which names block types and draws their icons. A child placed by its parent
+without a frame of its own keeps no camera, as under be-host (guides/pan_and_zoom.md,
+Who owns the camera): the root tells the host where its content shows and the
+size it wants (`host.place-content`), and the host hands a pan-and-zoom editor
+its view from them.
 
 A joined dock's tab menus, picks and details, drags, a block shown in several
 places sharing one editor, occluders, `fit`, a child in place at its zoom,
