@@ -147,7 +147,7 @@ pub use search_list::{
     SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank, substring_score,
 };
 pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
-pub use sheet::{ModalSheet, Sheet, SheetCurves, SheetGripHandle};
+pub use sheet::{ModalSheet, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
 pub use split_button::SplitButton;
 pub use stack::Stack;

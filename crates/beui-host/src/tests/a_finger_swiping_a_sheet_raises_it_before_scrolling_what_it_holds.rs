@@ -10,8 +10,8 @@ fn a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
-    let height = |harness: &Harness| harness.rect(sheet).height();
-    let scrolled = |harness: &Harness| harness.document().scroll_offset(sheet);
+    let height = |harness: &Harness| sheet_raised(harness, sheet);
+    let scrolled = |harness: &Harness| sheet_scrolled(harness, sheet);
     assert_eq!(height(&harness), 300.0, "a sheet opens at its resting stop");
 
     harness.finger_drag_and_hold(pos2(200.0, 450.0), pos2(200.0, 250.0));

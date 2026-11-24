@@ -32,7 +32,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
         harness
             .document()
             .node_rect(sheet.get())
-            .map(|rect| rect.height())
+            .map(|_| sheet_raised(harness, sheet.get()))
     };
     let handle = |harness: &Harness| {
         let id = harness
