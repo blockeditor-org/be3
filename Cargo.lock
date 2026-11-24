@@ -2683,6 +2683,7 @@ dependencies = [
  "be-block-store",
  "be-block-sync",
  "be-block-type-host",
+ "be-host-base",
  "be-host-runtime",
  "be-host-stack",
  "be-host-testing",

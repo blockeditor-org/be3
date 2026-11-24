@@ -9,6 +9,9 @@ use be_tool_cli::tracker::Tracker;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // A panic a host component's run contains (be-host-runtime) is reported in full, with its
+    // backtrace, as be-host reports it.
+    be_host_base::panic_guard::install();
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
