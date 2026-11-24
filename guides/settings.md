@@ -109,7 +109,9 @@ governs while it can't read the policy
 organization settings block's key to every member itself; clients accept that key for this
 block alone and only to read (decisions/a_server_sealed_key_never_seals_anything.md).
 `OrganizationPolicies` are enforced by the server (`ServerStore::policies`), among them whom
-share links may admit (`link_sharing`, guides/blocks/keys.md, "Share links"). A personal account
+share links may admit (`link_sharing`, guides/blocks/keys.md, "Share links"); an invitation to
+someone new carries a share link that admits one, so it is allowed where a link for anyone is
+(guides/blocks/keys.md, "An invitation"). A personal account
 never deletes anything on losing access
 (decisions/personal_account_data_is_never_deleted_automatically.md).
 

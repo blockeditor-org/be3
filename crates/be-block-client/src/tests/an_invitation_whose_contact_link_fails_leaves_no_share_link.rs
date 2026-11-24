@@ -1,0 +1,48 @@
+use be_block::{LinkSharing, OrganizationPolicies};
+
+use super::an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server::set_policies;
+use super::*;
+
+/// An invitation's share link is made first; when its contact link then fails (here, the maker
+/// already has as many contact links open as the server keeps), the share link is revoked, so
+/// no invitation half is left to show as one not opened yet.
+#[tokio::test]
+async fn an_invitation_whose_contact_link_fails_leaves_no_share_link() {
+    let harness = Harness::start().await;
+    let maker = harness.owner("maker@example.com").await;
+    set_policies(
+        &maker,
+        &[OrganizationPolicies::set_link_sharing(Some(
+            LinkSharing::Anyone,
+        ))],
+    )
+    .await;
+    let team = workspace(&maker, "Team").await;
+    {
+        let database = harness.database();
+        for _ in 0..1_000 {
+            database
+                .execute(
+                    "INSERT INTO links (id, owner_id, card) VALUES (?1, ?2, x'')",
+                    [Uuid::new_v4().to_string(), maker.account().to_string()],
+                )
+                .unwrap();
+        }
+    }
+
+    let card = crate::contacts::card(
+        maker.account(),
+        maker.keys().identity(),
+        "maker@example.com",
+        "maker@example.com",
+    );
+    let refused = maker.make_invitation(&card, team, Access::View).await;
+    assert!(refused.is_err(), "the contact link is refused: {refused:?}");
+    let links = maker.share_links(team).await.unwrap();
+    assert!(
+        links.is_empty(),
+        "the share link made for it was revoked: {links:?}"
+    );
+
+    harness.stop().await;
+}
