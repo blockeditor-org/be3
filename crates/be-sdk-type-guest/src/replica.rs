@@ -41,6 +41,11 @@ const PUT_RETRY_CEILING: u64 = 60_000;
 const READ_RETRY_CEILING: u64 = 60_000;
 const READ_RETRY_INTERVAL: u64 = 1_000;
 
+/// How many times a replica opening on a journal reads a part it names before it gives the
+/// part up (about a minute, doubling from `READ_RETRY_INTERVAL`): one its base's state goes by
+/// then opens on the commit with the journal's edits lost (`loaded`).
+const JOURNAL_PART_TRIES: u32 = 7;
+
 /// The longest part an entry may name: one longer is passed over by every replica alike, unread.
 const LARGEST_PART: u64 = 64 * LARGEST_RELAYED_OPERATION as u64;
 
@@ -966,6 +971,7 @@ where
         for part in due {
             self.read_retry.remove(&part);
         }
+        self.resume_load();
         if self.put_retry_at.is_some_and(|at| self.now >= at) {
             self.put_retry_at = None;
             self.flush();
@@ -1452,20 +1458,17 @@ where
                 self.read_retry.insert(part, self.now + wait);
             }
         }
+        self.resume_load();
+    }
+
+    /// Opening goes on once no part it reads is on its way: with what it still lacks read
+    /// again, or with what comes after the parts (`load`).
+    fn resume_load(&mut self) {
         if self.reading.is_empty()
             && let Some(Wait::Payloads { .. }) = &self.waiting
             && let Some(Wait::Payloads { loaded }) = self.waiting.take()
         {
-            let missing = self.journal_parts();
-            match missing.is_empty() {
-                true => self.loaded(loaded),
-                false => {
-                    for part in missing {
-                        self.read_payload(part);
-                    }
-                    self.waiting = Some(Wait::Payloads { loaded });
-                }
-            }
+            self.load(loaded);
         }
     }
 
@@ -3045,8 +3048,8 @@ where
 
     /// Takes the content just read once the parts its journal's operations name are read too.
     fn load(&mut self, content: C) {
-        let missing = self.journal_parts();
-        if missing.is_empty() {
+        let unread = self.journal_parts();
+        if unread.is_empty() {
             let commits = self.journal_restart_commits();
             if commits.is_empty() {
                 return self.loaded(content);
@@ -3057,14 +3060,17 @@ where
                 Then::RestartCommits { commits },
             );
         }
-        for part in missing {
-            self.read_payload(part);
+        // One that failed is read again on its timer (`tick`).
+        for part in unread {
+            if !self.read_retry.contains_key(&part) {
+                self.read_payload(part);
+            }
         }
         self.waiting = Some(Wait::Payloads { loaded: content });
     }
 
-    /// The parts the journal opened on names that are not read yet: its base's state, when it
-    /// goes by one, and its entries'.
+    /// The parts the journal opened on names that are not read yet, nor given up after
+    /// `JOURNAL_PART_TRIES`: its base's state, when it goes by one, and its entries'.
     fn journal_parts(&self) -> Vec<PartRef> {
         let journal = self
             .opened_journal
@@ -3090,8 +3096,18 @@ where
                 _ => None,
             })
             .chain(base.filter(|part| part.length() <= LARGEST_PART))
-            .filter(|part| !self.payloads.contains_key(part) && !self.read_retry.contains_key(part))
+            .filter(|part| {
+                !self.payloads.contains_key(part)
+                    && self.read_failures.get(part).copied().unwrap_or(0) < JOURNAL_PART_TRIES
+            })
             .collect()
+    }
+
+    /// Whether the state `journal`'s base goes by is a part this replica gave up reading.
+    fn base_state_lost(&self, journal: &Journal) -> bool {
+        crate::wire::BaseState::decode(&journal.base.state)
+            .and_then(|state| state.part)
+            .is_some_and(|part| !self.payloads.contains_key(&part))
     }
 
     /// The commits the restarts in the journal opened on name that are not read yet: its base,
@@ -3131,6 +3147,28 @@ where
             .take()
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
+        // A base whose state goes by a part that could not be read for good: what the journal
+        // holds was made on that state, so it is lost, as another build's edits are. The
+        // replica opens on the commit after the journal, its editors are told, and a holder
+        // starts the journal over from it (below).
+        let journal = match journal {
+            Some(journal) if self.base_state_lost(&journal) => {
+                self.error(
+                    "the session state of the journal's base could not be read: \
+                     edits since the last commit were lost",
+                );
+                let last = journal
+                    .entries
+                    .last()
+                    .map_or(journal.base.sequence, |entry| entry.sequence)
+                    .max(journal.base.sequence);
+                self.applied = last;
+                self.sealed = last;
+                self.lost_edits = true;
+                None
+            }
+            journal => journal,
+        };
         if let Some(journal) = journal {
             // A restart in the journal carries what came after its seal over the commit it
             // names, as applying it does: the base afresh is kept for one that names it.
