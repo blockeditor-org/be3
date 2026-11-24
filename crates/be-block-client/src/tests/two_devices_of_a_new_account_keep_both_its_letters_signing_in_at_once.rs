@@ -31,7 +31,6 @@ async fn two_devices_of_a_new_account_keep_both_its_letters_signing_in_at_once()
             &maker.connection(),
             maker.keys().identity(),
             &crate::contacts::card(maker.account(), maker.keys().identity(), email, email),
-            None,
         )
         .await
         .unwrap();
