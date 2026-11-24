@@ -758,3 +758,14 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   inside itself"), but the test server cannot serve a parent cycle. Done: a test
   drives that refusal, through a stub `Peer` summary or a fault relay that
   rewrites a summary's parent.
+
+## 32. Host events
+
+- **A Host event held during a join can override the join's answer.**
+  be-block-client's connection.rs replays the Host events it held during a
+  join after the join's answer. If the server sent one before it handled the
+  join, that stale event wins over the fresher answer: in a failing run of
+  `a_device_hosts_only_once_its_component_claims_the_lease`, the rejoin's answer
+  said no one hosts, and a held `Host { Some(us) }` then named this device host
+  again. Done: a held Host event older than the join's answer is dropped, and a
+  test sends one in that window and sees the answer stand.
