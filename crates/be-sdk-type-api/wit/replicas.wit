@@ -56,12 +56,11 @@ interface replicas {
         head: option<commit-id>,
         session: session-state,
         /// The block's journal by this module's build, when its base is
-        /// `head`: the replica loads the base and replays it.
+        /// `head`: the replica loads the base and replays it. A journal by
+        /// another build comes without its entries, at its last number, and
+        /// `lost` when it held some or the server marked edits lost since the
+        /// last commit: edits of this block made with another build were lost.
         journal: option<journal>,
-        /// Edits of this block made with another build were lost: its journal
-        /// on `head` holds some this module cannot replay, or the server
-        /// marked them lost since the last commit.
-        lost-edits: bool,
         /// `journal` is this device's, numbered offline: the server lacks it.
         journal-kept: bool,
         /// Whether this device keeps commits of the block the server lacks: an

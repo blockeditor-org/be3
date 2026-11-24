@@ -1841,7 +1841,6 @@ impl<H: Host> Replicas<H> {
                 .collect(),
             head,
             session: session.clone(),
-            lost_edits: lost_edits(journal.as_ref(), tag),
             journal: journal.and_then(|journal| replayable(journal, tag, head)),
             journal_kept,
             commits_kept: kept.0,
@@ -2131,7 +2130,6 @@ impl<H: Host> Replicas<H> {
             kept_submissions: open.kept_submissions(),
             head,
             session,
-            lost_edits: lost_edits(journal.as_ref(), tag),
             journal: journal.and_then(|journal| replayable(journal, tag, head)),
             journal_kept,
             commits_kept: commits_kept.0,
@@ -4443,8 +4441,13 @@ impl<H: Host> Replicas<H> {
                 kept_submissions: open.kept_submissions(),
                 head,
                 session: open.session.clone(),
-                lost_edits: false,
-                journal: journal.and_then(|journal| replayable(journal, tag, head)),
+                // A module restarted offline replays this device's journal, nothing lost.
+                journal: journal
+                    .and_then(|journal| replayable(journal, tag, head))
+                    .map(|journal| be_block_protocol::Journal {
+                        lost: false,
+                        ..journal
+                    }),
                 journal_kept,
                 commits_kept: kept.0,
                 refused_commits: kept.1,
@@ -6126,17 +6129,6 @@ fn reopening<S: be_block_store::ObjectStore>(
         online,
         head,
     )
-}
-
-/// Whether edits of the block made with another build were lost: `journal` holds some this
-/// module cannot replay, or the server marked them lost since the last commit.
-fn lost_edits(
-    journal: Option<&be_block_protocol::Journal>,
-    tag: be_sdk_type_api::SessionTag,
-) -> bool {
-    journal.is_some_and(|journal| {
-        journal.lost || (journal.tag.as_bytes() != &tag.0 && !journal.entries.is_empty())
-    })
 }
 
 /// An opened journal as a replica of this module takes it: as it is when the module wrote it;

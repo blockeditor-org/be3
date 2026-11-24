@@ -13,7 +13,7 @@ be_wasm_ops_bindgen::generate!({
     deps: ["../be-wasm-ops/wit"],
     with: {
         "uuid": uuid::Uuid,
-        "hash": [u8; 32],
+        "hash": be_block_store::Hash,
         "commit-id": be_block_commit::CommitId,
         "session-tag": crate::SessionTag,
         "participant": be_block_protocol::Participant,
@@ -127,10 +127,22 @@ impl Loaded {
 
 pub type Entries = BTreeMap<Uuid, Vec<u8>>;
 
-#[derive(
-    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
-)]
+/// A type module's hash (`session-tag`), on the wire as the WIT's other hashes are
+/// (`be_block_store::Hash`).
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SessionTag(pub [u8; 32]);
+
+impl Serialize for SessionTag {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        be_block_store::Hash::from_bytes(self.0).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SessionTag {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        be_block_store::Hash::deserialize(deserializer).map(|hash| Self(*hash.as_bytes()))
+    }
+}
 
 /// Content's parts as `Written` carries them: the bytes of its new parts, and its
 /// shape in pre-order, a `Reused` part kept by its ref. None only for a part
@@ -204,3 +216,6 @@ fn take_part<'a>(
         WrittenPart::Reused(part) => Some(be_block_store::Part::Reused(*part)),
     }
 }
+
+#[cfg(test)]
+mod tests;

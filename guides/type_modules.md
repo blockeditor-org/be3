@@ -16,7 +16,12 @@ talks to its host only through typed operations. be-host's peer, `be` and
   `LogPage`, `Signer`, …), `Announcement`, `Along`, `ChildChange` and
   `SearchDocument`, be-block-store's `PartRef`, be-block-protocol's journal,
   `Participant` and `SessionState`, and be-block-session's `Resume`. Such a
-  WIT record keeps the Rust type's fields in order, and changes with it.
+  WIT record keeps the Rust type's wire form, and changes with it: the crate's
+  `every_type_the_wit_maps_onto_the_stacks_has_its_wire_form` generates the
+  world again unmapped and checks each pair (bindgen's `root` places that
+  second world in the test module). Since be-sdk-type-api depends on
+  be-block-content, be-block-content stays free of any GUI framework, like the
+  protocol itself.
 - `crates/be-sdk-type-guest`: the replica library a type module links. It holds
   a block's live session and undo stack as one deterministic state machine
   that every `Document<R>` and `Blob<K>` works with unchanged.
@@ -76,7 +81,7 @@ so the WIT files are buck `resources`, and another crate's package is a
 `foreign_resources` entry named in `deps` (guides/buck2.md); see
 be-sdk-api's BUCK and `lib.rs` for a crate that uses several packages. Its
 options (`with`, `uses`, `copy`, `default`, `inline`, `lenient`, `ordered`,
-`encodings`, `local`, `network`) are documented on the macro.
+`encodings`, `local`, `network`, `root`) are documented on the macro.
 
 It generates, per interface, the types, and:
 - for the guest, `guest::<import>` functions returning `Pending<T>` or
@@ -98,10 +103,13 @@ Traps:
 - A resource named `*-watch` with only `constructor()` and
   `next: async func() -> T` becomes a latest-value watch
   (`be_wasm_ops::Watched`), which editors follow with `editor.watch::<W>()`.
-- `with` substitutes an existing Rust type for a WIT type, and nothing checks
-  that their serde forms agree: keep the WIT's fields and cases in the Rust
-  type's order (a record a variant case carries is `inline` when the Rust case
-  has fields), and its byte fields on `serde_bytes`.
+- `with` substitutes an existing Rust type for a WIT type, and the generator
+  does not check that their serde forms agree: keep the WIT's fields and cases
+  in the Rust type's order (a record a variant case carries is `inline` when the
+  Rust case has fields), and its byte fields on `serde_bytes`. A crate that maps
+  types with fields checks them with a test that generates its world again
+  without them (be-sdk-type-api's, above). Map an id one way in a world: `hash`
+  is `be_block_store::Hash` wherever a mapped type holds one.
 - Ids and access levels have one shape everywhere: `be3:shared`
   (`crates/be-wasm-ops/wit`) holds `uuid`, `hash` and their named aliases.
 - WIT keywords are written with `%`, and a function may not share its name
@@ -586,8 +594,9 @@ order: presence and channel messages. The rules an agent most needs:
   the seal was made on and takes the seal as its head once it reached the seal's
   sequence. `replay` does the same for a reader outside the session. A journal
   by another build is handed over without its entries, at its last number, and
-  the replica reports them lost (`status.undo.lost-edits`); its holder starts the
-  journal over.
+  `lost` (`journal.lost`, the one place a replica learns it), and the replica
+  reports them lost (`status.undo.lost-edits`); its holder starts the journal
+  over.
 - **Opening again.** A replica's `origin` is kept across its reopenings
   (`opening.origin`), and `opening.taken-before` says how many local edits the
   host no longer gives it, so it numbers the edits it is given again as before.
