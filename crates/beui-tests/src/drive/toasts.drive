@@ -24,5 +24,7 @@ wait '#toast.3'
 pause 7000
 wait '#toast.3'
 pause 1500
+# Its time is up by now; it slides off.
+pause 500
 wait not '#toast.3'
 wait 'value="Toasts 0 chose reply 2"'
