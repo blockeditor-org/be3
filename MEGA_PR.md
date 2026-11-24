@@ -31,6 +31,7 @@ Landed on 2026-11-24:
 - `one-way-in-apps-1b`: the frame registers a pan-and-zoom editor's zoom actions and one ZoomBar shows them; the logic grid, map and canvas zoom through it (verify: only the known flaky lease test failed, fixed separately).
 - `seal-states-go-by-part-6`: a session's state seals by its own part, and an editor's put that a replica carries leaves out its own state parts.
 - `windows-restored-chips`: on Windows, windows from last time wait in chips and restore from the start menu; two dead-code errors on Windows fixed.
+- `one-way-in-apps-2`: one replace panel (ContentFileReplace) for the image, audio, PDF and game module editors; each file type says its extensions and MIME types, and pickers filter by them; m4a, oga, pnm and tga are recognised.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
