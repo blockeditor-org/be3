@@ -23,7 +23,7 @@ fn widths(glided: bool) -> [f32; 2] {
             };
             match glided {
                 true => view! {
-                    <Glide spring={Spring { stiffness: 300.0, damping: 30.0 }}>{content}</Glide>
+                    <Glide spring={Spring::critical(300.0)}>{content}</Glide>
                 },
                 false => content,
             }

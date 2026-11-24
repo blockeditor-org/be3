@@ -43,11 +43,12 @@ pub fn bounce(stretch: &mut f32, velocity: &mut f32, elapsed: f32, spring: Sprin
         let frequency = spring.stiffness.sqrt();
         let peak = (velocity.abs() / frequency).atan2(stretch.abs()) / frequency;
         if elapsed < peak {
-            let outwards = Spring {
-                damping: 0.0,
-                ..spring
-            };
-            outwards.advance(stretch, velocity, elapsed);
+            // Outwards it slows as an undamped spring would, to its peak: a quarter swing,
+            // never a swing back.
+            let (sin, cos) = (frequency * elapsed).sin_cos();
+            let (from, speed) = (*stretch, *velocity);
+            *stretch = from * cos + speed / frequency * sin;
+            *velocity = speed * cos - from * frequency * sin;
             return 0.0;
         }
         *stretch = stretch

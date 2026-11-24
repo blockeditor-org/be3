@@ -36,7 +36,7 @@ const RUBBER: beui::reactive::Spring = beui::reactive::Spring {
 };
 const SETTLE: beui::reactive::Spring = beui::reactive::Spring {
     stiffness: 500.0,
-    damping: 42.0,
+    damping: 44.721_36,
 };
 const SLIDE_CURVES: SlideCurves = SlideCurves {
     enter: SETTLE,

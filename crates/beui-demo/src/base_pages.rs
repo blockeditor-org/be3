@@ -1612,7 +1612,7 @@ fn AnimationSample() -> NodeId {
             let mut speed = velocity.get();
             Spring {
                 stiffness: 180.0,
-                damping: 24.0,
+                damping: 26.832_815,
             }
             .advance(&mut offset, &mut speed, frame.delta.as_secs_f32());
             velocity.set(speed);

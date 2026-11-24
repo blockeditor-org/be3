@@ -845,9 +845,13 @@ mod web {
         }
     }
 
+    /// Holds a menu, a `Beside` overlay and an `Inside*` one (toasts) to the room it gets, as the
+    /// native core measures it in that room: an `Inside*` one gets the anchor's part of the
+    /// window, so on a narrow window it narrows, its text wrapping, rather than running past
+    /// the window's edge.
     fn fit(layer: &Layer) {
         let placement = layer.placement.get();
-        if !super::measured_placement(placement) {
+        if !super::measured_placement(placement) && !placement.inside() {
             return;
         }
         let Some(anchor) = anchor_rect(layer) else {

@@ -325,7 +325,9 @@ impl Default for CornerSet {
 /// Today `Settle` is used in both forms and `Rubber` and `Pull` only as
 /// springs; their easings are placeholders, to be set when a component first
 /// asks for them. How long an eased motion takes is behaviour and stays with
-/// the component. `Motion::Instant` still lands every movement at once.
+/// the component. `Motion::Instant` still lands every movement at once. No
+/// movement oscillates: each spring is critically damped, so one let go at rest
+/// never passes where it comes to rest.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Movement {
     /// Something landing where layout puts it or going on its way: a dropped
@@ -353,7 +355,7 @@ impl Movement {
         match self {
             Movement::Settle => Spring {
                 stiffness: 500.0,
-                damping: 42.0,
+                damping: 44.721_36,
             },
             Movement::Rubber => Spring {
                 stiffness: 180.0,
@@ -361,7 +363,7 @@ impl Movement {
             },
             Movement::Pull => Spring {
                 stiffness: 400.0,
-                damping: 38.0,
+                damping: 40.0,
             },
         }
     }
@@ -378,3 +380,6 @@ impl Movement {
 into_prop_via!(Padding, Space, Padding::all);
 into_prop_via!(Length, Size, Length::Size);
 into_prop_via!(Length, Extent, Length::Extent);
+
+#[cfg(test)]
+mod tests;
