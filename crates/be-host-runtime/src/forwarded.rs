@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use be_sdk_api::{
     DockUpdate, EditorInstanceId, ViewId, app::EditorEvent, embed::shell::Call as ShellCall,
-    ops::OpError,
+    ops::OpError, shell_types::ShellMessage,
 };
 use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
@@ -94,6 +94,30 @@ impl Forwarded {
     /// a parent: sent with the next `step`, once it changed.
     pub fn set_view(&mut self, instance: EditorInstanceId, view: crate::EditorView) {
         self.instances.set_view(instance, view);
+    }
+
+    /// Takes what the dialog `instance` (a picker, a rename form or an Export dialog) told the
+    /// shell that its placer's status says, as its root relays it (`be3:root`'s
+    /// `host.tell-shell`): the block it picked, its answer, whether it takes Escape itself and
+    /// whether it shows as a card.
+    pub fn shell_told(&mut self, instance: EditorInstanceId, messages: Vec<ShellMessage>) {
+        self.instances.hear_relayed_shell(instance, messages);
+    }
+
+    /// The block the dialog `instance` picked, once it did.
+    pub fn picked(&self, instance: EditorInstanceId) -> Option<be_sdk_api::BlockPick> {
+        self.instances.picked(instance)
+    }
+
+    /// How the dialog `instance` is, as it last told the shell: its answer, and whether it takes
+    /// Escape itself.
+    pub fn dialog_status(&self, instance: EditorInstanceId) -> be_sdk_api::DialogStatus {
+        self.instances.dialog_status(instance).unwrap_or_default()
+    }
+
+    /// Whether the editor `instance` shows as a card, as it last told the shell.
+    pub fn card(&self, instance: EditorInstanceId) -> bool {
+        self.instances.card(instance)
     }
 
     /// Closes the editor `instance`: it is served no more, and the app hears it closed with the

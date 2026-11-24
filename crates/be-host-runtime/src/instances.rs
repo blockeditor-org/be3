@@ -4076,6 +4076,28 @@ impl Instances {
         }
     }
 
+    /// Takes what a root relays of what its dialog `instance` told the shell
+    /// (`Forwarded::shell_told`): the block it picked, its answer, whether it takes Escape itself
+    /// and whether it shows as a card, which its placer's status says. Anything else is the
+    /// root's to act on, and is dropped.
+    pub(super) fn hear_relayed_shell(
+        &mut self,
+        instance: EditorInstanceId,
+        messages: Vec<ShellMessage>,
+    ) {
+        for message in messages {
+            if matches!(
+                message,
+                ShellMessage::Picked(_)
+                    | ShellMessage::CloseDialog(_)
+                    | ShellMessage::HandlesDismiss(_)
+                    | ShellMessage::ShowCard(_)
+            ) {
+                self.shell_message(instance, message);
+            }
+        }
+    }
+
     /// Takes what one `tell` carried; whether it changed what the host shows.
     fn shell_message(&mut self, instance: EditorInstanceId, message: ShellMessage) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {

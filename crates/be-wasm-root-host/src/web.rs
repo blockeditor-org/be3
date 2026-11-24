@@ -297,7 +297,7 @@ impl Root {
 
     /// The blocks the root asked the editor of since the last call (`host.editor-of`), each by
     /// the id `answer_editor` answers it by.
-    pub fn take_editor_asks(&self) -> Vec<(u64, be_wasm_root_api::ShownBlock)> {
+    pub fn take_editor_asks(&self) -> Vec<(u64, be_wasm_root_api::Shown)> {
         self.shared.core.borrow_mut().take_editor_asks()
     }
 
@@ -359,6 +359,12 @@ impl Root {
     /// last call (`host.place-content`), in order.
     pub fn take_placed_contents(&self) -> Vec<be_wasm_root_api::PlacedContent> {
         self.shared.core.borrow_mut().take_placed_contents()
+    }
+
+    /// What the dialogs the root opened told the shell since the last call
+    /// (`host.tell-shell`): by the root's instance and the editor, each encoded, in order.
+    pub fn take_shell_tells(&self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.shared.core.borrow_mut().take_shell_tells()
     }
 
     /// The editors the root closed since the last call (`host.close-editor`): by the root's

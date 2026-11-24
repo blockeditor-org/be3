@@ -57,8 +57,12 @@
 //! Left for later (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g): an ask acted on only
 //! while no popover or keyboard-taking layer of the editor's is open (the editor's own popovers
 //! are in its screen, so the root does not see them), the press that promotes a child replayed in
-//! it, and every other kind of child (web views, host panels, program windows, pickers,
-//! creations, artifact settings and rename forms), which the placer hears are unavailable.
+//! it, and every other kind of child (web views, host panels, program windows, creations and
+//! artifact settings), which the placer hears are unavailable.
+//!
+//! A picker, a rename form or an Export dialog is a dialog (`Shown::Dialog`), opened like a
+//! block's editor in the editor that runs it, its placer's own: what it tells the shell that
+//! its placer's status says, the root relays to the host (`host.tell-shell`).
 
 use std::{
     cell::{Cell, RefCell},
@@ -81,7 +85,8 @@ use be_sdk_api::{
 };
 use be_sdk_app_host::docks::{DockedChild, Docks};
 use be_wasm_root_api::{
-    OpenedIn, PlacedContent, ShownBlock, ShownChild, ShownPreview, ViewRect, ViewSize, guest::host,
+    OpenedIn, PlacedContent, Shown, ShownBlock, ShownChild, ShownPreview, ViewRect, ViewSize,
+    guest::host,
 };
 use uuid::Uuid;
 
@@ -246,9 +251,11 @@ struct Child {
     editor: EditorInstanceId,
     view: ViewId,
     child: ChildId,
-    /// Its block, with the editor and view block its placement names.
-    shown: ShownBlock,
-    block: [u8; 16],
+    /// What it shows: its block, with the editor and view block its placement names, or a
+    /// dialog (a picker, a rename form, an Export dialog), which its placement is.
+    shown: Shown,
+    /// Its block, for a block child: what no child of its editor's may show again.
+    block: Option<[u8; 16]>,
     /// Its placement, as its placer's latest layout said.
     placement: ChildPlacement,
     /// The pixels per point its placer's screen is laid out at, which its own is.
@@ -277,7 +284,7 @@ struct Child {
 struct Editor {
     key: Option<EditorKey>,
     /// What it shows, as the place that opened it named it.
-    shown: ShownBlock,
+    shown: Shown,
     showing: RefCell<Showing>,
     /// The children its own views place.
     nested: RefCell<Children>,
@@ -342,7 +349,7 @@ enum Showing {
 }
 
 impl Editor {
-    fn new(key: Option<EditorKey>, shown: ShownBlock, showing: Showing) -> Rc<Self> {
+    fn new(key: Option<EditorKey>, shown: Shown, showing: Showing) -> Rc<Self> {
         Rc::new(Self {
             key,
             shown,
@@ -688,22 +695,28 @@ impl Child {
         placement: ChildPlacement,
         occluders: Vec<Rect>,
     ) -> Option<Self> {
-        let ChildContent::Block {
-            block_id,
-            view_block,
-            editor: named,
-            ..
-        } = placement.content
-        else {
-            return None;
-        };
         if !runs_editor(placement.mode) {
             return None;
         }
-        let shown = ShownBlock {
-            block: block_id,
-            editor: named,
-            view_block,
+        let (shown, block) = match &placement.content {
+            ChildContent::Block {
+                block_id,
+                view_block,
+                editor: named,
+                ..
+            } => (
+                Shown::Block(ShownBlock {
+                    block: *block_id,
+                    editor: *named,
+                    view_block: *view_block,
+                }),
+                Some(*block_id),
+            ),
+            // A dialog an app runs for its placer, as be-host runs it in place of the child.
+            ChildContent::Picker { .. } | ChildContent::Rename(_) | ChildContent::Export { .. } => {
+                (Shown::Dialog(be_wasm_ops::encode(&placement.content)), None)
+            }
+            _ => return None,
         };
         Some(Self {
             editor,
@@ -711,7 +724,7 @@ impl Child {
             child: placement.child,
             shared: Editor::new(None, shown.clone(), Showing::Opening),
             shown,
-            block: block_id,
+            block,
             placement,
             raster,
             layer: None,
@@ -730,14 +743,17 @@ impl Child {
     /// What names the editor it keeps while placed: its place, and what it shows. A child placed
     /// showing another block, or with another editor or view block named, is another editor.
     fn key(&self) -> ChildKey {
-        (
-            self.editor,
-            self.view,
-            self.child,
-            self.shown.block,
-            self.shown.editor,
-            self.shown.view_block,
-        )
+        let shows = match &self.shown {
+            Shown::Block(shown) => {
+                let mut key = shown.block.to_vec();
+                key.extend(shown.editor.iter().flatten());
+                key.push(0);
+                key.extend(shown.view_block.iter().flatten());
+                key
+            }
+            Shown::Dialog(content) => content.clone(),
+        };
+        (self.editor, self.view, self.child, shows)
     }
 
     /// Whether it is the place that follows its editor's own children (`Editor::owner`): the
@@ -908,14 +924,8 @@ impl Child {
     }
 }
 
-type ChildKey = (
-    EditorInstanceId,
-    ViewId,
-    ChildId,
-    [u8; 16],
-    Option<[u8; 16]>,
-    Option<[u8; 16]>,
-);
+/// What names the editor a place keeps (`Child::key`): its place, and what it shows.
+type ChildKey = (EditorInstanceId, ViewId, ChildId, Vec<u8>);
 
 /// What a `settle` makes of the children shown and those placed now (`reconcile`).
 struct Reconciled {
@@ -944,7 +954,7 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
     for mut child in wanted {
         match before.remove(&child.key()) {
             Some(shown) => child.shared = shown.shared,
-            None if above.contains(&child.block) => {
+            None if child.block.is_some_and(|block| above.contains(&block)) => {
                 child.shared = Editor::new(
                     None,
                     child.shown.clone(),
@@ -992,13 +1002,20 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
 /// One asking for none, or for the editor holding it, shares it, whatever view block it names;
 /// a preview is never a twin.
 fn editor_key(child: &Child) -> EditorKey {
-    let block = EditorKey::Block(child.block);
+    // A dialog is its placer's own, never shared.
+    let (Some(block), Shown::Block(shown)) = (child.block, &child.shown) else {
+        return EditorKey::Twin(child.place());
+    };
+    let block = EditorKey::Block(block);
     let holder = POOL.with_borrow(|pool| pool.editors.get(&block).and_then(Weak::upgrade));
     let held = holder.map(|holder| match &*holder.showing.borrow() {
         Showing::Shown { hosted, .. } => Some(hosted.shows),
-        Showing::Opening | Showing::Label | Showing::Failed(_) => holder.shown.editor,
+        Showing::Opening | Showing::Label | Showing::Failed(_) => match &holder.shown {
+            Shown::Block(holding) => holding.editor,
+            Shown::Dialog(_) => None,
+        },
     });
-    match (held, child.shown.editor) {
+    match (held, shown.editor) {
         (Some(held), Some(asked)) if !child.previewed() && held != Some(asked) => {
             EditorKey::Twin(child.place())
         }
@@ -1311,7 +1328,7 @@ impl Children {
             }
             // An editor's own children are followed once, from the first place showing it.
             if let (true, Some((app, inner))) = (first, hosted) {
-                nested.push(child.block);
+                nested.extend(child.block);
                 let shows = child.placed
                     || !editor.tabs.borrow().is_empty()
                     || editor.main.borrow().is_some();
@@ -1323,7 +1340,9 @@ impl Children {
                     deeper,
                     shows,
                 );
-                nested.pop();
+                if child.block.is_some() {
+                    nested.pop();
+                }
             }
         }
     }
@@ -2591,7 +2610,7 @@ enum Unopened {
 
 /// Opens `shown`'s editor, for a preview only when `preview`, in the app the root's host names
 /// for it (`host.editor-of`): the one the root runs already, or one spawned for it.
-async fn open(shown: ShownBlock, preview: bool, with: &SpawnWith) -> Result<Hosted, Unopened> {
+async fn open(shown: Shown, preview: bool, with: &SpawnWith) -> Result<Hosted, Unopened> {
     let editor = host::editor_of(shown.clone())
         .await
         .map_err(|error| format!("the host did not answer which app edits the block: {error:?}"))

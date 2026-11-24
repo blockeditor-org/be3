@@ -1832,6 +1832,28 @@ Each step lands on its own.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
              then.
+             - Built: dialogs, a picker, a rename form and an Export dialog. `be3:root`'s
+               `editor-of` and `open-editor` take a `shown` (a block, or a dialog as its
+               encoded `ChildContent`); be-host opens a dialog in the editor that runs it, as
+               its registry chooses it (`accepting(Pick)`, `accepting(Rename)`, `exporting`),
+               in its role (`InstanceRole::Picker`, `Rename`, `Export`, with `ask_picker` and
+               `ask_export`). A dialog is its placer's own (`EditorKey::Twin`) and names no
+               block. What it tells the shell that its placer's status says (`picked`,
+               `close-dialog`, `handles-dismiss`, `show-card`) the root relays to the host
+               (`host.tell-shell`, `Forwarded::shell_told`), which words the status from it
+               (`picked`, `dialog`, `card`), again for every view the root showed once one
+               tells it something. Test: be-sdk-root's
+               `a_dialog_child_runs_in_an_editor_of_its_own`. No host test shows one yet: an
+               editor places its pickers, rename forms and Export dialogs in views it
+               anchored (a popover, a dialog), which the root shows only with 4g7c, so these
+               wait for it to be seen. An Export dialog's height (be-host's `view_size` of
+               it) is not reported yet.
+             - Left: creations (be-host steps a `PendingCreation` per child, with the
+               placer's `commit-child`, host-side), artifact settings (be-host's own settings
+               UI), host panels (the block stack, performance, apps and menu panels are
+               be-host's own UI, which the root would draw itself as its own surfaces) and web
+               views (a native view the root has no surface for: `Surface::Host` is not drawn
+               under the root yet).
        - 4g7c. Anchored views placed outside groups (`anchored`).
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).

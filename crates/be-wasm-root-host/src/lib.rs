@@ -177,7 +177,7 @@ struct Core<G> {
     next_secret: u64,
     /// The blocks the root asked the editor of (`host.editor-of`), by the id the host answers
     /// by, until the host takes them.
-    editor_asks: Vec<(u64, be_wasm_root_api::ShownBlock)>,
+    editor_asks: Vec<(u64, be_wasm_root_api::Shown)>,
     /// The editors the root asked the host to open (`host.open-editor`), until it takes them.
     openings: Vec<EditorOpening>,
     /// The root's `host.editor-of` and `host.open-editor` calls, by that id, until the host
@@ -212,6 +212,9 @@ struct Core<G> {
     /// The editors the root closed (`host.close-editor`), by instance and editor, in order,
     /// until taken.
     closed_editors: Vec<(u64, u64)>,
+    /// What the dialogs the root opened told the shell that their placers' statuses say
+    /// (`host.tell-shell`), by instance and editor, each encoded, in order, until taken.
+    shell_tells: Vec<(u64, u64, Vec<u8>)>,
     /// The dock updates the root made for the host's editors (`host.dock`), by the root's
     /// instance and the editor, each as the app protocol encodes them, until the host takes them.
     dock_updates: Vec<(u64, u64, Vec<u8>)>,
@@ -241,7 +244,7 @@ pub struct EditorOpening {
     /// editor in, whatever app the root meant.
     pub app: Option<String>,
     /// The block, and the editor and view block its placement names.
-    pub shown: be_wasm_root_api::ShownBlock,
+    pub shown: be_wasm_root_api::Shown,
 }
 
 /// A root's call about the editors its host opens, waiting for the host's answer.
@@ -363,6 +366,7 @@ impl<G: Inline> Core<G> {
             placed_contents: Vec::new(),
             assigned_sizes: Vec::new(),
             closed_editors: Vec::new(),
+            shell_tells: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -651,7 +655,7 @@ impl<G: Inline> Core<G> {
 
     /// The blocks the root asked the editor of since the last call, each by the id
     /// `answer_editor` answers it by.
-    fn take_editor_asks(&mut self) -> Vec<(u64, be_wasm_root_api::ShownBlock)> {
+    fn take_editor_asks(&mut self) -> Vec<(u64, be_wasm_root_api::Shown)> {
         std::mem::take(&mut self.editor_asks)
     }
 
@@ -748,6 +752,12 @@ impl<G: Inline> Core<G> {
     /// last call (`host.place-content`), in order.
     fn take_placed_contents(&mut self) -> Vec<be_wasm_root_api::PlacedContent> {
         std::mem::take(&mut self.placed_contents)
+    }
+
+    /// What the dialogs the root opened told the shell since the last call
+    /// (`host.tell-shell`): by the root's instance and the editor, each encoded, in order.
+    fn take_shell_tells(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        std::mem::take(&mut self.shell_tells)
     }
 
     /// The editors the root closed since the last call (`host.close-editor`): by the root's
@@ -1263,6 +1273,15 @@ impl<G: Inline> Core<G> {
             }
             embed::Call::Host(embed::host::Call::PlaceContent { placed, reply }) => {
                 self.placed_contents.push(placed);
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::TellShell {
+                instance,
+                editor,
+                messages,
+                reply,
+            }) => {
+                self.shell_tells.push((instance, editor, messages));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::CloseEditor {

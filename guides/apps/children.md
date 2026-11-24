@@ -133,9 +133,15 @@ frame, and `leave-frame` gives the frame back. A block an editor drags
 a drag, each told through its host (`host.tell-editor`, `editor-event.drag`),
 dropped on release and put down by Escape.
 
-The other kinds of child
-(plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g) are not there yet: a
-child of another kind the placer hears is unavailable.
+A picker, a rename form or an Export dialog an editor places is a dialog the
+root opens, like a block's editor, in the editor that runs it (`be3:root`'s
+`shown.dialog`), its placer's own; what it tells the shell that its placer's
+status says (its pick, its answer) the root relays to the host
+(`host.tell-shell`).
+
+Creations, artifact settings, host panels, web views and program windows
+(plans/host_as_platform_adapter.md, 4g7b3g) are not there yet: a child of
+another kind the placer hears is unavailable.
 
 ## Drawing order
 

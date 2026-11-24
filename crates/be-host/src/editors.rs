@@ -307,17 +307,35 @@ impl EditorRegistry {
     }
 
     pub(crate) fn picker(&self, request: be_host_runtime::PickerRequest) -> Option<app::AppPicker> {
+        let (app, editor) = self.accepting(ShellRequest::Pick)?;
+        Some(app::AppPicker::new(app, editor, request))
+    }
+
+    /// The app and editor that run what an editor's manifest says it `accepts` (a pick, a
+    /// rename form): the first that does.
+    pub(crate) fn accepting(&self, request: ShellRequest) -> Option<(Arc<AppManifest>, Uuid)> {
         let editor = self.editors.iter().find(|editor| {
             editor
                 .manifest
                 .editor(editor.id.into_bytes())
-                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Pick))
+                .is_some_and(|manifest| manifest.accepts.contains(&request))
         })?;
-        Some(app::AppPicker::new(
-            Arc::clone(&editor.manifest),
-            editor.id,
-            request,
-        ))
+        Some((Arc::clone(&editor.manifest), editor.id))
+    }
+
+    /// The app and editor that run the Export dialog of a block of `block_type` with its
+    /// `exporter`: the type's editor, when it declares it.
+    pub(crate) fn exporting(
+        &self,
+        block_type: Uuid,
+        exporter: &str,
+    ) -> Option<(Arc<AppManifest>, Uuid)> {
+        let editor = self.default_editor(block_type)?;
+        editor
+            .manifest
+            .editor(editor.id.into_bytes())?
+            .exporter(exporter)?;
+        Some((Arc::clone(&editor.manifest), editor.id))
     }
 
     /// The Export dialog of `block`, of `block_type`, in the app of the type's editor, which
@@ -328,14 +346,10 @@ impl EditorRegistry {
         block_type: Uuid,
         request: be_sdk_api::ExportRequest,
     ) -> Option<app::AppPicker> {
-        let editor = self.default_editor(block_type)?;
-        editor
-            .manifest
-            .editor(editor.id.into_bytes())?
-            .exporter(&request.exporter)?;
+        let (app, editor) = self.exporting(block_type, &request.exporter)?;
         Some(app::AppPicker::export(
-            Arc::clone(&editor.manifest),
-            editor.id,
+            app,
+            editor,
             be_host_runtime::EditorBlock {
                 id: block,
                 block_type,
@@ -346,18 +360,8 @@ impl EditorRegistry {
     }
 
     pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<app::AppPicker> {
-        let editor = self.editors.iter().find(|editor| {
-            editor
-                .manifest
-                .editor(editor.id.into_bytes())
-                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Rename))
-        })?;
-        Some(app::AppPicker::rename(
-            Arc::clone(&editor.manifest),
-            editor.id,
-            block,
-            sheet,
-        ))
+        let (app, editor) = self.accepting(ShellRequest::Rename)?;
+        Some(app::AppPicker::rename(app, editor, block, sheet))
     }
 
     pub(crate) fn create(
