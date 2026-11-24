@@ -4,7 +4,7 @@ use be_block_keys::Owner;
 
 /// Ownership of a block moves when the member its owner offered it to accepts it
 /// (guides/blocks/keys.md, "Owner records"): until then the offer moves nothing, and only the
-/// account offered it may accept; then the new owner manages it and reads it, and the old owner
+/// account offered it, which must have access, may accept; then the new owner manages it and reads it, and the old owner
 /// keeps Edit but grants nothing more, whether signed at the head now or at one from before the
 /// transfer.
 #[tokio::test]
@@ -45,12 +45,19 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         )
         .unwrap();
 
+    // Only someone with access is offered the block.
+    assert!(alice.transfer(plans, bob.account()).await.is_err());
+    let bob_keys = alice.verified_identity(bob.account()).unwrap();
+    alice
+        .share(plans, bob.account(), Access::View, &bob_keys)
+        .await
+        .unwrap();
     // An offer withdrawn, by offering the block to its owner, cannot be accepted.
-    alice.transfer(plans, carol.account()).await.unwrap();
-    assert_eq!(carol.owner_offers().await.unwrap().len(), 1);
+    alice.transfer(plans, bob.account()).await.unwrap();
+    assert_eq!(bob.owner_offers().await.unwrap().len(), 1);
     alice.transfer(plans, alice.account()).await.unwrap();
-    assert!(carol.owner_offers().await.unwrap().is_empty());
-    assert!(carol.accept_ownership(plans).await.is_err());
+    assert!(bob.owner_offers().await.unwrap().is_empty());
+    assert!(bob.accept_ownership(plans).await.is_err());
 
     alice.transfer(plans, bob.account()).await.unwrap();
     let (_, offered) = alice.checked_access(plans).await.unwrap();
