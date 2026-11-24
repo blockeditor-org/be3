@@ -89,6 +89,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -168,6 +169,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -247,6 +249,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -326,6 +329,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -405,6 +409,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -484,6 +489,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -563,6 +569,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",

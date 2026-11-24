@@ -43,6 +43,7 @@ uuid = { version = "1", features = ["v4", "v7"] }
 ureq = "2"
 
 [dev-dependencies]
+be-block-fault-relay = { path = "../be-block-fault-relay" }
 be-host-testing = { path = "../be-host-testing" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-bundle = { path = "../be-type-bundle" }
