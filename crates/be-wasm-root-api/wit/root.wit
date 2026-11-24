@@ -1088,7 +1088,11 @@ interface frames {
         /// root adds to it to show the person's local time.
         utc-offset: s32,
         /// The host's one window as it is drawn this frame, which the root
-        /// lays its surfaces out in.
+        /// lays its surfaces out in. One window is the case until the
+        /// compositor's own windows come (plans/host_as_platform_adapter.md,
+        /// 4g7e), when this becomes a list of each window's size by its id, as
+        /// the layer list names windows, so a root can lay out each window's
+        /// layers, its lock screen among them.
         window: window-size,
     }
 

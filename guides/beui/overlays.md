@@ -299,7 +299,8 @@ A root guest's dialog is a layer of its own over the rest. be-root's is a
 surface the window's size whose document shows the dialog as be-host's own
 does, a `DialogFrame` (beui's card over its scrim, or a sheet in a narrow
 window, which Escape and a press on the scrim dismiss) around a `DialogBody`;
-its layer takes every press and the focus. be-sdk-root-testing's, a fixture of
+its layer takes every press and the focus
+(decisions/a_roots_dialog_is_beuis_dialog_on_a_window_sized_surface.md). be-sdk-root-testing's, a fixture of
 a fixed size (plans/host_as_platform_adapter.md, step 4g4), lays a scrim layer
 of its own under it, which takes no press itself but `captures` every press
 that misses the dialog for its placer, the root's own layer, which closes the
