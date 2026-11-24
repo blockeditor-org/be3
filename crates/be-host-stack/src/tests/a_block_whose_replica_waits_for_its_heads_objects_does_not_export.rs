@@ -23,11 +23,14 @@ fn a_block_whose_replica_waits_for_its_heads_objects_does_not_export() {
     });
 
     harness.connect();
-    wait_until("knew the block's head", |shared| {
+    // The worker reads what the head references as it learns of it, which asks where to
+    // download the head's objects too: once that is read, the replica's load is the only reader
+    // left to ask.
+    wait_until("read what the block's head references", |shared| {
         shared
             .graph
             .get(block)
-            .is_some_and(|node| node.head.is_some())
+            .is_some_and(|node| node.head.is_some() && node.references.is_some())
     });
     // Its join is slow, so it opens on the head it knows, whose objects it asks the server for;
     // the server goes before it answers.
