@@ -2111,7 +2111,7 @@ impl ServerStore {
             };
             let account = Uuid::from_bytes(named.account);
             let caller = identity.account;
-            let offered = crate::access::offered(database, identity.organization, block)?;
+            let offered = crate::access::offer_row(database, identity.organization, block)?;
             let Some(node) = graph.get(block) else {
                 return Err(not_found(block));
             };
@@ -2134,6 +2134,9 @@ impl ServerStore {
                         MAX_BLOCKS_PER_ACCOUNT,
                     ));
                 }
+                // Only while they may still read it: an offer outlives access taken away from
+                // above, which this block's log does not show.
+                require(graph, &visibility(identity), block, Access::View, "readable")?;
                 let before = graph.audience(block);
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 crate::access::append_owner(
@@ -2213,6 +2216,15 @@ impl ServerStore {
                             .into(),
                     ));
                 }
+                // Only to someone who may read the block, as only they may accept it.
+                let administrator = crate::contacts::role_in(database, account, identity.organization)?
+                    == Some(OrganizationRole::Administrator);
+                if !administrator && !graph.effective_access(block, account).can_view() {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "offer ownership only to someone with access to the block".into(),
+                    ));
+                }
             }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             crate::access::append_owner(
@@ -2243,10 +2255,13 @@ impl ServerStore {
         identity: Identity,
     ) -> Result<Vec<be_block_protocol::OwnerOffer>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
+            let seen = visibility(identity);
             Ok(
                 crate::access::offers_to(database, identity.organization, identity.account)?
                     .into_iter()
-                    .filter(|(block, _)| graph.contains(*block))
+                    .filter(|(block, _)| {
+                        graph.contains(*block) && seen.inherited(graph, *block).can_view()
+                    })
                     .map(|(block, from)| be_block_protocol::OwnerOffer { block, from })
                     .collect(),
             )

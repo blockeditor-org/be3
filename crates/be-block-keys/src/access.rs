@@ -1445,6 +1445,13 @@ impl Checked {
                             *identity = retirement.new;
                         }
                     }
+                    // An offer follows its account to the keys it retired to, so the old ones
+                    // accept nothing.
+                    if let Some((account, identity)) = &mut state.offered
+                        && *account == entry.signer
+                    {
+                        *identity = retirement.new;
+                    }
                 }
                 Record::Grant(grant) => {
                     let own_revocation =
@@ -1466,6 +1473,13 @@ impl Checked {
                     state
                         .grants
                         .insert(grant.grantee, (grant.level, grant.identity));
+                    // An account taken below View, or named with other keys, holds no offer.
+                    if state.offered.is_some_and(|(account, identity)| {
+                        account == grant.grantee
+                            && (grant.level < Level::View || identity != grant.identity)
+                    }) {
+                        state.offered = None;
+                    }
                     state.set_level(grant.grantee, grant.level);
                     state.linked.remove(&grant.grantee);
                     // A grant signed after a ban lifts it, by a signer who may grant: a banned
@@ -1480,6 +1494,9 @@ impl Checked {
                     }
                     state.granting(entry, own, &ban.authority, Level::Edit, false, outside)?;
                     state.banned.insert(ban.account);
+                    if state.offered.is_some_and(|(account, _)| account == ban.account) {
+                        state.offered = None;
+                    }
                 }
                 Record::Opening(opening) => {
                     // Open to view, or closed: no other level, so the record has one meaning.
@@ -1519,9 +1536,12 @@ impl Checked {
                     // with those keys.
                     let signed = own.is_some_and(|signing| entry.signed_by(&signing));
                     let owned = state.owner == Some(entry.signer);
+                    // The offer's keys must still be the acceptor's: a key the log has since
+                    // seen retired, or replaced by a grant, accepts nothing.
                     let accepting = !owned
                         && owner.account == entry.signer
                         && state.offered == Some((owner.account, owner.identity))
+                        && own.is_none_or(|signing| signing == owner.identity.signing)
                         && entry.signed_by(&owner.identity.signing);
                     if kind != LogKind::Block || !(accepting || owned && signed) {
                         return Err(KeyError::Record);
