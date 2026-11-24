@@ -12,6 +12,7 @@ fn its_settings_dialog_offers_apply_once_the_copy_changes() {
             block_id: Uuid::new_v4(),
             block_type: CompiledLogicContent::CONTENT_TYPE,
             source,
+            exporter: "component".to_owned(),
         },
     );
     let data = crate::root::descriptor_data(source);

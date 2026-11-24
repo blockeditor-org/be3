@@ -5,7 +5,7 @@ use be_sdk_api::blocks::HostingHere;
 use be_sdk_api::{MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 use beui::NodeId;
 use beui::icons::{
-    ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL,
+    ICON_DOWNLOAD, ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL,
     ICON_UNDO_2, ICON_X,
 };
 use beui::native::{Embed, EmbedSlot};
@@ -406,8 +406,50 @@ struct FrameActions {
     /// palette lists it only then too.
     keep_hosting: ReadSignal<Option<Action>>,
     close: Action,
+    /// `editor.export.<name>` for each exporter the editor declares (`BeuiRoot::exporters`),
+    /// which shows the block's Export dialog.
+    exports: Vec<Action>,
     /// Zoom in, out, to 100% and fit, while the manifest declares `pan_and_zoom` (`zoom.rs`).
     _zoom: Option<crate::ZoomActions>,
+}
+
+/// `editor.export.<name>` for each exporter `editor` declares, labelled as its manifest names
+/// it: each shows the Export dialog, starting from the settings the exporter picks from the
+/// open editor (`ExporterOf::initial`).
+fn export_actions(editor: Editor, live: Memo<bool>) -> Vec<Action> {
+    let id = editor.block_id();
+    let actions: Vec<Action> = editor
+        .exporters()
+        .iter()
+        .map(|exporter| {
+            let name = exporter.name();
+            let label = create_memo(move || {
+                let types = editor.block_types();
+                let label = editor
+                    .host()
+                    .block_type()
+                    .and_then(|block_type| {
+                        types
+                            .exporters(block_type)
+                            .iter()
+                            .find(|listed| listed.name == name)
+                            .map(|listed| listed.label.clone())
+                    })
+                    .unwrap_or_else(|| name.to_owned());
+                format!("Export as {label}…")
+            });
+            let exporter = exporter.clone();
+            Action::new(format!("editor.export.{name}"), label, move || {
+                let settings = exporter.initial(editor);
+                editor.host().export_block_with(id, name, settings);
+            })
+            .glyph(ICON_DOWNLOAD)
+            .enabled(live)
+            .register()
+        })
+        .collect();
+    editor.set_export_actions(actions.clone());
+    actions
 }
 
 fn frame_actions(
@@ -486,6 +528,7 @@ fn frame_actions(
             .glyph(ICON_X)
             .enabled(closable)
             .register(),
+        exports: export_actions(editor, live),
         _zoom: zoom,
     }
 }
@@ -556,6 +599,7 @@ pub(crate) fn FrameMenu(
         details,
         keep_hosting,
         close,
+        exports,
         _zoom: _,
     } = actions;
     let menu = create_memo(move || {
@@ -568,6 +612,8 @@ pub(crate) fn FrameMenu(
             .collect();
         listed.push(MenuNode::Separator);
         listed.extend(items.get());
+        listed.push(MenuNode::Separator);
+        listed.extend(exports.iter().map(MenuNode::action));
         listed.push(MenuNode::Separator);
         listed.push(MenuNode::action(&details));
         if let Some(keep_hosting) = keep_hosting.get() {

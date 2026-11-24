@@ -46,6 +46,7 @@ fn a_file_with_no_editor_of_its_own_opens_in_the_program_for_its_extension() {
         name: "KOReader".to_owned(),
         icon_codepoint: String::new(),
         extensions: vec!["epub".to_owned(), "pdf".to_owned()],
+        exporters: Vec::new(),
     }];
     fixture.test.catalog(catalog);
     let (book, paint) = (Uuid::new_v4(), Uuid::new_v4());

@@ -168,6 +168,14 @@ enum Kind {
     Settings,
     Picker,
     Rename(Uuid),
+    /// The Export dialog of a block (`BeuiTest::export`).
+    Export,
+}
+
+thread_local! {
+    /// What an Export dialog test opens on (`BeuiTest::export`).
+    static EXPORT: std::cell::RefCell<Option<be_sdk_beui::ExportDialogRequest>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
@@ -255,6 +263,14 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         test
     }
 
+    /// A test of the Export dialog `request` opens, as the host runs it in the app of the
+    /// source's editor. Hold the source's content (`hold(Some(source), ..)`) before it runs.
+    pub fn export(host: EditorHost, request: be_sdk_beui::ExportDialogRequest) -> Self {
+        EXPORT.with(|export| *export.borrow_mut() = Some(request));
+        let editor = OwnedEditor::new(host, Uuid::nil());
+        Self::open(Kind::Export, Adopted::Editor(editor, None), Vec::new())
+    }
+
     pub fn settings(artifacts: Artifacts, data: Vec<u8>) -> Self {
         Self::open(Kind::Settings, Adopted::Artifacts(artifacts), data)
     }
@@ -289,7 +305,11 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             _ => String::new(),
         };
         let artifact = match &adopted {
-            Adopted::Artifacts(artifacts) => Some((artifacts.block_id(), artifacts.source())),
+            Adopted::Artifacts(artifacts) => Some((
+                artifacts.block_id(),
+                artifacts.source(),
+                artifacts.exporter().to_owned(),
+            )),
             _ => None,
         };
         let mut signatures = crate::signatures::Signatures::new(host.account_id());
@@ -342,12 +362,29 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                 block_id: block.into_bytes(),
                 sheet: false,
             }),
-            Kind::Settings => OpeningKind::Artifact(OpenArtifact {
-                block_id: artifact.unwrap_or_default().0.into_bytes(),
-                block_type: block_type.into_bytes(),
-                source: artifact.unwrap_or_default().1.into_bytes(),
-                data: data.clone(),
-            }),
+            Kind::Settings => {
+                let (block, source, exporter) = artifact.clone().unwrap_or_default();
+                OpeningKind::Artifact(OpenArtifact {
+                    block_id: block.into_bytes(),
+                    block_type: block_type.into_bytes(),
+                    source: source.into_bytes(),
+                    exporter,
+                    data: data.clone(),
+                })
+            }
+            Kind::Export => {
+                let request = EXPORT
+                    .with(|export| export.borrow_mut().take())
+                    .expect("an export test names what it exports");
+                OpeningKind::Export(be_sdk_api::OpenExport {
+                    block_id: request.source.into_bytes(),
+                    block_type: request.source_type.into_bytes(),
+                    request: be_sdk_api::ExportRequest {
+                        exporter: request.exporter,
+                        settings: request.settings,
+                    },
+                })
+            }
         };
         let open = Opening {
             instance: INSTANCE,
@@ -374,7 +411,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                 anchor: None,
                 phone: false,
             }),
-            Kind::Creation => Some(be_sdk_api::FrameSpec {
+            Kind::Creation | Kind::Export => Some(be_sdk_api::FrameSpec {
                 chrome: FrameChrome::None,
                 content: None,
                 top_bar: TopBar::Hidden,
@@ -522,7 +559,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn block_id(&self) -> Option<Uuid> {
         match self.kind {
             Kind::Frame(block) | Kind::Preview(block) => Some(block),
-            Kind::Creation | Kind::Settings | Kind::Picker | Kind::Rename(_) => None,
+            Kind::Creation | Kind::Settings | Kind::Picker | Kind::Rename(_) | Kind::Export => None,
         }
     }
 
@@ -1358,6 +1395,19 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                     HostCall::RevisionPreviewOpened { this, reply } => {
                         self.preview_asks.push((this.op(), reply));
                     }
+                    // Answered as be-host does, by the type the test registered.
+                    HostCall::FileOfContent {
+                        reply,
+                        block_type,
+                        content,
+                        name,
+                    } => {
+                        let file =
+                            self.store
+                                .file_of(Uuid::from_bytes(block_type), content, &name);
+                        let (op, outcome) = reply.answer(&file);
+                        self.wire.answer(op, outcome);
+                    }
                     call => {
                         let op = call.op();
                         match self.signatures.answer(call, self.block_id()) {
@@ -1684,6 +1734,17 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         })
     }
 
+    /// Each Export dialog the editor asked the host for (`EditorHost::export_block_with`): its
+    /// block and what it runs.
+    pub fn take_export_requests(&mut self) -> Vec<(Uuid, be_sdk_api::ExportRequest)> {
+        self.take_sent_calls(|sent| match sent {
+            Sent::Command(block, be_sdk_api::BlockCommand::Export(request)) => {
+                Some((*block, request.clone()))
+            }
+            _ => None,
+        })
+    }
+
     fn take_sent_calls<T>(&mut self, pick: impl Fn(&Sent) -> Option<T>) -> Vec<T> {
         let mut taken = Vec::new();
         self.link.sent.retain(|sent| match pick(sent) {
@@ -1970,7 +2031,9 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         match self.kind {
             Kind::Preview(_) => View::PREVIEW,
             Kind::Settings => View::ARTIFACT_SETTINGS,
-            Kind::Frame(_) | Kind::Creation | Kind::Picker | Kind::Rename(_) => View::MAIN,
+            Kind::Frame(_) | Kind::Creation | Kind::Picker | Kind::Rename(_) | Kind::Export => {
+                View::MAIN
+            }
         }
     }
 

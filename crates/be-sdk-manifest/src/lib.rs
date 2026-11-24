@@ -17,7 +17,7 @@ be_wasm_ops_bindgen::generate!({
 mod document;
 
 pub use document::{
-    EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
+    EditorDocument, ExporterDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
 pub use types::{
     AppIdentity, BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
@@ -129,6 +129,20 @@ pub struct EditorManifest {
     pub views: Vec<ParentView>,
     pub accepts: Vec<ShellRequest>,
     pub opens: Vec<[u8; 16]>,
+    /// What the editor exports its block as, in the order written (guides/apps/editor.md,
+    /// "Exporting").
+    pub exporters: Vec<ExporterManifest>,
+}
+
+/// An exporter an editor declares: its code makes a block of some type from the editor's
+/// block and settings (`be_sdk_beui::Exporter`), and this says what it is called before the
+/// app runs.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExporterManifest {
+    /// The name its code registers it under, and its action's (`editor.export.<name>`).
+    pub name: String,
+    /// What menus call it ("PNG image").
+    pub label: String,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,6 +206,10 @@ impl EditorManifest {
     pub fn accepts(&self, request: ShellRequest) -> bool {
         self.accepts.contains(&request)
     }
+
+    pub fn exporter(&self, name: &str) -> Option<&ExporterManifest> {
+        self.exporters.iter().find(|exporter| exporter.name == name)
+    }
 }
 
 impl ResizeMode {
@@ -225,6 +243,8 @@ pub enum ManifestError {
     DuplicateBlockType,
     SeveralTypeModules,
     DuplicateTemplate,
+    DuplicateExporter,
+    ExportsWithoutSettings,
     TemplateWithoutBlockType,
     ServiceWithTemplates,
     DuplicateHost,
@@ -283,6 +303,12 @@ impl fmt::Display for ManifestError {
             Self::DuplicateTemplate => {
                 formatter.write_str("an editor declares the same template twice")
             }
+            Self::DuplicateExporter => {
+                formatter.write_str("an editor declares the same exporter twice")
+            }
+            Self::ExportsWithoutSettings => formatter.write_str(
+                "an editor that declares exporters lists ArtifactSettings among its views, and one that declares none does not",
+            ),
             Self::ServiceWithTemplates => formatter.write_str(
                 "an editor that edits no block is part of the shell and declares no templates",
             ),
@@ -428,6 +454,19 @@ impl EditorManifest {
             {
                 return Err(ManifestError::DuplicateTemplate);
             }
+        }
+        for (index, exporter) in self.exporters.iter().enumerate() {
+            manifest_string("exporter name", &exporter.name)?;
+            manifest_string("exporter label", &exporter.label)?;
+            if self.exporters[..index]
+                .iter()
+                .any(|other| other.name == exporter.name)
+            {
+                return Err(ManifestError::DuplicateExporter);
+            }
+        }
+        if self.exporters.is_empty() == self.views.contains(&ParentView::ArtifactSettings) {
+            return Err(ManifestError::ExportsWithoutSettings);
         }
         Ok(())
     }

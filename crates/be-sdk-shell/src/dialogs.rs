@@ -8,6 +8,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
     AccessLevel, AccessListing, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer,
+    ExportRequest,
     LinkAdmits, ShareLink, Subregion, SubregionContent,
 };
 use uuid::Uuid;
@@ -23,11 +24,13 @@ const SETTINGS_HEIGHT: f32 = 96.0;
 
 type ShareAct = Callback<ShareAction>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum OpenDialog {
     Share(Uuid),
     ArtifactSettings(Uuid),
     Unlink(Uuid),
+    /// The Export dialog of a block (`ShellDialog::Export`).
+    Export(Uuid, ExportRequest),
 }
 
 #[component]
@@ -36,6 +39,7 @@ pub fn WorkspaceDialogs(workspace: Workspace) -> NodeId {
         <List spacing=Space::None>
             <ShareDialog workspace={workspace} />
             <ArtifactSettingsDialog workspace={workspace} />
+            <ExportDialog workspace />
             <UnlinkDialog workspace />
             <UnreadableLayoutDialog workspace />
         </List>
@@ -163,6 +167,59 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
                     mode=ChildMode::Live
                     dialog=true
                     @test_id={"artifact-settings.editor"}
+                    on_state={answered}
+                />
+            </Frame>
+        </DialogFrame>
+    }
+}
+
+/// The Export dialog of a block, which the app of the block's editor draws in the child it
+/// places (guides/apps/editor.md, "Exporting").
+#[component]
+fn ExportDialog(workspace: Workspace) -> NodeId {
+    let tab = use_frame_anchor();
+    let dialog = workspace.dialog;
+    let export = create_memo(move || match dialog.get() {
+        Some(OpenDialog::Export(block, request)) => Some((block, request)),
+        _ => None,
+    });
+    let placed = move || {
+        export.get().map(|(block, request)| SubregionContent::Export {
+            block,
+            exporter: request.exporter,
+            settings: request.settings,
+        })
+    };
+    let child = create_signal(None::<ChildId>);
+    let height = create_signal(SETTINGS_HEIGHT);
+    let answered = Callback::new(move |state: ChildState| {
+        child.set(state.child);
+        if let Some(size) = state.intrinsic_size {
+            height.set(size.y.max(1.0));
+        }
+        if state.dialog.answer.is_some() {
+            workspace.close_dialog();
+        }
+    });
+    let dismiss = move || match child.get_untracked() {
+        Some(child) => workspace.host().dismiss_child(child),
+        None => workspace.close_dialog(),
+    };
+    let editor = workspace.editor();
+    view! {
+        <DialogFrame
+            open={move || export.with(Option::is_some)}
+            anchor={move || DialogAnchor::Rect(tab.get())}
+            on_dismiss={dismiss}
+        >||
+            <Frame height={move || Length::Size(Size::Custom(height.get()))}>
+                <Subregion
+                    editor={editor}
+                    placed={placed}
+                    mode=ChildMode::Live
+                    dialog=true
+                    @test_id={"export.editor"}
                     on_state={answered}
                 />
             </Frame>
