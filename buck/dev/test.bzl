@@ -245,6 +245,7 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         runs = [run]
     info = TestRunInfo(flakes = flakes, runs = runs, **fields)
     command = cmd_args(launcher, "--", info.command, hidden = info.hidden)
+    sub_targets["command"] = [_command(ctx, info)]
     remote = not (ctx.attrs.local or LOCAL_BUILD)
     return [
         info,
@@ -262,6 +263,25 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
             use_project_relative_paths = True,
         ),
     )
+
+# The test's [command]: a JSON file of the launcher with the test's own flags,
+# the command and the environment, by paths from the root, with all of them as
+# its other outputs, for a tool that runs the test itself through the launcher,
+# adding its own flags (a later --time-limit wins), as be-tool-local's `stress`
+# does many times at once.
+def _command(ctx: AnalysisContext, info: TestRunInfo) -> DefaultInfo:
+    described = ctx.actions.declare_output("command.json")
+    inputs = ctx.actions.write_json(
+        described,
+        {
+            "command": info.command,
+            "env": {key: cmd_args(value) for key, value in info.env.items()},
+            "launcher": info.launcher,
+        },
+        pretty = True,
+        with_inputs = True,
+    )
+    return DefaultInfo(default_output = described, other_outputs = [inputs])
 
 _be_test = rule(
     attrs = {

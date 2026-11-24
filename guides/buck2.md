@@ -192,7 +192,9 @@ left running in its process group, and ends the output with the CPU the test's p
 `TestRunInfo` says what it runs. buck2 test runs it again every time unless a worker ran it and
 the build server caches the result (`supports_test_execution_caching`), and brings back no
 files, so each `:test` also has `[run]`, the same command as an action, cached like any other;
-`./scripts/verify` builds those (a `run_apart` test's are its parts'). `./scripts/test` runs `buck2 test` with
+`./scripts/verify` builds those (a `run_apart` test's are its parts'). Each also has `[command]`, a JSON
+file of the launcher, the command and the environment with all they name, for a tool that runs
+the test itself, as be-tool-local's `stress` does. `./scripts/test` runs `buck2 test` with
 `-- --test-arg --nocapture NAME` (`--test-arg` takes everything after it) and an `--event-log`,
 whose `TestResult` events hold every test's whole output, a passing one's too, which the console
 leaves out; it prints each from there. Under `--update` it runs each `:test` as an action
