@@ -797,10 +797,9 @@ impl Module {
                 .remove(&id)
                 .map(|mut replica| {
                     let epoch = state.epochs.get(&id).copied().unwrap_or_default();
-                    // A released replica's editors are gone, and its calls are answered to its
-                    // id, which a replica opened later does not have: none of them carries.
+                    // A released replica carries none of what it did for editors.
                     lacking::Carried {
-                        asks: Vec::new(),
+                        editor_calls: lacking::EditorCalls::default(),
                         ..replica.carry(epoch)
                     }
                 })

@@ -1027,14 +1027,14 @@ where
             .collect();
         Carried {
             snapshots_shown: std::mem::take(&mut self.snapshots_shown),
-            asks,
-            ranges,
+            editor_calls: crate::lacking::EditorCalls { asks, ranges },
             ..self.lacking.carry()
         }
     }
 
     fn late(&mut self, now: u64, epoch: u64, input: Input, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
+        // A part read is made for a range, never carried as an ask, so it fills ranges alone.
         if let Input::PartRead { token, result } = &input {
             self.part_read_late(epoch, *token, result);
             return self.run(out);
@@ -1067,8 +1067,9 @@ where
 
     fn adopt(&mut self, mut carried: Carried) {
         self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
-        self.ranges_before = std::mem::take(&mut carried.ranges);
-        self.asked_before = std::mem::take(&mut carried.asks)
+        let calls = std::mem::take(&mut carried.editor_calls);
+        self.ranges_before = calls.ranges;
+        self.asked_before = calls.asks
             .into_iter()
             .map(|(epoch, call, ask)| ((epoch, call), ask))
             .collect();
@@ -4537,7 +4538,8 @@ where
     }
 
     /// A part read a replica of the block before this one made under `epoch`, for an editor's
-    /// range read it carried (`ranges_before`).
+    /// range read it carried (`ranges_before`). A range is planned once, so every part read it
+    /// waits on was made under the one epoch it carries.
     fn part_read_late(&mut self, epoch: u64, token: Token, result: &Result<Vec<u8>, String>) {
         for (made, range) in &mut self.ranges_before {
             if *made == epoch {
