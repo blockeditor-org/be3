@@ -3,7 +3,7 @@ use beui::Overflow;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
+    DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize,
 };
 use be_sdk_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_COPY_PLUS, ICON_ELLIPSIS, ICON_MAXIMIZE,
@@ -18,7 +18,6 @@ use uuid::Uuid;
 use super::slides::{Notes, Slides};
 use beui::{Align, Direction};
 
-const FILMSTRIP: &str = "filmstrip";
 const STAGE: &str = "stage";
 const TOOLBAR: &str = "toolbar";
 const NOTES: &str = "notes";
@@ -116,22 +115,17 @@ fn DeckDock(
     stage: NodeRef,
     selected: ReadSignal<Option<Uuid>>,
 ) -> NodeId {
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus=STAGE>
-            <DockSplit id="deck" size={SplitSize::First(FILMSTRIP_WIDTH)}>
-                <DockPane id="filmstrip" locked=true>
-                    <DockTab id=FILMSTRIP title="Slides">
+        <Docking>
+            <DockSplit size={SplitSize::First(FILMSTRIP_WIDTH)}>
+                <DockPane id="filmstrip">
+                    <DockTab title="Slides" bare=true>
                         <Filmstrip editor={editor} slides={slides} duplicate={duplicate.clone()} />
                     </DockTab>
                 </DockPane>
-                <DockSplit
-                    id="slide"
-                    direction=Direction::Vertical
-                    size={SplitSize::Second(NOTES_HEIGHT)}
-                >
-                    <DockPane id="stage" locked=true bare=true>
-                        <DockTab id=STAGE title="Slide">
+                <DockSplit direction=Direction::Vertical size={SplitSize::Second(NOTES_HEIGHT)}>
+                    <DockPane stage=true>
+                        <DockTab id=STAGE>
                             <Stage
                                 @node_ref={&stage}
                                 editor={editor}
@@ -144,8 +138,8 @@ fn DeckDock(
                             />
                         </DockTab>
                     </DockPane>
-                    <DockPane id="notes" locked=true>
-                        <DockTab id=NOTES title="Notes">
+                    <DockPane>
+                        <DockTab id=NOTES title="Notes" bare=true>
                             <SpeakerNotes editor={editor} slides={slides} />
                         </DockTab>
                     </DockPane>

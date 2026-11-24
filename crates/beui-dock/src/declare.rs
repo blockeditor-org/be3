@@ -1,5 +1,6 @@
 use beui_view::types::icons::Glyph;
 use std::any::Any;
+use be_lib_stable_hash::HashSet;
 use std::cell::RefCell;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -93,8 +94,17 @@ impl DockId {
         self.value.as_deref()
     }
 
+    /// The caller's key, for a tab that has one. A dock read through a `DockingLayout<K>` keys
+    /// every tab it gives an id with a `K`.
     pub(crate) fn as_key<K: DockKey>(&self) -> Option<K> {
-        self.value()?.downcast_ref::<K>().cloned()
+        let key = self.value()?.downcast_ref::<K>().cloned();
+        debug_assert!(
+            key.is_some(),
+            "the tab {:?} is keyed by another type than its layout's ({})",
+            self.key,
+            std::any::type_name::<K>()
+        );
+        key
     }
 }
 
@@ -134,7 +144,7 @@ pub(crate) struct Keyed<T> {
     derived: RefCell<Option<T>>,
 }
 
-impl<T: Clone> Keyed<T> {
+impl<T: Clone + Eq + Hash> Keyed<T> {
     fn new(given: Option<T>) -> Self {
         Self {
             given,
@@ -144,17 +154,40 @@ impl<T: Clone> Keyed<T> {
 
     /// The key, once the dock has read it.
     pub(crate) fn keyed(&self) -> T {
-        self.given
-            .clone()
-            .or_else(|| self.derived.borrow().clone())
+        self.known()
             .expect("the dock keys a node when it reads it")
     }
 
-    pub(crate) fn get(&self, derive: impl FnOnce() -> T) -> T {
-        if let Some(given) = &self.given {
-            return given.clone();
+    /// The key given or kept, before this read.
+    pub(crate) fn known(&self) -> Option<T> {
+        self.given
+            .clone()
+            .or_else(|| self.derived.borrow().clone())
+    }
+
+    /// The key given or kept, else `derive`'s, stepped past every key `held` already (with
+    /// `step(base, n)`), and held from then on. `held` starts with every key given or kept, so
+    /// a node declared before one that already has a key never takes it.
+    pub(crate) fn get(
+        &self,
+        held: &mut HashSet<T>,
+        derive: impl FnOnce() -> T,
+        step: impl Fn(&T, usize) -> T,
+    ) -> T {
+        if let Some(known) = self.known() {
+            held.insert(known.clone());
+            return known;
         }
-        self.derived.borrow_mut().get_or_insert_with(derive).clone()
+        let base = derive();
+        let mut key = base.clone();
+        let mut next = 1;
+        while held.contains(&key) {
+            key = step(&base, next);
+            next += 1;
+        }
+        held.insert(key.clone());
+        *self.derived.borrow_mut() = Some(key.clone());
+        key
     }
 }
 

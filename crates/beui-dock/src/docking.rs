@@ -196,11 +196,17 @@ impl<K: DockKey> DockingLayout<K> {
     /// derived. The outer dock's snapshot keeps only a joined dock's hosting tab; the joined dock's
     /// owner saves this one.
     pub fn snapshot(&self) -> DockingSnapshot<K> {
-        let (state, ids) = self.any.snapshot_ids();
-        let keys = ids
-            .into_iter()
-            .filter_map(|(id, tab)| Some((id.as_key::<K>()?, tab)))
-            .collect();
+        let (mut state, ids) = self.any.snapshot_ids();
+        let mut keys = Vec::new();
+        for (id, tab) in ids {
+            match id.as_key::<K>() {
+                Some(key) => keys.push((key, tab)),
+                None => {
+                    state.remove(tab);
+                    state.remove_bar(tab);
+                }
+            }
+        }
         DockingSnapshot { state, keys }
     }
 
@@ -802,6 +808,9 @@ impl AnyDockingLayout {
         let mut spec = DockSpec::default();
         found.staged = nodes.iter().any(|node| staged(node));
         for node in nodes {
+            hold_keys(node, found);
+        }
+        for node in nodes {
             if let NodeKind::Dialog { id, parent, parts } = &node.kind {
                 let dialog = self.mint(id);
                 if found.dialogs.iter().any(|(held, _)| *held == dialog) {
@@ -902,7 +911,7 @@ impl AnyDockingLayout {
                 size,
                 children,
             } => {
-                let key = key.get(|| place.to_owned());
+                let key = key.get(&mut found.held_keys, || place.to_owned(), stepped);
                 let mut parts: Vec<DockSpecNode> = children
                     .items()
                     .iter()
@@ -951,18 +960,21 @@ impl AnyDockingLayout {
                 if *chrome && !found.chrome_shown {
                     return None;
                 }
-                let key = key.get(|| match stage {
-                    true => STAGE.to_owned(),
-                    false => place.to_owned(),
-                });
+                let key = key.get(
+                    &mut found.held_keys,
+                    || match stage {
+                        true => STAGE.to_owned(),
+                        false => place.to_owned(),
+                    },
+                    stepped,
+                );
                 if empty.is_some() {
                     found.panes.insert(key.clone(), Rc::clone(node));
                 }
-                let mut titles: HashMap<String, usize> = HashMap::default();
                 let entries: Vec<DockSpecEntry> = entries
                     .items()
                     .iter()
-                    .filter_map(|entry| self.entry(entry, &key, &mut titles, found))
+                    .filter_map(|entry| self.entry(entry, &key, found))
                     .collect();
                 let own = |entry: &DockSpecEntry| match entry {
                     DockSpecEntry::Tab(tab) => Some(*tab),
@@ -1000,26 +1012,15 @@ impl AnyDockingLayout {
         }
     }
 
-    /// A tab with no id takes its title, after its pane's key, and how many of the pane's tabs
-    /// before it share that title.
-    fn entry(
-        &self,
-        entry: &Rc<DockEntry>,
-        pane: &str,
-        titles: &mut HashMap<String, usize>,
-        found: &mut Found,
-    ) -> Option<DockSpecEntry> {
+    /// A tab with no id takes its title after its pane's key, stepped past any tab holding that.
+    fn entry(&self, entry: &Rc<DockEntry>, pane: &str, found: &mut Found) -> Option<DockSpecEntry> {
         match &entry.kind {
             EntryKind::Tab { id, title, .. } => {
-                let title = title.get_untracked();
-                let before = titles.entry(title.clone()).or_default();
-                let id = id.get(|| {
-                    DockId::derived(match *before {
-                        0 => format!("{pane}/{title}"),
-                        before => format!("{pane}/{title}#{before}"),
-                    })
-                });
-                *before += 1;
+                let id = id.get(
+                    &mut found.held_tabs,
+                    || DockId::derived(format!("{pane}/{}", title.get_untracked())),
+                    |base, next| DockId::derived(stepped(&base.key().to_owned(), next)),
+                );
                 let tab = self.mint(&id);
                 if found.parts.contains_key(&tab) {
                     return None;
@@ -1195,6 +1196,9 @@ struct Found {
     /// The tabs whose bodies are the standard panel, and those that opted out.
     panels: HashSet<TabId>,
     bare: HashSet<TabId>,
+    /// The containers' and tabs' keys held so far this pass (`Keyed::get`).
+    held_keys: HashSet<String>,
+    held_tabs: HashSet<DockId>,
 }
 
 impl Default for Found {
@@ -1216,6 +1220,8 @@ impl Default for Found {
             chrome_shown: true,
             panels: HashSet::default(),
             bare: HashSet::default(),
+            held_keys: HashSet::default(),
+            held_tabs: HashSet::default(),
         }
     }
 }
@@ -1235,6 +1241,38 @@ fn staged(node: &DockNode) -> bool {
         | NodeKind::Window { .. }
         | NodeKind::Dialog { .. }
         | NodeKind::Bar { .. } => false,
+    }
+}
+
+/// A derived key some node already holds, stepped: `0.1#1`, `0.1#2`.
+fn stepped(base: &String, next: usize) -> String {
+    format!("{base}#{next}")
+}
+
+/// Holds every key a declared node was given or already keeps, before any is derived, so a node
+/// that appears in front of one keeping a derived key derives another.
+fn hold_keys(node: &DockNode, found: &mut Found) {
+    let nodes = |children: &Run<DockNode>, found: &mut Found| {
+        for child in children.items().iter() {
+            hold_keys(child, found);
+        }
+    };
+    match &node.kind {
+        NodeKind::Split { key, children, .. } => {
+            found.held_keys.extend(key.known());
+            nodes(children, found);
+        }
+        NodeKind::Pane { key, entries, .. } => {
+            found.held_keys.extend(key.known());
+            for entry in entries.items().iter() {
+                match &entry.kind {
+                    EntryKind::Tab { id, .. } => found.held_tabs.extend(id.known()),
+                    EntryKind::Group { children, .. } => nodes(children, found),
+                }
+            }
+        }
+        NodeKind::Window { children, .. } => nodes(children, found),
+        NodeKind::Dialog { .. } | NodeKind::Bar { .. } => {}
     }
 }
 

@@ -583,8 +583,16 @@ impl State {
         untrack(|| self.tab_key.call(tab)).unwrap_or_else(|| tab.value().to_string())
     }
 
+    /// A tab's title; an untitled one (an editor's stage) is named after the tab it stands in for.
     fn title(&self, tab: TabId) -> String {
-        self.title.call(tab)
+        let title = self.title.call(tab);
+        match title.is_empty() {
+            true => match self.standing(tab) {
+                standing if standing != tab => self.title.call(standing),
+                _ => title,
+            },
+            false => title,
+        }
     }
 
     pub(crate) fn notice(&self, tab: TabId) -> Option<String> {
