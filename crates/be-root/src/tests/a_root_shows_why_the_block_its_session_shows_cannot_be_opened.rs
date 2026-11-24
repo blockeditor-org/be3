@@ -10,7 +10,10 @@ fn asked_editor(root: &mut Root, time: &mut u64) -> (u64, [u8; 16]) {
         .find_map(|_| {
             *time += 1;
             step(root, *time);
-            root.take_editor_asks().into_iter().next()
+            root.take_editor_asks()
+                .into_iter()
+                .next()
+                .map(|(id, shown)| (id, shown.block))
         })
         .expect("within a few frames, the root asks which app edits the block its session shows")
 }
@@ -78,7 +81,7 @@ fn a_root_shows_why_the_block_its_session_shows_cannot_be_opened() {
             root.take_openings().into_iter().next()
         })
         .expect("within a few frames, the root asks its host to open the block's editor");
-    assert_eq!(opening.block, [8; 16]);
+    assert_eq!(opening.shown.block, [8; 16]);
     assert_eq!(
         opening.app, None,
         "the app could not start here, where nothing is staged, so its instance runs none"

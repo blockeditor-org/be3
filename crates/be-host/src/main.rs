@@ -2853,13 +2853,13 @@ impl HostCore {
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-    /// The app and editor that show `block` in a root, and the block as it is opened: the
-    /// session's own editor for the session's block, which it views (`view_block`), else its
-    /// type's default editor. Why not, when the block is not listed, the person may not view
-    /// it, or no app edits its type.
+    /// The app and editor that show `shown`'s block in a root, and the block as it is opened:
+    /// the editor and view block its placement names, else the session's own editor for the
+    /// session's block, which it views (`view_block`), else its type's default editor. Why
+    /// not, when the block is not listed, the person may not view it, or no app edits its type.
     fn editor_of(
         &self,
-        block: Uuid,
+        shown: &be_wasm_root_api::ShownBlock,
     ) -> Result<
         (
             std::sync::Arc<be_sdk_manifest::AppManifest>,
@@ -2868,6 +2868,7 @@ impl HostCore {
         ),
         String,
     > {
+        let block = Uuid::from_bytes(shown.block);
         let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
         if !be_host_stack::access(block).can_view() {
             return Err("the person may not view the block".to_owned());
@@ -2876,14 +2877,18 @@ impl HostCore {
             true => self.root_settings.session_editor(block),
             false => None,
         };
+        let named = shown.editor.map(Uuid::from_bytes);
         let opened = editors::Opened {
             id: block,
             block_type: node.content_type,
-            view_block: shell.map(|_| block),
+            view_block: match shown.view_block {
+                Some(view_block) => Some(Uuid::from_bytes(view_block)),
+                None => shell.map(|_| block),
+            },
         };
         let (app, editor) = self
             .registry
-            .editor_app(opened, shell)
+            .editor_app(opened, named.or(shell))
             .ok_or("no app edits the block's type")?;
         Ok((app, editor, opened))
     }

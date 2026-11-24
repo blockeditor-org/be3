@@ -1063,9 +1063,21 @@ interface host {
         name: string,
     }
 
-    /// The editor that shows `block`, or why none does: no app edits its
-    /// type, or the person may not view it.
-    editor-of: async func(block: block-id) -> result<editor-app, string>;
+    /// A block the root shows in an editor, as its placement names it.
+    record shown-block {
+        block: block-id,
+        /// The editor asked for (an editor's id in its app's manifest), as a
+        /// child's placement may name one: none for the editor the host
+        /// chooses, the session's own for its block, else the type's default.
+        editor: option<uuid>,
+        /// The block the editor is shown through, as a child's placement may
+        /// name one.
+        view-block: option<block-id>,
+    }
+
+    /// The editor that shows `shown`, or why none does: no app edits its
+    /// block's type, or the person may not view it.
+    editor-of: async func(shown: shown-block) -> result<editor-app, string>;
 
     /// An editor the host opened in an app the root spawned.
     record opened-editor {
@@ -1077,7 +1089,7 @@ interface host {
         frames: list<list<u8>>,
     }
 
-    /// Opens `block`'s editor in the app the root spawned as `instance` (the
+    /// Opens `shown`'s editor in the app the root spawned as `instance` (the
     /// op of its sandbox `instance` resource), which must run the app that
     /// `editor-of` names for it. The host serves what the editor asks of it
     /// from then on (blocks, host services, the network, debug and the
@@ -1086,7 +1098,7 @@ interface host {
     /// starts under them the root forwards (`forward`), and what the host
     /// answers (`forwarded`) it sends the app unread. The host's ops carry
     /// be-wasm-ops' `RELAYED_BIT`, so they never meet the root's.
-    open-editor: async func(instance: u64, block: block-id) -> result<opened-editor, string>;
+    open-editor: async func(instance: u64, shown: shown-block) -> result<opened-editor, string>;
 
     /// The frames for the host of the app the root spawned as `instance`, in
     /// the order it sent them: be-wasm-ops frames, each as it encoded it.

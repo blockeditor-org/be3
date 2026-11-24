@@ -173,7 +173,7 @@ struct Core<G> {
     next_secret: u64,
     /// The blocks the root asked the editor of (`host.editor-of`), by the id the host answers
     /// by, until the host takes them.
-    editor_asks: Vec<(u64, [u8; 16])>,
+    editor_asks: Vec<(u64, be_wasm_root_api::ShownBlock)>,
     /// The editors the root asked the host to open (`host.open-editor`), until it takes them.
     openings: Vec<EditorOpening>,
     /// The root's `host.editor-of` and `host.open-editor` calls, by that id, until the host
@@ -217,7 +217,8 @@ pub struct EditorOpening {
     /// The staged app it runs, by its manifest's id, while it runs one: what the host opens the
     /// editor in, whatever app the root meant.
     pub app: Option<String>,
-    pub block: [u8; 16],
+    /// The block, and the editor and view block its placement names.
+    pub shown: be_wasm_root_api::ShownBlock,
 }
 
 /// A root's call about the editors its host opens, waiting for the host's answer.
@@ -592,7 +593,7 @@ impl<G: Inline> Core<G> {
 
     /// The blocks the root asked the editor of since the last call, each by the id
     /// `answer_editor` answers it by.
-    fn take_editor_asks(&mut self) -> Vec<(u64, [u8; 16])> {
+    fn take_editor_asks(&mut self) -> Vec<(u64, be_wasm_root_api::ShownBlock)> {
         std::mem::take(&mut self.editor_asks)
     }
 
@@ -1064,15 +1065,15 @@ impl<G: Inline> Core<G> {
                 self.lock_powers.push(action);
                 reply.send(&mut self.connection, &());
             }
-            embed::Call::Host(embed::host::Call::EditorOf { block, reply }) => {
+            embed::Call::Host(embed::host::Call::EditorOf { shown, reply }) => {
                 let id = self.next_editor;
                 self.next_editor += 1;
-                self.editor_asks.push((id, block));
+                self.editor_asks.push((id, shown));
                 self.editor_replies.push((id, EditorReply::Of(reply)));
             }
             embed::Call::Host(embed::host::Call::OpenEditor {
                 instance,
-                block,
+                shown,
                 reply,
             }) => {
                 let id = self.next_editor;
@@ -1081,7 +1082,7 @@ impl<G: Inline> Core<G> {
                     id,
                     instance,
                     app: self.app_of(instance),
-                    block,
+                    shown,
                 });
                 self.editor_replies.push((id, EditorReply::Open(reply)));
             }
