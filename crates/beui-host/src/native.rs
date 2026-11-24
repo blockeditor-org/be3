@@ -4,7 +4,7 @@ pub use beui::native::*;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_skrifa::system::SystemFonts;
 pub use beui_font_skrifa::{
-    FontBytes, FontData, FontLibrary, FontSources, SkrifaFonts, ICONS_FONT,
+    FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT, SkrifaFonts,
 };
 pub use beui_inspector::install as install_inspector;
 pub use beui_layer_drive as drive;

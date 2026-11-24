@@ -83,7 +83,10 @@ impl RasterFace {
             }
         }
         outline
-            .draw(DrawSettings::unhinted(size, LocationRef::default()), &mut path)
+            .draw(
+                DrawSettings::unhinted(size, LocationRef::default()),
+                &mut path,
+            )
             .ok()?;
         Some(path)
     }

@@ -141,7 +141,11 @@ pub(crate) fn bitmap(
 
 /// Where a bitmap glyph draws at the text's size, y down: its strike's box scaled as
 /// `bitmap` scales it.
-pub(crate) fn bitmap_extents(font: &FontRef, glyph: FontGlyph, pixel_size: u32) -> Option<[f32; 4]> {
+pub(crate) fn bitmap_extents(
+    font: &FontRef,
+    glyph: FontGlyph,
+    pixel_size: u32,
+) -> Option<[f32; 4]> {
     let (bitmap, scale) = strike_glyph(font, glyph, pixel_size)?;
     let (left, top) = bearings(&bitmap, bitmap.height);
     let left = (left * scale).round();

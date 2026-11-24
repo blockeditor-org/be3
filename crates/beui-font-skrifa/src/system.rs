@@ -87,9 +87,9 @@ fn face_covering(path: &Path, character: char) -> Option<(PathBuf, u32)> {
         }
         _ => vec![0],
     };
-    let index = starts.into_iter().position(|start| {
-        face_covers(&mut file, u64::from(start), character).unwrap_or(false)
-    })?;
+    let index = starts
+        .into_iter()
+        .position(|start| face_covers(&mut file, u64::from(start), character).unwrap_or(false))?;
     Some((path.to_path_buf(), index as u32))
 }
 

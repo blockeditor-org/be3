@@ -116,7 +116,8 @@ impl Outline {
                 let neighbour = |step: isize| {
                     (1..count).find_map(|distance| {
                         let index = (at as isize + step * distance as isize)
-                            .rem_euclid(count as isize) as usize;
+                            .rem_euclid(count as isize)
+                            as usize;
                         let other = points[index];
                         let length = (other[0] - current[0]).hypot(other[1] - current[1]);
                         (length > f32::EPSILON).then_some((other, length))
@@ -131,7 +132,10 @@ impl Outline {
                     (current[0] - previous[0]) / before,
                     (current[1] - previous[1]) / before,
                 ];
-                let outgoing = [(next[0] - current[0]) / after, (next[1] - current[1]) / after];
+                let outgoing = [
+                    (next[0] - current[0]) / after,
+                    (next[1] - current[1]) / after,
+                ];
                 let along = 1.0 + incoming[0] * outgoing[0] + incoming[1] * outgoing[1];
                 let mut shift = match clockwise {
                     true => [-(incoming[1] + outgoing[1]), incoming[0] + outgoing[0]],

@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
 use harfrust::{
-    Direction, Language, Script, script, ShapeOptions, ShapePlan, ShaperData, Tag, UnicodeBuffer,
+    Direction, Language, Script, ShapeOptions, ShapePlan, ShaperData, Tag, UnicodeBuffer, script,
 };
 use icu_properties::props::Script as Unicode;
 use icu_properties::{CodePointMapData, PropertyNamesShort};
@@ -19,12 +19,11 @@ use skrifa::instance::{LocationRef, Size};
 use skrifa::{FontRef, GlyphId as FontGlyph, MetadataProvider};
 
 use beui_core::font::{
-    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphRaster, GlyphRasterizer,
-    Shaping,
+    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphRaster, GlyphRasterizer, Shaping,
 };
-use raster::{RasterFace, Rasterizer};
 use beui_types::vec2;
 use beui_types::{FontFamily, FontId};
+use raster::{RasterFace, Rasterizer};
 
 pub use library::{FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT};
 
@@ -603,7 +602,10 @@ fn script_runs(text: &str) -> Vec<ScriptRun> {
 
     for (index, character) in text.char_indices() {
         let script = scripts.get(character);
-        if matches!(script, Unicode::Common | Unicode::Inherited | Unicode::Unknown) {
+        if matches!(
+            script,
+            Unicode::Common | Unicode::Inherited | Unicode::Unknown
+        ) {
             continue;
         }
         match current {
