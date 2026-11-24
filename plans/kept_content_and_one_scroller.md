@@ -20,7 +20,10 @@ landed.
    it is open and then scrolls its content. Sheet keeps only its stops and dismissing when
    pulled below the lowest. Its own wheel, fling, bounce and `banding()` go. This is the model
    plans/deferred/html_core.md wants on the web (the stops as CSS scroll snap), so both cores
-   share one design.
+   share one design. On the HTML core `Scroll`'s `snaps` become CSS scroll snap
+   (`scroll-snap-type` on the scroll, an empty `scroll-snap-align: start` marker at each stop), so
+   a sheet released between stops settles on one there too; this takes the place of
+   plans/deferred/html_core.md's "Sheet's stops as CSS scroll snap".
 5. **One card surface.** `Card`, `DialogCard` and `PopoverPanel` (styled `card.rs`,
    `dialog.rs`, `popover.rs`) are the same frame (Surface fill, the default border, `Lg`
    radius) with different padding and width. One `Card` with a maximum width and an optional
