@@ -857,6 +857,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
     sealing: bool,
+    /// The last head this replica was told of while another held the lease, left to that
+    /// holder: taken once the lease comes here, should the holder not have taken it first.
+    unheld_head: Option<CommitId>,
     closing: Option<u64>,
     loaded: bool,
     released: bool,
@@ -1252,6 +1255,7 @@ where
             replaced_through: 0,
             epoch: opened.epoch,
             sealing: false,
+            unheld_head: None,
             closing: None,
             loaded: false,
             released: false,
@@ -5277,6 +5281,15 @@ where
         for client in joined {
             self.show_presence_to(client);
         }
+        // A head heard while another held the lease, which that holder had not taken: it is this
+        // holder's to take now.
+        if !was_holder
+            && self.is_holder()
+            && let Some(head) = self.unheld_head.take()
+            && self.base != Some(head)
+        {
+            self.jobs.push_back(Job::Reconcile);
+        }
         if was_holder && !self.is_holder() {
             // A merge that was failing is the new holder's to do.
             self.merge_failures = 0;
@@ -5297,6 +5310,9 @@ where
     /// A head landed: the holder reconciles with it. Any other replica leaves that to the
     /// holder, which hears of every head too.
     fn moved(&mut self, head: CommitId) {
+        if !self.is_holder() {
+            self.unheld_head = Some(head);
+        }
         if self.base != Some(head) && self.is_holder() {
             self.jobs.push_front(Job::Reconcile);
         }

@@ -25,7 +25,8 @@ const MANIFEST: &str = r#"{"id": "be3.echo", "name": "Echo", "version": "0.1.0",
         "display_name": "Echo", "icon": "x", "views": ["Main"]}}}"#;
 
 /// Stages the echo app and its worker as be-tool-buck stages them, in a directory of their own
-/// that discovery reads the staged files from (this test runs in a process of its own).
+/// that discovery reads the staged files from (the only test here that sets discovery's assets,
+/// which a process sets once).
 fn stage() -> std::path::PathBuf {
     let bundle = std::env::temp_dir().join(format!("be3-worker-bundle-{}", std::process::id()));
     let workers = bundle.join("workers/be3.echo");

@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     rc::Rc,
-    sync::{Mutex, OnceLock, PoisonError},
+    sync::{Mutex, OnceLock, PoisonError, RwLock},
     thread::{self, ThreadId},
     time::{Duration, Instant},
 };
@@ -13,7 +13,9 @@ use be_lib_ui_types::{FileFilter, FilePick, FileSave, SavedFile};
 
 type Waker = Box<dyn Fn() + Send + Sync>;
 
-static WAKER: OnceLock<Waker> = OnceLock::new();
+/// Every waker installed (`install_waker`): one per host in a process, and in a test process
+/// each test's own, so none silently goes unwoken. Written only as one is installed.
+static WAKERS: RwLock<Vec<Waker>> = RwLock::new(Vec::new());
 static UNSENT_SAVES: Mutex<Vec<(SavedFile, SaveSlot)>> = Mutex::new(Vec::new());
 
 type Letter = (u64, Box<dyn Any + Send>);
@@ -46,8 +48,13 @@ thread_local! {
     static NEXT_MAILBOX: Cell<u64> = const { Cell::new(1) };
 }
 
+/// Adds `waker` to those `wake` calls: each host (or test) installs its own, and a later one
+/// does not take an earlier one's place.
 pub fn install_waker(waker: impl Fn() + Send + Sync + 'static) {
-    let _ = WAKER.set(Box::new(waker));
+    WAKERS
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(Box::new(waker));
 }
 
 static CLOCK: OnceLock<fn() -> Instant> = OnceLock::new();
@@ -61,7 +68,7 @@ pub fn clock() -> Instant {
 }
 
 pub fn wake() {
-    if let Some(waker) = WAKER.get() {
+    for waker in WAKERS.read().unwrap_or_else(PoisonError::into_inner).iter() {
         waker();
     }
 }
