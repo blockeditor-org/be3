@@ -16,6 +16,7 @@ use be_wasm_sandbox_api::{
 use super::*;
 
 mod a_compile_under_way_is_work_in_flight;
+mod a_next_asked_of_frames_already_sent_is_answered_in_the_call;
 mod a_guest_compiles_a_module_and_talks_to_an_instance_of_it;
 mod a_guest_spawns_a_staged_app_by_its_id_and_talks_to_it;
 mod a_shared_worker_s_answer_goes_to_the_job_it_answers;
@@ -100,6 +101,8 @@ struct Pump {
     server: Server,
     woken: mpsc::Receiver<()>,
     to_guest: Vec<Vec<u8>>,
+    /// Whether a call the guest made was answered as the server took it (`Server::call`).
+    answered_in_call: bool,
 }
 
 impl Pump {
@@ -129,6 +132,7 @@ impl Pump {
             })),
             woken,
             to_guest: Vec::new(),
+            answered_in_call: false,
         }
     }
 
@@ -153,7 +157,7 @@ impl Pump {
                 match event {
                     Incoming::Started(started) => {
                         if let Some(call) = embed::sandbox::Call::accept(&mut self.host, started) {
-                            self.server.call(call, &mut self.host);
+                            self.answered_in_call |= self.server.call(call, &mut self.host);
                         }
                     }
                     Incoming::Canceled { op } => {

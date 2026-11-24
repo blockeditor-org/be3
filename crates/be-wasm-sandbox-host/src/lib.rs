@@ -150,8 +150,11 @@ impl Server {
         (self.apps)(own, module)
     }
 
-    /// Takes one of the guest's calls.
-    pub fn call(&mut self, call: Call, connection: &mut Connection) {
+    /// Takes one of the guest's calls, then answers whatever finished since as `poll` does,
+    /// answering whether it answered anything so, which the guest takes in only once stepped:
+    /// a `next` asked of an instance that sent frames while the guest was not waiting is
+    /// answered here, not by a later `poll`.
+    pub fn call(&mut self, call: Call, connection: &mut Connection) -> bool {
         match call {
             Call::Compile { reply, .. } if self.app.is_some() => {
                 let refused: Result<ModuleId, String> = Err(APPS_COMPILE_NOTHING.to_owned());
@@ -229,7 +232,7 @@ impl Server {
                 None => reply.fail(connection, OpError::Canceled),
             },
         }
-        self.poll(connection);
+        self.poll(connection)
     }
 
     /// Stops every instance the guest spawned, answering each `next` it waits on with `why`, as
