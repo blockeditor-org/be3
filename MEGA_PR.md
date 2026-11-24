@@ -36,6 +36,9 @@ Landed on 2026-11-24:
 - `one-way-in-apps-3`: step 5, a name too long is refused and the editor says why (`Editor::notify`); names taken from content are cut with `metadata::clip_name`; file types list their media types.
 - `tools-batch`: one-way-in-the-tools steps 3-8 (browser rasterizer, build helper by content hash, Painting::render takes the original file, Storage::put_content_addressed) and be-tool-local stress. A manifest without an `executable` field, now required in `ManifestFile`, fails to parse, so its build is downloaded again. Untested: a real Chromium rasterization and Bunny storage HEAD.
 - `invitations-no-pending-4`: an invitation is made whenever the organization shares outside (not gated by link sharing) and has no pending grant: its first opener becomes a contact with the access chosen, and a failed contact link leaves no share link. `links.grant_block` is gone.
+- `host-adapter-4g7b1`: a root's embedded editors are served through its host (forwarded instances, relayed ops).
+- `flush-after-revoke-6b`: a flush keeps its mark until a seal settles it, and seals what it answered ahead of once the block owes a seal it can make; fixes the lease flake. Backlog §32: a Host event held during a join can override its answer.
+- `one-way-in-apps-4`: worker messages are typed, and a shared worker's jobs carry tickets so each answer goes to the job it answers (extras dropped).
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
