@@ -1622,13 +1622,13 @@ fn focus_when_asked(
 
 /// Moves the keyboard into `child`, which the editor `instance` of `app` asked take it
 /// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask. A child
-/// whose view is built takes it there at once (`focus_when_given`). For one whose view is not
-/// built yet: if the keyboard is within the editor's views and the children they show, and no
-/// view that takes the keyboard is open, it leaves them at once, and the child's view takes it
-/// as it is built, while nothing else took it meanwhile. Keys typed
+/// whose view is up takes it there at once (`focus_when_given`). For one whose view is not built
+/// or not up yet: if the keyboard is within the editor's views and the children they show, and
+/// no view that takes the keyboard is open, it leaves them at once, and the child's view takes it
+/// once it is up, while nothing else took it meanwhile. Keys typed
 /// in between reach nothing: none is held (decisions/keys_are_never_held.md).
 pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: ChildId) {
-    // A child whose view is built takes the keyboard there, as that view decides.
+    // A child whose view is up takes the keyboard there, as that view decides.
     if asks::has_view(app, instance, child)
         || WANTING_KEYBOARD.with_borrow(|views| !views.is_empty())
     {
@@ -1651,9 +1651,9 @@ pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: 
 }
 
 /// Moves the keyboard to this child's view when the editor that placed it asked for it
-/// (`keyboard_into_child`), as the view is built or at once if it is, whether the child's app
-/// runs yet or not: keys typed before it does are dropped. Only while nothing else took the
-/// keyboard since the ask, and no view that takes the keyboard is open. A view the keyboard
+/// (`keyboard_into_child`), once the view is up (its app laid it out), or at once if it is:
+/// keys typed before then reach nothing, none is held. Only while nothing else took the keyboard
+/// since the ask, and no view that takes the keyboard is open. A view the keyboard
 /// went to hands it on to the child that fills it, if any.
 fn focus_when_given(
     asked: Option<AskedFocus>,
@@ -1666,10 +1666,21 @@ fn focus_when_given(
     let Some(asked) = asked else {
         return;
     };
-    // While this view lives, an ask for its child is this view's to act on.
-    asks::viewed(asked.placer.app, asked.placer.instance, asked.child, true);
-    on_cleanup(move || asks::viewed(asked.placer.app, asked.placer.instance, asked.child, false));
     let catcher = *catcher;
+    // While this view is up, an ask for its child is this view's to act on.
+    let viewing = create_memo(move || state.with(|view| !view.loading && view.error.is_none()));
+    let registered = StoredCell::new(false);
+    create_effect(move || {
+        let now = viewing.get();
+        if registered.replace(now) != now {
+            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, now);
+        }
+    });
+    on_cleanup(move || {
+        if registered.replace(false) {
+            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, false);
+        }
+    });
     let passing = create_signal(false);
     create_effect(move || {
         let filling = state.with(filling_child);
@@ -1684,9 +1695,10 @@ fn focus_when_given(
             }
         });
     });
+    // A view still loading has no field to put the keyboard in yet: it takes it once it is up.
     create_effect(move || {
         revision.track();
-        if !asked.asked.get() || !primary.get() {
+        if !asked.asked.get() || !primary.get() || !viewing.get() {
             return;
         }
         untrack(|| {
