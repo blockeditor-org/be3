@@ -1534,7 +1534,9 @@ Each step lands on its own.
          secrets (until step 5 moves the stack), the login session's lock and PAM (with its
          triggers: Super+L, idle and suspend lock through `host.lock`, since be-root's menu,
          like be-host's, has no Lock entry, and a person on the root has no other way to
-         lock), the
+         lock), `core-view`'s fields 4g7a2 added (`default-server` among them, which names the
+         example server in the agents' proxy instructions in place of be-host's hard-coded
+         hosted one), the
          displays' keep changes, and the clipboard and notices already wired; then, once the
          real root passes the host tests that exercise be-host's own
          `src/ui` today, with their paintings compared, and only then, the root
