@@ -15,11 +15,11 @@ use crate::types::ScrollPosition;
 /// growing child of a content-sized box): then it measures as long as its child.
 ///
 /// The offset is anchored to the node at the top of the viewport, found by walking down
-/// through nodes whose `Element::passes_scroll_anchor` is true, so content above it
-/// growing or shrinking leaves what is being read in place. The anchor is picked once a
-/// frame from the painted layout. Moving it from outside its layout
-/// (`Document::set_offset_value`, a reveal) calls the node's `on_steer`, which a `Scroll`
-/// uses to stop a fling.
+/// through nodes whose `Element::passes_scroll_anchor` is true, past any sticky child
+/// (`Element::sticks`), so content above it growing or shrinking leaves what is being read
+/// in place. The anchor is picked once a frame from the painted layout. Moving it from
+/// outside its layout (`Document::set_offset_value`, a reveal) calls the node's `on_steer`,
+/// which a `Scroll` uses to stop a fling.
 #[component]
 pub fn Offset(
     #[prop(default = 0.0)] offset: Prop<f32>,
