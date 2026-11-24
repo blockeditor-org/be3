@@ -28,7 +28,7 @@ use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 pub use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::HostStatistics, host::LockState, host::Notice,
+    FrameDone, FrameRequest, embed, host::BlockCatalog, host::HostStatistics, host::LockState, host::Notice,
     host::PowerAction, host::ShownNotices, host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
@@ -102,6 +102,10 @@ struct Core<G> {
     painting: Option<Ticket<Vec<u8>, be_wasm_ops::wire::Bytes>>,
     /// What the root answered it painted, until the host takes it.
     painted: Option<Vec<u8>>,
+    /// The host's catalog, which `host.block-types` answers: the generation counts each change.
+    block_types: BlockCatalog,
+    /// The root's `host.block-types` calls waiting for the catalog to change from the one it saw.
+    block_types_watchers: Vec<Reply<BlockCatalog>>,
     /// The host's notices, which `host.notices` answers: the generation counts each change.
     notices: ShownNotices,
     /// The root's `host.notices` calls waiting for the notices to change from those it saw.
@@ -268,6 +272,12 @@ impl<G: Inline> Core<G> {
             fonts: Vec::new(),
             painting: None,
             painted: None,
+            block_types: BlockCatalog {
+                generation: 1,
+                catalog: Vec::new(),
+                debug_templates: Vec::new(),
+            },
+            block_types_watchers: Vec::new(),
             notices: ShownNotices {
                 generation: 1,
                 shown: Vec::new(),
@@ -378,6 +388,29 @@ impl<G: Inline> Core<G> {
     /// What the root answered `ask_paintings` with, once it did.
     fn take_paintings(&mut self) -> Option<Vec<u8>> {
         self.painted.take()
+    }
+
+    /// Hands the root the host's catalog, `catalog` and `debug_templates` as `host.block-types`
+    /// carries them, in place of the one handed before: the root's calls waiting for a change
+    /// answer, which its next step hears. Answers whether any did, so the host steps the root
+    /// for them.
+    fn show_block_types(&mut self, catalog: Vec<u8>, debug_templates: Vec<u8>) -> bool {
+        if (&catalog, &debug_templates)
+            == (&self.block_types.catalog, &self.block_types.debug_templates)
+        {
+            return false;
+        }
+        self.block_types = BlockCatalog {
+            generation: self.block_types.generation + 1,
+            catalog,
+            debug_templates,
+        };
+        let watching = std::mem::take(&mut self.block_types_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.block_types);
+        }
+        answered
     }
 
     /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
@@ -1008,6 +1041,12 @@ impl<G: Inline> Core<G> {
             },
             embed::Call::Host(embed::host::Call::Fonts { reply }) => {
                 reply.send(&mut self.connection, &self.fonts);
+            }
+            embed::Call::Host(embed::host::Call::BlockTypes { seen, reply }) => {
+                match seen == self.block_types.generation {
+                    true => self.block_types_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.block_types),
+                }
             }
             embed::Call::Host(embed::host::Call::Notices { seen, reply }) => {
                 match seen == self.notices.generation {

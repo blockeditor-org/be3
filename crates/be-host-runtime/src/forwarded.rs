@@ -81,6 +81,12 @@ impl Forwarded {
         self.wire.send(vec![Outbound::Event(instance, event)]);
     }
 
+    /// Asks the editor `instance` to show the block `open` names, as be-host asks the editor
+    /// that handles show requests (`show-request.block`), sent with the next `step`.
+    pub fn show_block(&mut self, instance: EditorInstanceId, open: crate::BlockOpen) {
+        self.instances.show_block(instance, open);
+    }
+
     /// Hands the editor `instance` the dock updates its root's docks made for it
     /// (`be3:root`'s `host.dock`), which answer its `dock-watch` with the next `step`.
     pub fn dock(&mut self, instance: EditorInstanceId, updates: Vec<DockUpdate>) {
@@ -185,7 +191,7 @@ impl Forwarded {
 
 impl Forwarded {
     /// Answers what an editor tells the shell around it, and refuses what it asks: the root's
-    /// views take none of it yet (plans/host_as_platform_adapter.md, 4g7b3d and 4g7c to 4g7e),
+    /// views take none of it yet (plans/host_as_platform_adapter.md, 4g7b3f and 4g7c to 4g7e),
     /// so what is told is dropped. Where its children take the keyboard rides on their
     /// placements (`keyboard-ask`), which the root reads itself.
     fn shell(&mut self, call: ShellCall) {
