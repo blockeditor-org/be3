@@ -179,14 +179,14 @@ impl<S: ObjectStore> Peer<S> {
         Ok(read)
     }
 
-    /// Waits `backoff` on the connection's clock before the write after a refusal. Only on a
-    /// real clock: a manual one moves only when its test moves it, which knows nothing of this
-    /// wait. Never in this crate's tests, whose contended writes are refused on purpose and
-    /// must not wait.
+    /// Waits `backoff` on the connection's clock before the write after a refusal. On a manual
+    /// clock it waits for nothing: such a clock moves only when its test moves it, so no real
+    /// time passes for the devices it would spread apart, and a test that contends on purpose
+    /// (on a manual clock) neither waits nor has to move it.
     async fn back_off(&self, refused: usize) {
         let wait = backoff(refused, Uuid::new_v4().as_u128());
         let clock = self.connection().clock().clone();
-        if !cfg!(test) && !wait.is_zero() && clock.is_real() {
+        if !wait.is_zero() && clock.is_real() {
             clock.sleep(wait).await;
         }
     }
