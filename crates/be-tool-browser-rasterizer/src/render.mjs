@@ -73,11 +73,17 @@ try {
     await browser.close();
 }
 
-const fail = (message) => {
-    process.stderr.write(`${message}\n`);
-    process.exit(1);
-};
-if (missing.size) fail(`Snapshot is missing embedded resources:\n${[...missing].sort().join("\n")}`);
-if (broken.some(Boolean)) fail(`Snapshot images failed to decode:\n${broken.filter(Boolean).join("\n")}`);
-if (errors.length) fail(`Snapshot scripts failed:\n${errors.join("\n")}`);
-process.stdout.write(image);
+// Fails by setting the exit code rather than calling process.exit, so what was written flushes.
+const failure = missing.size
+    ? `Snapshot is missing embedded resources:\n${[...missing].sort().join("\n")}`
+    : broken.some(Boolean)
+      ? `Snapshot images failed to decode:\n${broken.filter(Boolean).join("\n")}`
+      : errors.length
+        ? `Snapshot scripts failed:\n${errors.join("\n")}`
+        : null;
+if (failure === null) {
+    process.stdout.write(image);
+} else {
+    process.stderr.write(`${failure}\n`);
+    process.exitCode = 1;
+}

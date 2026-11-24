@@ -70,8 +70,10 @@ pub fn generate(
     let mut frames = 0;
     let mut omitted = 0;
     for name in &names {
-        let old = read(&before.join(format!("{name}.paint")));
-        let new = read(&after.join(format!("{name}.paint")));
+        let old_file = before.join(format!("{name}.paint"));
+        let new_file = after.join(format!("{name}.paint"));
+        let old = read(&old_file);
+        let new = read(&new_file);
         let (status, detail) = match (&old, &new) {
             (None, None) => continue,
             (Some(Err(error)), _) | (_, Some(Err(error))) => (Status::Unreadable, error.clone()),
@@ -90,8 +92,8 @@ pub fn generate(
         let old = old.and_then(Result::ok);
         let new = new.and_then(Result::ok);
         let rendered = differing_frames(
-            old.as_ref(),
-            new.as_ref(),
+            old.as_ref().map(|old| (old, old_file.as_path())),
+            new.as_ref().map(|new| (new, new_file.as_path())),
             output,
             &mut frames,
             &mut omitted,
@@ -233,23 +235,25 @@ fn described(status: Status) -> &'static str {
     }
 }
 
+/// `old` and `new` are each a painting and the file it was read from.
 fn differing_frames(
-    old: Option<&Paint>,
-    new: Option<&Paint>,
+    old: Option<(&Paint, &Path)>,
+    new: Option<(&Paint, &Path)>,
     output: &Path,
     drawn: &mut usize,
     omitted: &mut usize,
     browser_renderer: Option<&Path>,
 ) -> Result<Vec<Frame>, String> {
-    let count =
-        |snapshot: Option<&Paint>| snapshot.map_or(0, |snapshot| snapshot.frames());
+    let count = |snapshot: Option<(&Paint, &Path)>| {
+        snapshot.map_or(0, |(snapshot, _)| snapshot.frames())
+    };
     let frames = count(old).max(count(new));
     let renderer = || browser_renderer.map(|built| crate::browser::renderer(Some(built)));
     let mut listed = Vec::new();
     for index in 0..frames {
-        let old_frame = old.filter(|snapshot| index < snapshot.frames());
-        let new_frame = new.filter(|snapshot| index < snapshot.frames());
-        if matches!((old_frame, new_frame), (Some(old), Some(new)) if old.same_frame(new, index)) {
+        let old_frame = old.filter(|(snapshot, _)| index < snapshot.frames());
+        let new_frame = new.filter(|(snapshot, _)| index < snapshot.frames());
+        if matches!((old_frame, new_frame), (Some((old, _)), Some((new, _))) if old.same_frame(new, index)) {
             continue;
         }
         if *drawn >= MAX_FRAMES {
@@ -258,10 +262,10 @@ fn differing_frames(
         }
         *drawn += 1;
         let old_image = old_frame
-            .map(|snapshot| snapshot.render(index, renderer().as_mut()))
+            .map(|(snapshot, file)| snapshot.render(index, Some(file), renderer().as_mut()))
             .transpose()?;
         let new_image = new_frame
-            .map(|snapshot| snapshot.render(index, renderer().as_mut()))
+            .map(|(snapshot, file)| snapshot.render(index, Some(file), renderer().as_mut()))
             .transpose()?;
         let (changes, changed_pixels) = match (&old_image, &new_image) {
             (Some(old), Some(new)) => {
@@ -287,7 +291,7 @@ fn differing_frames(
             changed_pixels,
         };
         let mut line = format!("  frame {}:", frame.number);
-        if let (Some(Paint::Native(old)), Some(Paint::Native(new))) =
+        if let (Some((Paint::Native(old), _)), Some((Paint::Native(new), _))) =
             (old_frame, new_frame)
             && old.frames.len() > 1
         {

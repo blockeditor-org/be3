@@ -9,6 +9,8 @@ use std::{
 
 mod a_file_goes_whole_with_its_length_and_checksum;
 mod nothing_is_sent_without_a_key;
+mod put_content_addressed_asks_with_head;
+mod put_content_addressed_reads_back_when_head_is_refused;
 mod put_if_absent_stores_once_and_refuses_other_bytes;
 
 const KEY: &str = "test key";
@@ -21,7 +23,9 @@ struct Request {
 }
 
 /// A storage zone on 127.0.0.1 that answers as Bunny's does: `GET` and `PUT` with the key,
-/// a `PUT` only with the body's checksum, and `HEAD` without one.
+/// a `PUT` only with the body's checksum, and `HEAD` without one, as the CDN does. Whether
+/// Bunny's storage API takes a `HEAD` with the key is not known, so the stub either answers it
+/// as it does one without, or refuses it as 405.
 struct Stub {
     url: String,
     files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
@@ -30,6 +34,14 @@ struct Stub {
 
 impl Stub {
     fn start() -> Self {
+        Self::serving(false)
+    }
+
+    fn refusing_keyed_head() -> Self {
+        Self::serving(true)
+    }
+
+    fn serving(refuses_keyed_head: bool) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let files = Arc::<Mutex<HashMap<String, Vec<u8>>>>::default();
@@ -37,7 +49,7 @@ impl Stub {
         let (served, seen) = (files.clone(), requests.clone());
         std::thread::spawn(move || {
             for stream in listener.incoming() {
-                answer(stream.unwrap(), &served, &seen);
+                answer(stream.unwrap(), &served, &seen, refuses_keyed_head);
             }
         });
         Self {
@@ -48,8 +60,12 @@ impl Stub {
     }
 
     fn puts(&self) -> usize {
+        self.sent("PUT")
+    }
+
+    fn sent(&self, method: &str) -> usize {
         let requests = self.requests.lock().unwrap();
-        requests.iter().filter(|request| request.method == "PUT").count()
+        requests.iter().filter(|request| request.method == method).count()
     }
 }
 
@@ -57,6 +73,7 @@ fn answer(
     stream: TcpStream,
     files: &Mutex<HashMap<String, Vec<u8>>>,
     requests: &Mutex<Vec<Request>>,
+    refuses_keyed_head: bool,
 ) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut line = String::new();
@@ -81,6 +98,7 @@ fn answer(
     let keyed = headers.get("accesskey").map(String::as_str) == Some(KEY);
     let mut files = files.lock().unwrap();
     let (status, sent) = match method.as_str() {
+        "HEAD" if keyed && refuses_keyed_head => (405, Vec::new()),
         "HEAD" => (if files.contains_key(&path) { 200 } else { 404 }, Vec::new()),
         _ if !keyed => (401, Vec::new()),
         "GET" => match files.get(&path) {
