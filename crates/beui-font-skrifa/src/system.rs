@@ -1,8 +1,10 @@
 use be_lib_stable_hash::HashMap;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use skrifa::raw::{FileRef, TableProvider};
-use skrifa::{FontRef, MetadataProvider};
+use skrifa::raw::tables::cmap::Cmap;
+use skrifa::raw::{FontData as TableData, FontRead};
 
 use crate::library::FontData;
 
@@ -70,18 +72,64 @@ pub fn fallback() -> impl FnMut(char) -> Option<FontData> {
     move |character| fonts.lookup(character)
 }
 
+/// The first face in a font file whose cmap maps `character` and that has outlines or colour
+/// glyphs. Reads only the file's headers, table directories and cmaps, not whole files, which
+/// on a system of large CJK and emoji fonts would be hundreds of megabytes per character.
 fn face_covering(path: &Path, character: char) -> Option<(PathBuf, u32)> {
-    let bytes = std::fs::read(path).ok()?;
-    let fonts: Vec<FontRef> = match FileRef::new(&bytes).ok()? {
-        FileRef::Font(font) => vec![font],
-        FileRef::Collection(collection) => collection.iter().filter_map(Result::ok).collect(),
+    let mut file = File::open(path).ok()?;
+    let starts = match &read_at(&mut file, 0, 12)?[..4] {
+        b"ttcf" => {
+            let count = u32_at(&read_at(&mut file, 8, 4)?, 0).min(256);
+            let offsets = read_at(&mut file, 12, count as usize * 4)?;
+            (0..count as usize)
+                .map(|at| u32_at(&offsets, at * 4))
+                .collect()
+        }
+        _ => vec![0],
     };
-    let index = fonts.iter().position(|font| {
-        let scalable = font.glyf().is_ok() || font.cff().is_ok() || font.cff2().is_ok();
-        let color = font.colr().is_ok() || font.cbdt().is_ok() || font.sbix().is_ok();
-        (scalable || color) && font.charmap().map(character).is_some()
+    let index = starts.into_iter().position(|start| {
+        face_covers(&mut file, u64::from(start), character).unwrap_or(false)
     })?;
     Some((path.to_path_buf(), index as u32))
+}
+
+fn face_covers(file: &mut File, start: u64, character: char) -> Option<bool> {
+    let count = usize::from(u16::from_be_bytes(
+        read_at(file, start + 4, 2)?.try_into().ok()?,
+    ));
+    let records = read_at(file, start + 12, count * 16)?;
+    let tables: Vec<(&[u8], u32, u32)> = records
+        .chunks_exact(16)
+        .map(|record| (&record[..4], u32_at(record, 8), u32_at(record, 12)))
+        .collect();
+    let has = |tag: &[u8]| tables.iter().any(|(name, ..)| *name == tag);
+    let usable = [b"glyf", b"CFF ", b"CFF2", b"COLR", b"CBDT", b"sbix"]
+        .into_iter()
+        .any(|tag| has(tag));
+    if !usable {
+        return Some(false);
+    }
+    let &(_, offset, length) = tables.iter().find(|(name, ..)| *name == b"cmap")?;
+    if length > CMAP_LIMIT {
+        return Some(false);
+    }
+    let bytes = read_at(file, u64::from(offset), length as usize)?;
+    let cmap = Cmap::read(TableData::new(&bytes)).ok()?;
+    Some(cmap.map_codepoint(character).is_some())
+}
+
+/// More than any real cmap holds, so a damaged length cannot ask for gigabytes.
+const CMAP_LIMIT: u32 = 16 << 20;
+
+fn read_at(file: &mut File, offset: u64, length: usize) -> Option<Vec<u8>> {
+    let mut bytes = vec![0; length];
+    file.seek(SeekFrom::Start(offset)).ok()?;
+    file.read_exact(&mut bytes).ok()?;
+    Some(bytes)
+}
+
+fn u32_at(bytes: &[u8], at: usize) -> u32 {
+    u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]])
 }
 
 fn font_directories() -> Vec<PathBuf> {

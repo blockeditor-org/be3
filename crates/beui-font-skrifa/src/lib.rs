@@ -5,10 +5,13 @@ mod raster;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
-use harfrust::{Script, ShapeOptions, ShaperData, Tag, UnicodeBuffer};
+use harfrust::{
+    Direction, Language, Script, script, ShapeOptions, ShapePlan, ShaperData, Tag, UnicodeBuffer,
+};
 use icu_properties::props::Script as Unicode;
 use icu_properties::{CodePointMapData, PropertyNamesShort};
 use skrifa::charmap::MappingIndex;
@@ -36,6 +39,7 @@ pub struct SkrifaFonts {
     glyphs: HashMap<GlyphId, Rc<GlyphRaster>>,
     rasterizer: Rc<Rasterizer>,
     shaped: ShapedLines,
+    covering: HashMap<(FontFamily, char), Option<usize>>,
 }
 
 impl SkrifaFonts {
@@ -51,6 +55,7 @@ impl SkrifaFonts {
             glyphs: HashMap::default(),
             rasterizer: Rc::default(),
             shaped: ShapedLines::default(),
+            covering: HashMap::default(),
         };
         backend.load_families();
         backend
@@ -65,6 +70,7 @@ impl SkrifaFonts {
         self.proportional = chain(&proportional, &[&monospace, &fallback]);
         self.monospace = chain(&monospace, &[&proportional, &fallback]);
         self.icons = self.load_chain(&sources.icons);
+        self.covering.clear();
     }
 
     fn refresh(&mut self) {
@@ -95,6 +101,9 @@ impl SkrifaFonts {
                 }
             }
         }
+        if !loaded.is_empty() {
+            self.covering.clear();
+        }
         !loaded.is_empty()
     }
 
@@ -119,6 +128,7 @@ impl SkrifaFonts {
             scalable: raster::scalable(&font),
             charmap: MappingIndex::new(&font),
             shaper: ShaperData::new(&font),
+            plans: RefCell::default(),
         });
         Some(self.faces.len() - 1)
     }
@@ -130,6 +140,7 @@ impl SkrifaFonts {
         self.proportional.clear();
         self.monospace.clear();
         self.icons.clear();
+        self.covering.clear();
         self.fallbacks = 0;
     }
 
@@ -213,7 +224,7 @@ impl SkrifaFonts {
         let raster = match self.glyphs.get(&id) {
             Some(raster) => raster.clone(),
             None => {
-                let bounds = ink_bounds(glyph.extents?, pixel_size, shape);
+                let bounds = ink_bounds(self.extents(glyph, pixel_size)?, pixel_size, shape);
                 let rasterizer: Rc<dyn GlyphRasterizer> = self.rasterizer.clone();
                 let raster = Rc::new(GlyphRaster::lazy(bounds, Rc::downgrade(&rasterizer)));
                 self.glyphs.insert(id, raster.clone());
@@ -267,6 +278,38 @@ impl SkrifaFonts {
         galley.with_glyphs(glyphs, galley.pixels_per_point() * raster)
     }
 
+    /// The ink box of a glyph, y down, or None for one that draws nothing. Read only for a
+    /// glyph not yet in the cache, since a face whose outlines must be drawn to be measured
+    /// (CFF, gvar) makes it costly.
+    fn extents(&self, glyph: ShapedGlyph, pixel_size: u32) -> Option<[f32; 4]> {
+        let face = &self.faces[glyph.face];
+        let unknown = || {
+            let size = pixel_size as f32;
+            Some([-size, -2.0 * size, 2.0 * size, size])
+        };
+        let Ok(font) = FontRef::from_index(&face.data.bytes, face.data.index) else {
+            return unknown();
+        };
+        let id = FontGlyph::new(glyph.glyph);
+        if !face.scalable {
+            return color::bitmap_extents(&font, id, pixel_size).or_else(unknown);
+        }
+        let metrics = font.glyph_metrics(Size::new(pixel_size as f32), LocationRef::default());
+        let Some(bounds) = metrics.bounds(id) else {
+            return unknown();
+        };
+        if bounds.x_max <= bounds.x_min || bounds.y_max <= bounds.y_min {
+            return None;
+        }
+        let grid = |value: f32, round: fn(f32) -> f32| round(value * 64.0) / 64.0;
+        Some([
+            grid(bounds.x_min, f32::floor),
+            -grid(bounds.y_max, f32::ceil),
+            grid(bounds.x_max, f32::ceil),
+            -grid(bounds.y_min, f32::floor),
+        ])
+    }
+
     fn metrics(&self, family: FontFamily, pixel_size: u32) -> (f32, f32) {
         let fallback = (pixel_size as f32 * 0.8, pixel_size as f32 * -0.2);
         let Some(&index) = self.family(family).first() else {
@@ -303,12 +346,20 @@ impl SkrifaFonts {
                 buffer.set_script(script);
             }
             buffer.guess_segment_properties();
+            let shaper = face.shaper.shaper(&font).build();
+            let script = Some(buffer.script()).filter(|script| *script != script::UNKNOWN);
+            let key = (buffer.direction(), script, buffer.language());
+            let mut plans = face.plans.borrow_mut();
+            let plan = plans
+                .entry(key)
+                .or_insert_with_key(|(direction, script, language)| {
+                    ShapePlan::new(&shaper, *direction, *script, language.as_ref(), &[])
+                });
             let options = ShapeOptions::new()
+                .plan(Some(plan))
                 .scale(Some(pixel_size as i32 * 64))
                 .point_size(Some(pixel_size as f32));
-            let output = face.shaper.shaper(&font).build().shape(buffer, options);
-            let size = Size::new(pixel_size as f32);
-            let metrics = font.glyph_metrics(size, LocationRef::default());
+            let output = shaper.shape(buffer, options);
             glyphs.extend(
                 output
                     .glyph_infos()
@@ -317,10 +368,6 @@ impl SkrifaFonts {
                     .map(|(info, position)| ShapedGlyph {
                         face: run.face,
                         glyph: info.glyph_id,
-                        extents: match face.scalable {
-                            true => extents(&metrics, info.glyph_id, pixel_size),
-                            false => Some(unknown_extents(pixel_size)),
-                        },
                         cluster: offset + info.cluster as usize,
                         x_advance: position.x_advance as f32 / 64.0,
                         x_offset: position.x_offset as f32 / 64.0,
@@ -384,12 +431,17 @@ impl SkrifaFonts {
         None
     }
 
-    fn covering(&self, character: char, family: FontFamily) -> Option<usize> {
-        self.family(family).iter().copied().find(|index| {
+    fn covering(&mut self, character: char, family: FontFamily) -> Option<usize> {
+        if let Some(face) = self.covering.get(&(family, character)) {
+            return *face;
+        }
+        let face = self.family(family).iter().copied().find(|index| {
             let face = &self.faces[*index];
             FontRef::from_index(&face.data.bytes, face.data.index)
                 .is_ok_and(|font| face.charmap.charmap(&font).map(character).is_some())
-        })
+        });
+        self.covering.insert((family, character), face);
+        face
     }
 }
 
@@ -471,7 +523,11 @@ struct FaceData {
     scalable: bool,
     charmap: MappingIndex,
     shaper: ShaperData,
+    plans: RefCell<HashMap<PlanKey, ShapePlan>>,
 }
+
+/// What a shape plan is made for, as HarfBuzz keys the plans it caches on a face.
+type PlanKey = (Direction, Option<Script>, Option<Language>);
 
 fn ink_bounds(extents: [f32; 4], pixel_size: u32, shape: Shaping) -> [f32; 4] {
     let [left, top, right, bottom] = extents;
@@ -492,33 +548,10 @@ fn ink_bounds(extents: [f32; 4], pixel_size: u32, shape: Shaping) -> [f32; 4] {
 struct ShapedGlyph {
     face: usize,
     glyph: u32,
-    extents: Option<[f32; 4]>,
     cluster: usize,
     x_advance: f32,
     x_offset: f32,
     y_offset: f32,
-}
-
-/// Room enough for a glyph whose bounds the font does not give, such as a bitmap's.
-fn unknown_extents(pixel_size: u32) -> [f32; 4] {
-    let size = pixel_size as f32;
-    [-size, -2.0 * size, 2.0 * size, size]
-}
-
-fn extents(metrics: &skrifa::metrics::GlyphMetrics, glyph: u32, pixel_size: u32) -> Option<[f32; 4]> {
-    let Some(bounds) = metrics.bounds(FontGlyph::new(glyph)) else {
-        return Some(unknown_extents(pixel_size));
-    };
-    if bounds.x_max <= bounds.x_min || bounds.y_max <= bounds.y_min {
-        return None;
-    }
-    let grid = |value: f32, round: fn(f32) -> f32| round(value * 64.0) / 64.0;
-    Some([
-        grid(bounds.x_min, f32::floor),
-        -grid(bounds.y_max, f32::ceil),
-        grid(bounds.x_max, f32::ceil),
-        -grid(bounds.y_min, f32::floor),
-    ])
 }
 
 struct FontRun {

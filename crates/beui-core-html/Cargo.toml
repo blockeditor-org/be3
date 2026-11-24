@@ -17,7 +17,7 @@ beui-reactive = { path = "../beui-reactive" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-skrifa = "0.44"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-web-input = { path = "../beui-web-input" }

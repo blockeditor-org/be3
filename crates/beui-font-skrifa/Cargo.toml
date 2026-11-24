@@ -11,7 +11,7 @@ beui-fonts = { path = "../beui-fonts" }
 harfrust = "0.12"
 icu_properties = "2.4"
 png = "0.18"
-skrifa = "0.44"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 zeno = "0.3"
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }

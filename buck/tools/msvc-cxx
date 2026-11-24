@@ -4,8 +4,8 @@
 #
 # MSVC's standard library is C++14 at the least, and says so with a
 # static_assert rather than by working: a build script that asks for C++11
-# would fail to compile against it. Nothing C++17 removed is anything these libraries
-# use, so the newer standard is the one they get.
+# would fail to compile against it. Nothing C++17 removed is anything a build
+# script's C++ uses, so the newer standard is the one it gets.
 #
 # The compiler is the first argument. The loop is the POSIX way to rewrite "$@"
 # without losing an argument that contains a space: take one off the front,

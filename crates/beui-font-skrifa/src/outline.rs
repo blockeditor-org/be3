@@ -1,5 +1,5 @@
 use skrifa::outline::OutlinePen;
-use zeno::{Command, Mask, Placement, Point};
+use zeno::{Command, Mask, Placement, Point, Scratch};
 
 /// A glyph's outline as skrifa draws it: in pixels, y up, one contour after another.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -68,12 +68,12 @@ impl Outline {
 
     /// The coverage of the outline, filled with the non-zero rule into an 8-bit mask, and
     /// where the mask sits: `top` counts down from the baseline, as the mask's rows do.
-    pub(crate) fn fill(&self) -> (Vec<u8>, Placement) {
+    pub(crate) fn fill(&self, scratch: &mut Scratch) -> (Vec<u8>, Placement) {
         let commands = self.commands();
         if commands.is_empty() {
             return (Vec::new(), Placement::default());
         }
-        Mask::new(&commands).render()
+        Mask::with_scratch(&commands, scratch).render()
     }
 
     fn commands(&self) -> Vec<Command> {
