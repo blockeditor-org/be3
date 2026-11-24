@@ -799,7 +799,7 @@ pub(super) enum InvitationsCommand {
     },
 }
 
-type AgentReply = Reply<Result<crate::accounts::AgentCredentials, String>>;
+type AgentReply = Reply<Result<(Uuid, crate::accounts::AgentCredentials), String>>;
 
 type BlockAgentReply = Reply<Result<(Uuid, crate::accounts::AgentCredentials), String>>;
 
@@ -3112,9 +3112,7 @@ impl Ran<'_> {
                 false
             }
             Command::CreateAgent { name, reply } => {
-                let created = create_agent(self.peer, self.config, name, None)
-                    .await
-                    .map(|(_, credentials)| credentials);
+                let created = create_agent(self.peer, self.config, name, None).await;
                 if created.is_ok() {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }

@@ -649,7 +649,8 @@ struct HostCore {
     invitations: invitations::Invitations,
     agents_open: bool,
     agents: Vec<be_block_protocol::Agent>,
-    agent_created: Option<accounts::AgentCredentials>,
+    /// The agent just made, by its account, with the credentials shown once.
+    agent_created: Option<(Uuid, accounts::AgentCredentials)>,
     contacts: contacts::Contacts,
     share_links: share_link::ShareLinks,
     /// An organization a share link opened into, which the host opens once it lists it.
@@ -863,7 +864,7 @@ enum OrganizationResult {
     Joined(Uuid),
     Agents(
         Option<Vec<be_block_protocol::Agent>>,
-        Option<accounts::AgentCredentials>,
+        Option<(Uuid, accounts::AgentCredentials)>,
     ),
 }
 
@@ -4525,7 +4526,10 @@ impl HostCore {
                         name: agent.name.clone(),
                     })
                     .collect(),
-                created: self.agent_created.clone(),
+                created: self
+                    .agent_created
+                    .as_ref()
+                    .map(|(_, created)| created.clone()),
             }),
             contacts: self.contacts.view(),
             share_link: self.share_links.view(),

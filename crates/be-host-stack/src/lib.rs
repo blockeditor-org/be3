@@ -2677,7 +2677,11 @@ pub fn revoke_invitation(link: Uuid, reply: InvitationsReply) {
     }));
 }
 
-pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredentials, String> {
+/// Makes an agent of the organization named `name`: its account and the credentials it signs in
+/// with, which cannot be had again.
+pub async fn create_agent(
+    name: String,
+) -> Result<(Uuid, crate::accounts::AgentCredentials), String> {
     let (reply, made) = tokio::sync::oneshot::channel();
     send(Command::CreateAgent {
         name,

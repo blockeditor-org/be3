@@ -233,11 +233,18 @@ impl Root {
 
     /// Answers the request of `id` with the secret it made, handed over once, or with nothing
     /// if making it failed; one the root no longer waits for drops the secret. If the root
-    /// waited for it, it is stepped for the answer.
-    pub fn answer_secret(&mut self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) {
-        if self.core.answer_secret(id, secret) {
+    /// waited for it, it is stepped for the answer. Answers whether it waited: a secret that
+    /// cannot be had again and that nobody waited for, the host undoes.
+    pub fn answer_secret(
+        &mut self,
+        id: u64,
+        secret: Option<be_wasm_root_api::CoreSecret>,
+    ) -> bool {
+        let waited = self.core.answer_secret(id, secret);
+        if waited {
             self.bell.ring();
         }
+        waited
     }
 
     /// The blocks the root asked the editor of since the last call (`host.editor-of`), each by
