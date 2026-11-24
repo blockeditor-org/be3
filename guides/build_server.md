@@ -199,3 +199,7 @@ BUNNY_STORAGE_KEY=... be-tool-build-helper --checkout /srv/build-helper/checkout
   before updating (guides/running/android.md).
 - Without `BUNNY_STORAGE_KEY` nothing is uploaded; the log says what would be.
 - Past `--max-buck-out-gb` after a build, it runs `./scripts/buck clean`.
+- Deploy order: its 404 and 422 answers are the protocol crate's `Refusal` (`{"error"?}`), which
+  replaced `{"state":"unknown"}` and `{"state":"refused"}`. A be-launcher built before that shows a
+  generic error for them until it updates; nothing else breaks, so the helper can be deployed
+  first.

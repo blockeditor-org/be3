@@ -305,7 +305,7 @@ impl Host {
             ));
             return Ok(());
         }
-        let put = self.storage.put_if_absent(
+        let put = self.storage.put_content_addressed(
             &format!("{STORAGE}/files/{sha256}"),
             Body::File(file),
             sha256,

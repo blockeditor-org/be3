@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -64,10 +64,12 @@ impl Painting {
 
     /// Draws frame `index`. A browser painting is drawn by `browser_renderer`, a program
     /// (crates/be-tool-browser-rasterizer) that is handed the painting's file and a PNG to
-    /// write.
+    /// write: `file`, the file it was decoded from, when the caller has one, or else a temporary
+    /// file it is written to.
     pub fn render(
         &self,
         index: usize,
+        file: Option<&Path>,
         browser_renderer: Option<&mut Command>,
     ) -> Result<RgbaImage, String> {
         match self {
@@ -78,13 +80,20 @@ impl Painting {
             Self::Browser(snapshot) => {
                 let renderer = browser_renderer
                     .ok_or("a browser painting needs the browser rasterizer, and none was given")?;
-                let input = Scratch::new("browser.paint");
+                let written;
+                let input = match file {
+                    Some(file) => file,
+                    None => {
+                        written = Scratch::new("browser.paint");
+                        std::fs::write(&written.0, snapshot.encode()?).map_err(|error| {
+                            format!("could not write {}: {error}", written.0.display())
+                        })?;
+                        &written.0
+                    }
+                };
                 let output = Scratch::new("png");
-                std::fs::write(&input.0, snapshot.encode()?).map_err(|error| {
-                    format!("could not write {}: {error}", input.0.display())
-                })?;
                 let result = renderer
-                    .arg(&input.0)
+                    .arg(input)
                     .arg(&output.0)
                     .output()
                     .map_err(|error| format!("could not start the browser rasterizer: {error}"))?;

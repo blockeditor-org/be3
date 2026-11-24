@@ -3,6 +3,11 @@
 //! zone's password as an `AccessKey` header on every call and checks a `Checksum` header (the
 //! uppercase SHA-256 of the body) on a `PUT`. Its CDN answers `HEAD` without one.
 //!
+//! Whether the storage API answers a keyed `HEAD` is not established: Bunny documents only
+//! `GET`, `PUT`, `DELETE` and listing, and nothing here has been tried against the real zone.
+//! [`Storage::put_content_addressed`] asks it with one all the same, and when it is refused (any
+//! 4xx but 404, or 501) falls back to reading the stored bytes back and hashing them.
+//!
 //! Calls through `https://` go through the environment's proxy; plain `http://`, which only tests
 //! use, does not. A call that fails to connect, or that the server answers 429 or 5xx, is tried
 //! up to three times more.
@@ -19,7 +24,7 @@ pub enum Body<'a> {
     File(&'a Path),
 }
 
-/// What [`Storage::put_if_absent`] found.
+/// What [`Storage::put_if_absent`] or [`Storage::put_content_addressed`] found.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Put {
     /// Nothing was there, and now the body is.
@@ -140,6 +145,33 @@ impl Storage {
             ));
         }
         Ok(Put::Present)
+    }
+
+    /// Uploads `body` to `url` unless the zone already holds a file there, for a path named by
+    /// its content's SHA-256 (`files/{sha256}`), where a file being there means it holds these
+    /// bytes. It asks with a keyed `HEAD` on the storage API rather than downloading the file;
+    /// when the zone refuses that, it does what [`Storage::put_if_absent`] does.
+    pub fn put_content_addressed(
+        &self,
+        url: &str,
+        body: Body<'_>,
+        sha256: &str,
+        content_type: &str,
+    ) -> Result<Put, String> {
+        let key = self.key()?;
+        match self.call(url, || self.agent(url).head(url).set("AccessKey", key).call()) {
+            Ok(_) => Ok(Put::Present),
+            Err(ureq::Error::Status(404, _)) => {
+                self.put(url, body, sha256, content_type)?;
+                Ok(Put::Stored)
+            }
+            // Refused, as 400, 405 or 501 would say. Any other 4xx falls back too: what the zone
+            // answers a `HEAD` it does not take is unknown, and a wrong key fails the `GET` as well.
+            Err(ureq::Error::Status(400..=499 | 501, _)) => {
+                self.put_if_absent(url, body, sha256, content_type)
+            }
+            Err(error) => Err(format!("asking for {url} failed: {error}")),
+        }
     }
 
     fn key(&self) -> Result<&str, String> {
