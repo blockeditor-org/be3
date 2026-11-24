@@ -6,7 +6,7 @@ mod export;
 mod hits;
 mod kinds;
 mod menu;
-mod rename;
+pub(crate) mod rename;
 mod rows;
 mod toolbar;
 mod ui;

@@ -94,8 +94,16 @@ impl Blocks {
         self.graph.set_parent(id, parent);
     }
 
-    pub fn set_name(&self, id: Uuid, name: Option<String>) {
+    /// Names the block, or clears its name; refuses a name past
+    /// `be_block_content::metadata::MAX_NAME_BYTES` (a rename shows why), where one taken from
+    /// content is cut to it first (`metadata::clip_name`).
+    pub fn set_name(&self, id: Uuid, name: Option<String>) -> Result<(), String> {
+        use be_block_content::metadata::{MAX_NAME_BYTES, name_too_long};
+        if name.as_ref().is_some_and(|name| name.len() > MAX_NAME_BYTES) {
+            return Err(name_too_long());
+        }
         self.graph.set_name(id, name);
+        Ok(())
     }
 
     pub fn define(&self, id: Uuid, definition: Definition) {

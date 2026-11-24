@@ -1,6 +1,6 @@
 use be_sdk_beui::Editor;
-use be_sdk_beui::be_block_content::metadata::MAX_NAME_BYTES;
 use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::Toast;
 use be_sdk_beui::beui::{Key, KeyPhase};
 use uuid::Uuid;
 
@@ -93,9 +93,16 @@ impl Renaming {
         if let RowKey::Block(path) = key
             && let Some(id) = path.last()
         {
-            self.editor
-                .blocks()
-                .set_name(*id, Some(clipped(name).to_owned()));
+            if let Err(reason) = self.editor.blocks().set_name(*id, Some(name.to_owned())) {
+                // Refused, the name stays as it was, and the editor says why.
+                self.editor.notify(Toast {
+                    id: RENAME_REFUSED,
+                    title: "Not renamed".to_owned(),
+                    message: reason,
+                    danger: true,
+                    ..Toast::default()
+                });
+            }
         }
         self.finish(key);
     }
@@ -107,10 +114,5 @@ impl Renaming {
     }
 }
 
-fn clipped(name: &str) -> &str {
-    let mut end = name.len().min(MAX_NAME_BYTES);
-    while !name.is_char_boundary(end) {
-        end -= 1;
-    }
-    &name[..end]
-}
+/// The toast that says why a rename was refused, one at a time.
+pub(crate) const RENAME_REFUSED: u64 = 0x6669_6c65_7472_6565;

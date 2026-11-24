@@ -194,7 +194,9 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                 <ListItem grow=1.0>
                     <TextInput
                         value={Binding::new(name, move |text: String| {
-                            editor.blocks().set_name(block, Some(text));
+                            // As typed, cut to what a name holds.
+                            let name = be_sdk_beui::be_block_content::metadata::clip_name(&text);
+                            let _named = editor.blocks().set_name(block, Some(name.to_owned()));
                         })}
                         label="Name"
                         disabled={blocked}

@@ -4,7 +4,24 @@ use be_block_model::{BlockRef, Stored, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+/// The longest a block's name is, in UTF-8 bytes: `Blocks::set_name` refuses a longer one, and a
+/// name taken from content is cut to it (`clip_name`).
 pub const MAX_NAME_BYTES: usize = 128;
+
+/// `name` cut to `MAX_NAME_BYTES` at a character's boundary, for a name taken from content (a
+/// text's first line, a database row's title) rather than typed as one.
+pub fn clip_name(name: &str) -> &str {
+    let mut end = name.len().min(MAX_NAME_BYTES);
+    while !name.is_char_boundary(end) {
+        end -= 1;
+    }
+    &name[..end]
+}
+
+/// Why a name is refused, as a rename shows it.
+pub fn name_too_long() -> String {
+    format!("A name is at most {MAX_NAME_BYTES} bytes long.")
+}
 
 pub const NAME: MetaKey<String> =
     MetaKey::defined(0x6be3_6d65_7461_4e00_8a1e_6e61_6d65_0001, "name");

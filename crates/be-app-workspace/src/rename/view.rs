@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block_content::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
+use be_sdk_beui::be_block_content::metadata::{ICON, ICON_COLOR, MATERIAL_ICON};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{ALL, ICON_SEARCH, named};
@@ -99,15 +99,22 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
             _ => held.clone(),
         }
     });
-    let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
+    // Why the name typed is refused (`Blocks::set_name`), while it is.
+    let refused = create_signal(None::<String>);
     create_effect(move || {
         let chosen = name.get();
-        if *written.borrow() != chosen && !untrack(|| invalid.get()) {
-            edited.set(true);
-            written.replace(chosen.clone());
-            untrack(|| rename(editor, block, &chosen));
+        if *written.borrow() != chosen {
+            match untrack(|| rename(editor, block, &chosen)) {
+                Ok(()) => {
+                    edited.set(true);
+                    written.replace(chosen.clone());
+                    refused.set(None);
+                }
+                Err(reason) => refused.set(Some(reason)),
+            }
         }
     });
+    let refused = refused.read_only();
     let host = editor.host();
     let accept = Callback::new({
         let host = host.clone();
@@ -146,7 +153,7 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
         }
     });
     let body = view! {
-        <RenameBody editor block look name known invalid accept dismiss />
+        <RenameBody editor block look name known refused accept dismiss />
     };
     match sheet {
         true => view! {
@@ -158,11 +165,11 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
     }
 }
 
-fn rename(editor: Editor, block: Uuid, name: &str) {
+fn rename(editor: Editor, block: Uuid, name: &str) -> Result<(), String> {
     let name = name.trim().to_owned();
     editor
         .blocks()
-        .set_name(block, (!name.is_empty()).then_some(name));
+        .set_name(block, (!name.is_empty()).then_some(name))
 }
 
 #[component]
@@ -172,7 +179,7 @@ fn RenameBody(
     look: Memo<Look>,
     name: Signal<String>,
     known: Memo<bool>,
-    invalid: Memo<bool>,
+    refused: ReadSignal<Option<String>>,
     accept: Callback<()>,
     dismiss: Callback<()>,
 ) -> NodeId {
@@ -258,10 +265,8 @@ fn RenameBody(
                         />
                     </ListItem>
                 </List>
-                <Show value={invalid}>
-                    <Text style=TextStyle::CAPTION>
-                        {format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.")}
-                    </Text>
+                <Show value={refused}>|reason: ReadSignal<String>|
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                 </Show>
                 <Text style=TextStyle::CAPTION>"Color"</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SWATCH_SPACING>
