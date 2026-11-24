@@ -404,6 +404,37 @@ const EDGE_GAIN: f32 = 3.0;
 /// A browser scroll's content box, as long as what it holds along the scroll and at least
 /// as long as the scroll, clips what is painted past it: a lifted or gliding item's
 /// translation would otherwise add to what the browser lets the scroll reach.
+/// The browser's marks for `stops`: an empty snap area at each, and from the last on one as long
+/// as the rest of the content, inside which (taller than the scroll) the browser scrolls freely,
+/// as `Scroll` does past its last stop.
+fn snap_markers(stops: &[f32], direction: Direction) -> String {
+    let (start, across, length) = match direction {
+        Direction::Vertical => ("top", "left", "height"),
+        Direction::Horizontal => ("left", "top", "width"),
+    };
+    let end = match direction {
+        Direction::Vertical => "bottom",
+        Direction::Horizontal => "right",
+    };
+    let mut stops: Vec<f32> = stops.iter().map(|stop| stop.max(0.0)).collect();
+    stops.sort_by(f32::total_cmp);
+    let last = stops.len().saturating_sub(1);
+    stops
+        .iter()
+        .enumerate()
+        .map(|(index, stop)| {
+            let reach = match index == last {
+                true => format!("{end}: 0"),
+                false => format!("{length}: 0"),
+            };
+            format!(
+                "<div style=\"position: absolute; {across}: 0; {start}: {stop}px; {reach}; \
+                 scroll-snap-align: start\"></div>"
+            )
+        })
+        .collect()
+}
+
 fn content_clip(direction: Direction) -> String {
     let (length, least) = match direction {
         Direction::Vertical => ("height", "min-height"),
@@ -544,12 +575,14 @@ impl Motion {
         stray
     }
 
-    /// A press stops a fling where it is, and a settle on a stop goes to the stop nearest
-    /// where it is, without the speed it had.
+    /// A press stops a fling where it is, and a release's settle on a stop goes to the stop
+    /// nearest where it is, without the speed it had.
     fn stop_fling(&self) {
         let mut momentum = self.momentum.borrow_mut();
         momentum.stop_fling();
+        // A settle asked for (a sheet rising as it opens) takes no press, so it goes on.
         if momentum.snap.is_some()
+            && !momentum.asked
             && momentum.drag.is_none()
             && momentum.stretch == 0.0
             && let Some(position) = self.placed()
@@ -1227,6 +1260,7 @@ pub fn Scroll(
             <BrowserScroll
                 api
                 offset
+                snaps
                 direction
                 fit
                 follow_end
@@ -1301,10 +1335,13 @@ fn BrowserScroll(
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
     style: ScrollStyle,
+    snaps: Prop<Vec<f32>>,
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
     children: Children<ListItem>,
 ) -> NodeId {
+    // A scroll that may snap marks its stops for the browser's own scroll snap.
+    let snapping = !matches!(&snaps, Prop::Static(stops) if stops.is_empty());
     let reported = create_signal(None::<ScrollPosition>);
     let fade = style.fade();
     let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
@@ -1374,6 +1411,21 @@ fn BrowserScroll(
             );
         }
         escape.style("display", "grid".to_owned());
+        if snapping {
+            let along = snaps.clone();
+            escape.style(
+                "scroll-snap-type",
+                Prop::dynamic(move || {
+                    along.with(|stops| !stops.is_empty()).then(|| {
+                        match direction.get() {
+                            Direction::Vertical => "y mandatory",
+                            Direction::Horizontal => "x mandatory",
+                        }
+                        .to_owned()
+                    })
+                }),
+            );
+        }
         let track = "minmax(100%, max-content)";
         for (property, vertical, sideways) in [
             ("overflow-y", "auto", "hidden"),
@@ -1398,6 +1450,18 @@ fn BrowserScroll(
             );
         }
         let content = escape.embed(content);
+        let markers = snapping.then(|| {
+            let markers = view! {
+                <html::Div @attr={("style", "position: absolute; inset: 0; pointer-events: none")} />
+            };
+            let marked = markers.clone();
+            let stops = snaps.clone();
+            create_effect(move || {
+                let markup = stops.with(|stops| snap_markers(stops, direction.get()));
+                marked.set_markup(Some(markup));
+            });
+            markers
+        });
         let element = view! {
             <html::Div
                 on_focus={move |_: HtmlEvent| focused.set(true)}
@@ -1405,9 +1469,13 @@ fn BrowserScroll(
                 @on={("scroll", move |_: HtmlEvent| scrolled())}
             >
                 <html::Div
-                    @attr={("style", Prop::dynamic(move || Some(content_clip(direction.get()))))}
+                    @attr={("style", Prop::dynamic(move || Some(match snapping {
+                        true => format!("{}; position: relative", content_clip(direction.get())),
+                        false => content_clip(direction.get()),
+                    })))}
                 >
                     {content}
+                    {markers}
                 </html::Div>
             </html::Div>
         };
