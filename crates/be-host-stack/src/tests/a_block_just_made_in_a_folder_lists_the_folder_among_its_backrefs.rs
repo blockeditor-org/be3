@@ -32,6 +32,20 @@ fn a_block_just_made_in_a_folder_lists_the_folder_among_its_backrefs() {
     wait_until("knew the folder's type", |_| {
         is_known(FolderContent::CONTENT_TYPE)
     });
+    // Made on the server before the edit: an edit made while the folder's creation waits in the
+    // outbox is sealed as the server takes it (`Replicas::created`), so the folder joins its
+    // session owning nothing. The peer took each creation (`Graph::changing`) and sent it: an
+    // outbox the creation has not reached yet holds no creation either.
+    wait_until("the server made both", |shared| {
+        let Some(peer) = &shared.peer else {
+            return false;
+        };
+        [folder, child].into_iter().all(|block| {
+            shared.graph.get(block).is_some()
+                && !shared.graph.changing(block)
+                && !peer.creating(block)
+        })
+    });
     assert!(made(change_child(
         folder,
         FolderContent::CONTENT_TYPE,
@@ -42,12 +56,6 @@ fn a_block_just_made_in_a_folder_lists_the_folder_among_its_backrefs() {
             .graph
             .get(folder)
             .is_some_and(|node| node.refers_to(child) == Some(true))
-    });
-    wait_until("the server made both", |shared| {
-        shared
-            .peer
-            .as_ref()
-            .is_some_and(|peer| !peer.creating(folder) && !peer.creating(child))
     });
 
     ask_for(vec![Query::Backrefs(child)]);
