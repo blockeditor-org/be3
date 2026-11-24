@@ -42,6 +42,7 @@ fn a_block_placed_in_several_places_shares_one_editor_but_a_twin() {
             placement: child.placement.clone(),
             raster: 1.0,
             framing: None,
+            space: None,
         });
     }
     let docks = Docks::default();

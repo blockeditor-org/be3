@@ -28,6 +28,11 @@
 //!   out of itself (`drag-block`) the router of its window carries over the views under the
 //!   pointer (`Windows::start_drag`), as be-host's drag board does, and each hears it through
 //!   its host (`tell_editor`, `editor-event.drag`).
+//! - The views an app's editors anchor outside their groups (menus, popovers, sheets), in the
+//!   anchor space each screen is asked for with, are `Surface::Anchored` layers
+//!   (`Embedded::anchored`) the root draws over what it places (`Children::anchored_layers`).
+//!   One asking for the keyboard gets it as it opens; a press outside a chain of them closes
+//!   those that ask to be (`input-batch.dismissed`), as be-host does.
 //!
 //! The clipboard is not relayed: an app it embeds copies and pastes only as the app protocol
 //! lets it (a copy as a host service, which this does not serve yet, and a paste as the input
@@ -54,11 +59,13 @@ pub use children::{
     ALREADY_OPEN_ABOVE, Children, KeyboardMove, NOT_SHOWN_YET, Spawning, child_screen,
     framing_screen, main_screen, preview_screen, preview_screen_of,
 };
-pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, tell_editor};
+pub use embedded::{
+    AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, tell_editor,
+};
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
 
-use be_lib_geometry::{Rect, pos2};
+use be_lib_geometry::{Pos2, Rect, pos2};
 use be_lib_input_router::Drag;
 use be_lib_layers::{Layer, LayerId, LayerList, Surface};
 use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
@@ -77,6 +84,9 @@ pub struct Embedding {
     /// The block an app's editor drags out of itself, carried over the screens under the
     /// pointer until it is dropped (`Embedding::carry`).
     carried: Option<Carried>,
+    /// The anchored views given the keyboard as they opened (`anchored-placement.keyboard`),
+    /// each once: those still open.
+    keyed: Vec<LayerId>,
 }
 
 /// A block an editor drags out of itself, as be-host's drag board carries it: the router of
@@ -123,6 +133,7 @@ impl Embedding {
             apps: Vec::new(),
             windows: Windows::new(compositor),
             carried: None,
+            keyed: Vec::new(),
         }
     }
 
@@ -164,6 +175,7 @@ impl Embedding {
     /// answered, for the root to take in.
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Routed, String> {
         let events = input::decode(events)?;
+        self.dismiss_outside(window, &events);
         let lifted = self.lift();
         let mut routed = self.windows.route(window, events);
         routed.splice(0..0, lifted);
@@ -181,6 +193,69 @@ impl Embedding {
             own: self.forward(routed),
             pressed,
         })
+    }
+
+    /// Closes the chains of anchored views a press in `window`'s `events` lands outside of, as
+    /// be-host does (`anchored-placement.dismiss-on-outside-press`): the app hears which of its
+    /// views closed on the screen of the view the chain hangs from (`input-batch.dismissed`),
+    /// before the press, which still reaches what it landed on. A press on the chain's trigger
+    /// (the control that opens and closes it) closes nothing, so the control's own click does.
+    fn dismiss_outside(&self, window: Option<u64>, events: &[input::Timed]) {
+        let presses: Vec<Pos2> = events
+            .iter()
+            .filter_map(|event| match &event.input {
+                input::Input::PointerButton {
+                    pos, pressed: true, ..
+                } => Some(*pos),
+                input::Input::Touch {
+                    pos,
+                    phase: input::TouchPhase::Start,
+                    ..
+                } => Some(*pos),
+                input::Input::Pen {
+                    pos,
+                    phase: input::PenPhase::Down(_),
+                    ..
+                } => Some(*pos),
+                _ => None,
+            })
+            .collect();
+        if presses.is_empty() {
+            return;
+        }
+        let drawn = self.windows.layers(window);
+        for app in &self.apps {
+            for chain in anchored_chains(app.anchored()) {
+                let shown =
+                    |view: &AnchoredView| drawn.iter().any(|layer| layer.id == view.layer.id);
+                if !chain.views.iter().any(shown) {
+                    continue;
+                }
+                let outside = presses.iter().any(|at| {
+                    !chain
+                        .views
+                        .iter()
+                        .any(|view| view.layer.bounds().contains(*at))
+                        && !chain
+                            .views
+                            .iter()
+                            .filter_map(|view| view.placement.trigger)
+                            .any(|trigger| trigger.contains(*at))
+                });
+                let dismissed: Vec<be_sdk_api::ViewId> = chain
+                    .views
+                    .iter()
+                    .filter(|view| view.placement.dismiss_on_outside_press)
+                    .map(|view| view.view)
+                    .collect();
+                if outside
+                    && !dismissed.is_empty()
+                    && let Some(screen) = app.screen_of(chain.editor, chain.parent)
+                {
+                    app.dismiss(screen, dismissed);
+                }
+            }
+        }
     }
 
     /// Lifts a block an app's editor began to drag out of itself, as be-host's drag board lifts
@@ -338,7 +413,7 @@ impl Embedding {
     /// while the root's own surface has the focus, or the focused app edits no text.
     pub fn ime(&self, window: Option<u64>) -> Option<ImeArea> {
         let layer = self.windows.focused(window)?;
-        let Surface::Screen { instance, surface } = layer.surface else {
+        let Some((instance, surface)) = app_surface(layer.surface) else {
             return None;
         };
         let app = self.apps.iter().find(|app| app.instance() == instance)?;
@@ -353,7 +428,7 @@ impl Embedding {
     /// one: a root that draws its own controls sets its own.
     pub fn requests(&self, window: Option<u64>) -> Requests {
         let mut requests = requests(&self.windows, window, |surface| {
-            let Surface::Screen { instance, surface } = *surface else {
+            let Some((instance, surface)) = app_surface(*surface) else {
                 return None;
             };
             let app = self.apps.iter().find(|app| app.instance() == instance)?;
@@ -388,9 +463,30 @@ impl Embedding {
         // layers just drawn.
         told.extend(self.lift());
         self.carry();
+        // An anchored view that asks for the keyboard gets it as it opens, once.
+        let mut keyed = Vec::new();
+        let mut asking = Vec::new();
+        for app in &self.apps {
+            for view in app.anchored() {
+                if !view.placement.keyboard {
+                    continue;
+                }
+                let Some(window) = self.windows.window_of(view.layer.id) else {
+                    continue;
+                };
+                keyed.push(view.layer.id);
+                if !self.keyed.contains(&view.layer.id) {
+                    asking.push((window, view.layer.id));
+                }
+            }
+        }
+        self.keyed = keyed;
+        for (window, layer) in asking {
+            told.extend(self.windows.focus(window, Some(layer)));
+        }
         let apps = &self.apps;
         told.extend(self.windows.lock(|layer| {
-            let Surface::Screen { instance, surface } = layer.surface else {
+            let Some((instance, surface)) = app_surface(layer.surface) else {
                 return false;
             };
             apps.iter()
@@ -408,7 +504,7 @@ impl Embedding {
     fn forward(&self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
         let mut own = Vec::new();
         for delivery in deliveries {
-            let Surface::Screen { instance, surface } = delivery.surface else {
+            let Some((instance, surface)) = app_surface(delivery.surface) else {
                 own.push(delivery);
                 continue;
             };
@@ -417,6 +513,60 @@ impl Embedding {
             }
         }
         own
+    }
+}
+
+/// The views one editor anchored that hang, one from another, from one of its other views.
+struct Chain {
+    editor: EditorInstanceId,
+    /// The view the chain hangs from.
+    parent: be_sdk_api::ViewId,
+    views: Vec<AnchoredView>,
+}
+
+/// `views` as the chains they hang in: each view with the views it hangs from, back to the
+/// editor's view that is not anchored.
+fn anchored_chains(views: Vec<AnchoredView>) -> Vec<Chain> {
+    let root_of = |view: &AnchoredView| {
+        let mut parent = view.placement.parent;
+        // Each step is another view of the same editor: no more than it anchored.
+        for _ in 0..views.len() {
+            match views
+                .iter()
+                .find(|held| held.editor == view.editor && held.view == parent)
+            {
+                Some(held) => parent = held.placement.parent,
+                None => break,
+            }
+        }
+        parent
+    };
+    let mut chains: Vec<Chain> = Vec::new();
+    for view in &views {
+        let parent = root_of(view);
+        match chains
+            .iter_mut()
+            .find(|chain| (chain.editor, chain.parent) == (view.editor, parent))
+        {
+            Some(chain) => chain.views.push(view.clone()),
+            None => chains.push(Chain {
+                editor: view.editor,
+                parent,
+                views: vec![view.clone()],
+            }),
+        }
+    }
+    chains
+}
+
+/// The app instance and its surface a layer showing `surface` shows: one of its screens, or a
+/// view it anchored, which hears input as a screen does.
+fn app_surface(surface: Surface) -> Option<(u64, u32)> {
+    match surface {
+        Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
+            Some((instance, surface))
+        }
+        Surface::Root(_) | Surface::Host(_) => None,
     }
 }
 

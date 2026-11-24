@@ -1843,13 +1843,11 @@ Each step lands on its own.
                (`host.tell-shell`, `Forwarded::shell_told`), which words the status from it
                (`picked`, `dialog`, `card`), again for every view the root showed once one
                tells it something. Test: be-sdk-root's
-               `a_dialog_child_runs_in_an_editor_of_its_own`. No host test shows one yet: an
-               editor places its pickers, rename forms and Export dialogs in views it
-               anchored (a popover, a dialog), which the root shows only with 4g7c, so these
-               wait for it to be seen. An Export dialog's height (be-host's `view_size` of
-               it) is not reported yet; a picker is never opened as a phone's sheet
-               (`PickerRequest.sheet`, which be-host's compositor sets from its layout); a
-               dialog's status is worded as a block's while it opens or when no app runs it.
+               `a_dialog_child_runs_in_an_editor_of_its_own`, and since 4g7c the host test
+               `be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places`. An Export
+               dialog's height (be-host's `view_size` of it) is not reported yet; a picker is
+               never opened as a phone's sheet (`PickerRequest.sheet`, which be-host's
+               compositor sets from its layout); a dialog no app runs is worded as a block's.
              - Left: creations (be-host steps a `PendingCreation` per child, with the
                placer's `commit-child`, host-side), artifact settings (be-host's own settings
                UI), host panels (the block stack, performance, apps and menu panels are
@@ -1857,6 +1855,30 @@ Each step lands on its own.
                views (a native view the root has no surface for: `Surface::Host` is not drawn
                under the root yet).
        - 4g7c. Anchored views placed outside groups (`anchored`).
+         - Built: the root hands each view an anchor space (`screen-request.anchor-space`):
+           the session's screen anchors anywhere in the window, in its points, and each child
+           hands on its placer's, moved to its place and scaled by its zoom (`placed_space`),
+           so its app opens a screen of its own for each view it anchors and reports how it
+           hangs (`frame-report.anchored`). `Embedded::anchored` shows each painted one as a
+           `Surface::Anchored` layer at its rect, over everything the session places
+           (`Children::anchored_layers`), with the children placed in it, which takes it as a
+           placer (its `AnchoredView::request`). The root's input reaches it as a screen; one
+           that asks for the keyboard (`keyboard`) gets it as it opens, once; a press outside
+           a chain of them (not on its trigger) closes the views that ask to be
+           (`dismiss-on-outside-press`), told to the app on the screen of the view the chain
+           hangs from (`input-batch.dismissed`) before the press, which still lands. The root's
+           paintings carry anchored views too, and be-host places each painting at its own
+           size within its layer's clip, as a screen asked to fit its content paints only the
+           room it used. A dialog child is available at once, as under be-host, so its placer
+           keeps it open while its editor opens; a child placed to fit its content reports
+           the room its layout said it used (`layout-commit.sizes`, `Embedded::used`); and a
+           dialog's editor registers no dock, so its placer's block keeps its own editor's.
+           Tests: be-sdk-root's `anchored_views_hang_in_chains_from_their_editors_views`, and
+           the host test `be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places`,
+           which opens the canvas's block picker and closes it with a press outside.
+           Left for later: `blocks-owner` (a modal anchored view that keeps input from its
+           owner) is not honoured; an anchored view that leaves its bounds is not moved back
+           into them (`AnchoredScreen`'s shift under be-host).
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).
        - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and

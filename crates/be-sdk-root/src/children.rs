@@ -77,9 +77,10 @@ use be_lib_geometry::{Rect, pos2};
 use be_lib_layers::{Affine, Area, Layer, LayerId};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DockUpdate,
-    EditorInstanceId, Fonts, FrameChrome, FrameSpec, MenuItem, ParentView, Pos2 as ViewPos2,
-    ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
+    AnchorSpace, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
+    DockUpdate, EditorInstanceId, Fonts, FrameChrome, FrameSpec, HostTransform, MenuItem,
+    ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId,
+    ViewPlacement, ViewportMetrics,
     app::{EditorEvent, MenuChoice},
     shell_types::{ChildMenuChoice, MenuSet, ShellMessage},
 };
@@ -193,6 +194,8 @@ struct TabAsk {
     tab: u64,
     placement: ChildPlacement,
     raster: f32,
+    /// Where its placer's view may anchor views of its own, which the body's is placed in.
+    space: Option<AnchorSpace>,
 }
 
 /// The view of a joined dock's tab or bar a child's app is asked for.
@@ -324,6 +327,8 @@ struct PlaceAsk {
     raster: f32,
     /// Its placer's screen, while it takes that frame over.
     framing: Option<ScreenRequest>,
+    /// Where its placer's view may anchor views of its own, which its own is placed in.
+    space: Option<AnchorSpace>,
 }
 
 impl PlaceAsk {
@@ -475,14 +480,14 @@ impl Editor {
         let docked = docks.docked(editor);
         let main = match main_place {
             Some(ask) => {
+                let zoom = placed_zoom(&ask.placement, self.pans()).map_or(1.0, |(_, zoom)| zoom);
                 let mut main = match &ask.framing {
                     Some(placer) => framing_screen(placer, &ask.placement, editor),
-                    None => child_screen(
-                        &ask.placement,
-                        editor,
-                        ask.raster,
-                        placed_zoom(&ask.placement, self.pans()).map_or(1.0, |(_, zoom)| zoom),
-                    ),
+                    None => {
+                        let mut main = child_screen(&ask.placement, editor, ask.raster, zoom);
+                        main.anchor_space = placed_space(ask.space, &ask.placement, zoom);
+                        main
+                    }
                 };
                 main.docked = docked;
                 Some(main)
@@ -867,12 +872,21 @@ impl Child {
     }
 
     /// The room it took, placed to fit its content (`child-placement.fit`), in its placer's
-    /// view's points, once it drew: its painted screen's size at its zoom.
+    /// view's points, once it laid out: the room its layout said it used at its zoom, else its
+    /// painted screen's size.
     fn fitted(&self) -> Option<ViewSize> {
         self.placement.fit?;
         let (app, editor) = self.hosted()?;
-        let layer = app.layer(self.screen(editor), pos2(0.0, 0.0))?;
+        let screen = self.screen(editor);
         let zoom = self.zoom().map_or(1.0, |(_, zoom)| zoom);
+        // The room its layout said it used, as be-host hears it; else what it painted.
+        if let Some(used) = app.used(screen) {
+            return Some(ViewSize {
+                width: used.x * zoom,
+                height: used.y * zoom,
+            });
+        }
+        let layer = app.layer(screen, pos2(0.0, 0.0))?;
         let points = layer.transform.across().length() * zoom;
         Some(ViewSize {
             width: layer.size.0 as f32 * points,
@@ -1102,7 +1116,8 @@ impl Children {
             docks: &mut docks,
             pass,
         };
-        self.settle_in(parent, None, above, &mut settling, Vec::new(), true);
+        let block = above.last().map(|block| Uuid::from_bytes(*block));
+        self.settle_in(parent, None, above, block, &mut settling, Vec::new(), true);
         // Each editor is asked for its screens once every place showing it said what it asks.
         // Its own children were followed against the screens it was asked for before: one that
         // changed them lays out anew for them, and the placements of that layout bring the
@@ -1120,12 +1135,16 @@ impl Children {
 
     /// `settle` for one level, the children `parent`'s editor `only` places (every editor's of
     /// it with none): `asks` are the bodies of joined docks an editor above placed whose paths
-    /// lead through these children, and `on_screen` whether `parent` shows any view.
+    /// lead through these children, `block` the block `parent`'s editor edits (none for a
+    /// dialog's, which has no dock, as be-host registers none for it), and `on_screen` whether
+    /// `parent` shows any view.
+    #[allow(clippy::too_many_arguments)]
     fn settle_in(
         &mut self,
         parent: &Embedded,
         only: Option<EditorInstanceId>,
         above: &[[u8; 16]],
+        block: Option<Uuid>,
         settling: &mut Settling<'_>,
         asks: Vec<TabAsk>,
         on_screen: bool,
@@ -1139,7 +1158,6 @@ impl Children {
             .map(|screen| (parent.layer_id(screen.screen), screen.instance, screen.view))
             .collect();
         let app = app_key(self.instance);
-        let block = above.last().map(|block| Uuid::from_bytes(*block));
         let mut editors: Vec<EditorInstanceId> = Vec::new();
         // An editor shown only as a preview has no dock, as under be-host, which keeps previews
         // out of its docks: another editor of its block may be docked.
@@ -1157,7 +1175,17 @@ impl Children {
             .retain(|editor, _| screens.iter().any(|screen| screen.instance == *editor));
         self.asks
             .retain(|ask| screens.iter().any(|screen| screen.instance == ask.editor));
-        self.requests = screens;
+        // The views its editors anchored are placers too: children are placed in them.
+        self.requests = screens
+            .into_iter()
+            .chain(
+                parent
+                    .anchored()
+                    .into_iter()
+                    .filter(|view| ours(view.editor))
+                    .map(|view| view.request),
+            )
+            .collect();
         let mut placed = parent.placed();
         placed.retain(|placements| ours(placements.instance));
         let mut wanted = Vec::new();
@@ -1166,13 +1194,11 @@ impl Children {
         self.bodies.clear();
         self.unshown.clear();
         for placements in &placed {
-            let raster = self
-                .requests
-                .iter()
-                .find(|screen| {
-                    (screen.instance, screen.view) == (placements.instance, placements.view)
-                })
-                .map_or(1.0, |screen| screen.metrics.raster);
+            let placer = self.requests.iter().find(|screen| {
+                (screen.instance, screen.view) == (placements.instance, placements.view)
+            });
+            let raster = placer.map_or(1.0, |screen| screen.metrics.raster);
+            let space = placer.and_then(|screen| screen.anchor_space);
             for (index, placement) in placements.children.iter().enumerate() {
                 let child = placement.child;
                 let ask = asking.entry(placements.instance).or_insert((0, child));
@@ -1191,6 +1217,7 @@ impl Children {
                             tab,
                             placement: placement.clone(),
                             raster,
+                            space,
                         });
                     }
                     continue;
@@ -1292,17 +1319,17 @@ impl Children {
                 }
             }
             if child.placed {
-                let framing = self
+                let placer = self
                     .requests
                     .iter()
-                    .find(|screen| (screen.instance, screen.view) == (child.editor, child.view))
-                    .filter(|_| child.framing)
-                    .cloned();
+                    .find(|screen| (screen.instance, screen.view) == (child.editor, child.view));
+                let framing = placer.filter(|_| child.framing).cloned();
                 editor.asks.borrow_mut().push(PlaceAsk {
                     key: child.place(),
                     placement: child.placement.clone(),
                     raster: child.raster,
                     framing,
+                    space: placer.and_then(|screen| screen.anchor_space),
                 });
             }
             // The bodies of its dock's views a joined dock places, and those of its own
@@ -1336,6 +1363,7 @@ impl Children {
                     &app,
                     Some(inner),
                     &nested,
+                    child.block.map(Uuid::from_bytes),
                     settling,
                     deeper,
                     shows,
@@ -1939,7 +1967,7 @@ impl Children {
     }
 
     /// The apps of every child shown, any number of levels deep, each once.
-    fn apps(&self) -> Vec<Embedded> {
+    pub fn apps(&self) -> Vec<Embedded> {
         let mut apps: Vec<Embedded> = Vec::new();
         for child in self.shown.iter().filter(|child| child.owns()) {
             let held = child
@@ -1954,6 +1982,32 @@ impl Children {
             }
         }
         apps
+    }
+
+    /// The layers showing the views `parent`'s editor `only` (every editor's of it with none)
+    /// anchored outside their groups (menus, popovers, sheets), each with the children placed in
+    /// it, and those the editors of its children anchored, any number of levels deep: over
+    /// everything placed, as be-host shows them.
+    pub fn anchored_layers(
+        &self,
+        parent: &Embedded,
+        only: Option<EditorInstanceId>,
+        layers: &mut Vec<Layer>,
+    ) {
+        for view in parent.anchored() {
+            if only.is_none_or(|only| only == view.editor) {
+                self.layers(&view.request, view.layer, layers);
+            }
+        }
+        for child in self.shown.iter().filter(|child| child.owns()) {
+            if let Some((app, editor)) = child.hosted() {
+                child
+                    .shared
+                    .nested
+                    .borrow()
+                    .anchored_layers(&app, Some(editor), layers);
+            }
+        }
     }
 
     /// The layers showing `screen` of the app these are the children of, with its children:
@@ -2353,6 +2407,32 @@ fn placed_zoom(placement: &ChildPlacement, pans: bool) -> Option<(be_lib_geometr
     (zoom.is_finite() && zoom > 0.0).then_some((rect.size() / zoom, zoom))
 }
 
+/// Where a child placed as `placement` in a view that may anchor views in `space`, laid out at
+/// `zoom`, may anchor views of its own: its placer's, moved to its place and scaled by its zoom,
+/// within its placer's bounds, as be-host's views hand theirs on. None where its placer may
+/// anchor none (a preview).
+fn placed_space(
+    space: Option<AnchorSpace>,
+    placement: &ChildPlacement,
+    zoom: f32,
+) -> Option<AnchorSpace> {
+    let space = space?;
+    let to_host = space.to_host;
+    Some(AnchorSpace {
+        to_host: HostTransform {
+            origin: ViewPos2 {
+                x: to_host.origin.x + placement.rect.min.x * to_host.scale.x,
+                y: to_host.origin.y + placement.rect.min.y * to_host.scale.y,
+            },
+            scale: ViewVec2 {
+                x: to_host.scale.x * zoom,
+                y: to_host.scale.y * zoom,
+            },
+        },
+        bounds: space.bounds,
+    })
+}
+
 /// `rect` with its corners scaled by `by` about the origin.
 fn scaled(rect: Rect, by: f32) -> Rect {
     Rect::from_min_max(
@@ -2428,7 +2508,8 @@ pub fn framing_screen(
         windows: false,
         host_place: None,
         docked: false,
-        anchor_space: None,
+        // It is its placer's size where its placer is: it anchors views where its placer would.
+        anchor_space: placer.anchor_space,
         fit: false,
         origin: None,
     }
@@ -2444,6 +2525,7 @@ fn tab_screen(
     content: bool,
 ) -> ScreenRequest {
     let mut request = child_screen(&ask.placement, editor, ask.raster, 1.0);
+    request.anchor_space = placed_space(ask.space, &ask.placement, 1.0);
     let origin = ask.placement.rect.min.to_vec2();
     request.screen = screen;
     request.view = ViewId(ask.tab);

@@ -118,8 +118,8 @@ out at its place's size over the zoom that fits that size in it and drawn at
 that zoom (`child_screen`), and the host tells its editor that size
 (`host.assign-size`, the `resized` event be-host sends). One placed to `fit`
 its content is asked for at most that room, drawn from its place's top left
-clipped to its place, and its placer hears the room it took as its status's
-`intrinsic`. A view's occluders give the placer the presses over the children
+clipped to its place, and its placer hears the room its layout said it used
+(`layout-commit.sizes`) as its status's `intrinsic`. A view's occluders give the placer the presses over the children
 placed before them; they hide a child placed below its placer only because
 the placer draws over it there.
 
@@ -137,7 +137,18 @@ A picker, a rename form or an Export dialog an editor places is a dialog the
 root opens, like a block's editor, in the editor that runs it (`be3:root`'s
 `shown.dialog`), its placer's own; what it tells the shell that its placer's
 status says (its pick, its answer) the root relays to the host
-(`host.tell-shell`).
+(`host.tell-shell`). It is available at once, as under be-host, and registers
+no dock.
+
+The root hands every view an anchor space (`screen-request.anchor-space`): the
+session's screen anchors anywhere in the window, and a child hands on its
+placer's, moved to its place and scaled by its zoom. So an editor's menus,
+popovers and sheets open as anchored views (guides/apps/framework.md, Anchored
+views), which the root shows over everything the session places, at the rect
+the app reported (`Embedded::anchored`, `Children::anchored_layers`), each a
+placer of the children placed in it, as a popover places a picker. One that
+asks for the keyboard gets it as it opens, and a press outside a chain of them,
+not on its trigger, closes those that ask to be (`input-batch.dismissed`).
 
 Creations, artifact settings, host panels, web views and program windows
 (plans/host_as_platform_adapter.md, 4g7b3g) are not there yet: a child of
