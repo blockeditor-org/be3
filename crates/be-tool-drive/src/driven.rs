@@ -103,7 +103,8 @@ impl Driven {
     }
 
     /// Closes the program, failing unless it exits cleanly, and starts it again on the data it
-    /// kept with `arguments` in place of those it was started with.
+    /// kept with `arguments` in place of those it was started with. They stay: a later
+    /// `restart` starts it with them too.
     pub fn restart_with(&mut self, arguments: Vec<String>) -> Result<(), String> {
         self.start.arguments = arguments;
         self.close_child()?;

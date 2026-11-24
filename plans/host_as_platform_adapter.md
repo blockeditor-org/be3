@@ -1645,13 +1645,16 @@ Each step lands on its own.
              open (they are inside its screen, so the root sees none), and the press that
              promotes a child replayed in it.
            - 4g7b3c (built). A child that takes its placer's frame, and docks that join across
-             apps. An active or live child placed without a frame of its own in a view with one
-             (`framing`) is asked for its placer's screen with the placer's frame drawn and its
-             placed rect as the frame's `content` (`framing_screen`), shown over the placer,
-             which is asked for its view with no chrome meanwhile; it is hit but where its
+             apps. An active or live child placed without a frame of its own in its editor's
+             content view, when that view has a frame and the child shows its screen
+             (`framing`, `content_view`), is asked for its placer's screen with the placer's
+             frame drawn and its placed rect as the frame's `content` (`framing_screen`), shown
+             over the placer, which is asked for its view with no chrome meanwhile
+             (`Children::withdraw_chrome`, the outermost placer's too); it is hit but where its
              content shows outside its place (`framing_hit`, from the frame reports `Embedded`
-             now keeps), and a press there or Escape in the placer takes the frame back
-             (`frame_revoked`). The outermost `Children` holds one be-sdk-app-host `Docks`:
+             now keeps), and a press there or Escape in the placer takes the frame back from
+             every child of that view that could take it (`frame_revoked`), as be-host's
+             `revoke_frame_child` does. The outermost `Children` holds one be-sdk-app-host `Docks`:
              each editor registered with its block and app, what each placer places in dock tab
              bodies and the child taking its frame (`docked_children`, `Docks::placed`), what
              each app's docks said (`Embedded::take_docks`, from its layout commits and the
@@ -1664,7 +1667,9 @@ Each step lands on its own.
              screen of the owning editor's app, its view placed `Dock` and framed where it holds
              the content, shown where the outermost dock places it, with the owner's children
              in it, and an ask for the keyboard lands in the view holding the content. Tests:
-             be-sdk-root's `children::tests`; host test
+             be-sdk-root's `children::tests` (a frame taken over has no painting: be-host's UI
+             makes no child that takes a frame and shows under the root, since a canvas
+             previews a card until focused and the root shows no previews yet); host test
              `be_root_in_place_of_the_hosts_ui_shows_a_joined_dock`, which makes a beui demo
              under be-host's own UI and restarts under the root (`HostTest::restart_as_root`),
              since nothing opens a block from the root's views yet; for it be-host asks its
