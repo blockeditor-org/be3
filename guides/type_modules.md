@@ -373,7 +373,7 @@ who signed them, `be_block_content::Signer`) changes what the content shows.
   handed its log's latest entries, `UNREAD_ENTRIES` at most, with its content
   and place (`replicas.unread`'s `log`).
 - **Export.** An export carries a type's log opened, each entry with its
-  salt and its author's signature (`transfer::Saved::log`,
+  salt and its author's signature (`transfer::SavedBlock::log`,
   `Peer::export_log`), which verifies against the block it was written in
   wherever the file goes, with no key of the block (`Peer::verify_exported`);
   a redacted entry, or one this device could not open, is carried without

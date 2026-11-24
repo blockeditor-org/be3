@@ -10,7 +10,7 @@ use super::{Peer, deduplicated};
 use crate::{
     ClientError,
     refs::{Creation, Op, Pending},
-    transfer::Saved,
+    transfer::SavedBlock,
 };
 
 const BATCH_BLOCKS: usize = 64;
@@ -44,7 +44,7 @@ type Sent<'a> = Pin<Box<dyn Future<Output = Result<Vec<(Uuid, Imported)>, Client
 impl<S: ObjectStore> Peer<S> {
     pub async fn import_blocks(
         &self,
-        blocks: &[(Saved, BlockParent)],
+        blocks: &[(SavedBlock, BlockParent)],
         mut done: impl FnMut(Uuid, Imported),
     ) {
         let queued = self.queue_import(blocks, &mut done).await;
@@ -53,7 +53,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn queue_import(
         &self,
-        blocks: &[(Saved, BlockParent)],
+        blocks: &[(SavedBlock, BlockParent)],
         mut done: impl FnMut(Uuid, Imported),
     ) -> Queued {
         let mut scopes: HashMap<Uuid, (Uuid, bool)> = HashMap::new();
@@ -208,7 +208,7 @@ impl<S: ObjectStore> Peer<S> {
 
     async fn prepare(
         &self,
-        block: &Saved,
+        block: &SavedBlock,
         parent: BlockParent,
         scopes: &mut HashMap<Uuid, (Uuid, bool)>,
     ) -> Result<Prepared, ClientError> {

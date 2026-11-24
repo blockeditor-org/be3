@@ -489,7 +489,7 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
 /// `upload_import` give.
 async fn import_one(
     peer: &Peer<MemoryStore>,
-    saved: crate::transfer::Saved,
+    saved: crate::transfer::SavedBlock,
 ) -> Vec<crate::peer::Imported> {
     let mut answers = Vec::new();
     let queued = peer

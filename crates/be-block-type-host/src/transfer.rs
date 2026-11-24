@@ -4,7 +4,7 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 
-use be_block_client::transfer::Saved;
+use be_block_client::transfer::SavedBlock;
 use be_block_client::{ClientError, Peer};
 use be_block_content::Entries;
 use be_block_graph::BlockParent;
@@ -57,7 +57,7 @@ pub async fn collect<S: ObjectStore>(
     top: Uuid,
     exported_whole: impl Fn(Uuid) -> bool,
     open: &mut impl Open,
-) -> Result<Vec<Saved>, ClientError> {
+) -> Result<Vec<SavedBlock>, ClientError> {
     let picked = peer.summary(top).await?;
     // The server marks only the block made readable by its author alone, not what lies in it,
     // so each block above is asked too, up to the first this account may not know of. Any other
@@ -155,7 +155,7 @@ pub async fn collect<S: ObjectStore>(
         };
         blocks.push((
             summary.head,
-            Saved {
+            SavedBlock {
                 id: summary.id,
                 block_type: summary.content_type,
                 parent,
