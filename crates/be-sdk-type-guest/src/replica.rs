@@ -1349,19 +1349,15 @@ where
                 .is_some_and(|since| self.now >= since + CLOSING_PATIENCE)
     }
 
-    /// The parts an entry names that this replica has yet to read, unless one is longer than any
-    /// part an entry may name: every replica passes that entry over unread.
+    /// The part an entry needs before it applies (`needed_part`) that this replica has yet to
+    /// read.
     fn missing_parts(&self, op: &SessionOp) -> Vec<PartRef> {
-        let Some(part) =
-            Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
+        let Some(part) = Submitted::decode(&op.payload)
+            .and_then(|submitted| needed_part(op.base, op.floor, &submitted.entry))
         else {
             return Vec::new();
         };
-        if op.sequence <= self.applied
-            || op.base < op.floor
-            || part.length() > LARGEST_PART
-            || self.payloads.contains_key(&part)
-        {
+        if op.sequence <= self.applied || self.payloads.contains_key(&part) {
             return Vec::new();
         }
         vec![part]
@@ -3080,8 +3076,13 @@ where
             .clone()
             .filter_map(|journal| crate::wire::BaseState::decode(&journal.base.state)?.part);
         journal
-            .flat_map(|journal| &journal.entries)
-            .filter_map(needed_part)
+            .flat_map(|journal| {
+                journal
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.sequence > journal.base.sequence)
+            })
+            .filter_map(replayed_part)
             .chain(base.filter(|part| part.length() <= LARGEST_PART))
             .filter(|part| {
                 !self.payloads.contains_key(part)
@@ -3101,7 +3102,7 @@ where
                 .entries
                 .iter()
                 .filter(|entry| entry.sequence > journal.base.sequence)
-                .filter_map(needed_part)
+                .filter_map(replayed_part)
                 .any(|part| lost(&part))
     }
 
@@ -5535,21 +5536,33 @@ fn ordered_bytes(op: &SessionOp) -> usize {
     op.payload.len().saturating_add(parted)
 }
 
-/// The part a journal's entry needs to replay: an operation's, unless the order passed it over
-/// (its base below its floor), and a restart's state, which applies whatever its floor
-/// (`replay_restart`). None for one longer than `LARGEST_PART`, which every replica passes over
-/// unread alike.
-fn needed_part(entry: &be_sdk_type_api::JournalEntry) -> Option<PartRef> {
-    let part = match Submitted::decode(&entry.payload)?.entry {
-        Entry::Operation(Payload::Part(part)) if entry.base >= entry.floor => part,
+/// The part an entry needs read before it applies, live (`missing_parts`) or replayed
+/// (`replayed_part`): an operation's, unless the order passed it over (its base below its
+/// floor), and a reload's state, which a replacement's and a restart's carry whatever their
+/// floor (`apply_entry`). None for one longer than `LARGEST_PART`, which every replica passes
+/// over unread alike.
+fn needed_part(base: u64, floor: u64, entry: &Entry) -> Option<PartRef> {
+    let part = match entry {
+        Entry::Operation(Payload::Part(part)) if base >= floor => *part,
         Entry::Reload {
-            restart: true,
             state: Payload::Part(part),
+            replace,
+            restart,
             ..
-        } => part,
+        } if base >= floor || *replace || *restart => *part,
         _ => return None,
     };
     (part.length() <= LARGEST_PART).then_some(part)
+}
+
+/// The part a journal's entry needs to replay (`needed_part`): of the reloads, only a restart's
+/// replays (`replay_restart`); another opens on the head its holder sealed.
+fn replayed_part(entry: &be_sdk_type_api::JournalEntry) -> Option<PartRef> {
+    let submitted = Submitted::decode(&entry.payload)?;
+    match submitted.entry {
+        Entry::Reload { restart: false, .. } => None,
+        ref entry_kind => needed_part(entry.base, entry.floor, entry_kind),
+    }
 }
 
 /// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a

@@ -101,9 +101,11 @@ fn a_replica_opening_on_a_base_whose_state_part_will_not_read_opens_with_edits_l
     // journal keeps the restart.
     sim.stalled = true;
     sim.advance(crate::QUIET_INTERVAL);
-    sim.type_at(1, 1, 0, "b ");
+    // In the middle, after a character of the session's: it names that character's identity.
+    sim.type_at(1, 1, 3, "b ");
     sim.settle();
     // What it held goes, the state's part and then the seal it waited for.
+    let reads = sim.part_reads;
     sim.stalled = false;
     while !sim.held.is_empty() {
         for (device, call) in std::mem::take(&mut sim.held) {
@@ -114,6 +116,10 @@ fn a_replica_opening_on_a_base_whose_state_part_will_not_read_opens_with_edits_l
     sim.type_at(1, 1, 0, "c ");
     sim.settle();
     assert!(sim.devices[0].status.restarts >= 1, "the restart landed");
+    // The peer live in the session read the restart's state part too (its base is below its
+    // floor, as a restart's always is), and holds what the holder holds.
+    assert!(sim.part_reads > reads, "the peer read the restart's state part");
+    assert_eq!(prose(&sim.content(1)), prose(&sim.content(0)));
     let journal = sim.journal.clone().expect("a journal");
     assert!(
         crate::wire::BaseState::decode(&journal.base.state).is_some_and(|state| state.part.is_none()),
