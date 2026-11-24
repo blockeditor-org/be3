@@ -13,7 +13,10 @@ below View, a grant naming other keys, or a ban ends it in the log. Access
 taken away on a block above is not in this log, so the server refuses an
 acceptance, and stops listing the offer, once the account can no longer read
 the block. A new phrase moves the offer to the account's new keys, so a stolen
-old phrase cannot accept it.
+old phrase cannot accept it. The log also refuses an acceptance itself from an
+account it last took below View (a revocation, or the share link it came in by
+revoked) or banned, so a later way of losing access that forgets to end the
+offer still cannot hand them the block.
 
 ## Why
 

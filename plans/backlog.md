@@ -454,6 +454,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   The change (the `KeyBook` and `reseal_from` trying the retired secrets) waits
   as wip on claude/backlog-keys-6 at c44edb62. Done: the path that seals to an
   old key is found, and a test that fails without the change passes with it.
+- **Offers of ownership surfaced.** A member offered a block's ownership sees
+  the offer only in that block's share dialog, so one they never open is lost.
+  `query.owner-offers` (`Peer::owner_offers`) lists them, and nothing in the
+  host reads it yet. Done: the host lists each standing offer outside the
+  dialog, for example as a notice or a files-pane entry that opens the block's
+  share dialog, shown by a painting.
+- **An acceptance over the bound, explained.** An account at
+  `MAX_BLOCKS_PER_ACCOUNT` that accepts a block is refused with the server's
+  `OverQuota` message, and the giver never learns why the offer still stands.
+  Done: the share dialog says in its own words that the account holds too many
+  blocks to take this one, shown by a painting.
 
 ## 19. Local accounts
 
