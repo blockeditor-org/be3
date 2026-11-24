@@ -543,6 +543,15 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, block_id)
     );
 
+    -- The objects of the parts a journal's base names (`journal-base.parts`): their holds last
+    -- while it names them (`collect_holds`).
+    CREATE TABLE journal_base_parts (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        hash            TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id, hash)
+    );
+
     CREATE TABLE journal_entries (
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,

@@ -418,8 +418,9 @@ counts and records nothing: `reserve-uploads` did before it signed.
   missing. A `lasting` hold (a repository's snapshots) lasts as long as the
   block; an `until-committed` one (`put-part`) ends when a commit of the block
   holding the object publishes (`release_committed`), or once `upload_grace`
-  passes after its last hold while the block's journal is empty
-  (`collect_holds`, run by `collect_uploads`),
+  passes after its last hold while the block's journal is empty and its base
+  does not name the object (`journal_base_parts`, a session state that goes by a
+  part; `collect_holds`, run by `collect_uploads`),
   uncharging the block and freeing what nothing else holds. A merge commit holds its extra parents' objects, so a stash that was
   never a head stays readable. A block may hold or publish an object only if
   its caller has a proven, unused upload of it there (`object_uploads.proven`)

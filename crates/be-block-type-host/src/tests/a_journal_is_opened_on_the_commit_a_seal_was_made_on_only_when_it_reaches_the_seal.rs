@@ -60,6 +60,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
             commit: parent,
             sequence: 0,
             state: Vec::new(),
+            parts: Vec::new(),
         };
         peer.rebase_journal(block, tag(), 0, base.clone(), false, false)
             .await
