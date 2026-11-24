@@ -34,7 +34,6 @@ use super::{
     heads::{HeadRead, Heads},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     members::{Members, NamesRead},
-    pieces,
     published::{Published, Watched},
     sent::Sent,
 };
@@ -187,6 +186,9 @@ struct Instance {
     /// may open to anyone inside (`services::refuses_sharing`).
     made: HashSet<Uuid>,
     screens: HashMap<ViewId, Screen>,
+    /// The statuses last reported of the children it placed in each view, for an editor a root
+    /// guest embeds (`Forwarded`), which has no screen of the host's to keep them.
+    forwarded_statuses: HashMap<ViewId, HashMap<ChildId, ChildStatus>>,
     anchored: Vec<AnchoredScreen>,
     opened: bool,
     /// An editor opened as a Join member of its block (`opening-kind.join`), given no content,
@@ -366,6 +368,7 @@ impl Instance {
             block_refused: Vec::new(),
             made: HashSet::default(),
             screens: HashMap::default(),
+            forwarded_statuses: HashMap::default(),
             anchored: Vec::new(),
             opened: false,
             deferred: Vec::new(),
@@ -2500,6 +2503,12 @@ impl Instances {
                     .screens
                     .values()
                     .flat_map(|screen| screen.reported_statuses.values().cloned())
+                    .chain(
+                        entry
+                            .forwarded_statuses
+                            .values()
+                            .flat_map(|reported| reported.values().cloned()),
+                    )
                     .collect();
                 statuses.sort_by_key(|status| status.child.0);
                 if !statuses.is_empty() {
@@ -2941,7 +2950,7 @@ impl Instances {
                 .map(|painted| host_rect(*painted, origin, scale))
                 .collect();
             if !painted.is_empty() {
-                for piece in pieces::subtract(rect.intersect(clip), &painted) {
+                for piece in rect.intersect(clip).subtract(&painted) {
                     holes.holes.push(Hole {
                         rect: piece,
                         occluders: Vec::new(),
@@ -3267,57 +3276,27 @@ impl Instances {
         else {
             return Vec::new();
         };
-        let mut changed = Vec::new();
-        let live: HashSet<ChildId> = statuses.iter().map(|status| status.child).collect();
-        for status in statuses {
-            let status = ChildStatus {
-                instance,
-                view: region,
-                child: status.child,
-                available: status.available,
-                intrinsic: status.intrinsic.map(|size| Vec2 {
-                    x: size.x,
-                    y: size.y,
-                }),
-                active: status.active,
-                interaction: status.interaction,
-                capabilities: status.capabilities,
-                resize: status.resize,
-                error: status.error,
-                menu: MenuEntry::flatten(&status.menu),
-                creation: status.creation,
-                preview: status.preview,
-                dialog: status.dialog,
-                picked: status.picked.clone(),
-                card: status.card,
-                title: status.title,
-                icon: status.icon,
-                group: status.group,
-                raised: status.raised,
-                rung: status.rung,
-                minimized: status.minimized,
-                fullscreen: status.fullscreen,
-                notice: status.notice,
-                menu_asked: status.menu_asked,
-            };
-            if screen.reported_statuses.get(&status.child) == Some(&status) {
-                continue;
-            }
-            screen
-                .reported_statuses
-                .insert(status.child, status.clone());
-            changed.push(status);
+        report_statuses(instance, region, &mut screen.reported_statuses, statuses)
+    }
+
+    /// Sets the statuses of the children an editor a root guest embeds placed in its view
+    /// `region`, as the root shows them (`Forwarded::show_children`): what changed since the
+    /// last, for the editor to hear.
+    pub(super) fn set_forwarded_statuses(
+        &mut self,
+        instance: EditorInstanceId,
+        region: ViewId,
+        statuses: Vec<HostChildStatus>,
+    ) -> Vec<Outbound> {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Vec::new();
+        };
+        let reported = entry.forwarded_statuses.entry(region).or_default();
+        let told = report_statuses(instance, region, reported, statuses);
+        if reported.is_empty() {
+            entry.forwarded_statuses.remove(&region);
         }
-        screen
-            .reported_statuses
-            .retain(|child, _| live.contains(child));
-        match changed.is_empty() {
-            true => Vec::new(),
-            false => vec![Outbound::Editor(
-                instance,
-                EditorCall::ChildStatuses(changed),
-            )],
-        }
+        told
     }
 
     pub(super) fn picked(&self, instance: EditorInstanceId) -> Option<BlockPick> {
@@ -4364,6 +4343,64 @@ fn through(rect: Rect, laid_view: EditorView, view: EditorView) -> Rect {
         view.rect.min + (rect.min - laid_view.rect.min) * scale,
         rect.size() * scale,
     )
+}
+
+/// The statuses of the children an instance placed in its view `region` that changed since
+/// those `reported`, which it keeps for the next time: the message that tells the editor, if
+/// any did. A child left out of `statuses` is no longer reported.
+fn report_statuses(
+    instance: EditorInstanceId,
+    region: ViewId,
+    reported: &mut HashMap<ChildId, ChildStatus>,
+    statuses: Vec<HostChildStatus>,
+) -> Vec<Outbound> {
+    let mut changed = Vec::new();
+    let live: HashSet<ChildId> = statuses.iter().map(|status| status.child).collect();
+    for status in statuses {
+        let status = ChildStatus {
+            instance,
+            view: region,
+            child: status.child,
+            available: status.available,
+            intrinsic: status.intrinsic.map(|size| Vec2 {
+                x: size.x,
+                y: size.y,
+            }),
+            active: status.active,
+            interaction: status.interaction,
+            capabilities: status.capabilities,
+            resize: status.resize,
+            error: status.error,
+            menu: MenuEntry::flatten(&status.menu),
+            creation: status.creation,
+            preview: status.preview,
+            dialog: status.dialog,
+            picked: status.picked.clone(),
+            card: status.card,
+            title: status.title,
+            icon: status.icon,
+            group: status.group,
+            raised: status.raised,
+            rung: status.rung,
+            minimized: status.minimized,
+            fullscreen: status.fullscreen,
+            notice: status.notice,
+            menu_asked: status.menu_asked,
+        };
+        if reported.get(&status.child) == Some(&status) {
+            continue;
+        }
+        reported.insert(status.child, status.clone());
+        changed.push(status);
+    }
+    reported.retain(|child, _| live.contains(child));
+    match changed.is_empty() {
+        true => Vec::new(),
+        false => vec![Outbound::Editor(
+            instance,
+            EditorCall::ChildStatuses(changed),
+        )],
+    }
 }
 
 fn followed_clip(child: &ChildPlacement, laid_view: EditorView, view: EditorView) -> Rect {

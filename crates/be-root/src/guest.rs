@@ -1577,8 +1577,8 @@ impl frames::Guest for Root {
             // The dialog's own actions closed it: gone from this frame already.
             root.settle_dialog()
                 .expect("the root draws its dialog with beui");
-            // Its own surface under everything, then the session's editor filling the window,
-            // and its notice over it while it loads or after it stopped.
+            // Its own surface under everything, then the session's editor filling the window with
+            // the children it places, and its notice over it while it loads or after it stopped.
             let mut layers = vec![own];
             layers.extend(root.session_frame(time).await);
             layers.extend(root.session_notice_layer());
@@ -1831,7 +1831,7 @@ impl paintings::Guest for Root {
             Some(_) => self.session_notice.borrow().as_ref().and_then(painted),
             None => None,
         };
-        let session = self.session_screen();
+        let session = self.session_screens();
         let mut screens: Vec<_> = own
             .into_iter()
             .chain(notice)
@@ -1843,19 +1843,20 @@ impl paintings::Guest for Root {
             .chain(lock)
             .collect();
         Box::pin(async move {
-            // The session's editor's screen, as its app paints it, by the id of the layer that
-            // shows it. An app answers at once, and one that stopped answers nothing, so this
-            // waits for no frame: a deadline would leave the screen out of a slow frame's
-            // painting and in the next's.
-            if let Some((app, layer)) = session
-                && let Some(painted) = app.paintings().await
-                && let Ok(painted) = ScreenPaintings::decode(&painted)
-                && let Some((_, painting)) = painted
-                    .screens
-                    .into_iter()
-                    .find(|(screen, _)| *screen == SESSION_SCREEN.0)
-            {
-                screens.push((layer.0, painting));
+            // The session's editor's screen and those of the children it places, as their apps
+            // paint them, each by the id of the layer that shows it. An app answers at once, and
+            // one that stopped answers nothing, so this waits for no frame: a deadline would
+            // leave a screen out of a slow frame's painting and in the next's.
+            for (app, screen, layer) in session {
+                if let Some(painted) = app.paintings().await
+                    && let Ok(painted) = ScreenPaintings::decode(&painted)
+                    && let Some((_, painting)) = painted
+                        .screens
+                        .into_iter()
+                        .find(|(painted, _)| *painted == screen.0)
+                {
+                    screens.push((layer.0, painting));
+                }
             }
             ScreenPaintings {
                 screens,

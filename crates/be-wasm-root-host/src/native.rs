@@ -289,6 +289,12 @@ impl Root {
         }
     }
 
+    /// The children the root showed of the editors the host opened since the last call
+    /// (`host.show-children`), the latest of each editor's view.
+    pub fn take_shown_children(&mut self) -> Vec<crate::ShownChildren> {
+        self.core.take_shown_children()
+    }
+
     /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
     /// host asks of it: the root hears it stopped, and is stepped for that.
     pub fn stop_instance(&mut self, instance: u64, why: &str) {

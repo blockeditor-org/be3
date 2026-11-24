@@ -15,7 +15,7 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    EditorInstanceId, Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement,
+    ChildPlacement, ChildPlacements, EditorInstanceId, Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement,
     ScreenRequest, SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
 };
 use be_sdk_app_host::{
@@ -131,6 +131,9 @@ struct State {
     /// What each screen asks of its window (its input method's area, its cursor), as its
     /// last layout applied said.
     windows: HashMap<ScreenId, WindowRequests>,
+    /// The children each of its editors' views placed, as its last layout applied said
+    /// (`Embedded::placed`).
+    placed: Vec<ChildPlacements>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -298,6 +301,7 @@ impl Embedded {
             painted: HashMap::default(),
             surfaces: HashMap::default(),
             windows: HashMap::default(),
+            placed: Vec::new(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -310,6 +314,17 @@ impl Embedded {
             state,
             instance: handle,
         }
+    }
+
+    /// The children its editors' views placed, each view's as its last layout applied said:
+    /// what a root shows of them is its own (`Children`).
+    pub fn placed(&self) -> Vec<ChildPlacements> {
+        self.state.borrow().placed.clone()
+    }
+
+    /// The screens it was asked for last.
+    pub fn screens(&self) -> Vec<ScreenRequest> {
+        self.state.borrow().run.screens.clone()
     }
 
     /// The instance's handle, which a layer naming one of its surfaces carries
@@ -528,6 +543,18 @@ pub(crate) fn wants(
 }
 
 impl State {
+    /// Takes in the children each view placed, in place of what it placed before.
+    fn place(&mut self, children: Vec<ChildPlacements>) {
+        for placements in children {
+            let view = (placements.instance, placements.view);
+            self.placed
+                .retain(|placed| (placed.instance, placed.view) != view);
+            if !placements.children.is_empty() {
+                self.placed.push(placements);
+            }
+        }
+    }
+
     /// Asks the app for a frame if its pacing says one is due.
     fn ask(&mut self) -> Ask {
         let ask = self.run.pacing.ask(Asking {
@@ -614,9 +641,14 @@ impl State {
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
-                // The root places no children of its apps yet, so what the holds keep for the
-                // present that follows is let go once that present comes.
-                self.run.holds.heard_layout(&mut commit, |_| false);
+                // Children that only move are placed at once; any that come or go wait for the
+                // present that follows, which draws the holes they fill.
+                let placed = &self.placed;
+                self.run.holds.heard_layout(&mut commit, |placements| {
+                    only_moves(placed, placements)
+                });
+                let children = std::mem::take(&mut commit.children);
+                self.place(children);
                 self.run.pacing.laid_out();
             }
             Heard::Presented(commit) => {
@@ -626,6 +658,7 @@ impl State {
                         for window in laid.windows {
                             self.windows.insert(window.screen, window.window);
                         }
+                        self.place(laid.children);
                     }
                 }
                 if let Some(presented) = commit.presented {
@@ -817,6 +850,33 @@ async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>, stop: Rc<Stop
             }
         }
     }
+}
+
+/// Whether `placements` only moves the children its view placed before, as be-host-runtime's
+/// `Instances::only_moves` says: the same children, in the same order, modes and layers.
+fn only_moves(placed: &[ChildPlacements], placements: &ChildPlacements) -> bool {
+    let Some(current) = placed
+        .iter()
+        .find(|placed| (placed.instance, placed.view) == (placements.instance, placements.view))
+    else {
+        return placements.children.is_empty();
+    };
+    let kept = |child: &ChildPlacement| {
+        (
+            child.child,
+            child.mode,
+            child.own_frame,
+            child.top_bar,
+            child.layer,
+            child.intrinsic,
+        )
+    };
+    current.children.len() == placements.children.len()
+        && current
+            .children
+            .iter()
+            .zip(&placements.children)
+            .all(|(current, next)| kept(current) == kept(next))
 }
 
 /// Whether `input` ends a press or the focus: what a screen that went still hears.

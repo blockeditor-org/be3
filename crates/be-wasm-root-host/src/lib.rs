@@ -189,6 +189,22 @@ struct Core<G> {
     relaying: Vec<be_wasm_root_api::RelayedFrames>,
     /// The root's `host.forwarded` call, waiting for the host to send its apps something.
     relay_watcher: Option<Reply<Vec<be_wasm_root_api::RelayedFrames>>>,
+    /// The children the root shows of the editors the host opened (`host.show-children`), the
+    /// latest of each editor's view, until the host takes them.
+    shown_children: Vec<ShownChildren>,
+}
+
+/// The children an editor the host opened placed in one of its views, as the root shows them
+/// (`host.show-children`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShownChildren {
+    /// The op of the sandbox `instance` resource the editor's app runs in.
+    pub instance: u64,
+    /// The editor, as `open-editor` named it.
+    pub editor: u64,
+    /// Its view, as the app protocol's `view-id`.
+    pub view: u64,
+    pub children: Vec<be_wasm_root_api::ShownChild>,
 }
 
 /// An editor the root asked its host to open (`host.open-editor`), which the host answers by
@@ -310,6 +326,7 @@ impl<G: Inline> Core<G> {
             forwarded: Vec::new(),
             relaying: Vec::new(),
             relay_watcher: None,
+            shown_children: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -647,6 +664,12 @@ impl<G: Inline> Core<G> {
         };
         reply.send(&mut self.connection, &std::mem::take(&mut self.relaying));
         true
+    }
+
+    /// The children the root showed of the editors the host opened since the last call, the
+    /// latest of each editor's view.
+    fn take_shown_children(&mut self) -> Vec<ShownChildren> {
+        std::mem::take(&mut self.shown_children)
     }
 
     /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
@@ -1086,6 +1109,24 @@ impl<G: Inline> Core<G> {
                     }
                     false => reply.send(&mut self.connection, &std::mem::take(&mut self.relaying)),
                 }
+            }
+            embed::Call::Host(embed::host::Call::ShowChildren {
+                instance,
+                editor,
+                view,
+                children,
+                reply,
+            }) => {
+                self.shown_children.retain(|shown| {
+                    (shown.instance, shown.editor, shown.view) != (instance, editor, view)
+                });
+                self.shown_children.push(ShownChildren {
+                    instance,
+                    editor,
+                    view,
+                    children,
+                });
+                reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
                 reply.send(&mut self.connection, &self.paste_shortcut);

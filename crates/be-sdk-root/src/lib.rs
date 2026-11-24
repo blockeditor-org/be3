@@ -17,6 +17,10 @@
 //!   `host.editor-of` names the app, `host.open-editor` opens the editor, and everything the app
 //!   sends under it the root forwards (`host.forward`) and relays what the host answers
 //!   (`host.forwarded`), as be-wasm-ops frames it never reads.
+//! - `Children` shows the block children the editors of an embedded app place: each is its
+//!   block's editor in an app of its own, spawned as `spawn_block` does and composited where it
+//!   was placed, with its own children likewise; the host tells each placer how they are
+//!   (`host.show-children`).
 //! - `Embedding` holds the `Embedded`s and `Windows`: what is routed to an app's screen reaches
 //!   the app as `AppCall::Input`, in the screen's points; what lands on the root's own surfaces
 //!   the root gets back. What its apps ask of their windows (a cursor shape, the pointer lock,
@@ -38,10 +42,12 @@
 //! (be-sdk-root-testing); both families may link be-sdk. A root draws its own surfaces with
 //! beui through be-sdk-beui-root, beside this.
 
+mod children;
 mod embedded;
 mod own;
 mod windows;
 
+pub use children::{ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, NOT_SHOWN_YET, Spawning, child_screen};
 pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants};
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};

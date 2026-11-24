@@ -12,7 +12,7 @@ use be_sdk_api::{
     EditorInstanceId, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceFormat,
     SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
-use be_sdk_root::{BlockSpawn, Embedded, Hosted, SpawnFailure};
+use be_sdk_root::{BlockSpawn, CHILD_SCREEN, Children, Embedded, Hosted, SpawnFailure, Spawning};
 use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
 use beui::reactive::*;
 use beui::styled::*;
@@ -25,12 +25,20 @@ use crate::{LOADING_APP, NOT_OPENED_TITLE, SESSION_NOTICE_LAYER};
 /// everything else it shows.
 pub(super) const SESSION_SCREEN: ScreenId = ScreenId(1);
 
+/// The surface the session's editor's app, and those of the children it places, draw to.
+const SESSION_SURFACE: SurfaceSpec = SurfaceSpec {
+    format: SurfaceFormat::Rgba8Unorm,
+    render: true,
+};
+
 /// The editor of the block the session shows, as far as it got.
 pub(super) struct Session {
     pub(super) block: [u8; 16],
     /// Counts the sessions shown, so an app spawned for one that went is let go.
     pub(super) round: u64,
     pub(super) state: Showing,
+    /// The children its editor places, shown where it placed them (be-sdk-root's `Children`).
+    pub(super) children: Children,
 }
 
 pub(super) enum Showing {
@@ -82,10 +90,13 @@ impl Root {
         if current != showing || reload {
             if let Some(Session {
                 state: Showing::Running(hosted),
+                mut children,
                 ..
             }) = session.take()
             {
-                self.embedding.borrow_mut().remove(hosted.app.instance());
+                let mut embedding = self.embedding.borrow_mut();
+                children.release(&mut embedding);
+                embedding.remove(hosted.app.instance());
             }
             if let Some(block) = showing {
                 let round = self.session_rounds.get() + 1;
@@ -94,16 +105,20 @@ impl Root {
                     block,
                     round,
                     state: Showing::Loading,
+                    children: Children::default(),
                 });
                 be_wasm_ops::guest::spawn(self.clone().load_session(block, round, time));
             }
         }
         if let Some(Session {
+            block,
             state: state @ Showing::Running(_),
+            children,
             ..
         }) = &mut *session
             && let Showing::Running(hosted) = &*state
         {
+            let mut embedding = self.embedding.borrow_mut();
             match hosted.app.failure() {
                 Some(why) => {
                     let failure = Failure {
@@ -114,12 +129,17 @@ impl Root {
                         detail: why,
                         reload: hosted.app.started(),
                     };
-                    self.embedding.borrow_mut().remove(hosted.app.instance());
+                    children.release(&mut embedding);
+                    embedding.remove(hosted.app.instance());
                     *state = Showing::Failed(failure);
                 }
-                None => hosted
-                    .app
-                    .show(vec![screen(hosted.editor, self.window.get())]),
+                None => {
+                    hosted
+                        .app
+                        .show(vec![screen(hosted.editor, self.window.get())]);
+                    let spawning = self.spawning();
+                    children.settle(&hosted.app, &[*block], &mut embedding, &spawning, time);
+                }
             }
         }
         let notice = session.as_ref().and_then(|session| session.state.notice());
@@ -133,6 +153,17 @@ impl Root {
         }
     }
 
+    /// What the apps of the children the session's editor places are spawned with: the surface
+    /// and fonts its own app is, and a frame asked for once one opened.
+    fn spawning(&self) -> Spawning {
+        let waker = self.waker.clone();
+        Spawning {
+            surface: SESSION_SURFACE,
+            fonts: self.fonts.borrow().clone().unwrap_or_default(),
+            wake: Rc::new(move || waker.wake()),
+        }
+    }
+
     /// Spawns the app that edits `block` and has the host open its editor in it, for the
     /// session shown as `round` at the frame clock's `time`.
     async fn load_session(self, block: [u8; 16], round: u64, time: Duration) {
@@ -141,10 +172,7 @@ impl Root {
             BlockSpawn {
                 block,
                 screens: Box::new(move |editor| vec![screen(editor, window.get())]),
-                surface: SurfaceSpec {
-                    format: SurfaceFormat::Rgba8Unorm,
-                    render: true,
-                },
+                surface: SESSION_SURFACE,
                 fonts: self.fonts.borrow().clone().unwrap_or_default(),
             },
             time,
@@ -173,48 +201,83 @@ impl Root {
         self.waker.wake();
     }
 
-    /// The session's editor's app, while it runs: asked for a frame for `time`, which waits
-    /// for it until the frame's deadline at the latest.
-    pub(super) async fn session_frame(&self, time: Duration) -> Option<Layer> {
-        let app = match &*self.session.borrow() {
+    /// The session's editor's app and the apps of the children it places, while it runs: each
+    /// asked for a frame for `time`, which waits for them until the frame's deadline at the
+    /// latest. The layers showing its screen and its children where it placed them.
+    pub(super) async fn session_frame(&self, time: Duration) -> Vec<Layer> {
+        let (app, children) = match &*self.session.borrow() {
             Some(Session {
                 state: Showing::Running(hosted),
+                children,
                 ..
-            }) => hosted.app.clone(),
-            _ => return None,
+            }) => (hosted.app.clone(), children.frame(time)),
+            _ => return Vec::new(),
         };
         let deadline = std::pin::pin!(host::deadline());
-        let drawn = std::pin::pin!(app.frame(time));
+        let drawn = std::pin::pin!(async move {
+            let children = std::pin::pin!(children);
+            let session = std::pin::pin!(app.frame(time));
+            both(session, children).await;
+        });
         first(drawn, deadline).await;
-        app.layer(SESSION_SCREEN, pos2(0.0, 0.0))
-    }
-
-    /// Whether the session's editor is still being opened: its host has yet to name and open
-    /// it, so the root owes its host the frame that shows it (a host waiting for its root to
-    /// settle waits for it). Once its app runs, the app's own pacing says what it owes.
-    pub(super) fn session_loading(&self) -> bool {
-        matches!(
-            &*self.session.borrow(),
-            Some(Session {
-                state: Showing::Loading,
-                ..
-            })
-        )
-    }
-
-    /// The session's editor's app while it runs, with the id of the layer showing its screen
-    /// once it painted it.
-    pub(super) fn session_screen(&self) -> Option<(Embedded, be_lib_layers::LayerId)> {
         let session = self.session.borrow();
         let Some(Session {
             state: Showing::Running(hosted),
+            children,
             ..
         }) = &*session
         else {
-            return None;
+            return Vec::new();
         };
-        let layer = hosted.app.layer(SESSION_SCREEN, pos2(0.0, 0.0))?;
-        Some((hosted.app.clone(), layer.id))
+        let Some(layer) = hosted.app.layer(SESSION_SCREEN, pos2(0.0, 0.0)) else {
+            return Vec::new();
+        };
+        let mut layers = Vec::new();
+        children.layers(&screen(hosted.editor, self.window.get()), layer, &mut layers);
+        layers
+    }
+
+    /// Whether the session's editor, or a child it places, is still being opened: its host has
+    /// yet to name and open it, so the root owes its host the frame that shows it (a host waiting for its root to
+    /// settle waits for it). Once its app runs, the app's own pacing says what it owes.
+    pub(super) fn session_loading(&self) -> bool {
+        match &*self.session.borrow() {
+            Some(Session {
+                state: Showing::Loading,
+                ..
+            }) => true,
+            Some(Session {
+                state: Showing::Running(_),
+                children,
+                ..
+            }) => children.opening(),
+            _ => false,
+        }
+    }
+
+    /// The apps showing the session's editor and the children it places while it runs, each
+    /// with the screen it is asked for and the id of the layer showing it once it painted it.
+    pub(super) fn session_screens(&self) -> Vec<(Embedded, ScreenId, be_lib_layers::LayerId)> {
+        let session = self.session.borrow();
+        let Some(Session {
+            state: Showing::Running(hosted),
+            children,
+            ..
+        }) = &*session
+        else {
+            return Vec::new();
+        };
+        let Some(layer) = hosted.app.layer(SESSION_SCREEN, pos2(0.0, 0.0)) else {
+            return Vec::new();
+        };
+        std::iter::once((hosted.app.clone(), SESSION_SCREEN, layer.id))
+            .chain(
+                children
+                    .screens()
+                    .into_iter()
+                    .map(|(app, layer)| (app, CHILD_SCREEN, layer)),
+            )
+            .collect()
     }
 
     /// The session's notice over its editor, while it shows one: taking every press, for its
@@ -262,6 +325,20 @@ fn screen(editor: EditorInstanceId, window: Window) -> ScreenRequest {
         fit: false,
         origin: None,
     }
+}
+
+/// Waits for both `left` and `right`, polling each until it finished.
+async fn both<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut B>) {
+    let (mut left_done, mut right_done) = (false, false);
+    std::future::poll_fn(|context| {
+        left_done = left_done || left.as_mut().poll(context).is_ready();
+        right_done = right_done || right.as_mut().poll(context).is_ready();
+        match left_done && right_done {
+            true => Poll::Ready(()),
+            false => Poll::Pending,
+        }
+    })
+    .await;
 }
 
 /// Whether `left` finished before `right`, polling both until one does.

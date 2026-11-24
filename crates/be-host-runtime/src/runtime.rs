@@ -3231,7 +3231,7 @@ fn shown_view(
             .collect();
         let base: Vec<Rect> = match painted_rects.is_empty() {
             true => vec![visible],
-            false => super::pieces::subtract(visible, &painted_rects),
+            false => visible.subtract(&painted_rects),
         };
         let (base, floating, marks) = match held {
             Some(_) => (

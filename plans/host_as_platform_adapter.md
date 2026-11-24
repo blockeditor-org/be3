@@ -1594,7 +1594,39 @@ Each step lands on its own.
              (`stack_changes`, the areas' own state), rather than each frame, and comparing it
              with the last view handed (`root/block_stack.rs`'s `view`).
          - 4g7b3. Children: their placements, focus, the keyboard, drags and gifts, through
-           the root's layers. Desktop windows stay with 4g7e.
+           the root's layers. Desktop windows stay with 4g7e. In parts:
+           - 4g7b3a (built). Block children placed. be-sdk-root's `Embedded` keeps the
+             children each view placed (`Embedded::placed`), those that come or go with the
+             present that draws their holes (be-sdk-app-host's holds), and `Children` shows
+             them: each block child placed to run its editor (passive, active, live or in
+             place) is the block's editor in an app of its own (`Embedded::spawn_block`), asked
+             for one screen (`CHILD_SCREEN`) the size of its place at its placer's raster, in a
+             frame of its own when placed with one. Its layer goes under its placer's, or over
+             it for `ChildLayer::Above`, clipped to what shows of it, and the placer is hit
+             everywhere but where a child that takes input is (be-lib-geometry's
+             `Rect::subtract`, moved from be-host-runtime's `pieces`); a passive child is hit
+             nowhere. Their own children are shown the same way, and a block open above is
+             refused in be-host's words. `be3:root`'s `host.show-children` tells the host how
+             each view's children are (ids only: the editor showing each, whether it takes
+             input, why it shows nothing); be-host's `child_status` makes each child's status
+             from the manifest of the app it opened there, and `Forwarded::show_children`
+             tells the placer (`Instances::set_forwarded_statuses`). be-root's session shows
+             its editor's children, waits for those still opening before it settles, and
+             paints their screens. Tests: be-sdk-root's `children::tests`; host test
+             `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`.
+           - 4g7b3b. The keyboard: `focus-child` and the gifts of keys held for a child
+             (be-host-runtime's `gift`), promoting an active child and taking it back (a press
+             outside, Escape, the press replayed), and `on_focus` to the editors above.
+           - 4g7b3c. A child that takes its placer's frame, and docks that join across apps
+             (a child placed in a dock tab asked `docked`, its bars spliced; be-sdk-app-host's
+             `Docks`).
+           - 4g7b3d. Drags out of and into children, and the rest of what a placement says:
+             the editor it names (`ChildContent::Block`'s `editor` and `view_block`, which
+             `editor-of` takes no part of yet), a block in several places sharing one editor
+             (and one app per staged app rather than per child), occluders, `fit`, a child in
+             place at its zoom, rotation and opacity, previews, and the other kinds of child
+             (web views, host panels, pickers, creations, artifact settings, rename forms and
+             dock tab bodies), which the placer hears are unavailable until then.
        - 4g7c. Anchored views placed outside groups (`anchored`).
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).

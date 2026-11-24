@@ -8,12 +8,12 @@
 
 use std::sync::Arc;
 
-use be_sdk_api::EditorInstanceId;
+use be_sdk_api::{EditorInstanceId, ViewId};
 use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
 
 use super::{
-    InstanceRole,
+    HostChildStatus, InstanceRole,
     calls::{Heard, Outbound},
     instances::Instances,
     wire::Wire,
@@ -55,6 +55,21 @@ impl Forwarded {
         self.instances
             .open_forwarded(instance, role, client_id, block_types);
         self.step()
+    }
+
+    /// Tells the editor `instance` the statuses of the children it placed in its view `view`, as
+    /// its root shows them: those that changed since the last call for that view, sent with
+    /// the next `step`. A child left out is no longer reported.
+    pub fn show_children(
+        &mut self,
+        instance: EditorInstanceId,
+        view: ViewId,
+        statuses: Vec<HostChildStatus>,
+    ) {
+        let told = self
+            .instances
+            .set_forwarded_statuses(instance, view, statuses);
+        self.wire.send(told);
     }
 
     /// Takes the frames the root forwarded, in order, and serves what they ask: the frames that
