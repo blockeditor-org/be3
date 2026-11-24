@@ -626,6 +626,9 @@ struct HostCore {
     /// Whether a root guest shows the host in place of its own UI (`--root=APP`): the host
     /// opens no editor of the session's own, which the root embeds (root.rs).
     under_root: bool,
+    /// The block of the session a root shows (`ensure_session`), once there is one.
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    root_session: Option<Uuid>,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -1019,6 +1022,8 @@ impl HostCore {
             login_session_mode: false,
             desktop: false,
             under_root: false,
+            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            root_session: None,
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -2826,7 +2831,9 @@ impl HostCore {
         }
     }
 
-    fn ensure_shell(&mut self) -> Option<Uuid> {
+    /// The block of the session this device shows, made with what it needs (My files, Unfiled,
+    /// this device's profile) if it has not been yet.
+    fn ensure_session(&mut self) -> Option<Uuid> {
         be_host_stack::set_guest(self.role() == be_sdk_api::AccountRole::Guest);
         self.root_settings.ensure_my_files();
         self.root_settings.ensure_unfiled();
@@ -2835,7 +2842,40 @@ impl HostCore {
         if let Some(profile) = self.root_settings.take_set_up() {
             self.set_up_profile = Some(profile);
         }
-        let id = self.root_settings.ensure_session(self.client_id, class)?;
+        self.root_settings.ensure_session(self.client_id, class)
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    /// The app and editor that show `block` in a root, and the block as it is opened: the
+    /// session's own editor for the session's block, which it views (`view_block`), else its
+    /// type's default editor. Why not, when the block is not listed, the person may not view
+    /// it, or no app edits its type.
+    fn editor_of(
+        &self,
+        block: Uuid,
+    ) -> Result<(std::sync::Arc<be_sdk_manifest::AppManifest>, Uuid, editors::Opened), String> {
+        let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
+        if !be_host_stack::access(block).can_view() {
+            return Err("the person may not view the block".to_owned());
+        }
+        let shell = match self.root_session == Some(block) {
+            true => self.root_settings.session_editor(block),
+            false => None,
+        };
+        let opened = editors::Opened {
+            id: block,
+            block_type: node.content_type,
+            view_block: shell.map(|_| block),
+        };
+        let (app, editor) = self
+            .registry
+            .editor_app(opened, shell)
+            .ok_or("no app edits the block's type")?;
+        Ok((app, editor, opened))
+    }
+
+    fn ensure_shell(&mut self) -> Option<Uuid> {
+        let id = self.ensure_session()?;
         if self.shell.is_some_and(|previous| previous != id) {
             self.stop_shell();
         }
@@ -3771,9 +3811,13 @@ impl HostCore {
         self.process_pending_transfers();
         self.process_pending_reorders();
         self.process_pending_copies();
-        if !self.under_root {
-            self.show_shell();
-            Host::frame();
+        match self.under_root {
+            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            true => self.root_session = self.ensure_session(),
+            _ => {
+                self.show_shell();
+                Host::frame();
+            }
         }
         #[cfg(target_os = "linux")]
         {

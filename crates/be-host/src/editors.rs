@@ -348,6 +348,19 @@ impl EditorRegistry {
             .find(|registered| registered.id == editor && registered.edits(opened))
     }
 
+    /// The app and editor that `open_with` opens `opened` in, given the editor asked for:
+    /// that one if it edits it, else its type's default. None when no app edits it.
+    pub(crate) fn editor_app(
+        &self,
+        opened: Opened,
+        editor: Option<Uuid>,
+    ) -> Option<(Arc<AppManifest>, Uuid)> {
+        let chosen = editor
+            .and_then(|editor| self.choice(editor, opened))
+            .or_else(|| self.default_editor(opened.block_type))?;
+        Some((Arc::clone(&chosen.manifest), chosen.id))
+    }
+
     pub(crate) fn edits(&self, editor: Uuid, opened: Opened) -> bool {
         self.choice(editor, opened).is_some()
     }
