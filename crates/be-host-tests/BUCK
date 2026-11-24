@@ -90,6 +90,7 @@ APPS = {
     "an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it": ["text"],
     "an_outsider_opens_a_share_link_as_a_guest": ["settings"],
     "be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_shows_a_joined_dock": ["example-beui-gallery", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_its_onboarding": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places": ["settings", "//crates/be-root"],

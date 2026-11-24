@@ -566,7 +566,8 @@ Everything asks the mirror through `Query` (`Roots`, `Detached`, `Shared`,
 asks again when a change notice says the graph changed. Askers declare what
 they want with `be_host_stack::want(owner, queries)` (`Owner::Editor` per app
 instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
-`Owner::Version`).
+`Owner::Version`, and `Owner::Root` for the blocks a root guest asks the editors
+of, which wait until the stack read their listing).
 
 - **Listings.** The graph turns what is wanted into its `Listing`s (the
   server's, and `Block` for one block's summary), expands `Parents` and

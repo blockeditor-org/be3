@@ -163,6 +163,26 @@ impl HostTest {
         self.run(&["clock", "stop"]);
     }
 
+    /// Closes the host, failing unless it exits cleanly, and starts it again on the data it kept
+    /// with the staged app `app`'s entry point as the root guest in place of its own UI, on the
+    /// dev workspace (`--root=APP --dev-workspace`), as [`HostTest::root_with_dev_workspace`]
+    /// does: what be-host's own UI made, the root shows. Start the host with
+    /// [`Options::previews`], since the root's apps draw on the window's device.
+    pub fn restart_as_root(&mut self, app: &str) {
+        self.run(&["settle"]);
+        self.steps.push(format!("restart --root={app}"));
+        let restarted = self
+            .host
+            .as_mut()
+            .expect("the host is still open")
+            .restart_with(vec![format!("--root={app}"), "--dev-workspace".to_owned()]);
+        if let Err(error) = restarted {
+            self.fail(&format!("the host did not restart: {error}"));
+        }
+        self.wait(ROOT_SHOWN);
+        self.run(&["clock", "stop"]);
+    }
+
     /// Takes this device's network to the server away: its connections drop and it cannot
     /// connect, as a laptop that lost its Wi-Fi. It returns once the device knows
     /// (`drive offline`). What it does meanwhile waits in its outbox.

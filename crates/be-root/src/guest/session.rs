@@ -13,7 +13,7 @@ use be_sdk_api::{
     SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_root::{
-    BlockSpawn, CHILD_SCREEN, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed,
+    BlockSpawn, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed,
     SpawnFailure, Spawning,
 };
 use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
@@ -284,12 +284,7 @@ impl Root {
             return Vec::new();
         };
         std::iter::once((hosted.app.clone(), SESSION_SCREEN, layer.id))
-            .chain(
-                children
-                    .screens()
-                    .into_iter()
-                    .map(|(app, layer)| (app, CHILD_SCREEN, layer)),
-            )
+            .chain(children.screens())
             .collect()
     }
 

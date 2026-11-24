@@ -367,12 +367,16 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   last `Embedded` of an app goes (`Embedding::remove`), its instance stops.
   `Embedded::spawn_block` embeds a block's editor that the root's host opens and serves
   until step 5 (decisions/a_roots_embedded_editors_are_served_by_its_host_until_step_5.md):
-  - `be3:root`'s `host.editor-of` names the app;
+  - `be3:root`'s `host.editor-of` names the app, once the host's stack read the block's listing
+    (be-host asks for it, `Owner::Root`);
   - `host.open-editor` opens the editor in it, which the host does with be-host-runtime's
     `Forwarded`, whose connection's ops carry be-wasm-ops' `RELAYED_BIT`;
   - the root's `Wire` sends the host every frame on those ops and on what the app starts under
     them (`Wire::take_forwarded`, through `host.forward`), and relays the host's answers
-    unread (`host.forwarded`, `Wire::relay_forwarded`).
+    unread (`host.forwarded`, `Wire::relay_forwarded`);
+  - what the root shows of an editor's children, what it saw of them and what its docks have
+    for the editor, the host tells the editor (`host.show-children`, `host.tell-placer`,
+    `host.dock`; guides/apps/children.md, Under a root).
 
   What else an app asks of a host the root refuses (`Wire::refuse_unserved`: block calls,
   host services, the network, the shell but `tell`), and it restarts nothing.

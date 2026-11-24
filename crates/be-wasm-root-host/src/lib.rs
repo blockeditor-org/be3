@@ -195,6 +195,9 @@ struct Core<G> {
     /// What the root told the host's editors of their children (`host.tell-placer`), by the
     /// root's instance and the editor, until the host takes it.
     placer_events: Vec<(u64, u64, be_wasm_root_api::PlacerEvent)>,
+    /// The dock updates the root made for the host's editors (`host.dock`), by the root's
+    /// instance and the editor, each as the app protocol encodes them, until the host takes them.
+    dock_updates: Vec<(u64, u64, Vec<u8>)>,
 }
 
 /// The children an editor the host opened placed in one of its views, as the root shows them
@@ -332,6 +335,7 @@ impl<G: Inline> Core<G> {
             relay_watcher: None,
             shown_children: Vec::new(),
             placer_events: Vec::new(),
+            dock_updates: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -681,6 +685,12 @@ impl<G: Inline> Core<G> {
     /// (`host.tell-placer`): by the root's instance and the editor, in order.
     fn take_placer_events(&mut self) -> Vec<(u64, u64, be_wasm_root_api::PlacerEvent)> {
         std::mem::take(&mut self.placer_events)
+    }
+
+    /// The dock updates the root made for the host's editors since the last call
+    /// (`host.dock`): by the root's instance and the editor, each encoded, in order.
+    fn take_dock_updates(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        std::mem::take(&mut self.dock_updates)
     }
 
     /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
@@ -1146,6 +1156,15 @@ impl<G: Inline> Core<G> {
                 reply,
             }) => {
                 self.placer_events.push((instance, editor, event));
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Dock {
+                instance,
+                editor,
+                updates,
+                reply,
+            }) => {
+                self.dock_updates.push((instance, editor, updates));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {

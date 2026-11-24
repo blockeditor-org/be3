@@ -17,6 +17,7 @@ be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+uuid = "1"
 
 [lints]
 workspace = true

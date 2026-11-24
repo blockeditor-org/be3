@@ -1644,15 +1644,44 @@ Each step lands on its own.
              ask acted on only while no popover or keyboard-taking layer of the editor's is
              open (they are inside its screen, so the root sees none), and the press that
              promotes a child replayed in it.
-           - 4g7b3c. A child that takes its placer's frame, and docks that join across apps
-             (a child placed in a dock tab asked `docked`, its bars spliced; be-sdk-app-host's
-             `Docks`).
+           - 4g7b3c (built). A child that takes its placer's frame, and docks that join across
+             apps. An active or live child placed without a frame of its own in a view with one
+             (`framing`) is asked for its placer's screen with the placer's frame drawn and its
+             placed rect as the frame's `content` (`framing_screen`), shown over the placer,
+             which is asked for its view with no chrome meanwhile; it is hit but where its
+             content shows outside its place (`framing_hit`, from the frame reports `Embedded`
+             now keeps), and a press there or Escape in the placer takes the frame back
+             (`frame_revoked`). The outermost `Children` holds one be-sdk-app-host `Docks`:
+             each editor registered with its block and app, what each placer places in dock tab
+             bodies and the child taking its frame (`docked_children`, `Docks::placed`), what
+             each app's docks said (`Embedded::take_docks`, from its layout commits and the
+             presents that release them), and what the docks have for each editor handed to
+             the host through `be3:root`'s new `host.dock` (the app protocol's
+             `list<dock-update>`, encoded), which `Forwarded::dock` answers the editor's
+             dock watch with. A docked child is asked for its frame `docked` and stays open,
+             unplaced, while its dock is joined; the bodies of a joined dock's tabs and bars
+             (`ChildContent::DockTab`, resolved through `Docks::resolve`) are each another
+             screen of the owning editor's app, its view placed `Dock` and framed where it holds
+             the content, shown where the outermost dock places it, with the owner's children
+             in it, and an ask for the keyboard lands in the view holding the content. Tests:
+             be-sdk-root's `children::tests`; host test
+             `be_root_in_place_of_the_hosts_ui_shows_a_joined_dock`, which makes a beui demo
+             under be-host's own UI and restarts under the root (`HostTest::restart_as_root`),
+             since nothing opens a block from the root's views yet; for it be-host asks its
+             stack to list the blocks the root asks editors of (`Owner::Root`) and waits for
+             that listing, where it refused any not listed yet once started on kept data. Left
+             for later: a block's name and its type's display name read "Untitled" in the
+             root's views (its Files and tabs), and (4g7b3d)
+             a joined dock's tab menus, their picks and details, which wait for the root to take
+             its editors' shell messages (the host's `Forwarded` refuses them).
            - 4g7b3d. Drags out of and into children, and the rest of what a placement says:
              a block in several places sharing one editor
              (and one app per staged app rather than per child), occluders, `fit`, a child in
-             place at its zoom, rotation and opacity, previews, and the other kinds of child
-             (web views, host panels, pickers, creations, artifact settings, rename forms and
-             dock tab bodies), which the placer hears are unavailable until then.
+             place at its zoom, rotation and opacity, previews, a joined dock's tab menus, picks
+             and details (with the editors' shell messages: `menu`, `details`, and opening a
+             block from a root's editor, which the host test of 4g7b3c works around), and the
+             other kinds of child (web views, host panels, pickers, creations, artifact
+             settings and rename forms), which the placer hears are unavailable until then.
        - 4g7c. Anchored views placed outside groups (`anchored`).
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).

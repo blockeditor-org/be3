@@ -1165,6 +1165,13 @@ interface host {
     /// Tells the editor `editor`, opened in the root's `instance`, `event`
     /// (the app protocol's `editor-event` `child-focused`).
     tell-placer: async func(instance: u64, editor: u64, event: placer-event);
+
+    /// Hands the editor `editor`, opened in the root's `instance`, the dock
+    /// updates the root's docks made for it (guides/apps/children.md, Docks
+    /// across apps): the app protocol's `list<dock-update>` in its encoding,
+    /// in order. The host answers the editor's `dock-watch` with them, as it
+    /// does those of its own docks.
+    dock: async func(instance: u64, editor: u64, updates: list<u8>);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

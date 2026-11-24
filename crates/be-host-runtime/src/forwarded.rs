@@ -9,14 +9,15 @@
 use std::sync::Arc;
 
 use be_sdk_api::{
-    EditorInstanceId, ViewId, app::EditorEvent, embed::shell::Call as ShellCall, ops::OpError,
+    DockUpdate, EditorInstanceId, ViewId, app::EditorEvent, embed::shell::Call as ShellCall,
+    ops::OpError,
 };
 use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
 
 use super::{
     HostChildStatus, InstanceRole,
-    calls::{Heard, Outbound},
+    calls::{EditorCall, Heard, Outbound},
     instances::Instances,
     wire::Wire,
 };
@@ -78,6 +79,17 @@ impl Forwarded {
     /// sent with the next `step`.
     pub fn tell_placer(&mut self, instance: EditorInstanceId, event: EditorEvent) {
         self.wire.send(vec![Outbound::Event(instance, event)]);
+    }
+
+    /// Hands the editor `instance` the dock updates its root's docks made for it
+    /// (`be3:root`'s `host.dock`), which answer its `dock-watch` with the next `step`.
+    pub fn dock(&mut self, instance: EditorInstanceId, updates: Vec<DockUpdate>) {
+        self.wire.send(
+            updates
+                .into_iter()
+                .map(|update| Outbound::Editor(instance, EditorCall::Dock(update)))
+                .collect(),
+        );
     }
 
     /// Takes the frames the root forwarded, in order, and serves what they ask: the frames that

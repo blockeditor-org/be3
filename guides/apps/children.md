@@ -60,9 +60,27 @@ frame's layers are drawn, moves the keyboard into the child's layer, or out of
 the placer's screen until the child shows (`Children::keyboard`), while
 nothing outside the editor took it meanwhile. Placers hear
 `child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
-active child or Escape in its placer takes it back (`Children::revoke`). Frame
-takeovers, joined docks and drags are not there yet, and a child of any other
-kind, or a preview, the placer hears is unavailable.
+active child or Escape in its placer takes it back (`Children::revoke`).
+
+A child that takes its placer's frame (below) is asked for a screen the size
+of its placer's, with the placer's frame drawn and its placed rect as the
+frame's `content` (`framing_screen`), and shown over the placer, which is
+asked for its view with no chrome meanwhile. It is hit everywhere but where its
+content shows outside its placed rect, so a press there reaches the placer and
+takes the frame back, as Escape in the placer does.
+
+Docks join as under be-host (Docks across apps, below): the outermost
+`Children` holds one be-sdk-app-host `Docks` for every editor it shows, hears
+what each app's docks say once its placements are in (`Embedded::take_docks`),
+and hands the root's host what the docks have for each editor through
+`be3:root`'s `host.dock`, which the host's `Forwarded` answers the editor's
+dock watch with. A child placed in a dock tab's body is asked for its frame
+`docked`, and stays open while the dock hosting it keeps it, placed or not. The
+bodies of a joined dock's tabs and bars the outermost dock places
+(`ChildContent::DockTab`) are shown as the owning editor's views, each another
+screen of its app placed `Dock`, framed where it holds the editor's content.
+A joined dock's tab menus, picks and details, and drags, are not there yet,
+and a child of any other kind, or a preview, the placer hears is unavailable.
 
 ## Drawing order
 
