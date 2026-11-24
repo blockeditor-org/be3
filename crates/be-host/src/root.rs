@@ -61,7 +61,11 @@ use std::{
 use std::collections::HashMap;
 
 use be_host_base::notices;
-use be_host_runtime::{EditorBlock, Forwarded, InstanceRole};
+use be_host_runtime::{EditorBlock, Forwarded, HostChildStatus, InstanceRole};
+use be_sdk_api::{
+    ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
+    ResizeMode, ViewId,
+};
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
@@ -691,7 +695,7 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
             editors.openings.push(opening);
             continue;
         }
-        let opened = open_editor(core, &opening, served);
+        let opened = open_editor(core, &opening, served, &mut editors.opened);
         root.answer_opening(opening.id, opened);
     }
     for (instance, frames) in root.take_forwarded() {
@@ -708,6 +712,24 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         }
     }
     served.retain(|instance, _| root.app_of(*instance).is_some());
+    editors
+        .opened
+        .retain(|(instance, _), _| served.contains_key(instance));
+    for shown in root.take_shown_children() {
+        let Some(forwarded) = served.get_mut(&shown.instance) else {
+            continue;
+        };
+        let statuses = shown
+            .children
+            .iter()
+            .map(|child| child_status(&editors.opened, child))
+            .collect();
+        forwarded.show_children(
+            EditorInstanceId(shown.editor),
+            ViewId(shown.view),
+            statuses,
+        );
+    }
     for (instance, forwarded) in served.iter_mut() {
         root.relay(*instance, forwarded.step());
     }
@@ -718,8 +740,69 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
 #[derive(Default)]
 struct Editors {
     served: HashMap<u64, Forwarded>,
+    /// Each editor opened, by the root's instance and the editor: what its app's manifest says
+    /// of it, for the statuses of the children it shows.
+    opened: HashMap<(u64, u64), OpenedFor>,
     asks: Vec<(u64, [u8; 16])>,
     openings: Vec<EditorOpening>,
+}
+
+/// An editor be-host opened in an app the root spawned: the app's manifest, the editor it opened
+/// and its block.
+struct OpenedFor {
+    app: std::sync::Arc<be_sdk_manifest::AppManifest>,
+    editor: Uuid,
+    block: Uuid,
+}
+
+/// Said of a child the root shows nothing of and gave no reason for: one whose editor is still
+/// being opened.
+const CHILD_OPENING: &str = "the block's editor is opening";
+
+/// The status of a child an editor the root embeds placed, as the root shows it
+/// (`host.show-children`): available once an editor shows it, with what its app's manifest
+/// says of that editor (be-host's `status_of`, for its own children).
+fn child_status(
+    opened: &HashMap<(u64, u64), OpenedFor>,
+    child: &be_wasm_root_api::ShownChild,
+) -> HostChildStatus {
+    let shown = child
+        .shown_in
+        .as_ref()
+        .and_then(|shown| opened.get(&(shown.instance, shown.editor)));
+    let manifest = shown.and_then(|shown| shown.app.editor(shown.editor.into_bytes()));
+    let available = manifest.is_some();
+    let error = shown
+        .and_then(|shown| be_host_stack::revisions::error(shown.block))
+        .or_else(|| child.error.clone())
+        .or_else(|| (!available).then(|| CHILD_OPENING.to_owned()));
+    HostChildStatus {
+        child: ChildId(child.child),
+        available,
+        intrinsic: None,
+        active: available && child.active,
+        interaction: manifest.map_or(InteractionMode::Preview, |editor| editor.interaction),
+        capabilities: manifest.map_or_else(EditorCapabilities::default, |editor| {
+            editor.capabilities
+        }),
+        resize: manifest.map_or(ResizeMode::None, |editor| editor.resize),
+        error,
+        menu: Vec::new(),
+        creation: None,
+        preview: ChildPreview::Hosted,
+        dialog: DialogStatus::default(),
+        picked: None,
+        card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        minimized: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
+    }
 }
 
 /// Opens the editor `opening` asks for in the app the root's instance runs, which must be the
@@ -728,6 +811,7 @@ fn open_editor(
     core: &crate::HostCore,
     opening: &EditorOpening,
     served: &mut HashMap<u64, Forwarded>,
+    opened_for: &mut HashMap<(u64, u64), OpenedFor>,
 ) -> Result<OpenedEditor, String> {
     let (app, editor, opened) = core.editor_of(Uuid::from_bytes(opening.block))?;
     if opening.app.as_deref() != Some(app.identity.id.as_str()) {
@@ -743,6 +827,14 @@ fn open_editor(
             id: opened.id,
             block_type: opened.block_type,
             view_block: opened.view_block,
+        },
+    );
+    opened_for.insert(
+        (opening.instance, instance.0),
+        OpenedFor {
+            app: std::sync::Arc::clone(&app),
+            editor,
+            block: opened.id,
         },
     );
     let frames = served

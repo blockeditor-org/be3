@@ -2,6 +2,7 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use serde::{Deserialize, Serialize};
 
+mod pieces;
 mod region;
 pub mod touching;
 

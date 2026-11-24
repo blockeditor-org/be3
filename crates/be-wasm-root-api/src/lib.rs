@@ -29,9 +29,9 @@ pub use host::{
     CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp,
     HostStatistics, HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea,
     Leaving, LockState, MemberRole, MemberRow, MembersArea, MemoryMinutes, MemoryPoint, NewAccount,
-    Notice, NoticeAction, OpenedEditor, OrganizationRow, OrganizationsArea, OrganizationsListed,
+    Notice, NoticeAction, OpenedEditor, OpenedIn, OrganizationRow, OrganizationsArea, OrganizationsListed,
     PairingApproval, PairingRequest, PowerAction, ProfileRow, Reauthenticating, RecoveryArea,
     Refusal, RelayedFrames, RoleChange, SavingState, SecretCommand, ServerAccount, SessionKind,
-    SessionRow, SessionsArea, SetAside, ShareAccess, ShareLinksArea, SharePreview, ShownNotices,
+    SessionRow, SessionsArea, SetAside, ShareAccess, ShownChild, ShareLinksArea, SharePreview, ShownNotices,
     SigningIn, StatisticRow, SyncState, UnlockArea, UnsentEdit,
 };

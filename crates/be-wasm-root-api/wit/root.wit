@@ -1105,6 +1105,40 @@ interface host {
     /// each app's in order: be-wasm-ops frames, each as the host encoded it.
     /// Answered once there are some.
     forwarded: async func() -> list<relayed-frames>;
+
+    /// An editor the host opened in an app the root spawned.
+    record opened-in {
+        /// The op of the app's sandbox `instance` resource.
+        instance: u64,
+        /// The editor's instance, as `opened-editor` named it.
+        editor: u64,
+    }
+
+    /// A child an editor the host opened placed (the app protocol's
+    /// `child-placement`, which the root reads), as the root shows it.
+    record shown-child {
+        /// The child's id, as the placement names it (`child-id`).
+        child: u64,
+        /// The editor that shows it, once the host opened it (`open-editor`)
+        /// in an app the root spawned for it: none while that is under way,
+        /// or when the root shows nothing of it.
+        shown-in: option<opened-in>,
+        /// Whether it takes input where it is placed rather than leaving it
+        /// to its placer: a child placed active, live or in place.
+        active: bool,
+        /// Why the root shows nothing of it, said for the person to read:
+        /// its app could not start or stopped, or the root shows no such
+        /// child yet.
+        error: option<string>,
+    }
+
+    /// The children the editor `editor`, opened in the root's `instance`,
+    /// placed in its view `view` (a `view-id`), as the root shows them now:
+    /// every one, each time any changed. The host tells the editor each
+    /// child's status from it (the app protocol's `child-status`, with what
+    /// the manifest of the app shown in it says), until the next call for
+    /// that view; a child left out it no longer reports.
+    show-children: async func(instance: u64, editor: u64, view: u64, children: list<shown-child>);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

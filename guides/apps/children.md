@@ -40,6 +40,22 @@ a twin under a key of its own in be-host's `Editors` (`compositor/editors.rs`;
 `Editors::block` maps it back), closed when that placement goes. Previews are
 never twinned.
 
+## Under a root
+
+Under `--root` (plans/host_as_platform_adapter.md, 4g7b3) the root shows an
+embedded editor's children, not be-host's compositor. be-sdk-root's `Children`
+reads each view's placements from the app's layout commits
+(`Embedded::placed`) and shows each block child placed to run its editor as
+that block's editor in an app of its own, which the host opens and serves as it
+does the root's other editors. Its screen is the size of its place, at its
+placer's raster, composited under the placer's layer (over it when placed
+`Above`), and the placer is hit everywhere but where a child that takes input
+is. The root tells the host through `be3:root`'s `host.show-children` which
+editor shows each child, and the host makes each child's status from that
+editor's manifest and tells the placer, as it does for its own children. The
+keyboard, gifts, frame takeovers, joined docks and drags are not there yet,
+and a child of any other kind, or a preview, the placer hears is unavailable.
+
 ## Drawing order
 
 A child is drawn under the app's own surface with its space cut out, so
