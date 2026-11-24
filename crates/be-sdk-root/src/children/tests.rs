@@ -4,6 +4,8 @@ use be_sdk_api::{ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, T
 use super::*;
 
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
+mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
+mod a_child_takes_the_presses_only_where_it_shows;
 mod a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are;
 
 /// A block child placed at `rect` in its placer's view, `mode`, under it.
@@ -33,6 +35,12 @@ fn placed(rect: Rect, mode: ChildMode) -> ChildPlacement {
         anchor: None,
         fullscreen: false,
     }
+}
+
+/// The child `placement` places in editor 1's main view, as `settle` takes it in.
+fn wanted(placement: ChildPlacement) -> Child {
+    Child::placed(EditorInstanceId(1), ViewId::MAIN, 1.0, placement)
+        .expect("a block child placed to run its editor is shown")
 }
 
 fn rect(min: (f32, f32), max: (f32, f32)) -> Rect {

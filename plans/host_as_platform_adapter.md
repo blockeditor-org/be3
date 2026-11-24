@@ -1621,7 +1621,10 @@ Each step lands on its own.
              tells the placer (`Instances::set_forwarded_statuses`). be-root's session shows
              its editor's children, waits for those still opening before it settles, and
              paints their screens. Tests: be-sdk-root's `children::tests`; host test
-             `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`.
+             `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`. Left for
+             later: a block's revision error (`be_host_stack::revisions::error`) reaches the
+             placer's status only when the root shows its children again, not as the revision
+             changes.
            - 4g7b3b. The keyboard: `focus-child` and the gifts of keys held for a child
              (be-host-runtime's `gift`), promoting an active child and taking it back (a press
              outside, Escape, the press replayed), and `on_focus` to the editors above.
