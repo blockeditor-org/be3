@@ -1726,7 +1726,10 @@ Each step lands on its own.
              - with no pause after the restart, `..._shows_a_presentations_slides_as_previews`
                paints one glyph of the slide's preview at a stray place in about a quarter of its
                runs (4 of 15): a preview's repaint is held a while (be-sdk's `Cooldown`), and
-               what shows meanwhile is not yet understood; the test keeps a pause;
+               what shows meanwhile is not yet understood; the test keeps a pause. With 4g7b3e's
+               shared editors it still does (1 in 8, the same glyph: shape 124, a 7 by 8 point
+               glyph at 371,134 stretched to about 1.5e6 points), and asking no preview of a
+               place with an empty rect did not change it;
              - a search hit's place handed to the block it opens (be-host's `reveals`);
              - each preview is an app of its own rather than drawn once at its largest (built
                with 4g7b3e).
