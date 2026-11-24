@@ -2376,8 +2376,11 @@ where
         token: Token,
         result: Result<be_block_content::Stored, be_sdk_type_api::LoadError>,
     ) {
-        // Not to be had now: an opening waits, as the host opens the replica again once the
-        // head moves or the connection comes back. Anything else fails as it would.
+        // Not to be had now: an opening stops waiting on the read and stays unopened, neither
+        // unreadable nor loading anything, as the host opens the replica again once the head
+        // moves or the connection comes back. Its other jobs go on meanwhile: one asked to close
+        // closes, unopened as it is, rather than wait behind a read no one will answer. Anything
+        // else fails as it would.
         let opening = matches!(
             self.waiting,
             Some(Wait::Reads {
@@ -2386,6 +2389,8 @@ where
             })
         );
         if opening && matches!(result, Err(be_sdk_type_api::LoadError::NotYet(_))) {
+            self.waiting = None;
+            self.opened_content = None;
             return;
         }
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
