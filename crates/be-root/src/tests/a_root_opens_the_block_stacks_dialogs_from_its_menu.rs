@@ -1,5 +1,5 @@
 use be_wasm_root_api::{
-    CoreCommand, CoreView, CoreWait, HostedBlock, Refusal, SetAside, UnsentEdit,
+    AccountRow, CoreCommand, CoreView, CoreWait, HostedBlock, Refusal, SetAside, UnsentEdit,
 };
 
 use super::*;
@@ -9,8 +9,16 @@ use crate::{DIALOG_LAYER, DIALOG_SURFACE, MENU_LAYER, MENU_SURFACE, STATISTICS_L
 /// hosting and an escrow key not to be trusted yet.
 fn organization() -> CoreView {
     CoreView {
-        organization: "Analytical Engines".to_owned(),
-        signed_in_as: "Ada (ada@example.com)".to_owned(),
+        organization: Some("Analytical Engines".to_owned()),
+        accounts: vec![AccountRow {
+            key: "https://example.com\u{0}ada".to_owned(),
+            name: "Ada".to_owned(),
+            email: "ada@example.com".to_owned(),
+            server: Some("https://example.com".to_owned()),
+            has_last_organization: true,
+            current: true,
+            organizations: vec!["Analytical Engines".to_owned()],
+        }],
         company: true,
         administrator: true,
         escrow_warning: Some("Its fingerprint changed since this device last saw it.".to_owned()),

@@ -83,7 +83,7 @@ fn reauthenticating(signing_in: Option<SigningIn>) -> CoreView {
 
 fn invitations() -> CoreView {
     CoreView {
-        organization: "Analytical Engines".to_owned(),
+        organization: Some("Analytical Engines".to_owned()),
         administrator: true,
         invitations: InvitationsArea {
             listed: true,

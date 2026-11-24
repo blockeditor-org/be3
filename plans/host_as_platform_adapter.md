@@ -1125,9 +1125,10 @@ Each step lands on its own.
          does not wait for. It keeps the question it heard last, so one asked while the session
          is locked shows once it is unlocked if still asked and not answered; a question
          replaces an open rename dialog, which closes without renaming. Escape and a press on
-         the scrim revert at once here, the shortest path for a test root; the real root
-         (4g7) chooses deliberately, since reverting on a stray press is harsh and some
-         desktops make the scrim of such a question inert. The host withdrawing the question
+         the scrim revert at once here, the shortest path for a test root. The real root
+         chose the same (4g7a2): be-host's own prompt reverts on Escape and on its scrim
+         (`Modal`'s `on_dismiss`), so be-root's does too, though reverting on a stray press
+         is harsh and some desktops make the scrim of such a question inert. The host withdrawing the question
          closes it unanswered. be-wasm-root-host's
          `a_root_asks_to_keep_display_settings_its_host_changed` keeps with Enter, reverts with
          Escape and at `revert-at`, sees a withdrawn question go unanswered and only the round
@@ -1509,9 +1510,11 @@ Each step lands on its own.
            hosting each kept block, Invite member for a company, Members and Invitations for
            an administrator, and Manage accounts naming who is signed in; Lock, which
            be-host's menu has not, is gone. `core-view` gained what that needs
-           (`organization`, `signed-in-as`, `company`, `administrator`, `escrow-warning`,
-           `hosting`, `default-server`) and `core-command` `stop-hosting`; be-host fills them
-           at 4g7g. Left to be-host until it hands them over (4g7g): About, Close be-host,
+           (`organization`, `company`, `administrator`, `escrow-warning`, the host's own
+           reason, `hosting`, `default-server`; who is signed in is the current account) and
+           `core-command` `stop-hosting`; be-host fills them at 4g7g. An agent's credentials
+           cross as the bundles the host's block stack encodes (`agent-credentials`'
+           `bundle`, `proxy-bundle` and `proxy-header`), which the root only shows and copies. Left to be-host until it hands them over (4g7g): About, Close be-host,
            its other debug panels and the inspector in the menu; the invite's QR code and
            Share; Invite member inside Members; and the web's note that a local account
            lives only in the browser.
