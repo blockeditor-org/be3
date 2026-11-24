@@ -1623,9 +1623,10 @@ fn focus_when_asked(
 /// Moves the keyboard into `child`, which the editor `instance` of `app` asked take it
 /// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask. A child
 /// whose view is up takes it there at once (`focus_when_given`). For one whose view is not built
-/// or not up yet: if the keyboard is within the editor's views and the children they show, and
-/// no view that takes the keyboard is open, it leaves them at once, and the child's view takes it
-/// once it is up, while nothing else took it meanwhile. Keys typed
+/// or not up yet: if one of the editor's own views has the keyboard, and no view that takes the
+/// keyboard is open, it leaves it at once, and the child's view takes it once it is up, while
+/// nothing else took it meanwhile. A keyboard in another of the editor's children stays there
+/// until then. Keys typed
 /// in between reach nothing: none is held (decisions/keys_are_never_held.md).
 pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: ChildId) {
     // A child whose view is up takes the keyboard there, as that view decides.
@@ -1635,15 +1636,11 @@ pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: 
         return;
     }
     try_with_document(|document| {
-        let Some(held) = document.focused_node() else {
-            return;
-        };
+        // Only from the editor's own views: one of its children holding the keyboard may be the
+        // one asked for, or show it.
         let placer_holds = super::desktop::catchers_of(app, instance)
             .into_iter()
-            .any(|view| document.focus_is_within(view))
-            || super::desktop::shown_within(held, |_, catcher| {
-                catcher.instance == instance && catcher.app == app
-            });
+            .any(|view| document.focused_node() == Some(view));
         if placer_holds {
             document.blur();
         }

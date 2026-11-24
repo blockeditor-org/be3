@@ -2710,8 +2710,9 @@ pub fn dismiss_anchored_views(
 }
 
 /// Forwards the input a view heard to its app. Whether the app was sent anything: if so it will
-/// draw a frame that answers it. An app that does not run yet is sent nothing: what it would
-/// have heard is dropped, never held for when it runs (decisions/keys_are_never_held.md).
+/// draw a frame that answers it. An app that does not run yet hears only where the keyboard is
+/// (`Input::Focus`), state it is told once it runs: every key, press and move is dropped, never
+/// held for when it runs (decisions/keys_are_never_held.md).
 pub fn forward_view(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2726,7 +2727,16 @@ pub fn forward_view(
             .instances
             .forward(instance, region, input, aim, target);
         if !runtime.run.session.running() {
-            messages.clear();
+            for message in &mut messages {
+                if let Outbound::App(AppCall::Input(batch)) = message {
+                    batch
+                        .events
+                        .retain(|event| matches!(event.input, beui::Input::Focus(_)));
+                }
+            }
+            messages.retain(|message| {
+                !matches!(message, Outbound::App(AppCall::Input(batch)) if batch.events.is_empty())
+            });
         }
         let sent = !messages.is_empty();
         runtime.send_for_frame(messages);
