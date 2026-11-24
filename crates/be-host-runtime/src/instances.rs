@@ -20,7 +20,7 @@ use be_sdk_app_host::{accessibility::Graft, run::Descriptions};
 use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     sync::Arc,
 };
 use uuid::Uuid;
@@ -40,7 +40,6 @@ use super::{
 use be_host_base::{host, performance};
 
 mod cuts;
-pub(crate) mod gift;
 mod network;
 mod services;
 
@@ -165,23 +164,17 @@ struct Connection {
     client_id: Uuid,
 }
 
-/// How many children an instance's changes took away it remembers, for gifts asked late
-/// (`Instance::departed`).
-const DEPARTED_KEPT: usize = 64;
 
 struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
     dialog: DialogStatus,
-    /// The keyboard it gives to a child, and the keys held for it (`gift`).
-    gift: Option<gift::Gift>,
-    /// The latest children its changes of children took away (at most `DEPARTED_KEPT`): a gift
-    /// the app asks for one (it hears of the child placed in its stead only after the commit
-    /// that placed it) is told it missed (`gift::Instances::ask_gift`).
-    departed: VecDeque<ChildId>,
-    /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
-    /// after the failed call) ends at once.
-    block_refused: Vec<Uuid>,
+    /// The highest `keyboard-ask` a child it placed carried that the host acted on: a commit
+    /// carrying a higher one moves the keyboard to that child (`set_children`).
+    keyboard_ask: u64,
+    /// Whether the compositor heard an ask of its it may still act on
+    /// (`InstanceEvent::KeyboardAsked`), which its next commit of children withdraws.
+    keyboard_asked: bool,
     /// Blocks it made in this run, the only ones an app whose manifest does not set `sharing`
     /// may open to anyone inside (`services::refuses_sharing`).
     made: HashSet<Uuid>,
@@ -363,9 +356,8 @@ impl Instance {
             role,
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
-            gift: None,
-            departed: VecDeque::new(),
-            block_refused: Vec::new(),
+            keyboard_ask: 0,
+            keyboard_asked: false,
             made: HashSet::default(),
             screens: HashMap::default(),
             forwarded_statuses: HashMap::default(),
@@ -1139,7 +1131,6 @@ impl Instances {
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
-        self.end_gift(instance, gift::Keys::Drop);
         self.withdraw_all(instance);
         self.waiting.remove(&instance);
         self.gone.insert(instance);
@@ -2257,7 +2248,6 @@ impl Instances {
         let mut closed = Vec::new();
         if was_open {
             closed.push(Outbound::Close(instance));
-            self.end_gift(instance, gift::Keys::Drop);
             self.withdraw_all(instance);
             self.waiting.remove(&instance);
             self.early_shows.remove(&instance);
@@ -2873,22 +2863,52 @@ impl Instances {
             occluders,
         };
         let changed = screen.children != table;
-        let departed: Vec<ChildId> = screen
-            .children
+        let asked = table
             .children
             .iter()
-            .filter(|old| !table.children.iter().any(|new| new.child == old.child))
-            .map(|old| old.child)
-            .collect();
+            .max_by_key(|placement| placement.keyboard_ask)
+            .map(|placement| (placement.child, placement.keyboard_ask));
         screen.children = table;
-        if !departed.is_empty()
-            && let Some(entry) = self.entries.get_mut(&instance)
-        {
-            entry.departed.extend(departed);
-            let over = entry.departed.len().saturating_sub(DEPARTED_KEPT);
-            entry.departed.drain(..over);
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            match asked {
+                // The highest ask above every one acted on: the keyboard goes to its child at
+                // once, the compositor moving it there as the commit is applied, whether the
+                // child's app runs yet or not (decisions/keys_are_never_held.md).
+                Some((child, ask)) if ask > entry.keyboard_ask => {
+                    entry.keyboard_ask = ask;
+                    entry.keyboard_asked = true;
+                    super::events::emit(
+                        &self.app_id,
+                        instance,
+                        InstanceEvent::KeyboardAsked(Some(child)),
+                    );
+                }
+                _ => {}
+            }
         }
         changed
+    }
+
+    /// Withdraws the asks for the keyboard the compositor heard and did not act on, as a new
+    /// layout commit comes: an ask stands only for the commit that carries it.
+    pub(super) fn withdraw_keyboard_asks(&mut self) {
+        for (instance, entry) in &mut self.entries {
+            if std::mem::take(&mut entry.keyboard_asked) {
+                super::events::emit(&self.app_id, *instance, InstanceEvent::KeyboardAsked(None));
+            }
+        }
+    }
+
+    /// The host asks that `child` of `instance` take the keyboard, as a view that hands the
+    /// keyboard it has to the child that fills it does: the compositor moves it there as it
+    /// would for the editor's own ask.
+    pub(super) fn ask_keyboard(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        entry.keyboard_asked = true;
+        super::events::emit(&self.app_id, instance, InstanceEvent::KeyboardAsked(Some(child)));
+        true
     }
 
     pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
@@ -3305,20 +3325,6 @@ impl Instances {
 
     pub(super) fn card(&self, instance: EditorInstanceId) -> bool {
         self.entries.get(&instance).is_some_and(|entry| entry.card)
-    }
-
-    /// Whether the instance's block content, if it edits one, has reached it, and how many
-    /// times it has after the editor lacked it (`KeyProgress::content`).
-    pub(super) fn content_delivered(&self, instance: EditorInstanceId) -> Option<u64> {
-        let Some(link) = self
-            .entries
-            .get(&instance)
-            .and_then(|entry| entry.content.as_ref())
-            .filter(|link| link.attached.is_some())
-        else {
-            return Some(0);
-        };
-        link.delivered.then_some(link.deliveries)
     }
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
@@ -4120,14 +4126,8 @@ impl Instances {
             ShellMessage::CloseChild(child) => {
                 super::events::emit(&self.app_id, instance, InstanceEvent::ChildClosed(child));
             }
-            ShellMessage::FocusChild(child) => {
-                self.ask_gift(instance, gift::GiftTo::Child(child));
-            }
             // The runtime opens the palette before it hands the call here.
             ShellMessage::OpenPalette(_) => {}
-            ShellMessage::FocusBlockChild(block) => {
-                self.ask_block_gift(instance, Uuid::from_bytes(block));
-            }
             ShellMessage::ShowCard(card) => {
                 if entry.card == card {
                     return false;

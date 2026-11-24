@@ -34,6 +34,7 @@ fn placed(rect: Rect, mode: ChildMode) -> ChildPlacement {
         docks: None,
         anchor: None,
         fullscreen: false,
+        keyboard_ask: 0,
     }
 }
 

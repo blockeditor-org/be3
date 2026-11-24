@@ -467,7 +467,9 @@ impl Embedded {
     /// the app holds nothing pressed.
     pub(crate) fn input(&self, surface: u32, input: Input, time: Option<u64>) {
         let mut state = self.state.borrow_mut();
-        if state.failure.is_some() {
+        // An app that does not run yet hears nothing: what it would have is dropped, never held
+        // for when it runs (decisions/keys_are_never_held.md).
+        if state.failure.is_some() || !state.run.session.running() {
             return;
         }
         let shown = state

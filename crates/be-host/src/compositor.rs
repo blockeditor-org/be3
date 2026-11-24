@@ -95,10 +95,10 @@ fn heard(heard: be_host_runtime::Heard) {
             }
         }
         InstanceEvent::Closed => {
-            app_view::gifts::heard(app_id.clone(), instance, None);
+            app_view::asks::heard(app_id.clone(), instance, None);
             editors::camera::closed(app_id, instance);
         }
-        InstanceEvent::KeyboardGift(child) => app_view::gifts::heard(app_id, instance, child),
+        InstanceEvent::KeyboardAsked(child) => app_view::asks::heard(app_id, instance, child),
         _ => {}
     }
 }

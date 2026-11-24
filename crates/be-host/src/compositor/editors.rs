@@ -2065,7 +2065,7 @@ fn follow_window(
     };
     let asked = create_memo(move || {
         placer()
-            .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
+            .is_some_and(|(app_id, instance)| super::app_view::asks::asks(&app_id, instance, key))
     });
     create_effect(move || {
         if !asked.get() || window.with(Option::is_none) {
@@ -2075,10 +2075,8 @@ fn follow_window(
             let Some((app_id, instance)) = placer() else {
                 return;
             };
-            // The host gives a window the keyboard itself, and the keys the editor held are
-            // dropped, as the editor no longer has it.
-            super::app_view::gifts::taken(&app_id, instance);
-            be_host_runtime::end_gift(&app_id, instance);
+            // The host gives a window the keyboard itself.
+            super::app_view::asks::taken(&app_id, instance);
             asks.notify();
         });
     });

@@ -20,9 +20,8 @@ use be_sdk_app_host::{
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
-use beui::{Modifiers, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
-use crate::instances::gift::{GiftView, KeyProgress, Keys};
 use uuid::Uuid;
 
 use be_host_base::host;
@@ -537,9 +536,6 @@ impl Runtime {
     fn begin_frame(&mut self, pass: u64) {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
-        }
-        if let Some(left) = self.instances.expire_gifts(self.now()) {
-            host::request_repaint_after(left);
         }
         let messages = self.instances.drive_web_views();
         self.send_for_frame(messages);
@@ -1339,14 +1335,13 @@ impl Runtime {
         }
         super::request_windows(&self.app.identity.id, window_requests);
         self.instances.adopt_anchored(&reports, self.run.layout());
-        let committed = self.instances.committed(&reports, &children);
+        self.instances.withdraw_keyboard_asks();
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
         changed |= self.lay(Laid::now(serial, sizes, windows, children));
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
-        self.instances.settle_gifts(&committed);
         changed
     }
 
@@ -1578,151 +1573,8 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
 
 /// The instance's view gives the keyboard it has to `child`, which fills the view.
 pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
-    if with(app_id, |runtime| {
-        runtime
-            .instances
-            .ask_gift(instance, crate::instances::gift::GiftTo::Child(child))
-    })
-    .is_some()
-    {
+    if with(app_id, |runtime| runtime.instances.ask_keyboard(instance, child)).unwrap_or(false) {
         mark(app_id);
-    }
-}
-
-/// The child `child`'s view `view` takes the keyboard the instance gives it (it heard
-/// `InstanceEvent::KeyboardGift`), already having it (`focused`) or being given it now. Answers
-/// whether the instance still gives it.
-pub fn take_gift(
-    (app_id, instance): (&str, EditorInstanceId),
-    child: be_sdk_api::ChildId,
-    view: GiftView,
-    focused: bool,
-) -> bool {
-    let asked = frames_answered(&view.0).0;
-    with(app_id, |runtime| {
-        runtime.error.is_none()
-            && runtime
-                .instances
-                .take_gift(instance, child, view, focused, (asked, host::pass()))
-    })
-    .unwrap_or(false)
-}
-
-/// Ends the keyboard the instance gives, dropping the keys held for it: the keyboard is elsewhere.
-pub fn end_gift(app_id: &str, instance: EditorInstanceId) {
-    with(app_id, |runtime| {
-        runtime
-            .instances
-            .end_gift(instance, crate::instances::gift::Keys::Drop);
-    });
-}
-
-/// The child `child` the instance gives the keyboard to is up: its view is built and its app
-/// running. The gift is counted from now and ends if the view does not take it in time.
-pub fn child_up_for_gift((app_id, instance): (&str, EditorInstanceId), child: be_sdk_api::ChildId) {
-    with(app_id, |runtime| {
-        runtime
-            .instances
-            .start_gift_count(instance, child, host::now());
-    });
-}
-
-/// The app of the child `child` the instance gives the keyboard to failed to start: the gift
-/// ends, and the keys held go back to the editor's view if it still has the keyboard.
-pub fn child_failed_for_gift(
-    (app_id, instance): (&str, EditorInstanceId),
-    child: be_sdk_api::ChildId,
-) {
-    with(app_id, |runtime| {
-        if runtime.instances.gives_to(instance, child) {
-            runtime.instances.end_gift(instance, Keys::Return);
-        }
-    });
-}
-
-/// The view `view` forwarded a press to its app while `asked` frames had been asked of it: keys
-/// typed into it wait for the frame that answers it, which may give the keyboard to a child.
-pub fn sent_press(view: &GiftView, asked: u64) {
-    with(&view.0, |runtime| {
-        runtime.instances.sent_press(view.1, view.clone(), asked);
-    });
-}
-
-/// Routes the keys of input forwarded to `view`, whose app stands at `app`: they are held while
-/// its editor's gift of the keyboard is pending, and keys owed to it come first, as an editor that
-/// placed it (`placers`) gave it the keyboard or as its own gift gave them back. A docked
-/// instance's dock tab view has two: the editor that hosts the tab, and the editor that placed the
-/// instance, whose gift moves there with the instance's content (`forget_keys`).
-pub fn route_keys(
-    view: &GiftView,
-    placers: &[(&str, EditorInstanceId)],
-    app: KeyProgress,
-    input: &mut beui::ForwardedInput,
-) {
-    let pass = host::pass();
-    with(&view.0, |runtime| {
-        if runtime.error.is_some() {
-            runtime.instances.end_gift(view.1, Keys::Return);
-        }
-        runtime.instances.hold_keys(view.1, view, app, input, pass);
-    });
-    // Each placer's gift owes the view its own keys. Should both owe some at once (the tab's host
-    // gave the tab the keyboard while keys held for the main view moved here), the first placer's
-    // are delivered first and the second's queue behind them, as each takes typed keys only while
-    // its own are waiting.
-    for (placer, instance) in placers {
-        with(placer, |runtime| {
-            runtime
-                .instances
-                .owe_keys(*instance, view, app, input, pass);
-        });
-    }
-}
-
-/// Settles what `view` holds and is owed after its app moved on, `focused` saying whether it has
-/// the keyboard. Answers the modifiers to forward it an empty input with, to carry what it can
-/// take now (`route_keys`).
-pub fn settle_keys(
-    view: &GiftView,
-    placers: &[(&str, EditorInstanceId)],
-    app: KeyProgress,
-    focused: bool,
-) -> Option<Modifiers> {
-    let pass = host::pass();
-    let own = with(&view.0, |runtime| {
-        if runtime.error.is_some() {
-            runtime.instances.end_gift(view.1, Keys::Return);
-        }
-        runtime
-            .instances
-            .settle_own_keys(view.1, view, app, focused, pass)
-    })
-    .flatten();
-    let mut owed = None;
-    for (placer, instance) in placers {
-        let settled = with(placer, |runtime| {
-            runtime
-                .instances
-                .settle_owed_keys(*instance, view, app, focused, pass)
-        })
-        .flatten();
-        owed = owed.or(settled);
-    }
-    own.or(owed)
-}
-
-/// The view `view` is gone: what it held and was owed goes with it, unless its instance's content
-/// now shows in another of its views (`content_moved`), which takes the keyboard it was given.
-pub fn forget_keys(view: &GiftView, placers: &[(&str, EditorInstanceId)]) {
-    let moved = content_moved(&view.0, view.1, view.2).map(|to| (view.0.clone(), view.1, to));
-    let pass = host::pass();
-    with(&view.0, |runtime| {
-        runtime.instances.forget_keys(view, moved.as_ref(), pass)
-    });
-    for (placer, _) in placers {
-        with(placer, |runtime| {
-            runtime.instances.forget_keys(view, moved.as_ref(), pass)
-        });
     }
 }
 
@@ -1737,21 +1589,6 @@ pub fn content_moved(app_id: &str, instance: EditorInstanceId, from: ViewId) -> 
         runtime.instances.content_view_besides(instance, Some(from))
     })
     .flatten()
-}
-
-/// Whether the instance's block content, if it edits one, has reached it, and how many times
-/// it has after the editor lacked it (`KeyProgress::content`).
-pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> Option<u64> {
-    with(app_id, |runtime| {
-        runtime.instances.content_delivered(instance)
-    })
-    .unwrap_or(Some(0))
-}
-
-/// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
-/// has been drawn once `answered` exceeds `n`.
-pub fn frames_answered(app_id: &str) -> (u64, u64) {
-    with(app_id, |runtime| runtime.run.pacing.answered()).unwrap_or_default()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2874,7 +2711,8 @@ pub fn dismiss_anchored_views(
 }
 
 /// Forwards the input a view heard to its app. Whether the app was sent anything: if so it will
-/// draw a frame that answers it.
+/// draw a frame that answers it. An app that does not run yet is sent nothing: what it would
+/// have heard is dropped, never held for when it runs (decisions/keys_are_never_held.md).
 pub fn forward_view(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2885,9 +2723,12 @@ pub fn forward_view(
 ) -> bool {
     with(app_id, |runtime| {
         runtime.refresh_anchor_space(instance, region);
-        let (messages, revoked) = runtime
+        let (mut messages, revoked) = runtime
             .instances
             .forward(instance, region, input, aim, target);
+        if !runtime.run.session.running() {
+            messages.clear();
+        }
         let sent = !messages.is_empty();
         runtime.send_for_frame(messages);
         if revoked {

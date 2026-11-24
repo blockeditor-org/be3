@@ -33,6 +33,7 @@ fn child_placements_round_trip() {
                     Vec2::new(90.0, 28.0),
                 )),
                 fullscreen: true,
+                keyboard_ask: 0,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -58,6 +59,7 @@ fn child_placements_round_trip() {
                 docks: None,
                 anchor: None,
                 fullscreen: false,
+                keyboard_ask: 0,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -83,6 +85,7 @@ fn child_placements_round_trip() {
                 docks: None,
                 anchor: None,
                 fullscreen: false,
+                keyboard_ask: 0,
             },
         ],
         occluders: vec![Occluder {

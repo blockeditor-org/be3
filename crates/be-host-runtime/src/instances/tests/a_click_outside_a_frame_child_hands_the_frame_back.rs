@@ -33,6 +33,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             docks: None,
             anchor: None,
             fullscreen: false,
+            keyboard_ask: 0,
         }],
         occluders: Vec::new(),
     });

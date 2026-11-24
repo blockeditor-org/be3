@@ -89,6 +89,7 @@ fn an_active_child_takes_the_frame_of_the_dock_view_holding_the_content() {
             docks: None,
             anchor: None,
             fullscreen: false,
+            keyboard_ask: 0,
         }],
         occluders: Vec::new(),
     });

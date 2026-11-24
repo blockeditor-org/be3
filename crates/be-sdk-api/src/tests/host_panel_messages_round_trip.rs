@@ -25,6 +25,7 @@ fn host_panel_messages_round_trip() {
                 docks: None,
                 anchor: None,
                 fullscreen: false,
+                keyboard_ask: 0,
             }],
             occluders: Vec::new(),
         });
