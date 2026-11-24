@@ -1705,14 +1705,20 @@ Each step lands on its own.
              out of its docks, and the root's `Docks` looped between it and the docked editor of
              the same block (a slide in the filmstrip and on the stage).
 
+             - The camera of a placed child: a child placed by its parent without a frame of
+               its own (a card, or one taking its placer's frame) keeps no camera, as under
+               be-host, so `be3:root`'s new `host.place-content` tells the host where its content
+               shows in its main view (`placed_content`: the whole view, or its placed rect while
+               it takes the frame) and the size it wants, which the root hears from the editor's
+               own `tell` (`Embedded::intrinsic`); be-host hands a pan-and-zoom editor that rect at
+               its scale over that size (`view-changed`, `Forwarded::set_view`), as its `Camera`
+               does, so the world stays where the card was.
+
              Tests: be-sdk-root's `children::tests`; host tests
              `be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews`,
              `..._hands_a_canvas_frame_to_the_editor_on_it` (the frame-takeover painting, a pan
              and zoom editor on a canvas) and `..._opens_a_block_its_files_open`. Left for
              later:
-             - the editor taking the canvas's frame draws its world from the frame's content
-               corner rather than where the card was, as be-host keeps it (`a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it`), which the
-               painting shows (4g7b3c's `framing_screen`);
              - the same test made in a window resized to 1280x900 under be-host's UI never
                settles once restarted under the root (several apps owe frames in turn);
              - a search hit's place handed to the block it opens (be-host's `reveals`);

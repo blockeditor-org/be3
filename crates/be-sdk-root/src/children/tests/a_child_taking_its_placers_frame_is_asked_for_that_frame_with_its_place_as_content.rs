@@ -32,4 +32,11 @@ fn a_child_taking_its_placers_frame_is_asked_for_that_frame_with_its_place_as_co
     assert_eq!(frame.chrome, FrameChrome::Drawn);
     assert_eq!(frame.top_bar, TopBar::Shown);
     assert_eq!(frame.content, Some(rect((40.0, 30.0), (120.0, 90.0))));
+    // The host is told its content is there, where a pan-and-zoom editor's world shows; a
+    // card's content is the whole of its view.
+    assert_eq!(
+        placed_content(&card, true),
+        rect((40.0, 30.0), (120.0, 90.0))
+    );
+    assert_eq!(placed_content(&card, false), rect((0.0, 0.0), (100.0, 60.0)));
 }

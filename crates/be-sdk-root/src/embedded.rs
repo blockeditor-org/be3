@@ -18,7 +18,7 @@ use be_sdk_api::{
     Catalog, ChildPlacement, ChildPlacements, DebugTemplate, DockMessage, EditorInstanceId, Fonts,
     ImeArea, InputBatch,
     Insets, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
-    TimedInput, WindowRequests, embed::shell::Call as ShellCall,
+    TimedInput, WindowRequests, embed::shell::Call as ShellCall, shell_types::ShellMessage,
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
@@ -152,6 +152,9 @@ struct State {
     /// What its docks said since the root last read it (`Embedded::take_docks`), in order,
     /// each applied once the children of the commit it came in are.
     docks: Vec<DockMessage>,
+    /// The size each editor's content wants, as it last told the shell
+    /// (`shell-message.intrinsic-size`).
+    intrinsics: HashMap<EditorInstanceId, be_lib_geometry::Vec2>,
     /// Where each screen holds its editor's content, as its last layout's frame report said:
     /// none for a view that holds none (a dock bar of its tools).
     contents: HashMap<ScreenId, Option<Insets>>,
@@ -344,6 +347,7 @@ impl Embedded {
             placed: Vec::new(),
             placing: false,
             docks: Vec::new(),
+            intrinsics: HashMap::default(),
             contents: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
@@ -378,6 +382,11 @@ impl Embedded {
     /// them.
     pub fn take_docks(&self) -> Vec<DockMessage> {
         std::mem::take(&mut self.state.borrow_mut().docks)
+    }
+
+    /// The size its editor `editor`'s content wants, as it last told the shell.
+    pub fn intrinsic(&self, editor: EditorInstanceId) -> Option<be_lib_geometry::Vec2> {
+        self.state.borrow().intrinsics.get(&editor).copied()
     }
 
     /// Where its screen `screen` holds its editor's content, in the screen's points, as its last
@@ -701,9 +710,14 @@ impl State {
         // it, but the shell's `tell`, which it takes and does nothing with. What an editor its
         // host opened asks never reaches here: the wire leaves it to the host (`forward`).
         let heard = match heard {
-            Heard::Shell(ShellCall::Tell { reply, .. }) => {
+            Heard::Shell(ShellCall::Tell {
+                instance,
+                messages,
+                reply,
+            }) => {
                 let (op, outcome) = reply.answer(&());
                 self.wire.answer(op, outcome);
+                self.hear_tell(instance, messages);
                 return;
             }
             heard => match self.wire.refuse_unserved(heard) {
@@ -805,6 +819,24 @@ impl State {
             | Heard::Network(..)
             | Heard::Debug(..)
             | Heard::Published(..) => {}
+        }
+    }
+
+    /// Keeps what an editor told the shell that its root reads: the size its content wants,
+    /// which a change of owes the root a frame (`placing`), whose settle hands it on.
+    fn hear_tell(&mut self, instance: EditorInstanceId, messages: Vec<ShellMessage>) {
+        for message in messages {
+            let ShellMessage::IntrinsicSize(size) = message else {
+                continue;
+            };
+            let before = match size {
+                Some(size) => self.intrinsics.insert(instance, size),
+                None => self.intrinsics.remove(&instance),
+            };
+            if before != size {
+                self.placing = true;
+                self.wake();
+            }
         }
     }
 

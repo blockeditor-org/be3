@@ -81,6 +81,13 @@ impl Forwarded {
         self.wire.send(vec![Outbound::Event(instance, event)]);
     }
 
+    /// Hands the editor `instance` the part of its world its main view shows and at what scale
+    /// (`editor-event.view-changed`), as be-host's camera hands a pan-and-zoom editor placed by
+    /// a parent: sent with the next `step`, once it changed.
+    pub fn set_view(&mut self, instance: EditorInstanceId, view: crate::EditorView) {
+        self.instances.set_view(instance, view);
+    }
+
     /// Asks the editor `instance` to show the block `open` names, as be-host asks the editor
     /// that handles show requests (`show-request.block`), sent with the next `step`.
     pub fn show_block(&mut self, instance: EditorInstanceId, open: crate::BlockOpen) {

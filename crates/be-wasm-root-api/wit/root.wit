@@ -1204,6 +1204,42 @@ interface host {
     /// (the app protocol's `editor-event` `child-focused`).
     tell-placer: async func(instance: u64, editor: u64, event: placer-event);
 
+    /// A rectangle in a view's points.
+    record view-rect {
+        min-x: f32,
+        min-y: f32,
+        max-x: f32,
+        max-y: f32,
+    }
+
+    /// A size in a view's points.
+    record view-size {
+        width: f32,
+        height: f32,
+    }
+
+    /// Where an editor the host opened shows its content as a child another
+    /// editor placed.
+    record placed-content {
+        /// The root's instance the editor is opened in, and the editor.
+        instance: u64,
+        editor: u64,
+        /// Where its content shows, in its main view's points: the whole view
+        /// for a card, its placed rect for one taking its placer's frame.
+        content: view-rect,
+        /// The size its content wants, as it last told the shell around it
+        /// (`shell-message.intrinsic-size`), which the root hears.
+        intrinsic: option<view-size>,
+    }
+
+    /// An editor the host opened shows its content where `placed` says. A
+    /// placed child keeps no camera of its own, so the host hands a
+    /// pan-and-zoom editor the part of its world it shows from it
+    /// (`editor-event.view-changed`): that rect, at its scale over the size
+    /// its content wants, as be-host's camera does. The root calls it once
+    /// either changed.
+    place-content: async func(placed: placed-content);
+
     /// Hands the editor `editor`, opened in the root's `instance`, the dock
     /// updates the root's docks made for it (guides/apps/children.md, Docks
     /// across apps), in order: the app protocol's `list<dock-update>`
