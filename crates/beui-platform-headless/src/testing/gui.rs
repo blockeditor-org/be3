@@ -359,6 +359,12 @@ pub trait Gui {
                 return;
             }
             let (changed, requested) = self.last_frame();
+            // A frame that changed may ripple into the next one, so a few more are painted at
+            // once. One asked for at once (an animation's) is painted anyway and takes none of
+            // that allowance, so the last frame of a long animation still gets it.
+            if requested == Duration::ZERO {
+                eager = 0;
+            }
             if changed && eager < EAGER_FRAMES {
                 eager += 1;
                 continue;

@@ -185,6 +185,13 @@ pub trait Element: Any {
         false
     }
 
+    /// Whether `child` sticks to the edge of what scrolls it (CSS `position: sticky`). A
+    /// scroll never anchors on it, as CSS's scroll anchoring does not: it moves with the
+    /// offset, so holding it in place would shift the offset again after every shift.
+    fn sticks(&self, _child: NodeId) -> bool {
+        false
+    }
+
     fn turns_children(&self) -> bool {
         false
     }

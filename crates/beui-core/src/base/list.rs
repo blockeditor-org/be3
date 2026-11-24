@@ -561,6 +561,14 @@ impl Element for ListNode {
         true
     }
 
+    fn sticks(&self, child: NodeId) -> bool {
+        !self.wrap
+            && self
+                .items
+                .iter()
+                .any(|item| item.child == child && item.size.sticky)
+    }
+
     fn kind(&self) -> &'static str {
         "list"
     }

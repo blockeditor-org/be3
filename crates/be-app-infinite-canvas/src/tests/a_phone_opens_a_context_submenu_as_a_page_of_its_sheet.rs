@@ -12,6 +12,8 @@ fn a_phone_opens_a_context_submenu_as_a_page_of_its_sheet() {
     editor.advance(std::time::Duration::from_secs(1));
     editor.run();
     editor.fingers(TouchPhase::End, &[(1, center)]);
+    // The menu's sheet rises from below; its lower rows lay out as they come into reach.
+    editor.settle();
     assert!(editor.shown("infinite-canvas.menu.canvas.grid-menu"));
 
     editor.tap("infinite-canvas.menu.canvas.grid-menu");

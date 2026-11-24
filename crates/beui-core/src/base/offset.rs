@@ -255,11 +255,14 @@ impl OffsetNode {
             if doc.is_culled(anchor) || !doc.arena.get(anchor).passes_scroll_anchor() {
                 break;
             }
-            let next = doc.arena.get(anchor).children().into_iter().find(|child| {
-                out.get(child).is_some_and(|rect| {
-                    self.content_start(out, host, *child)
-                        .is_some_and(|start| start + self.direction.main(rect.size()) > self.offset)
-                })
+            let element = doc.arena.get(anchor);
+            let next = element.children().into_iter().find(|child| {
+                !element.sticks(*child)
+                    && out.get(child).is_some_and(|rect| {
+                        self.content_start(out, host, *child).is_some_and(|start| {
+                            start + self.direction.main(rect.size()) > self.offset
+                        })
+                    })
             });
             match next {
                 Some(next) => anchor = next,

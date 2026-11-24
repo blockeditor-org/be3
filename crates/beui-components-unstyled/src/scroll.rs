@@ -549,6 +549,8 @@ struct Motion {
     autoscrolling: Cell<Option<Timer>>,
     autoscrolled: Cell<Instant>,
     wheeled: Cell<Option<Instant>>,
+    /// The offset it last drove the scroll to, without its stretch.
+    driven: Cell<f32>,
 }
 
 impl Motion {
@@ -571,6 +573,7 @@ impl Motion {
         let Some(node) = self.node else {
             return;
         };
+        self.driven.set(offset);
         node.drive_offset(offset + rubber_band(momentum.stretch, position.viewport));
     }
 
@@ -899,8 +902,24 @@ impl Motion {
         next.unwrap_or(position.offset)
     }
 
+    /// Moved from outside (a reveal), it stops. A settle asked for goes on, as it does through
+    /// a press, while the move took it towards its stop and not past it: what a scroll holds
+    /// past its stops shows at least as well there (a sheet rising as it opens with focus on
+    /// its first row).
     fn steer(&self) {
-        if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
+        let Ok(mut momentum) = self.momentum.try_borrow_mut() else {
+            return;
+        };
+        let from = self.driven.get();
+        let goes_on = momentum.asked
+            && momentum.drag.is_none()
+            && momentum.stretch == 0.0
+            && momentum.snap.zip(self.placed()).is_some_and(|(stop, position)| {
+                let stop = stop.clamp(0.0, position.max_offset());
+                let (to, from) = (stop - position.offset, stop - from);
+                to * from > 0.0 && to.abs() <= from.abs()
+            });
+        if !goes_on {
             momentum.rest();
         }
     }
@@ -986,6 +1005,7 @@ fn Scrolling(
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
         wheeled: Cell::new(None),
+        driven: Cell::new(0.0),
     });
     settles.set(Some(motion));
     let animation = create_animation(
@@ -1651,6 +1671,7 @@ fn BrowserScroll(
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
         wheeled: Cell::new(None),
+        driven: Cell::new(0.0),
     });
     api.fill(ScrollApi(
         motion,

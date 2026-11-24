@@ -6,7 +6,8 @@ fn on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet() {
     host.run(&["resize", "390x800"]);
     open_add_to_my_files(&mut host);
     host.wait("#picker.more");
-    host.run(&["pause", "600"]);
+    // Long enough for the sheet's rise to come to rest on its stop.
+    host.run(&["pause", "1000"]);
     let (_, menu_y, _, _) = host.place("#picker.location");
     let (_, import_y, _, import_height) = host.place("#picker.import");
     assert!(
@@ -17,7 +18,7 @@ fn on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet() {
     host.snapshot("on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet");
     host.click("#picker.more");
     host.wait("#picker.search");
-    host.run(&["pause", "600"]);
+    host.run(&["pause", "1000"]);
     host.snapshot("on_a_narrow_window_more_blocks_from_the_files_is_a_sheet");
     host.key("Escape");
     host.gone("#picker.search");
