@@ -491,10 +491,11 @@ impl HostTest {
         let painted = self.paint();
         self.run(&["settle"]);
         let again = self.paint();
-        if painted != again {
-            self.fail(
-                "the painting is not settled: it changed between two frames, so something was still arriving. Wait for it (`wait`, `wait not`) before the snapshot, or park the pointer (`leave`) if it is a hover",
-            );
+        if let Some(difference) = beui_paint_snapshot::difference(&painted, &again) {
+            self.fail(&format!(
+                "the painting is not settled: it changed between two frames ({}), so something was still arriving. Wait for it (`wait`, `wait not`) before the snapshot, or park the pointer (`leave`) if it is a hover",
+                difference.description
+            ));
         }
         let found = self.run(&["overflows"]);
         self.overflows.extend(found.lines().map(str::to_owned));

@@ -267,6 +267,15 @@ impl Instance {
         self.failure.clone().map_or(Ok(()), Err)
     }
 
+    /// Why the instance is still working on frames it was sent (`Worker::unsettled`): a step on
+    /// them in flight, or frames waiting for one. None once it stopped.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        match self.failure {
+            Some(_) => None,
+            None => self.worker.unsettled(),
+        }
+    }
+
     /// The frames the instance sent since the last call, or, once it sent nothing more, why it
     /// stopped.
     pub fn receive(&mut self) -> Result<Vec<Vec<u8>>, String> {

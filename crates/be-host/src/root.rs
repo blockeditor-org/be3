@@ -454,6 +454,12 @@ impl beui::native::Program for RootShell {
         if self.painting && self.root.is_some() {
             busy.push(format!("the root {} owes a painting", self.app));
         }
+        // An app the root runs that is still taking in what it was sent (content a block's
+        // replica relayed, say) asks the root for a frame only once it has: until then the root
+        // owes nothing it knows of.
+        if let Some(why) = self.root.as_ref().and_then(Root::unsettled) {
+            busy.push(format!("the root {}'s apps: {why}", self.app));
+        }
         busy
     }
 
