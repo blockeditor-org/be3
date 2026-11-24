@@ -629,6 +629,10 @@ struct HostCore {
     /// The block of the session a root shows (`ensure_session`), once there is one.
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     root_session: Option<Uuid>,
+    /// Whether the organization's blocks are open under a root but the stack does not list the
+    /// session's block yet: the host is busy until it does, so the root shows it.
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    root_session_pending: bool,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -1025,6 +1029,8 @@ impl HostCore {
             under_root: false,
             #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             root_session: None,
+            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            root_session_pending: false,
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -3713,6 +3719,14 @@ impl HostCore {
 
     fn run_frame(&mut self) {
         performance::begin_frame();
+        // A root shows the session's block only while the organization's blocks are open: a
+        // frame that returns before they are (signed out, no organization, locked, choosing a
+        // session) leaves it none.
+        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        {
+            self.root_session = None;
+            self.root_session_pending = false;
+        }
         be_host_runtime::poll();
         self.watch_shell();
         desk().deliver(self);
@@ -3814,7 +3828,13 @@ impl HostCore {
         self.process_pending_copies();
         match self.under_root {
             #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-            true => self.root_session = self.ensure_session(),
+            // Once the stack lists it: before, the root could not open it.
+            true => {
+                self.root_session = self
+                    .ensure_session()
+                    .filter(|session| be_host_stack::node(*session).is_some());
+                self.root_session_pending = self.root_session.is_none();
+            }
             _ => {
                 self.show_shell();
                 Host::frame();

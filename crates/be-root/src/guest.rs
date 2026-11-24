@@ -1751,7 +1751,7 @@ impl frames::Guest for Root {
             FrameDone {
                 layers: drawn.layers,
                 next: next.map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
-                owed: wants.owed,
+                owed: wants.owed || root.session_loading(),
                 ime: ime.map(|area| area.encode()),
                 every_sample: requests.every_sample,
                 cursor: requests.cursor.name().to_owned(),
@@ -1845,7 +1845,9 @@ impl paintings::Guest for Root {
             .collect();
         Box::pin(async move {
             // The session's editor's screen, as its app paints it, by the id of the layer that
-            // shows it.
+            // shows it. An app answers at once, and one that stopped answers nothing, so this
+            // waits for no frame: a deadline would leave the screen out of a slow frame's
+            // painting and in the next's.
             if let Some((app, layer)) = session
                 && let Some(painted) = app.paintings().await
                 && let Ok(painted) = ScreenPaintings::decode(&painted)

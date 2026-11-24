@@ -293,6 +293,13 @@ impl Root {
         }
     }
 
+    /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
+    /// host asks of it: the root hears it stopped, and is stepped for that.
+    pub fn stop_instance(&mut self, instance: u64, why: &str) {
+        self.core.stop_instance(instance, why);
+        self.bell.ring();
+    }
+
     /// The staged app the root's sandbox instance `instance` runs, while it runs.
     pub fn app_of(&self, instance: u64) -> Option<String> {
         self.core.app_of(instance)

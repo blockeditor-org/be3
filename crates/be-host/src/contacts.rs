@@ -24,6 +24,11 @@ pub(crate) struct Contacts {
     waiting: Option<String>,
     busy: bool,
     error: Option<String>,
+    /// Whether a contact link is being made (`new_link`), until the server answers it, whatever
+    /// else is being done.
+    making_link: bool,
+    /// Why making the last contact link failed, apart from what else failed.
+    link_error: Option<String>,
     /// Who the person just connected with.
     connected: Option<ContactCard>,
     replies: (Mailbox, Post<Reply>),
@@ -39,6 +44,8 @@ impl Default for Contacts {
             waiting: None,
             busy: false,
             error: None,
+            making_link: false,
+            link_error: None,
             connected: None,
             replies: crate::desk().mailbox(|core: &mut crate::HostCore, reply| {
                 // An invitation is a contact link that carries a share link with its code: the
@@ -62,6 +69,8 @@ impl Contacts {
     pub(crate) fn close(&mut self) {
         *self = Self {
             waiting: self.waiting.take(),
+            making_link: self.making_link,
+            link_error: self.link_error.take(),
             ..Self::default()
         };
     }
@@ -71,6 +80,8 @@ impl Contacts {
         self.busy = true;
         self.error = None;
         self.link = None;
+        self.making_link = true;
+        self.link_error = None;
         be_host_stack::make_contact_link(None, move |made| {
             post.send(Reply::Link(made));
         });
@@ -162,15 +173,21 @@ impl Contacts {
     fn replied(&mut self, reply: Reply) -> Option<InviteCode> {
         self.busy = false;
         match reply {
-            Reply::Link(Ok(link)) => self.link = Some(link),
+            Reply::Link(Ok(link)) => {
+                self.making_link = false;
+                self.link = Some(link);
+            }
+            Reply::Link(Err(error)) => {
+                self.making_link = false;
+                self.link_error = Some(error.clone());
+                self.error = Some(error);
+            }
             Reply::Opened(code, Ok(card)) => self.offered = Some(Offered { code, card }),
             Reply::Accepted(code, Ok(card)) => {
                 self.connected = Some(card);
                 return Some(code);
             }
-            Reply::Link(Err(error))
-            | Reply::Opened(_, Err(error))
-            | Reply::Accepted(_, Err(error)) => self.error = Some(error),
+            Reply::Opened(_, Err(error)) | Reply::Accepted(_, Err(error)) => self.error = Some(error),
         }
         None
     }
@@ -260,7 +277,7 @@ impl Contacts {
         if let Some(link) = &self.link {
             return Some(Ok(link.clone()));
         }
-        match (self.busy, &self.error) {
+        match (self.making_link, &self.link_error) {
             (true, _) => None,
             (false, Some(error)) => Some(Err(error.clone())),
             (false, None) => Some(Err("no contact link was made".to_owned())),

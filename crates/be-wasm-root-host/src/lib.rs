@@ -649,6 +649,12 @@ impl<G: Inline> Core<G> {
         true
     }
 
+    /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
+    fn stop_instance(&mut self, instance: u64, why: &str) {
+        self.sandbox.fail(instance, why);
+        self.sandbox.poll(&mut self.connection);
+    }
+
     /// The staged app the root's sandbox instance `instance` runs, while it runs: none once it
     /// stopped or the root let go of it.
     fn app_of(&self, instance: u64) -> Option<String> {

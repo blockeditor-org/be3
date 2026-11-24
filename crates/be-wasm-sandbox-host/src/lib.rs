@@ -243,6 +243,16 @@ impl Server {
         }
     }
 
+    /// Stops the instance the guest spawned with the op `instance` for `why`, as one that broke
+    /// what its host asks of it: what it sent and had not been taken is dropped, and the guest
+    /// hears it stopped from its `next` (`poll`).
+    pub fn fail(&mut self, instance: OpId, why: &str) {
+        if let Some(served) = self.instances.get_mut(&instance) {
+            served.instance = Err(why.to_owned());
+            served.received.clear();
+        }
+    }
+
     /// An op the guest canceled: an instance it dropped stops, and a `next` it no longer waits for
     /// is answered as canceled. Answers whether the op was the sandbox's.
     pub fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
