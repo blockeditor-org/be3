@@ -48,6 +48,8 @@
 //! The root is the app: one that fails to start or stops closes the window, and be-host exits
 //! saying why, as it would on a panic.
 
+mod block_stack;
+
 use std::{
     cell::RefCell,
     collections::BTreeMap,
@@ -136,6 +138,8 @@ struct RootShell {
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
     /// The memory rows the root was last handed while it watches the host's statistics.
     memory: Option<MemoryRows>,
+    /// The block stack as the root is shown it, and the secrets it asked for.
+    block_stack: block_stack::BlockStack,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -181,6 +185,7 @@ impl RootShell {
             notices: None,
             pasted: Rc::default(),
             memory: None,
+            block_stack: block_stack::BlockStack::default(),
         }
     }
 
@@ -265,6 +270,9 @@ impl RootShell {
         };
         clipboard(context, root, &self.pasted);
         refuse_unserved(root);
+        // What the root asked of the block stack in this frame, done at once; what that changed
+        // reaches it with its next frame, which showing it wakes the host for.
+        self.block_stack.step(&mut self.core, root, context);
         let answers = root.take_answers();
         if !answers.is_empty() {
             answer_notices(context, answers);
@@ -623,19 +631,15 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 ///   the lock screen changes nothing. `be3:root` drops a password handed over while the session
 ///   is not locked, so none reaches here.
 /// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
-/// - The block stack: it shows nothing and waits for nothing, so a command changes nothing,
-///   and a secret asked for is answered with none. It opens no block's editor either
-///   (`host.editor-of` and `host.open-editor` say why), so no app the root spawns has an editor
-///   whose calls the root forwards; be-host-runtime's `Forwarded` serves them once the stack
-///   runs here (plans/host_as_platform_adapter.md, 4g7b2).
+/// - The block stack's editors: it opens no block's editor (`host.editor-of` and
+///   `host.open-editor` say why), so no app the root spawns has an editor whose calls the root
+///   forwards; be-host-runtime's `Forwarded` serves them once the stack runs here
+///   (plans/host_as_platform_adapter.md, 4g7b2). The block stack itself the root is shown and
+///   asks of (`block_stack`).
 fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
     root.take_display_answers();
-    root.take_core_commands();
-    for (id, _) in root.take_secret_requests() {
-        root.answer_secret(id, None);
-    }
     for (id, _) in root.take_editor_asks() {
         root.answer_editor(id, Err(NO_BLOCK_STACK.to_owned()));
     }
