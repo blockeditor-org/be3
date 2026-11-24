@@ -216,6 +216,7 @@ impl AccountRecords {
                     for edit in &edits {
                         content.apply(edit);
                     }
+                    // One write: the `update_content` it falls back to carries the retries.
                     match self.peer.save(self.block, &content, None).await? {
                         Saved::Rejected { .. } => {
                             self.peer.update_content(self.block, &mut make).await?
