@@ -1832,20 +1832,36 @@ impl paintings::Guest for Root {
             Some(_) => self.session_notice.borrow().as_ref().and_then(painted),
             None => None,
         };
-        let painted = ScreenPaintings {
-            screens: own
-                .into_iter()
-                .chain(notice)
-                .chain(menu)
-                .chain(accounts)
-                .chain(statistics)
-                .chain(dialog)
-                .chain(toasts)
-                .chain(lock)
-                .collect(),
-            overflows: Vec::new(),
-        };
-        Box::pin(async move { painted.encode() })
+        let session = self.session_screen();
+        let mut screens: Vec<_> = own
+            .into_iter()
+            .chain(notice)
+            .chain(menu)
+            .chain(accounts)
+            .chain(statistics)
+            .chain(dialog)
+            .chain(toasts)
+            .chain(lock)
+            .collect();
+        Box::pin(async move {
+            // The session's editor's screen, as its app paints it, by the id of the layer that
+            // shows it.
+            if let Some((app, layer)) = session
+                && let Some(painted) = app.paintings().await
+                && let Ok(painted) = ScreenPaintings::decode(&painted)
+                && let Some((_, painting)) = painted
+                    .screens
+                    .into_iter()
+                    .find(|(screen, _)| *screen == SESSION_SCREEN.0)
+            {
+                screens.push((layer.0, painting));
+            }
+            ScreenPaintings {
+                screens,
+                overflows: Vec::new(),
+            }
+            .encode()
+        })
     }
 }
 

@@ -23,7 +23,7 @@ use crate::{LOADING_APP, NOT_OPENED_TITLE, SESSION_NOTICE_LAYER};
 
 /// The screen the root asks of the editor of the block its session shows: the window, under
 /// everything else it shows.
-const SESSION_SCREEN: ScreenId = ScreenId(1);
+pub(super) const SESSION_SCREEN: ScreenId = ScreenId(1);
 
 /// The editor of the block the session shows, as far as it got.
 pub(super) struct Session {
@@ -192,6 +192,21 @@ impl Root {
         let drawn = std::pin::pin!(app.frame(time));
         first(drawn, deadline).await;
         app.layer(SESSION_SCREEN, pos2(0.0, 0.0))
+    }
+
+    /// The session's editor's app while it runs, with the id of the layer showing its screen
+    /// once it painted it.
+    pub(super) fn session_screen(&self) -> Option<(Embedded, be_lib_layers::LayerId)> {
+        let session = self.session.borrow();
+        let Some(Session {
+            state: Showing::Running(hosted),
+            ..
+        }) = &*session
+        else {
+            return None;
+        };
+        let layer = hosted.app.layer(SESSION_SCREEN, pos2(0.0, 0.0))?;
+        Some((hosted.app.clone(), layer.id))
     }
 
     /// The session's notice over its editor, while it shows one: taking every press, for its

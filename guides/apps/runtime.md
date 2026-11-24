@@ -249,8 +249,10 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   them as it changes.
   A root, single-threaded as every guest is, starts no threads, and nothing
   it runs waits: it runs on the host's frame thread. The root's
-  `paintings` export answers what its own surfaces painted, in
-  beui-paint-format's `ScreenPaintings` keyed by surface id
+  `paintings` export answers what its surfaces painted, in
+  beui-paint-format's `ScreenPaintings`: its own keyed by surface id, and the
+  screens of the apps it embeds, which it asks them for (`Embedded::paintings`),
+  by the id of the layer showing each
   (`Root::ask_paintings`, answered with the next frame's steps as
   `Root::take_paintings`), for the host's tests. The root draws surfaces of
   its own as an app draws its screens, through `be3:gpu`'s surfaces on the
@@ -290,9 +292,11 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
   paint` asks the root for its paintings and places each where its layer
-  shows its surface (the app screens it embeds are not in the painting yet).
-  It runs none of the host's core (no data directory, block
-  stack, screen lock or OS services), so it is refused as a login session; a
+  shows it.
+  It runs the host's core (`HostCore`: its data directory, block stack,
+  accounts, session and the dev workspace), which fills `host.core` and serves
+  the editors of the session's view, but no screen lock or OS services, so it is
+  refused as a login session; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet: be-host's
   own UI stays the default until be-root passes the host tests that exercise it
   (plans/host_as_platform_adapter.md, 4g7). The host test
