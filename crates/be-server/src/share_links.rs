@@ -378,11 +378,15 @@ impl ServerStore {
                     ],
                 )?;
             }
-            if found.admits == Admits::One {
-                transaction.execute(
-                    "UPDATE share_links SET opened_by = ?2 WHERE id = ?1",
+            // The rule holds in the write itself, whatever ordered the opens.
+            if found.admits == Admits::One
+                && transaction.execute(
+                    "UPDATE share_links SET opened_by = ?2
+                     WHERE id = ?1 AND opened_by IN ('', ?2)",
                     params![link.to_string(), caller.to_string()],
-                )?;
+                )? == 0
+            {
+                return Err(refused("this link admitted someone already"));
             }
             crate::access::append_opened(
                 &transaction,
@@ -444,7 +448,9 @@ impl ServerStore {
             crate::blocks::require_manage(graph, &visibility(identity), block)?;
             let mut statement = database.prepare_cached(
                 "SELECT id, maker_id, access, admits, link_key, created,
-                        COALESCE((SELECT display_name FROM accounts WHERE id = maker_id), '')
+                        COALESCE((SELECT display_name FROM accounts WHERE id = maker_id), ''),
+                        opened_by,
+                        COALESCE((SELECT display_name FROM accounts WHERE id = opened_by), '')
                  FROM share_links WHERE organization_id = ?1 AND block_id = ?2
                  ORDER BY created DESC, id",
             )?;
@@ -459,12 +465,15 @@ impl ServerStore {
                         row.get::<_, Vec<u8>>(4)?,
                         row.get::<_, i64>(5)?,
                         row.get::<_, String>(6)?,
+                        row.get::<_, String>(7)?,
+                        row.get::<_, String>(8)?,
                     ))
                 },
             )?;
             let mut links = Vec::new();
             for row in rows {
-                let (id, maker, access, admits, key, created, maker_name) = row?;
+                let (id, maker, access, admits, key, created, maker_name, opened_by, opened_by_name) =
+                    row?;
                 links.push(ShareLinkRow {
                     id: crate::store::parse_uuid(&id)?,
                     access: decode_access(&access)?,
@@ -473,6 +482,11 @@ impl ServerStore {
                     maker_name,
                     created: created * 1000,
                     key: key.try_into().map_err(|_| ServerError::Corrupt)?,
+                    opened_by: match opened_by.as_str() {
+                        "" => None,
+                        account => Some(crate::store::parse_uuid(account)?),
+                    },
+                    opened_by_name,
                 });
             }
             Ok(links)

@@ -432,10 +432,17 @@ impl Share {
             (false, AccessLevel::Join) => "can join".to_owned(),
             (false, _) => "can view".to_owned(),
         };
-        match (link.maker == me.into_bytes(), link.maker_name.is_empty()) {
+        let made = match (link.maker == me.into_bytes(), link.maker_name.is_empty()) {
             (true, _) => format!("{who} {what}. Made by you."),
             (false, true) => format!("{who} {what}."),
             (false, false) => format!("{who} {what}. Made by {}.", link.maker_name),
+        };
+        // A link for one person says whether it was used, and by whom.
+        match (link.admits, link.opened_by.as_deref()) {
+            (LinkAdmits::One, None) => format!("{made} Not opened yet."),
+            (LinkAdmits::One, Some("")) => format!("{made} Used."),
+            (LinkAdmits::One, Some(name)) => format!("{made} Used by {name}."),
+            _ => made,
         }
     }
 
