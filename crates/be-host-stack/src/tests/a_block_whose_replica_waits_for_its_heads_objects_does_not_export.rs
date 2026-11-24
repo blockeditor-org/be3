@@ -24,7 +24,10 @@ fn a_block_whose_replica_waits_for_its_heads_objects_does_not_export() {
 
     harness.connect();
     wait_until("knew the block's head", |shared| {
-        shared.graph.get(block).is_some_and(|node| node.head.is_some())
+        shared
+            .graph
+            .get(block)
+            .is_some_and(|node| node.head.is_some())
     });
     // Its join is slow, so it opens on the head it knows, whose objects it asks the server for;
     // the server goes before it answers.

@@ -200,10 +200,9 @@ impl Player {
             Ok(Ok(event)) => event,
             // Events dropped unseen may have held what it waits for: no test should pass or
             // fail on a guess about them.
-            Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped))) => panic!(
-                "{} missed {skipped} events waiting for {what}",
-                self.name
-            ),
+            Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped))) => {
+                panic!("{} missed {skipped} events waiting for {what}", self.name)
+            }
             Ok(Err(error)) => panic!("{}'s events ended waiting for {what}: {error}", self.name),
             Err(_) => panic!("{} waited too long for {what}", self.name),
         }
