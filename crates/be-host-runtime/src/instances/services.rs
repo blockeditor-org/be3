@@ -774,6 +774,7 @@ impl Instances {
                                 url,
                                 maker: row.maker.into_bytes(),
                                 maker_name: row.maker_name,
+                                opened_by: row.opened_by.map(|_| row.opened_by_name),
                             })
                             .collect::<Vec<_>>()
                     }))

@@ -64,6 +64,9 @@ interface host-services {
         url: string,
         maker: account-id,
         maker-name: string,
+        /// For a link that admits one, the display name of the person it
+        /// admitted, once they opened it; none before.
+        opened-by: option<string>,
     }
 
     /// Who has access to a block, whether its organization is a company, and

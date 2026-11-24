@@ -98,6 +98,10 @@ interface contacts {
         created: s64,
         /// The key its record in the block's log names.
         key: public-key,
+        /// For a link that admits one, the account it admitted, once it
+        /// opened, and that account's display name.
+        opened-by: option<account-id>,
+        opened-by-name: string,
     }
 
     /// A link as the holder of its code reads it.

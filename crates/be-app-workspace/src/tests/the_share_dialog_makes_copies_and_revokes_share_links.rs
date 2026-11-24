@@ -65,6 +65,15 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
                             .to_owned(),
                         maker: me.into_bytes(),
                         maker_name: "Me".to_owned(),
+                        opened_by: None,
+                    }, ShareLink {
+                        id: Uuid::from_u128(0x12).to_string(),
+                        access: AccessLevel::Edit,
+                        admits: LinkAdmits::One,
+                        url: String::new(),
+                        maker: me.into_bytes(),
+                        maker_name: "Me".to_owned(),
+                        opened_by: Some("Bea".to_owned()),
                     }]),
                 );
             }
@@ -138,6 +147,10 @@ fn the_share_dialog_makes_copies_and_revokes_share_links() {
     assert!(
         fixture.says("Anyone in the organization with the link can view. Made by you."),
         "a link says whom it admits and what it grants"
+    );
+    assert!(
+        fixture.says("The first person to open the link can edit. Made by you. Used by Bea."),
+        "an invitation's link says who used it"
     );
     assert!(
         fixture.says("Can view, through a share link"),
