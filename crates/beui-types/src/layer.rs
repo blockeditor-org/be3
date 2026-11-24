@@ -209,6 +209,20 @@ impl Placement {
         }
     }
 
+    /// Whether it sits inside its anchor, at one of its edges (toasts, `Floating`): it gets
+    /// the anchor's part of the window as its room.
+    pub fn inside(self) -> bool {
+        matches!(
+            self,
+            Placement::InsideTop
+                | Placement::InsideTopStart
+                | Placement::InsideTopEnd
+                | Placement::InsideBottom
+                | Placement::InsideBottomStart
+                | Placement::InsideBottomEnd
+        )
+    }
+
     /// Whether an overlay with this placement leaves its window when the window has a
     /// `LayerSpace`: anchored placements, `Center` and `Edge` sheets do; `At` (windows),
     /// `Fill` and the `Inside*` placements (toasts, `Floating`) stay. An escaping `Center`

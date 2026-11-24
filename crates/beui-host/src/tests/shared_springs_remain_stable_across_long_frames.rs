@@ -5,7 +5,7 @@ fn shared_springs_remain_stable_across_long_frames() {
     for spring in [
         Spring {
             stiffness: 180.0,
-            damping: 24.0,
+            damping: 26.832_815,
         },
         Spring {
             stiffness: 400.0,

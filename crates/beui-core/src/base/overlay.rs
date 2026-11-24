@@ -321,15 +321,7 @@ impl OverlayNode {
             _ => area,
         };
         let anchor_rect = self.inner(window_anchor);
-        let inside = matches!(
-            self.placement,
-            Placement::InsideTop
-                | Placement::InsideTopStart
-                | Placement::InsideTopEnd
-                | Placement::InsideBottom
-                | Placement::InsideBottomStart
-                | Placement::InsideBottomEnd
-        );
+        let inside = self.placement.inside();
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
             (false, Placement::Beside { .. }) => {

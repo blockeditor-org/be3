@@ -34,8 +34,8 @@ fn a_window_over_a_tab_docked_on_the_desktop_draws_above_it() {
     host.gone(DOCKED);
     host.run(&["settle"]);
     // The panes glide into the layout the drop made on the stopped clock: the settle
-    // spring (stiffness 500, damping 42) brings a 600-point move within a quarter point in
-    // about 0.37 s, so a second is two and a half times that.
+    // spring (stiffness 500, critically damped) brings a 600-point move within a quarter point
+    // in about 0.45 s, so a second is twice that and more.
     host.pause(1000);
 
     let docked = innermost(&mut host, 12.0, 600.0);
