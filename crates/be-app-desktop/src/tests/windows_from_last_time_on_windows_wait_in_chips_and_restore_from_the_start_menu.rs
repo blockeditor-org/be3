@@ -1,10 +1,12 @@
 use super::*;
 
 /// A Windows program's window, as the Windows host lists it: opened hidden, since showing one
-/// captures it, and launched outside the desktop, so its program id is all that names its program.
-fn windows_window(id: u64, program_id: &str, title: &str) -> TestWindow {
+/// captures it, and launched outside the desktop, so its program id is all that names its program
+/// to the shell; the host names it after its Start menu shortcut (`win32_map::ProgramNames`).
+fn windows_window(id: u64, program_id: &str, name: &str, title: &str) -> TestWindow {
     TestWindow {
         opens_hidden: true,
+        name: name.to_owned(),
         ..program_window(id, program_id, title, WindowOrigin::default())
     }
 }
@@ -47,10 +49,16 @@ fn windows_from_last_time_on_windows_wait_in_chips_and_restore_from_the_start_me
     let mut before = Fixture::new();
     before.settle();
     before.show_windows(&[
-        windows_window(3, "C:\\Windows\\System32\\mspaint.exe", "Untitled - Paint"),
+        windows_window(
+            3,
+            "C:\\Windows\\System32\\mspaint.exe",
+            "Paint",
+            "Untitled - Paint",
+        ),
         windows_window(
             4,
             "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+            "Calculator",
             "Calculator",
         ),
     ]);
