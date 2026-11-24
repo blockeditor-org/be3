@@ -532,7 +532,9 @@ pub fn Dialog(
     let in_card = create_memo(move || (!sheeted.get()).then(|| built.get()).flatten());
     let pointer = NodeRef::new();
     // The body is built each time the dialog opens, and dropped once it is closed and no
-    // surface shows it any more (each counts itself in `showing` while it does).
+    // surface shows it any more (each counts itself in `showing` while it does). Reopened
+    // while its close still lingers, it builds a fresh body and drops the leaving one, so it
+    // never shows what was left in the last.
     let showing = create_signal(0_usize);
     let held = store(std::cell::RefCell::new(None::<Scope>));
     let was_open = std::cell::Cell::new(false);
