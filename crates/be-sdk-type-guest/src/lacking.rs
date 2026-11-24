@@ -77,6 +77,16 @@ pub(crate) enum EditorAsk {
     Append { editor: EditorId, token: u64 },
 }
 
+impl EditorAsk {
+    pub(crate) fn editor(self) -> EditorId {
+        match self {
+            Self::LogRead { editor, .. }
+            | Self::PartPut { editor, .. }
+            | Self::Append { editor, .. } => editor,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct Lacking {
     entries: Vec<Entry>,
