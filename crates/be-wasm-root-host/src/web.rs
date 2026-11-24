@@ -323,6 +323,12 @@ impl Root {
         }
     }
 
+    /// Why the apps the root spawned have yet to finish with frames they were sent: a step on
+    /// them in flight, or what they sent back that the root has yet to take in a frame.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        self.shared.core.borrow().unsettled()
+    }
+
     /// The children the root showed of the editors the host opened since the last call
     /// (`host.show-children`), the latest of each editor's view.
     pub fn take_shown_children(&self) -> Vec<crate::ShownChildren> {

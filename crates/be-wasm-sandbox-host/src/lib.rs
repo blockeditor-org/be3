@@ -243,6 +243,22 @@ impl Server {
         }
     }
 
+    /// Why an instance the guest spawned has yet to finish with what it was sent: it works on
+    /// frames sent to it (`Instance::unsettled`), or sent frames the guest has yet to take. A
+    /// host waiting for its guest to settle waits for these, since what the instance sends back
+    /// (an app asking for a frame for content it was sent) is the guest's to act on.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        self.instances
+            .values()
+            .find_map(|served| match &served.instance {
+                Ok(instance) => instance.unsettled().or_else(|| {
+                    (!served.received.is_empty())
+                        .then_some("an instance sent frames the guest has yet to take")
+                }),
+                Err(_) => None,
+            })
+    }
+
     /// Stops the instance the guest spawned with the op `instance` for `why`, as one that broke
     /// what its host asks of it: what it sent and had not been taken is dropped, and the guest
     /// hears it stopped from its `next` (`poll`).
