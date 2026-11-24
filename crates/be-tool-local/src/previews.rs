@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use be_tool_paint_review_manifest::{Frame, IMAGE_EXTENSION, Manifest, Painting, Picture, Status};
 use beui_html::{render_fragment, view};
-use beui_paint_snapshot::{BrowserSnapshot, Snapshot};
+use beui_paint_snapshot::Painting as Paint;
 use sha2::{Digest as _, Sha256};
 
 use crate::{git_bytes, hex};
@@ -78,7 +78,7 @@ pub fn generate(
             (Some(Ok(_)), None) => (Status::Removed, String::new()),
             (Some(Ok(old)), Some(Ok(new))) => match old.difference(new) {
                 None => continue,
-                Some(difference) => (Status::Changed, difference),
+                Some(difference) => (Status::Changed, difference.description),
             },
         };
         let shown = match detail.as_str() {
@@ -233,20 +233,21 @@ fn described(status: Status) -> &'static str {
 }
 
 fn differing_frames(
-    old: Option<&ReviewSnapshot>,
-    new: Option<&ReviewSnapshot>,
+    old: Option<&Paint>,
+    new: Option<&Paint>,
     output: &Path,
     drawn: &mut usize,
     omitted: &mut usize,
     browser_renderer: Option<&Path>,
 ) -> Result<Vec<Frame>, String> {
     let count =
-        |snapshot: Option<&ReviewSnapshot>| snapshot.map_or(0, |snapshot| snapshot.frame_count());
+        |snapshot: Option<&Paint>| snapshot.map_or(0, |snapshot| snapshot.frames());
     let frames = count(old).max(count(new));
+    let renderer = || browser_renderer.map(|built| crate::browser::renderer(Some(built)));
     let mut listed = Vec::new();
     for index in 0..frames {
-        let old_frame = old.filter(|snapshot| index < snapshot.frame_count());
-        let new_frame = new.filter(|snapshot| index < snapshot.frame_count());
+        let old_frame = old.filter(|snapshot| index < snapshot.frames());
+        let new_frame = new.filter(|snapshot| index < snapshot.frames());
         if matches!((old_frame, new_frame), (Some(old), Some(new)) if old.same_frame(new, index)) {
             continue;
         }
@@ -256,10 +257,10 @@ fn differing_frames(
         }
         *drawn += 1;
         let old_image = old_frame
-            .map(|snapshot| snapshot.render(index, output, browser_renderer))
+            .map(|snapshot| snapshot.render(index, renderer().as_mut()))
             .transpose()?;
         let new_image = new_frame
-            .map(|snapshot| snapshot.render(index, output, browser_renderer))
+            .map(|snapshot| snapshot.render(index, renderer().as_mut()))
             .transpose()?;
         let (changes, changed_pixels) = match (&old_image, &new_image) {
             (Some(old), Some(new)) => {
@@ -285,7 +286,7 @@ fn differing_frames(
             changed_pixels,
         };
         let mut line = format!("  frame {}:", frame.number);
-        if let (Some(ReviewSnapshot::Native(old)), Some(ReviewSnapshot::Native(new))) =
+        if let (Some(Paint::Native(old)), Some(Paint::Native(new))) =
             (old_frame, new_frame)
             && old.frames.len() > 1
         {
@@ -349,64 +350,6 @@ fn copy_site(site: &Path, output: &Path) -> Result<String, String> {
             .map_err(|error| format!("could not write {}: {error}", path.display()))?;
     }
     Ok(hash)
-}
-
-enum ReviewSnapshot {
-    Native(Snapshot),
-    Browser(BrowserSnapshot, PathBuf),
-}
-
-impl ReviewSnapshot {
-    fn frame_count(&self) -> usize {
-        match self {
-            Self::Native(snapshot) => snapshot.frames.len(),
-            Self::Browser(..) => 1,
-        }
-    }
-
-    fn same_frame(&self, other: &Self, index: usize) -> bool {
-        match (self, other) {
-            (Self::Native(old), Self::Native(new)) => {
-                old.frames.get(index) == new.frames.get(index)
-            }
-            (Self::Browser(old, _), Self::Browser(new, _)) => old == new,
-            _ => false,
-        }
-    }
-
-    fn difference(&self, other: &Self) -> Option<String> {
-        match (self, other) {
-            (Self::Native(old), Self::Native(new)) => {
-                beui_paint_snapshot::difference(old, new).map(|difference| difference.description)
-            }
-            (Self::Browser(old, _), Self::Browser(new, _)) if old == new => None,
-            (Self::Browser(..), Self::Browser(..)) => {
-                Some("browser document, viewport or embedded files changed".into())
-            }
-            _ => Some("painting format changed".into()),
-        }
-    }
-
-    fn render(
-        &self,
-        index: usize,
-        output: &Path,
-        renderer: Option<&Path>,
-    ) -> Result<image::RgbaImage, String> {
-        match self {
-            Self::Native(snapshot) => beui_paint_snapshot::render(snapshot, index),
-            Self::Browser(_, path) => {
-                let png = output.join("browser-render.png");
-                let renderer = renderer.ok_or("the browser preview rasterizer was not built")?;
-                crate::browser::rasterize(path, &png, Some(renderer))?;
-                let result = image::open(&png)
-                    .map(|image| image.to_rgba8())
-                    .map_err(|error| error.to_string());
-                let _ = std::fs::remove_file(png);
-                result
-            }
-        }
-    }
 }
 
 fn changed_pixels(frame: &Frame) -> u64 {
@@ -483,14 +426,8 @@ fn paintings(directory: &Path) -> Vec<String> {
         .collect()
 }
 
-fn read(path: &Path) -> Option<Result<ReviewSnapshot, String>> {
-    let bytes = std::fs::read(path).ok()?;
-    Some(if BrowserSnapshot::is_browser(&bytes) {
-        BrowserSnapshot::decode(&bytes)
-            .map(|snapshot| ReviewSnapshot::Browser(snapshot, path.to_owned()))
-    } else {
-        Snapshot::decode(&bytes).map(ReviewSnapshot::Native)
-    })
+fn read(path: &Path) -> Option<Result<Paint, String>> {
+    Some(Paint::decode(&std::fs::read(path).ok()?))
 }
 
 fn escaped(text: &str) -> String {
