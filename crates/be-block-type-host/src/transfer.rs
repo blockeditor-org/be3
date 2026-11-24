@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::pin::Pin;
 
 use be_block_client::transfer::SavedBlock;
 use be_block_client::{ClientError, Peer};
@@ -21,8 +22,11 @@ pub trait Open {
     fn modules(&mut self) -> &mut Modules;
 
     /// `block`'s content as a replica held open has it; none when no replica of it is open
-    /// (or it did not answer), and the block is read as stored.
-    fn content(&mut self, block: Uuid) -> impl Future<Output = Option<Vec<u8>>>;
+    /// (or it did not answer), and the block is read as stored. A boxed future, not an
+    /// `impl Future`: with the opaque type in `collect`'s future, rustc 1.98 fails to lay that
+    /// future out on be-host's wasi build (an internal error in its drop glue), depending on
+    /// what else be-host holds.
+    fn content(&mut self, block: Uuid) -> Pin<Box<dyn Future<Output = Option<Vec<u8>>> + '_>>;
 
     /// Whether `block`'s replica waits for its head's objects (`Replicas::not_yet`): its export
     /// fails at once rather than read what is stored.
@@ -37,8 +41,8 @@ impl Open for Modules {
         self
     }
 
-    async fn content(&mut self, _: Uuid) -> Option<Vec<u8>> {
-        None
+    fn content(&mut self, _: Uuid) -> Pin<Box<dyn Future<Output = Option<Vec<u8>>> + '_>> {
+        Box::pin(std::future::ready(None))
     }
 
     fn not_yet(&self, _: Uuid) -> bool {
@@ -162,9 +166,7 @@ pub async fn collect<S: ObjectStore>(
             false => Vec::new(),
         };
         // Not asked at all when not to be had, and checked again after, as it may find out only
-        // as it is asked. Kept as one check after the await: returning before it makes rustc
-        // 1.98 fail (an internal error, drop glue of this function's body) on be-host's wasi
-        // build.
+        // as it is asked.
         let content = match open.not_yet(summary.id) {
             true => None,
             false => open.content(summary.id).await,

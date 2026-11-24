@@ -4931,11 +4931,16 @@ impl be_block_type_host::transfer::Open for Exporting<'_> {
         &mut self.replicas.modules
     }
 
-    async fn content(&mut self, block: Uuid) -> Option<Vec<u8>> {
-        match self.replicas.is_open(block) {
-            true => self.replicas.content((self.peer, self.shared), block).await,
-            false => None,
-        }
+    fn content(
+        &mut self,
+        block: Uuid,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Vec<u8>>> + '_>> {
+        Box::pin(async move {
+            match self.replicas.is_open(block) {
+                true => self.replicas.content((self.peer, self.shared), block).await,
+                false => None,
+            }
+        })
     }
 
     fn not_yet(&self, block: Uuid) -> bool {
