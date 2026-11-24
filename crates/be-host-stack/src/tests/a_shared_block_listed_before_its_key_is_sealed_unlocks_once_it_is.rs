@@ -3,8 +3,7 @@ use be_type_workspace::WorkspaceContent;
 
 use be_type_text::{TextBlock, TextContent};
 
-/// A grant reaches this account before the key it needs (as `Peer::share` sends them, or a
-/// pending grant sealed later): the block shows locked, listed and opened, then opens as the
+/// A grant reaches this account before the key it needs (as `Peer::share` sends them): the block shows locked, listed and opened, then opens as the
 /// key is sealed to it.
 #[test]
 fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {

@@ -84,7 +84,6 @@ mod a_connection_asked_to_close_is_closed_to_everyone_at_once;
 mod a_connection_outlives_a_stall_of_this_process;
 mod a_contact_connected_again_by_a_new_link_outranks_every_devices_pin;
 mod a_contact_is_named_by_the_card_it_verified_not_the_servers_row;
-mod a_contact_link_revoked_before_it_is_finished_grants_nothing;
 mod a_contact_made_on_one_device_is_read_by_another_from_the_accounts_block;
 mod a_contact_taken_and_removed_in_one_pass_stays_removed_whatever_is_replayed;
 mod a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_above;
@@ -142,7 +141,6 @@ mod a_kind_opened_then_closed_is_sealed_to_no_contact;
 mod a_large_block_saved_after_a_small_change_uploads_only_what_changed;
 mod a_large_image_is_read_by_span_without_downloading_all_of_it;
 mod a_link_accepted_after_the_server_serves_an_older_contact_record_outranks_this_devices_pin;
-mod a_link_carrying_access_is_refused_where_nothing_is_shared_outside;
 mod a_listed_block_this_device_may_no_longer_know_of_is_left_out_offline;
 mod a_listing_answered_before_a_creation_sent_meanwhile_keeps_the_block;
 mod a_listing_answered_before_a_refused_move_keeps_the_block_where_it_is;
@@ -251,7 +249,6 @@ mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
 mod edits_sealed_offline_are_published_when_the_device_reconnects;
 mod edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns;
-mod finishing_a_contact_link_again_does_not_undo_a_revocation;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_it_arrives;
 mod kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent;
@@ -848,8 +845,7 @@ async fn befriend(maker: &Peer<MemoryStore>, accepter: &Peer<MemoryStore>) {
             "Maker",
             "maker@example.com",
         ),
-        None,
-    )
+)
     .await
     .unwrap();
     crate::contacts::accept_link(

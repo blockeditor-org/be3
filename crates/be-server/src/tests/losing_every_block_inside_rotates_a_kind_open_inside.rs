@@ -47,7 +47,7 @@ async fn losing_every_block_inside_rotates_a_kind_open_inside() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

@@ -10,7 +10,7 @@ async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
 
     let shared = owner.create_block(BlockParent::Root).await;

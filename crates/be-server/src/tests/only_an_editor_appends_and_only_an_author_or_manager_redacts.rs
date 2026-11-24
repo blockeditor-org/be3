@@ -16,7 +16,7 @@ async fn only_an_editor_appends_and_only_an_author_or_manager_redacts() {
     let viewer_id = viewer.id();
     viewer.personal().await;
     for (guest, id) in [(&mut editor, editor_id), (&mut viewer, viewer_id)] {
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let _ = guest.accept(link, &[]).await;
         let _ = id;
     }

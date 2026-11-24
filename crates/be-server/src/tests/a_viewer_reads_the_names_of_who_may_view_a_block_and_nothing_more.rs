@@ -16,7 +16,7 @@ async fn a_viewer_reads_the_names_of_who_may_view_a_block_and_nothing_more() {
     let mut outsider = harness.member("outsider@example.com").await;
     outsider.personal().await;
     for invited in [&mut viewer, &mut knower] {
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let _ = invited.accept(link, &[]).await;
     }
     let chat = owner.create_block(BlockParent::Root).await;

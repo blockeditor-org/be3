@@ -21,7 +21,7 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
     );
     let link = Uuid::new_v4();
     let made = editor
-        .create_link(link, be_block_protocol::LinkKind::Contact(None), None)
+        .create_link(link, be_block_protocol::LinkKind::Contact, None)
         .await;
     assert!(
         matches!(made, Ok(())),

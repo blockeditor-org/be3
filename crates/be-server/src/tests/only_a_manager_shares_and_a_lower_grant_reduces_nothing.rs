@@ -12,11 +12,11 @@ async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
     let mut third = harness.member("third@example.com").await;
     let third_id = third.id();
     third.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = third.accept(link, &[]).await;
-    let link = editor.link(None).await;
+    let link = editor.link().await;
     let _ = third.accept(link, &[]).await;
     let workspace = owner.create_block(BlockParent::Root).await;
     let folder = owner.create_block(BlockParent::Block(workspace)).await;

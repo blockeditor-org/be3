@@ -47,7 +47,7 @@ async fn closing_a_kind_rotates_it_for_who_read_it_inside() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;

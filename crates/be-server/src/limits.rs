@@ -62,7 +62,7 @@ pub const KEY_PAGE_BYTES: usize = MAX_FRAME_BYTES / 2;
 /// The bytes of summaries one `query.list` page holds; its ids take half that more.
 pub const LISTING_PAGE_BYTES: usize = MAX_FRAME_BYTES / 8;
 /// A sealed blob the server keeps for a client: contact cards and their sealed copies, invitation
-/// payloads, pinned escrows, pending grants.
+/// payloads, pinned escrows.
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;
 /// Accounts named in one `query.signing-keys`: more than a chat shows at once.
 pub const MAX_SIGNING_KEYS_ASKED: usize = 1_024;

@@ -3674,7 +3674,7 @@ async fn contact(
     match command {
         ContactCommand::Link { offer, reply } => {
             // With an offer, an invitation: a contact link and a share link admitting the first
-            // to open it, with one code (plans/invitations_without_pending_grants.md).
+            // to open it, with one code (guides/blocks/keys.md, "An invitation").
             let made = match offer {
                 Some((block, access)) => peer.make_invitation(&me, block, access).await,
                 None => {
@@ -3682,8 +3682,7 @@ async fn contact(
                         &peer.connection(),
                         identity,
                         &me,
-                        None,
-                    )
+)
                     .await
                 }
             };

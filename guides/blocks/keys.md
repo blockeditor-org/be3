@@ -143,8 +143,8 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   reopened meanwhile is dropped, since the reopening gave its edits again: its
   reply answers `Unanswered`, which the reopened replica ignores as from an
   earlier opening. So a grant may reach
-  a device before its key: a share's seal, a pending grant sealed later, or a
-  seal key work asks of another editor all unlock it.
+  a device before its key: a share's seal, a key a share link's opener seals to
+  itself, or a seal key work asks of another editor all unlock it.
 - **Moving and sharing.** `Peer::set_parent` into another scope rewraps the
   moved DEKs (old epochs too) under the destination KEK, gives each block a
   fresh DEK and rewraps scope roots inside, all in one write, `[move,
@@ -1212,9 +1212,9 @@ keys the granter verified that way, which every device then seals to.
   marked as not confirmed, and nothing is sealed to it.
 - **Links** are one family (`contacts.wit`): a card sealed with the code, a
   lookup id derived from it, and an accept that makes the two accounts
-  contacts. Its `link-kind` says what else accepting does: a `contact` link may
-  carry a pending grant (below); an `invitation` joins its organization as
-  an editor. Any account makes a contact link; only an administrator of the
+  contacts. Its `link-kind` says what else accepting does: a `contact` link
+  nothing (an invitation to a block carries a share link instead, below); an
+  `invitation` joins its organization as an editor. Any account makes a contact link; only an administrator of the
   organization makes an invitation (`rule` splits `create-link` on the kind),
   and any account opens and accepts it. No call lists an account's links: its
   block keeps their codes, and `delete-link` revokes one, or finishes one
@@ -1227,18 +1227,11 @@ keys the granter verified that way, which every device then seals to.
   maker's mailbox (`letter.accepted`) and the accepter's record of the maker in
   the accepter's (`letter.contact`), and tells both; the maker's device then
   opens the card with the code it holds, keeps its record in the account's
-  block (`through` the letter), signs a contact
-  link's pending grant into the block's log (only while that log names the
-  accepter nowhere, so finishing again never undoes a later revocation), and
-  only then deletes the
+  block (`through` the letter), and only then deletes the
   link and the message in one write, so a device that stops halfway finishes
-  it again (`finish_links`, on connect and `MailboxChanged`).
-- **A pending grant**: a link may carry a block, an access level and the
-  block's scope key sealed with the code (`Peer::offer`). Accepting applies the
-  grant at once, so a share works while the maker is offline; finishing
-  reseals the scope (`Peer::seal_share`). A grant to a contact whose key the
-  granter has not verified yet works on the server at once and is sealed later
-  through `unsealed`.
+  it again (`finish_links`, on connect and `MailboxChanged`). The server applies
+  no grant for a link: access comes by a share, or by a share link its opener
+  signs (an invitation, below).
 - `RemoveContact` deletes both rows, what each left the other and the links
   between them, leaves each a `letter.removed`, and revokes each one's grants on
   blocks the other may edit, in every shared organization. Contacts are per account,
@@ -1262,7 +1255,7 @@ will seal with: keys sealed to an account are sender-authenticated and taken
 only from verified contacts, or from members the organization's log names
 (their keys as it names them) whom the block's log grants Edit or above; a contact's key changes only by a change sealed
 with the verified key or a newer record of the account's own, never back to
-an older one, and a contact's name is the one it verified; cards, codes, pending grants and invitation escrow keys
+an older one, and a contact's name is the one it verified; cards, codes and invitation escrow keys
 are sealed with codes it never sees; a device wraps only under keys it trusts;
 escrow keys are used only when pinned or signed down from a pinned one. It
 cannot sign as a contact: a contact's signing key comes from its card or a key

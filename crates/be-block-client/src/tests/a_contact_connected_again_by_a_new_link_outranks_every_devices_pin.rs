@@ -52,8 +52,7 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
             "Rosa",
             "rosa@example.com",
         ),
-        None,
-    )
+)
     .await
     .unwrap();
     let behind = harness.second(&ahead).await;

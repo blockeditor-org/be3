@@ -9,7 +9,7 @@ async fn a_move_never_takes_a_workspace_or_more_access_without_manage() {
     let mut editor = harness.member("editor@example.com").await;
     let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
     let workspace = owner.create_block(BlockParent::Root).await;
     let document = owner.create_block(BlockParent::Block(workspace)).await;

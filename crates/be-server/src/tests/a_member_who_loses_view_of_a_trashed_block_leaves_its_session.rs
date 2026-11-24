@@ -10,7 +10,7 @@ async fn a_member_who_loses_view_of_a_trashed_block_leaves_its_session() {
     let mut guest = harness.member("guest@example.com").await;
     let guest_id = guest.id();
     guest.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = guest.accept(link, &[]).await;
 
     let shared = owner.create_block(BlockParent::Root).await;

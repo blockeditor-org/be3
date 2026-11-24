@@ -16,7 +16,7 @@ async fn a_join_member_is_served_nothing_a_viewer_is() {
     let (viewer_id, player_id) = (viewer.id(), player.id());
     for other in [&mut viewer, &mut player] {
         other.personal().await;
-        let link = owner.link(None).await;
+        let link = owner.link().await;
         let accepted = other.accept(link, &[]).await;
         assert!(accepted.is_ok(), "{accepted:?}");
     }

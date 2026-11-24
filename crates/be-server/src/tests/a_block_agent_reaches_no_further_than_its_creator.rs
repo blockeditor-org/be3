@@ -9,7 +9,7 @@ async fn a_block_agent_reaches_no_further_than_its_creator() {
     let mut bob = harness.member("bob@example.com").await;
     let bob_id = bob.id();
     bob.personal().await;
-    let link = alice.link(None).await;
+    let link = alice.link().await;
     let _ = bob.accept(link, &[]).await;
     let block = alice.create_block(BlockParent::Root).await;
 

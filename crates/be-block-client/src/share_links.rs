@@ -351,7 +351,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(code)
     }
 
-    /// An invitation to one new person (plans/invitations_without_pending_grants.md): a share
+    /// An invitation to one new person (guides/blocks/keys.md, "An invitation"): a share
     /// link on `block` at `access` that admits the first to open it, and a plain contact link,
     /// both with one code, which is all the person is sent. Opening it makes the contact, then
     /// opens the share link, as each does alone. Answers the code; the invitation is the
@@ -370,7 +370,6 @@ impl<S: ObjectStore> Peer<S> {
             &self.connection(),
             self.keys().identity(),
             me,
-            None,
             &code,
         )
         .await?;
