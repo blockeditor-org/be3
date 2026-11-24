@@ -348,6 +348,7 @@ impl EditorRegistry {
             .find(|registered| registered.id == editor && registered.edits(opened))
     }
 
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     /// The app and editor that `open_with` opens `opened` in, given the editor asked for:
     /// that one if it edits it, else its type's default. None when no app edits it.
     pub(crate) fn editor_app(

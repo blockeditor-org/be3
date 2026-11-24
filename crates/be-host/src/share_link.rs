@@ -235,6 +235,7 @@ fn offered(preview: &SharePreview) -> String {
 }
 
 /// What a root guest is shown (`be3:root`'s `core-view`; root/block_stack.rs).
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 impl ShareLinks {
     /// The share link opened as a root shows it, whether or not the host's own dialog is open:
     /// the block's name as its maker gave it, which the root shows as plain text alone.

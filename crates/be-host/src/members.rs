@@ -128,6 +128,7 @@ impl Members {
 }
 
 /// What a root guest is shown (`be3:root`'s `core-view`; root/block_stack.rs).
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 impl Members {
     /// The organization's members as a root shows them, `me` the person's own account:
     /// listed once `show` asked and the server answered.

@@ -187,7 +187,9 @@ impl Contacts {
                 self.connected = Some(card);
                 return Some(code);
             }
-            Reply::Opened(_, Err(error)) | Reply::Accepted(_, Err(error)) => self.error = Some(error),
+            Reply::Opened(_, Err(error)) | Reply::Accepted(_, Err(error)) => {
+                self.error = Some(error)
+            }
         }
         None
     }
@@ -238,6 +240,7 @@ impl Contacts {
 
 /// What a root guest is shown and handed (`be3:root`'s `core-view` and `make-secret`;
 /// root/block_stack.rs).
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 impl Contacts {
     /// The person's contacts and the link opened as a root shows them, whether or not the
     /// host's own dialog is open.

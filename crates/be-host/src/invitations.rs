@@ -181,6 +181,7 @@ fn row(invite: &Invite) -> InvitationRow {
 
 /// What a root guest is shown and handed (`be3:root`'s `core-view` and `make-secret`;
 /// root/block_stack.rs).
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 impl Invitations {
     /// The organization's invitations as a root shows them: listed once `show` asked and the
     /// server answered.
@@ -239,6 +240,7 @@ impl Invitations {
 }
 
 /// An invitation's link, for one of the person's own still open.
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 fn open_link(invite: &Invite) -> Option<String> {
     matches!(
         invite.state,
