@@ -41,6 +41,8 @@ Landed on 2026-11-24:
 - `one-way-in-apps-4`: worker messages are typed, and a shared worker's jobs carry tickets so each answer goes to the job it answers (extras dropped).
 - `kept-content-1-3b`: a kept subtree reads its showing Kept's context; overlays and context menus build their body on each open and drop it once gone; Scroll settles a fling or release on its nearest snap stop; an HTML overlay dropped while shown gives the focus back.
 - `counter-seal-flake-2`: every installed host waker is woken; a replica that gains the lease takes a head it heard of while not the holder. (Verify: keep_hosting_outlives_the_editor_until_stop fails on mega too; a_block_just_made_in_a_folder_lists_the_folder_among_its_backrefs flakes ~9% under load on mega too.)
+- `one-way-in-apps-5`: one block-tree walk for the files pane and the block picker (block_tree); a folder's rows get the files pane's row menu (block_menu; can_move_out_of takes a block-type lookup); plans/one_way_in_apps.md done.
+- `host-adapter-4g7b2`: be-host runs its core under --root and serves the root's editors through Forwarded; be-root shows the session's editor full-window and the signed-in block stack; a root's paintings carry its apps' screens; an agent made for a root that stopped waiting is removed; root views compile only where --root does.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
