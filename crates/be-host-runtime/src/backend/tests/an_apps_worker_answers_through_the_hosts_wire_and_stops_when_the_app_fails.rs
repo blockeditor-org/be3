@@ -26,7 +26,10 @@ const MANIFEST: &str = r#"{"id": "be3.echo", "name": "Echo", "version": "0.1.0",
 
 /// Stages the echo app and its worker as be-tool-buck stages them, in a directory of their own
 /// that discovery reads the staged files from while the answer's guard is held.
-fn stage() -> (std::path::PathBuf, be_host_stack::discovery::AssetsForTesting) {
+fn stage() -> (
+    std::path::PathBuf,
+    be_host_stack::discovery::AssetsForTesting,
+) {
     let bundle = std::env::temp_dir().join(format!("be3-worker-bundle-{}", std::process::id()));
     let workers = bundle.join("workers/be3.echo");
     std::fs::create_dir_all(&workers).unwrap();

@@ -11,10 +11,16 @@ fn every_installed_waker_is_woken() {
     let first = Mutex::new(first);
     let second = Mutex::new(second);
     install_waker(move || {
-        let _ = first.lock().unwrap_or_else(PoisonError::into_inner).send(());
+        let _ = first
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .send(());
     });
     install_waker(move || {
-        let _ = second.lock().unwrap_or_else(PoisonError::into_inner).send(());
+        let _ = second
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .send(());
     });
     wake();
     assert_eq!(woke_first.try_recv(), Ok(()));

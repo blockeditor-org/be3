@@ -21,10 +21,18 @@ fn a_replica_that_gains_the_lease_takes_a_head_it_heard_of_before() {
     sim.quiet = false;
     sim.with_replica(1, |replica, host| replica.head_moved(host, head));
     sim.settle();
-    assert_eq!(count(&sim.content(1)), 0, "a replica without the lease leaves the head");
+    assert_eq!(
+        count(&sim.content(1)),
+        0,
+        "a replica without the lease leaves the head"
+    );
 
     sim.claim(1);
     sim.settle();
     assert!(sim.devices[1].status.holder);
-    assert_eq!(count(&sim.content(1)), 5, "the new holder took the head it heard of");
+    assert_eq!(
+        count(&sim.content(1)),
+        5,
+        "the new holder took the head it heard of"
+    );
 }
