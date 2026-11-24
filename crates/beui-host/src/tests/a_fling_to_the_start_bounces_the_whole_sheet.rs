@@ -19,7 +19,7 @@ fn a_fling_to_the_start_bounces_the_whole_sheet() {
         harness.frame(Vec::new());
         if harness.rect(handle).top() > top + 1.0 {
             bounced = true;
-            assert_eq!(harness.document().scroll_offset(sheet), 0.0);
+            assert_eq!(sheet_scrolled(&harness, sheet), 0.0);
             assert_eq!(harness.document().scroll_overscroll(sheet), 0.0);
             break;
         }

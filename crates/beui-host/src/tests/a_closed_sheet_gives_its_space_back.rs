@@ -22,8 +22,8 @@ fn a_closed_sheet_gives_its_space_back() {
     harness.settle();
     assert_eq!(
         harness.rect(filler.get()).height(),
-        300.0,
-        "an open sheet takes its share"
+        60.0,
+        "an open sheet takes the room of its highest stop"
     );
 
     open.set(false);

@@ -197,6 +197,8 @@ struct Momentum {
     snaps: Vec<f32>,
     /// The snap stop being settled on.
     snap: Option<f32>,
+    /// A stop a coast chose on its own, to tell `on_snap`.
+    reached: Option<f32>,
 }
 
 impl Momentum {
@@ -211,6 +213,7 @@ impl Momentum {
             autoscroll: 0.0,
             snaps: Vec::new(),
             snap: None,
+            reached: None,
         }
     }
 
@@ -337,6 +340,8 @@ impl Momentum {
             return;
         }
         if let Some(stop) = self.snap {
+            // Within what it can reach now: content still being measured moves it.
+            let stop = stop.clamp(0.0, position.max_offset());
             let mut distance = position.offset - stop;
             spring_back(&mut distance, &mut self.velocity, elapsed, self.rubber);
             if distance.abs() < SNAP_SLACK && self.velocity.abs() < MINIMUM_VELOCITY {
@@ -353,10 +358,24 @@ impl Momentum {
             self.velocity = 0.0;
             return;
         };
+        let from = position.offset;
         let raw = position.offset + fling.advance(elapsed);
         self.velocity = fling.velocity();
         if fling.done() {
             self.fling = None;
+        }
+        // A free coast coming back below the last stop settles on a stop from there.
+        if let Some(last) = self.snaps.last().map(|last| last.clamp(0.0, position.max_offset()))
+            && from > last
+            && raw <= last
+        {
+            position.offset = last;
+            self.fling = None;
+            self.snap = self.aim(last, position.max_offset());
+            if self.snap.is_some() {
+                self.reached = self.snap;
+            }
+            return;
         }
         position.offset = raw.clamp(0.0, position.max_offset());
         if raw != position.offset {
@@ -638,10 +657,8 @@ impl Motion {
             momentum.drag(&mut position, dragged, rubber_banding());
         }
         if gesture.ended {
-            let velocity = match rubber_banding() {
-                true => -self.axis().main(gesture.velocity),
-                false => 0.0,
-            };
+            // Without motion the velocity still chooses a stop, but carries nothing on.
+            let velocity = -self.axis().main(gesture.velocity);
             self.release(&mut momentum, velocity, &position);
         } else if gesture.cancelled {
             self.release(&mut momentum, 0.0, &position);
@@ -680,6 +697,10 @@ impl Motion {
     fn release(&self, momentum: &mut Momentum, velocity: f32, position: &ScrollPosition) {
         self.take_snaps(momentum);
         momentum.release(velocity, position);
+        if !rubber_banding() && momentum.snap.is_none() {
+            momentum.fling = None;
+            momentum.velocity = 0.0;
+        }
         self.chosen.set(momentum.snap);
     }
 
@@ -699,12 +720,13 @@ impl Motion {
     /// Settles on `offset` as on a snap stop: on the overscroll spring, or at once without
     /// motion.
     fn settle_to(&self, offset: f32) {
-        let Some(position) = self.placed() else {
+        if self.placed().is_none() {
             return;
-        };
+        }
         let mut momentum = self.momentum.borrow_mut();
         momentum.rest();
-        momentum.snap = Some(offset.clamp(0.0, position.max_offset()));
+        // Clamped as it moves, to what it can reach then.
+        momentum.snap = Some(offset.max(0.0));
         self.animate(&mut momentum);
     }
 
@@ -715,7 +737,7 @@ impl Motion {
                 && let Some(position) = self.placed()
             {
                 momentum.velocity = 0.0;
-                self.publish(momentum, &position, stop);
+                self.publish(momentum, &position, stop.clamp(0.0, position.max_offset()));
             }
             return;
         }
@@ -798,7 +820,9 @@ impl Motion {
         };
         let mut momentum = self.momentum.borrow_mut();
         let autoscroll = momentum.autoscroll;
-        let settled = momentum.snap.unwrap_or(position.offset);
+        let settled = momentum
+            .snap
+            .map_or(position.offset, |stop| stop.clamp(0.0, position.max_offset()));
         momentum.rest();
         momentum.autoscroll = autoscroll;
         self.publish(&momentum, &position, settled);
@@ -820,7 +844,13 @@ impl Motion {
         let mut position = self.placed()?;
         momentum.animate(&mut position, elapsed, rubber_banding());
         self.publish(&momentum, &position, position.offset);
-        momentum.moving().then_some(Duration::ZERO)
+        let moving = momentum.moving();
+        let reached = momentum.reached.take();
+        drop(momentum);
+        if let Some(stop) = reached {
+            self.on_snap.call(stop);
+        }
+        moving.then_some(Duration::ZERO)
     }
 }
 
@@ -1568,6 +1598,13 @@ impl ScrollApi {
             return;
         }
         self.0.with(|motion| motion.to_end());
+    }
+
+    /// Moves to `offset` at once, stopping whatever motion it had. Natively only.
+    pub fn scroll_to(&self, offset: f32) {
+        if let Some(motion) = self.0.try_value() {
+            motion.scroll_to(offset);
+        }
     }
 
     /// Moves to `offset` as it settles on a snap stop: on the overscroll spring, or at once
