@@ -302,9 +302,7 @@ impl Children {
                 .or_default();
             for placement in placements.children {
                 let child = placement.child;
-                let ask = asking
-                    .entry(placements.instance)
-                    .or_insert((0, child));
+                let ask = asking.entry(placements.instance).or_insert((0, child));
                 if placement.keyboard_ask > ask.0 {
                     *ask = (placement.keyboard_ask, child);
                 }
@@ -457,8 +455,7 @@ impl Children {
                 false => !child.holds(press.layer),
             });
             if taken {
-                self.revoked
-                    .insert((child.editor, child.view, child.child));
+                self.revoked.insert((child.editor, child.view, child.child));
             }
         }
         for child in &mut self.shown {

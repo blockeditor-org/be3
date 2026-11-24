@@ -1064,9 +1064,7 @@ impl Editor {
                 .unwrap_or_default();
             untrack(|| ask.set(serial));
             // An ask changes nothing drawn: a frame carries it to the host in its layout commit.
-            try_with_document(|document| {
-                document.request_repaint_after(std::time::Duration::ZERO)
-            });
+            try_with_document(|document| document.request_repaint_after(std::time::Duration::ZERO));
         });
         let placed = editor_state.core.add_child(
             move |now: &ChildState| {

@@ -52,6 +52,9 @@ fn a_press_or_escape_takes_back_an_active_child_and_a_release_does_not() {
             eraser: false,
         },
     };
-    assert_eq!(presses(&pen(PenPhase::Down(PointerButton::Primary))), Some(false));
+    assert_eq!(
+        presses(&pen(PenPhase::Down(PointerButton::Primary))),
+        Some(false)
+    );
     assert_eq!(presses(&pen(PenPhase::Move)), None);
 }

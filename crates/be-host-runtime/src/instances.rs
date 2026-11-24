@@ -19,10 +19,7 @@ use be_sdk_api::{
 use be_sdk_app_host::{accessibility::Graft, run::Descriptions};
 use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
 use super::{
@@ -163,7 +160,6 @@ impl Default for Mail {
 struct Connection {
     client_id: Uuid,
 }
-
 
 struct Instance {
     role: InstanceRole,
@@ -2880,16 +2876,17 @@ impl Instances {
         let mut asked: Vec<(EditorInstanceId, ChildId, u64)> = Vec::new();
         for placements in children {
             for placement in &placements.children {
-                match asked.iter_mut().find(|(editor, ..)| *editor == placements.instance) {
+                match asked
+                    .iter_mut()
+                    .find(|(editor, ..)| *editor == placements.instance)
+                {
                     Some(held) if placement.keyboard_ask > held.2 => {
                         *held = (placements.instance, placement.child, placement.keyboard_ask);
                     }
                     Some(_) => {}
-                    None => asked.push((
-                        placements.instance,
-                        placement.child,
-                        placement.keyboard_ask,
-                    )),
+                    None => {
+                        asked.push((placements.instance, placement.child, placement.keyboard_ask))
+                    }
                 }
             }
         }
@@ -2944,7 +2941,11 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return false;
         }
-        super::events::emit(&self.app_id, instance, InstanceEvent::KeyboardAsked(Some(child)));
+        super::events::emit(
+            &self.app_id,
+            instance,
+            InstanceEvent::KeyboardAsked(Some(child)),
+        );
         true
     }
 

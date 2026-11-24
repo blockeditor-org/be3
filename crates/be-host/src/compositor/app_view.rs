@@ -1697,12 +1697,24 @@ fn focus_when_given(
     create_effect(move || {
         let now = viewing.get();
         if registered.replace(now) != now {
-            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, (own, region), now);
+            asks::viewed(
+                asked.placer.app,
+                asked.placer.instance,
+                asked.child,
+                (own, region),
+                now,
+            );
         }
     });
     on_cleanup(move || {
         if registered.replace(false) {
-            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, (own, region), false);
+            asks::viewed(
+                asked.placer.app,
+                asked.placer.instance,
+                asked.child,
+                (own, region),
+                false,
+            );
         }
     });
     // A child whose app failed takes no keyboard: an ask for it ends.
@@ -1843,11 +1855,7 @@ thread_local! {
 /// dock's tab views, built after the main view goes (the main view stays placed, shown nowhere).
 /// A main view that went with the keyboard left it to be taken back (`keep_focus_for_rebuild`):
 /// the dock tab view its content moved to takes it instead.
-fn keyboard_follows_content(
-    view: ShownView,
-    revision: beui::reactive::Trigger,
-    catcher: &NodeRef,
-) {
+fn keyboard_follows_content(view: ShownView, revision: beui::reactive::Trigger, catcher: &NodeRef) {
     let catcher = *catcher;
     let view = store(view);
     create_effect(move || {
@@ -2170,10 +2178,7 @@ impl ChildNodes {
             let encloses = create_memo(move || following().and_then(|view| view.encloses.get()));
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
-            provide_context(ChildFocus(Some(AskedFocus {
-                placer,
-                child: key,
-            })));
+            provide_context(ChildFocus(Some(AskedFocus { placer, child: key })));
             let node = child_view.with(|view| view(key, child, rect));
             (node, holder)
         };

@@ -19,7 +19,8 @@ fn an_ask_lands_on_the_view_showing_its_childs_content_and_ends_once_withdrawn()
     for (child, view) in views {
         asks::viewed(PLACER, placer, child, (text, view), true);
     }
-    let acts = |child: ChildId, view: ViewId| asks::acts(PLACER, placer, child, (text, view, ViewId(1)));
+    let acts =
+        |child: ChildId, view: ViewId| asks::acts(PLACER, placer, child, (text, view, ViewId(1)));
 
     // The dock gave the bar's tab the keyboard: the content takes it, not the bar.
     asks::heard(PLACER.to_owned(), placer, Some(bar));
@@ -41,5 +42,10 @@ fn an_ask_lands_on_the_view_showing_its_childs_content_and_ends_once_withdrawn()
     let notes = EditorInstanceId(7);
     asks::viewed(PLACER, placer, ChildId(9), (notes, ViewId::MAIN), true);
     asks::heard(PLACER.to_owned(), placer, Some(ChildId(9)));
-    assert!(asks::acts(PLACER, placer, ChildId(9), (notes, ViewId::MAIN, ViewId::MAIN)));
+    assert!(asks::acts(
+        PLACER,
+        placer,
+        ChildId(9),
+        (notes, ViewId::MAIN, ViewId::MAIN)
+    ));
 }

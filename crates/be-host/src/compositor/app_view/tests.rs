@@ -4,8 +4,14 @@ use be_sdk_api::{ChildLayer, ChildMode, HostWindowId, TopBar};
 use be_sdk_api::{EditorInstanceId, ViewId};
 use beui::PointerButton;
 
+mod a_child_moving_into_another_view_of_its_instance_keeps_its_node_and_follows_it;
+mod a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint;
+mod a_pan_drag_asked_for_late_pans_from_the_press;
+mod a_rebuilt_catcher_takes_the_keyboard_its_view_had_unless_it_went_elsewhere;
+mod a_view_grown_past_its_last_placement_shows_its_backdrop_there;
 mod an_ask_at_its_commit_ends_blurs_or_waits;
 mod an_ask_lands_on_the_view_showing_its_childs_content_and_ends_once_withdrawn;
+mod the_view_opened_last_of_those_that_want_the_keyboard_holds_it;
 
 pub(super) fn child(clip: Rect) -> HostChild {
     HostChild {
@@ -69,10 +75,3 @@ pub(super) fn placed(children: Vec<HostChild>) -> PlacedView {
         reported: false,
     }
 }
-
-mod a_child_moving_into_another_view_of_its_instance_keeps_its_node_and_follows_it;
-mod a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint;
-mod a_pan_drag_asked_for_late_pans_from_the_press;
-mod a_rebuilt_catcher_takes_the_keyboard_its_view_had_unless_it_went_elsewhere;
-mod a_view_grown_past_its_last_placement_shows_its_backdrop_there;
-mod the_view_opened_last_of_those_that_want_the_keyboard_holds_it;

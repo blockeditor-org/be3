@@ -1574,7 +1574,11 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
 
 /// The instance's view gives the keyboard it has to `child`, which fills the view.
 pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
-    if with(app_id, |runtime| runtime.instances.ask_keyboard(instance, child)).unwrap_or(false) {
+    if with(app_id, |runtime| {
+        runtime.instances.ask_keyboard(instance, child)
+    })
+    .unwrap_or(false)
+    {
         mark(app_id);
     }
 }

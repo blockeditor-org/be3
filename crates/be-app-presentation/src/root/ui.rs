@@ -392,10 +392,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
             typing_into.set(None);
         }
     });
-    create_effect_on_change(
-        move || selected.get(),
-        move |_, _| typing_into.set(None),
-    );
+    create_effect_on_change(move || selected.get(), move |_, _| typing_into.set(None));
     // The count of notes made to type into while these are those notes: it only grows, so a
     // new note asks again, and showing other notes asks nothing.
     let keyboard = move || {

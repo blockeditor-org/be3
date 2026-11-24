@@ -19,7 +19,11 @@ fn an_app_not_running_yet_hears_only_where_the_keyboard_is() {
         .map(|message| match message {
             Outbound::App(AppCall::Input(batch)) => (
                 batch.screen,
-                batch.events.iter().map(|event| event.input.clone()).collect(),
+                batch
+                    .events
+                    .iter()
+                    .map(|event| event.input.clone())
+                    .collect(),
             ),
             _ => panic!("only input was sent"),
         })

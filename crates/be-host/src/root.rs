@@ -66,9 +66,8 @@ use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
-    app::EditorEvent,
     ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
-    ResizeMode, ViewId,
+    ResizeMode, ViewId, app::EditorEvent,
 };
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::{EditorApp, OpenedEditor, PlacerEvent};

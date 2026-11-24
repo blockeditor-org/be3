@@ -6,12 +6,12 @@ use super::*;
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
 mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
 mod a_child_takes_the_presses_only_where_it_shows;
-mod a_new_keyboard_ask_moves_the_keyboard_into_a_child_that_shows;
 mod a_keyboard_ask_for_a_child_not_up_takes_the_keyboard_out_and_gives_it_once_up;
 mod a_keyboard_ask_never_takes_the_keyboard_from_outside_its_editor;
+mod a_new_keyboard_ask_moves_the_keyboard_into_a_child_that_shows;
+mod a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are;
 mod a_press_outside_an_active_child_or_escape_in_its_placer_takes_it_back;
 mod each_placer_above_a_child_hears_the_keyboard_went_into_it;
-mod a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are;
 
 /// A block child placed at `rect` in its placer's view, `mode`, under it.
 fn placed(rect: Rect, mode: ChildMode) -> ChildPlacement {
