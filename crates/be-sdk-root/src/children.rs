@@ -739,6 +739,9 @@ impl Children {
                     && !settling.docks.docked(*editor)
                 {
                     child.place_content(app, *editor);
+                } else {
+                    // Told afresh once placed so again.
+                    child.told_content = None;
                 }
             } else {
                 child.tabs.clear();

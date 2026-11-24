@@ -542,7 +542,6 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
     Ok(root)
 }
 
-/// Hands `root` the host's notices if they changed since the generation it was handed, `seen`.
 /// The catalog a root was handed: the registry's block types and the programs' editors listed.
 struct HandedTypes {
     types: std::sync::Arc<be_host_runtime::AppCatalog>,
@@ -574,6 +573,7 @@ fn show_block_types(core: &crate::HostCore, root: &mut Root, handed: &mut Option
     });
 }
 
+/// Hands `root` the host's notices if they changed since the generation it was handed, `seen`.
 fn show_notices(root: &mut Root, seen: &mut Option<u64>) {
     let generation = notices::generation();
     if *seen != Some(generation) {
@@ -864,8 +864,9 @@ fn place_content(editors: &mut Editors, placed: be_wasm_root_api::PlacedContent)
 /// Hands each block the root's editors asked to open (`opens`, by the app and instance that
 /// asked) to the editor that handles show requests, as be-host's `show_block` does: the nearest
 /// of the asking editor and those that place it whose manifest accepts them, else the editor
-/// showing the session's block, which be-host's own shell is. An ask from no editor the root
-/// shows, or with no session shown, is dropped.
+/// showing the session's block, which be-host's own shell is. An ask from an editor the root
+/// no longer shows goes to the editor showing the session's block, as be-host hands one from
+/// no editor it knows to its shell; with no session shown, it is dropped.
 fn open_blocks(
     core: &crate::HostCore,
     opens: Vec<(String, EditorInstanceId, be_host_runtime::BlockOpen)>,
