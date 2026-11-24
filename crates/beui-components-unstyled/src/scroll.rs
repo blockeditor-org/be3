@@ -67,6 +67,7 @@ pub struct ScrollHandle {
 #[derive(Clone, Copy)]
 pub struct ScrollStyle {
     rubber: Spring,
+    settle: Spring,
     bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
     marker: Option<RenderFn<Memo<Direction>, NodeId>>,
     fade: f32,
@@ -79,11 +80,18 @@ impl ScrollStyle {
     pub fn new(rubber: Spring) -> Self {
         Self {
             rubber,
+            settle: rubber,
             bar: None,
             marker: None,
             fade: 0.0,
             browser: None,
         }
+    }
+
+    /// The spring it settles on a snap stop on (and `ScrollApi::settle_to`); without this, the
+    /// overscroll spring.
+    pub fn settling(self, settle: Spring) -> Self {
+        Self { settle, ..self }
     }
 
     /// The bar drawn along the scroll, `width` across.
@@ -190,6 +198,7 @@ impl Reveal {
 
 struct Momentum {
     rubber: Spring,
+    settle: Spring,
     stretch: f32,
     drag: Option<f32>,
     dragging: bool,
@@ -210,9 +219,10 @@ struct Momentum {
 }
 
 impl Momentum {
-    fn new(rubber: Spring) -> Self {
+    fn new(rubber: Spring, settle: Spring) -> Self {
         Self {
             rubber,
+            settle,
             stretch: 0.0,
             drag: None,
             dragging: false,
@@ -362,7 +372,7 @@ impl Momentum {
             // Within what it can reach now: content still being measured moves it.
             let stop = stop.clamp(0.0, position.max_offset());
             let mut distance = position.offset - stop;
-            spring_back(&mut distance, &mut self.velocity, elapsed, self.rubber);
+            spring_back(&mut distance, &mut self.velocity, elapsed, self.settle);
             if distance.abs() < SNAP_SLACK && self.velocity.abs() < MINIMUM_VELOCITY {
                 distance = 0.0;
                 self.velocity = 0.0;
@@ -788,9 +798,7 @@ impl Motion {
     /// Settles on `offset` as on a snap stop: on the overscroll spring, or at once without
     /// motion.
     fn settle_to(&self, offset: f32) {
-        if self.placed().is_none() {
-            return;
-        }
+        // Asked before it is laid out, it sets out once it is.
         let mut momentum = self.momentum.borrow_mut();
         momentum.rest();
         // Clamped as it moves, to what it can reach then.
@@ -932,7 +940,10 @@ impl Motion {
         if !momentum.moving() {
             return None;
         }
-        let mut position = self.placed()?;
+        let Some(mut position) = self.placed() else {
+            // A settle asked for before it is laid out waits for it.
+            return momentum.snap.is_some().then_some(Duration::ZERO);
+        };
         momentum.animate(&mut position, elapsed, rubber_banding());
         self.publish(&momentum, &position, position.offset);
         let moving = momentum.moving();
@@ -981,7 +992,7 @@ fn Scrolling(
         snaps,
         on_snap,
         chosen: Cell::new(None),
-        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber, style.settle), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
@@ -1646,7 +1657,7 @@ fn BrowserScroll(
         snaps: Prop::Static(Vec::new()),
         on_snap: Callback::empty(),
         chosen: Cell::new(None),
-        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber, style.settle), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),

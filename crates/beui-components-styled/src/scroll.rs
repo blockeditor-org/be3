@@ -142,6 +142,7 @@ pub fn Scroll(
 pub fn scroll_style() -> ScrollStyle {
     let theme = use_theme();
     ScrollStyle::new(Movement::Rubber.spring())
+        .settling(Movement::Settle.spring())
         .bar(
             SCROLLBAR_WIDTH,
             RenderFn::new(|handle: ScrollHandle| {

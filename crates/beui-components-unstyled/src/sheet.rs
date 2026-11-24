@@ -241,10 +241,7 @@ pub fn Sheet(
             }
             aimed.set(goal);
             if let Some(api) = api() {
-                match moving {
-                    true => api.settle_to(goal),
-                    false => api.scroll_to(goal),
-                }
+                api.settle_to(goal);
             }
         });
     });
@@ -277,20 +274,16 @@ pub fn Sheet(
             }
             _ => offer(Offer::Entering { at: now(), take }),
         }
-        match laid_out() {
-            true => settle_on(Aim::Rest),
-            false => entering.set(true),
-        }
+        // Sets out at once, before it is measured: the rest it aims at follows as it is.
+        settle_on(Aim::Rest);
     };
     if open.get_untracked() {
         untrack(enter);
     }
+    // Measured and laid out, it has entered: its presence follows its offset from then on.
     create_effect(move || {
         if entering.get() && top.get() > 0.0 && position.with(Option::is_some) {
-            untrack(|| {
-                entering.set(false);
-                settle_on(Aim::Rest);
-            });
+            untrack(|| entering.set(false));
         }
     });
     let shown = open.clone();
@@ -437,7 +430,7 @@ pub fn Sheet(
         true => 0.0,
         false => top.get(),
     });
-    view! {
+    let view = view! {
         <Frame height={move || Extent::px(length.get())} fade_edges={edges}>
             <Scroll
                 api=scroll
@@ -456,7 +449,15 @@ pub fn Sheet(
                 {sheet}
             </Scroll>
         </Frame>
+    };
+    // Opened as it is built, it sets out for its rest now, before it is measured: the stop it
+    // aims at follows as it is.
+    if open.get_untracked()
+        && let Some(api) = api()
+    {
+        api.settle_to(aimed.get());
     }
+    view
 }
 
 #[component]
