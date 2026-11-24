@@ -4863,18 +4863,15 @@ impl be_block_type_host::transfer::Open for Exporting<'_> {
         &mut self.replicas.modules
     }
 
-    async fn content(&mut self, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
-        if self.replicas.not_yet(block) {
-            return Err(ClientError::NotYet(block));
-        }
-        let content = match self.replicas.is_open(block) {
+    async fn content(&mut self, block: Uuid) -> Option<Vec<u8>> {
+        match self.replicas.is_open(block) {
             true => self.replicas.content((self.peer, self.shared), block).await,
             false => None,
-        };
-        match content {
-            None if self.replicas.not_yet(block) => Err(ClientError::NotYet(block)),
-            content => Ok(content),
         }
+    }
+
+    fn not_yet(&self, block: Uuid) -> bool {
+        self.replicas.not_yet(block)
     }
 
     fn derived(&self, block: Uuid) -> Option<be_block_content::Entries> {
