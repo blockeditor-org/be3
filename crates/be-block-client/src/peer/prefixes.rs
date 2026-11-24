@@ -90,7 +90,7 @@ impl<S: ObjectStore> Peer<S> {
         self.update_content(kind, |_: PrefixRegistryContent| {
             std::future::ready(Ok(edits.to_vec()))
         })
-            .await?;
+        .await?;
         Ok(())
     }
 

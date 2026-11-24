@@ -2283,9 +2283,7 @@ async fn relist(
         .kind(content_type)
         .await
         .is_some_and(|kind| !kind.whole_bytes)
-        && context.peer.has_later_parts(parent)
-            .await
-            .map_err(failed)?
+        && context.peer.has_later_parts(parent).await.map_err(failed)?
     {
         return Err("That place keeps parts that version control cannot carry yet.".into());
     }

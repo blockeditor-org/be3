@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_sdk_beui::be_block_content::be_block_model::BlockRef;
-use be_sdk_beui::be_block_content::{Along, Signer, SettingsLayer};
+use be_sdk_beui::be_block_content::{Along, SettingsLayer, Signer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
@@ -952,11 +952,7 @@ fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
         });
     }
     if let Some((_, signer)) = shown.deleted {
-        return matches!(
-            signer,
-            Signer::Changed | Signer::Replaced | Signer::Bad
-        )
-        .then(|| Row {
+        return matches!(signer, Signer::Changed | Signer::Replaced | Signer::Bad).then(|| Row {
             author: shown.author,
             mine,
             time: time(shown.time, today),

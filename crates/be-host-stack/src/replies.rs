@@ -112,4 +112,3 @@ struct OpenedNotification {
     sent: i64,
     text: String,
 }
-

@@ -89,9 +89,9 @@ pub use authorship::by_app;
 pub use import::Imported;
 pub use prefixes::Registry;
 pub use rotation::PendingRotation;
-pub use update::{NewContent, UPDATE_ATTEMPTS};
 #[cfg(test)]
 pub(crate) use update::backoff;
+pub use update::{NewContent, UPDATE_ATTEMPTS};
 
 /// Follows `query`'s topic, answering whether the server took it.
 fn followed<T: be_block_protocol::FromPage + Send + 'static>(

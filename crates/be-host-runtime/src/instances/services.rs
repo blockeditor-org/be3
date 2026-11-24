@@ -886,11 +886,7 @@ impl Instances {
                     signature,
                     arrived,
                     move |found| {
-                        answering.send(
-                            found
-                                .map_err(|_| Failure::Unavailable)
-                                .and_then(signer),
-                        )
+                        answering.send(found.map_err(|_| Failure::Unavailable).and_then(signer))
                     },
                 );
             }

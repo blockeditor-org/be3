@@ -55,12 +55,19 @@ async fn two_devices_of_a_new_account_keep_both_its_letters_signing_in_at_once()
     };
     let waiting = letters(&crate::contacts::mailbox(&rosa.connection()).await.unwrap());
     assert_eq!(waiting.len(), 2, "each link left its record as a letter");
-    let block = crate::AccountRecords::open(&rosa.connection(), rosa.account(), rosa.keys().identity())
-        .await
-        .unwrap()
-        .expect("a person's account has its own block");
+    let block =
+        crate::AccountRecords::open(&rosa.connection(), rosa.account(), rosa.keys().identity())
+            .await
+            .unwrap()
+            .expect("a person's account has its own block");
     assert!(
-        block.read().await.unwrap().root().contact(alice.account()).is_none(),
+        block
+            .read()
+            .await
+            .unwrap()
+            .root()
+            .contact(alice.account())
+            .is_none(),
         "the block keeps nothing before the letters are taken"
     );
 
@@ -83,7 +90,11 @@ async fn two_devices_of_a_new_account_keep_both_its_letters_signing_in_at_once()
     for device in [&rosa, &other] {
         let listed = device.refresh_contacts().await.unwrap();
         for maker in [&alice, &bob] {
-            assert!(listed.iter().any(|contact| contact.account == maker.account()));
+            assert!(
+                listed
+                    .iter()
+                    .any(|contact| contact.account == maker.account())
+            );
         }
     }
 
