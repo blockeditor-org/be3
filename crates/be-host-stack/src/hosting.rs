@@ -291,10 +291,11 @@ pub fn tell(
 
 /// Takes what the server told of a hosted block's session: a member's message on the channel,
 /// a member leaving, who hosts it, or an access change, after which every member is checked
-/// again. Who hosts counts only while this device's replica of the block is `in_session` (open
-/// and not leaving): the answer to a join the replica left before it came, such as the one that
-/// dropped a claim as the editor closed, would otherwise say no one hosts a block this device
-/// is no longer in, and let a component start there on that word as the block opens again.
+/// again. Who hosts counts only while this device's replica of the block is `in_session` (open,
+/// neither closing nor leaving): the answer to a join the replica left, or is closing, before it
+/// came, such as the one that dropped a claim as the editor closed, would otherwise say no one
+/// hosts a block this device is on its way out of, and let a component start there on that word
+/// as the block opens again.
 pub fn heard(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,

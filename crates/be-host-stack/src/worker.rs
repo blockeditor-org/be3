@@ -4866,6 +4866,10 @@ async fn export(
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
 ) -> Result<(String, Vec<u8>), ClientError> {
+    // At once, before asking the server for anything: what it holds is not to be had yet.
+    if replicas.not_yet(block) {
+        return Err(ClientError::NotYet(block));
+    }
     let blocks = be_block_type_host::transfer::collect(
         peer,
         block,
@@ -5751,7 +5755,8 @@ fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     held.progressed += 1;
 }
 
-/// Whether this device's replica of `block` is in its session: open, and not leaving it.
+/// Whether this device's replica of `block` is in its session: open, neither closing nor
+/// leaving it. A closing replica's join answers come from a session it is on its way out of.
 fn in_session(replicas: &Replicas, block: Uuid) -> bool {
-    replicas.is_open(block) && !replicas.is_leaving(block)
+    replicas.is_open(block) && !replicas.is_closing(block) && !replicas.is_leaving(block)
 }

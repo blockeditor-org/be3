@@ -153,10 +153,7 @@ fn HostMenu(
         </Show>
         <ForEach value={hosting}>|kept: KeptHost|
             <MenuItem
-                @test_id={match kept.now {
-                    true => format!("host.menu.hosting-now.{}", kept.block),
-                    false => format!("host.menu.hosting.{}", kept.block),
-                }}
+                @test_id={format!("host.menu.hosting.{}", kept.block)}
                 label={format!("Stop hosting {}", kept.name)}
                 glyph=ICON_RADIO_TOWER
                 detail={match kept.now {

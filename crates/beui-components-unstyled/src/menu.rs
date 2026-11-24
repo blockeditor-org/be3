@@ -621,6 +621,7 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
 
 fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
     let (checked, depth, expanded) = (item.checked, item.depth, item.expanded);
+    let detail = item.detail;
     let radio = item.radio;
     create_memo(move || {
         let mut node = match checked.get() {
@@ -639,6 +640,10 @@ fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
         }
         if let Some(expanded) = expanded.get() {
             node.set_expanded(expanded);
+        }
+        let detail = detail.get();
+        if !detail.is_empty() {
+            node.set_description(detail);
         }
         node
     })
