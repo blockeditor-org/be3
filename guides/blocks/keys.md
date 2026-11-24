@@ -436,7 +436,8 @@ it `partial`. How each check reads one:
 - What a path still reveals, accepted: the log's length and where each
   lowering sits; the whole level history of each sealer and of the chain of
   signers behind them; who signed each opening; of the organization's log, the
-  whole administrator roster and its history; and of an ancestor's path (served
+  whole administrator roster and its history, and by its length roughly how
+  many members it has signed in, though not who they are; and of an ancestor's path (served
   to a reader below it, `reads_below`), its creator and root, every placement
   it ever had and who made each, and the level history there of every mover
   and every signer below on authority from it. Fixing the length would take a

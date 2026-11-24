@@ -30,7 +30,9 @@ need it whole: it seals to administrators through the escrow key, and an
 honest organization path keeps every administrator record, and every record
 about anyone who ever administered it, whole, so no demotion hides behind a
 reduced entry; and it seals to a block's grantees by the keys the block's own
-log names, which it is served whole.
+log names, which it is served whole. An editor's path of the organization's
+log still shows its length: how many entries it holds, so roughly how many
+invitations, members and changes there have been, though not whom they name.
 
 ## Rejected
 
