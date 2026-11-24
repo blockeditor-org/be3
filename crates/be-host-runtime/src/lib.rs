@@ -68,7 +68,7 @@ pub use runtime::{
     view_placed, view_published,
 };
 pub use runtime::{
-    artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
+    artifact, artifact_draft, artifact_failure, assigned_size, begin_frame, busy, card, close, commit_creation,
     content_moved, content_view, crash, creation, dialog_status, dismiss, docked_placer, drawing,
     editing_and_hosting, flush, forget_dialog_answer, frame_child, frame_rects, hold, host, in_use,
     install, install_headless, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked,

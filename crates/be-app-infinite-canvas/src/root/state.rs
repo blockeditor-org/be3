@@ -508,8 +508,9 @@ struct Placeholder {
 
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
-    /// The PNG a paste of the last copy asked for, while the PNG exporter makes it.
-    rendering: RefCell<Option<beui::reactive::Scope>>,
+    /// Each PNG a paste of a copy asked for, while the PNG exporter makes it, and whether it is
+    /// made yet.
+    rendering: RefCell<Vec<(std::rc::Rc<Cell<bool>>, beui::reactive::Scope)>>,
     pasting: Signal<Option<Pasting>>,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
@@ -546,15 +547,23 @@ struct CanvasCells {
 }
 
 thread_local! {
-    /// What each canvas open here has selected, by its block: what an export from it starts
-    /// from (`selection_of`).
-    static SELECTIONS: RefCell<HashMap<Uuid, Signal<HashSet<Uuid>>>> = RefCell::default();
+    /// What each canvas open here has selected, with its block, in the order they opened:
+    /// what an export from it starts from (`selection_of`). Each takes out only its own.
+    static SELECTIONS: RefCell<Vec<(Uuid, Signal<HashSet<Uuid>>)>> = RefCell::default();
 }
 
-/// The items the canvas open on `block` has selected, none when it is not open here.
+/// The items the canvas open on `block` has selected (the one opened last, when several are),
+/// none when it is not open here.
 pub(crate) fn selection_of(block: Uuid) -> Vec<Uuid> {
     SELECTIONS
-        .with(|shown| shown.borrow().get(&block).copied())
+        .with(|shown| {
+            shown
+                .borrow()
+                .iter()
+                .rev()
+                .find(|(shown, _)| *shown == block)
+                .map(|(_, selection)| *selection)
+        })
         .map(|selection| selection.with_untracked(|selection| selection.iter().copied().collect()))
         .unwrap_or_default()
 }
@@ -623,9 +632,9 @@ impl CanvasState {
         let selection = create_signal(HashSet::new());
         if !preview {
             let block = editor.block_id();
-            SELECTIONS.with(|shown| shown.borrow_mut().insert(block, selection));
+            SELECTIONS.with(|shown| shown.borrow_mut().push((block, selection)));
             on_cleanup(move || {
-                SELECTIONS.with(|shown| shown.borrow_mut().remove(&block));
+                SELECTIONS.with(|shown| shown.borrow_mut().retain(|(_, kept)| *kept != selection));
             });
         }
         let entered_group = create_signal(None);
@@ -679,7 +688,7 @@ impl CanvasState {
         let caret = create_signal(None);
         let cells = store(CanvasCells {
             content,
-            rendering: RefCell::new(None),
+            rendering: RefCell::new(Vec::new()),
             pasting: create_signal(None),
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
@@ -2315,12 +2324,20 @@ impl CanvasState {
                 items: items.clone(),
                 ..super::export::ImageExport::default()
             };
+            let made = std::rc::Rc::new(Cell::new(false));
+            let done = std::rc::Rc::clone(&made);
             let rendering = super::export::png_exporter().once(
                 state.editor(),
                 settings,
-                move |made| answer(made.ok().map(|made| made.content.data().to_vec().into())),
+                move |made| {
+                    done.set(true);
+                    answer(made.ok().map(|made| made.content.data().to_vec().into()));
+                },
             );
-            state.cells.value().rendering.replace(Some(rendering));
+            let cells = state.cells.value();
+            let mut renderings = cells.rendering.borrow_mut();
+            renderings.retain(|(made, _)| !made.get());
+            renderings.push((made, rendering));
         });
         let text = entities
             .iter()

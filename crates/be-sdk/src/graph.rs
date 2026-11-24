@@ -513,19 +513,6 @@ impl BlockGraph {
         )
     }
 
-    pub fn create_artifact<C: be_block_content::BlockContent>(
-        &self,
-        content: &C,
-        parent: BlockParent,
-        name: Option<String>,
-        artifact: be_block_content::Artifact,
-    ) -> Uuid {
-        let mut metadata = BlockMetadata::default();
-        metadata.put(&be_block_content::NAME, name.as_ref());
-        metadata.insert(&be_block_content::ARTIFACT, &artifact);
-        self.create_with(C::CONTENT_TYPE, Some(content.encode()), parent, metadata)
-    }
-
     pub fn create_with(
         &self,
         block_type: Uuid,

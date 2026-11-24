@@ -339,10 +339,14 @@ pub(crate) fn ExporterSettings(
 
 /// The artifact an artifact instance keeps made (`Instance::connect_artifact`): while it runs,
 /// it makes the artifact again from the settings last applied whenever its source changes,
-/// and replaces the artifact's content when what it makes differs.
+/// and replaces the artifact's content when what it makes differs. It writes only the content,
+/// the fingerprint of it (`ARTIFACT_MADE`) and the name an exporter keeps: never `ARTIFACT`,
+/// which the person changes (settings applied, unlinked) while what it read of it is stale.
 pub(crate) struct ArtifactRun {
     scope: Scope,
     source: OwnedEditor,
+    /// Why it could not make the artifact again, as its source last changed.
+    failure: Rc<RefCell<Option<String>>>,
 }
 
 impl ArtifactRun {
@@ -352,7 +356,8 @@ impl ArtifactRun {
         let reader = source.editor();
         let target = artifacts.block_id();
         let outcome = Rc::new(RefCell::new(None::<Result<(), String>>));
-        let told = Rc::clone(&outcome);
+        let failure = Rc::new(RefCell::new(None::<String>));
+        let (told, failed) = (Rc::clone(&outcome), Rc::clone(&failure));
         let scope = Scope::root();
         let missing = format!(
             "This editor has no exporter named \"{}\".",
@@ -370,32 +375,35 @@ impl ArtifactRun {
                 Some(make) => settings.with(|data| make(data)),
                 None => Err(Pending::Failed(missing.clone())),
             });
-            // The artifact as the graph describes it: what was last made, and from what.
+            // Whether the block is still an artifact, and the fingerprint of what was last
+            // made of it.
             let listed = reader.blocks().watch(BlockQuery::Block(target));
             let described = create_memo(move || {
-                listed
-                    .read()
-                    .map(|listed| {
-                        listed
-                            .into_iter()
-                            .next()
-                            .and_then(|info| info.metadata.get(&be_block_content::ARTIFACT))
+                listed.read().map(|listed| {
+                    listed.into_iter().next().map_or((false, None), |info| {
+                        (
+                            info.metadata.contains(&be_block_content::ARTIFACT),
+                            info.metadata.get(&be_block_content::ARTIFACT_MADE),
+                        )
                     })
+                })
             });
             let writer = host.clone();
             create_effect(move || {
                 again.track();
                 let result = match (made.get(), described.get()) {
                     (Err(Pending::Loading), _) | (_, Err(Pending::Loading)) => return,
+                    // Unlinked: it keeps what was made, and nothing is made of it again.
+                    (_, Ok((false, _))) => Ok(()),
                     (Err(Pending::Failed(error)), _) | (_, Err(Pending::Failed(error))) => {
                         Err(error)
                     }
-                    (Ok(_), Ok(None)) => Err("The block is no longer an artifact.".to_owned()),
-                    (Ok(made), Ok(Some(artifact))) => {
-                        untrack(|| keep(&writer, target, made, artifact));
+                    (Ok(made), Ok((true, last))) => {
+                        untrack(|| keep(&writer, target, made, last));
                         Ok(())
                     }
                 };
+                *failed.borrow_mut() = result.as_ref().err().cloned();
                 if waiting.get_untracked() {
                     waiting.set(false);
                     *told.borrow_mut() = Some(result);
@@ -410,7 +418,11 @@ impl ArtifactRun {
             again.notify();
         });
         artifacts.on_poll(move || outcome.borrow_mut().take());
-        Self { scope, source }
+        Self {
+            scope,
+            source,
+            failure,
+        }
     }
 
     /// Takes in what arrived of the source and the artifact, as a frame would: the instance is
@@ -420,27 +432,30 @@ impl ArtifactRun {
         // Inside an entry, so the effects woken by what arrived run as it ends.
         self.scope.run(|| source.begin_frame());
     }
+
+    /// Why it could not make the artifact again as its source last changed, none once it did.
+    pub(crate) fn failure(&self) -> Option<String> {
+        self.failure.borrow().clone()
+    }
 }
 
-/// A fingerprint of made content, which an artifact keeps (`Artifact::made`) to tell whether
+/// A fingerprint of made content, which an artifact keeps (`ARTIFACT_MADE`) to tell whether
 /// what is made again differs.
 fn fingerprint(content: &[u8]) -> u64 {
     use std::hash::BuildHasher;
     be_lib_stable_hash::State::default().hash_one(content)
 }
 
-/// Writes `made` into the artifact `target` that `artifact` describes, unless it is what was
-/// made last, and renames it if the exporter says to.
-fn keep(host: &EditorHost, target: Uuid, made: MadeBytes, artifact: be_block_content::Artifact) {
+/// Writes `made` into the artifact `target`, unless it is what was made last (`last`), and
+/// renames it if the exporter says to.
+fn keep(host: &EditorHost, target: Uuid, made: MadeBytes, last: Option<u64>) {
     let fingerprint = fingerprint(&made.content);
-    if artifact.made != Some(fingerprint) {
+    if last != Some(fingerprint) {
         host.replace_bytes(target, made.block_type, made.content);
-        let artifact = be_block_content::Artifact {
-            made: Some(fingerprint),
-            ..artifact
-        };
-        host.graph()
-            .define(target, be_block_content::ARTIFACT.definition(Some(&artifact)));
+        host.graph().define(
+            target,
+            be_block_content::ARTIFACT_MADE.definition(Some(&fingerprint)),
+        );
     }
     if made.renames {
         rename(host, target, &made.name);
@@ -671,8 +686,11 @@ fn add_artifact(
             source_type,
             exporter: exporter.to_owned(),
             settings,
-            made: Some(fingerprint(&made.content)),
         },
+    );
+    metadata.insert(
+        &be_block_content::ARTIFACT_MADE,
+        &fingerprint(&made.content),
     );
     host.graph().create_with(
         made.block_type,
