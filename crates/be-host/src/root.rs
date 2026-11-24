@@ -67,7 +67,7 @@ use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
     ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
-    ParentView, ResizeMode, ViewId, app::EditorEvent,
+    ParentView, ResizeMode, ViewId, app::EditorEvent, shell_types::ShellMessage,
 };
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::{EditorApp, OpenedEditor, ShownPreview};
@@ -725,15 +725,23 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     // The stack lists what the root asks for and every block whose editor it serves the root,
     // as it lists the blocks be-host's own editors show: it may not have them yet once it
     // starts on the data it kept, and keeps them while they show.
+    let shown_block = |shown: &be_wasm_root_api::Shown| match shown {
+        be_wasm_root_api::Shown::Block(shown) => Some(shown.block),
+        be_wasm_root_api::Shown::Dialog(_) => None,
+    };
     let mut wanted: Vec<[u8; 16]> = asks
         .iter()
-        .map(|(_, shown)| shown.block)
-        .chain(openings.iter().map(|opening| opening.shown.block))
+        .filter_map(|(_, shown)| shown_block(shown))
+        .chain(
+            openings
+                .iter()
+                .filter_map(|opening| shown_block(&opening.shown)),
+        )
         .chain(
             editors
                 .opened
                 .values()
-                .map(|opened| opened.block.into_bytes()),
+                .filter_map(|opened| opened.block.map(Uuid::into_bytes)),
         )
         // The session's block from the frame the host chose it, before the root asks for its
         // editor: listed only by what is open meanwhile, a change to that would drop it.
@@ -752,11 +760,11 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         // While the stack does not list the session's block (yet, or again for a moment), or
         // has yet to read the listing of the block asked for, an ask for a block it does not
         // list waits for it rather than failing.
-        if unlisted_yet(core, shown.block) {
+        if waits_for_listing(core, &shown) {
             editors.asks.push((id, shown));
             continue;
         }
-        let editor = core.editor_of(&shown).map(|(app, editor, _)| EditorApp {
+        let editor = shown_editor(core, &shown).map(|(app, editor, _)| EditorApp {
             app: app.identity.id.clone(),
             module: app.entry_point.clone(),
             editor: editor.into_bytes(),
@@ -771,7 +779,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         root.answer_editor(id, editor);
     }
     for opening in openings {
-        if unlisted_yet(core, opening.shown.block) {
+        if waits_for_listing(core, &opening.shown) {
             editors.openings.push(opening);
             continue;
         }
@@ -795,6 +803,20 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     editors
         .opened
         .retain(|(instance, _), _| served.contains_key(instance));
+    // What the root's dialogs told the shell, which their placers' statuses say: those of
+    // every view the root showed are worded again with it.
+    let mut told = false;
+    for (instance, editor, messages) in root.take_shell_tells() {
+        let Some(forwarded) = served.get_mut(&instance) else {
+            continue;
+        };
+        // A root that encodes what no editor can read has nothing to relay.
+        if let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) {
+            forwarded.shell_told(EditorInstanceId(editor), messages);
+            told = true;
+        }
+    }
+    let mut views = Vec::new();
     for shown in root.take_shown_children() {
         let placer = (shown.instance, shown.editor);
         editors.placers.retain(|_, held| *held != placer);
@@ -805,15 +827,33 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
                     .insert((opened.instance, opened.editor), placer);
             }
         }
-        let Some(forwarded) = served.get_mut(&shown.instance) else {
-            continue;
+        let view = (shown.instance, shown.editor, shown.view);
+        match shown.children.is_empty() {
+            true => editors.shown.remove(&view),
+            false => editors.shown.insert(view, shown.children),
         };
-        let statuses = shown
-            .children
-            .iter()
-            .map(|child| child_status(core, &editors.opened, child))
-            .collect();
-        forwarded.show_children(EditorInstanceId(shown.editor), ViewId(shown.view), statuses);
+        views.push(view);
+    }
+    editors
+        .shown
+        .retain(|(instance, ..), _| served.contains_key(instance));
+    if told {
+        views = editors.shown.keys().copied().collect();
+    }
+    for (instance, editor, view) in views {
+        let statuses = editors
+            .shown
+            .get(&(instance, editor, view))
+            .map(|children| {
+                children
+                    .iter()
+                    .map(|child| child_status(core, &editors.opened, served, child))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if let Some(forwarded) = served.get_mut(&instance) {
+            forwarded.show_children(EditorInstanceId(editor), ViewId(view), statuses);
+        }
     }
     for (instance, editor, event) in root.take_editor_events() {
         let Some(forwarded) = served.get_mut(&instance) else {
@@ -914,7 +954,10 @@ fn open_blocks(
             .opened
             .iter()
             .find(|(key, opened)| {
-                Some(opened.block) == core.root_session && !editors.placers.contains_key(key)
+                opened
+                    .block
+                    .is_some_and(|block| Some(block) == core.root_session)
+                    && !editors.placers.contains_key(key)
             })
             .map(|(key, _)| *key);
         let Some(handler) = handler(from, shell, editors) else {
@@ -960,6 +1003,79 @@ fn handler(
 /// Whether an ask for an editor of `block` waits: the stack does not list it, but may yet, while
 /// the session's block is not listed or the stack has yet to read the block's listing, which
 /// `serve_editors` asks it for.
+/// Whether an ask naming `shown` waits for the stack to list its block (`unlisted_yet`): a
+/// dialog names none.
+fn waits_for_listing(core: &crate::HostCore, shown: &be_wasm_root_api::Shown) -> bool {
+    match shown {
+        be_wasm_root_api::Shown::Block(shown) => unlisted_yet(core, shown.block),
+        be_wasm_root_api::Shown::Dialog(_) => false,
+    }
+}
+
+/// What a child the root opens an editor for shows, as the host opens it (`shown_editor`).
+enum Shows {
+    Block(crate::editors::Opened),
+    Picker(be_host_runtime::PickerRequest),
+    Rename(Uuid),
+    Export(EditorBlock, be_sdk_api::ExportRequest),
+}
+
+/// The app and editor that run what the root's child shows, and how it is opened: a block's
+/// editor (`HostCore::editor_of`), or the editor that runs a dialog an editor placed, as
+/// be-host's registry chooses it (`picker`, `rename`, `export`).
+fn shown_editor(
+    core: &crate::HostCore,
+    shown: &be_wasm_root_api::Shown,
+) -> Result<(std::sync::Arc<be_sdk_manifest::AppManifest>, Uuid, Shows), String> {
+    let content = match shown {
+        be_wasm_root_api::Shown::Block(shown) => {
+            return core
+                .editor_of(shown)
+                .map(|(app, editor, opened)| (app, editor, Shows::Block(opened)));
+        }
+        be_wasm_root_api::Shown::Dialog(content) => {
+            be_sdk_api::ops::decode::<be_sdk_api::ChildContent>(content)
+                .ok_or("the root named a dialog the host cannot read")?
+        }
+    };
+    match content {
+        be_sdk_api::ChildContent::Picker { filter, parent } => {
+            let (app, editor) = core
+                .registry
+                .accepting(be_sdk_manifest::ShellRequest::Pick)
+                .ok_or("no app picks blocks")?;
+            let request = be_host_runtime::PickerRequest {
+                filter,
+                parent,
+                sheet: false,
+            };
+            Ok((app, editor, Shows::Picker(request)))
+        }
+        be_sdk_api::ChildContent::Rename(block) => {
+            let (app, editor) = core
+                .registry
+                .accepting(be_sdk_manifest::ShellRequest::Rename)
+                .ok_or("no app renames blocks")?;
+            Ok((app, editor, Shows::Rename(Uuid::from_bytes(block))))
+        }
+        be_sdk_api::ChildContent::Export { block_id, request } => {
+            let block = Uuid::from_bytes(block_id);
+            let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
+            let (app, editor) = core
+                .registry
+                .exporting(node.content_type, &request.exporter)
+                .ok_or("the block's editor has no such exporter")?;
+            let opened = EditorBlock {
+                id: block,
+                block_type: node.content_type,
+                view_block: None,
+            };
+            Ok((app, editor, Shows::Export(opened, request)))
+        }
+        _ => Err("the host runs no dialog of that kind".to_owned()),
+    }
+}
+
 fn unlisted_yet(core: &crate::HostCore, block: [u8; 16]) -> bool {
     let block = Uuid::from_bytes(block);
     let query = be_host_stack::Query::Block(block);
@@ -975,8 +1091,12 @@ struct Editors {
     /// Each editor opened, by the root's instance and the editor: what its app's manifest says
     /// of it, for the statuses of the children it shows.
     opened: HashMap<(u64, u64), OpenedFor>,
-    asks: Vec<(u64, be_wasm_root_api::ShownBlock)>,
+    asks: Vec<(u64, be_wasm_root_api::Shown)>,
     openings: Vec<EditorOpening>,
+    /// The children each view of the editors the root shows placed, as the root last said
+    /// (`host.show-children`), by the root's instance, the editor and the view: what their
+    /// statuses are worded from again once a dialog among them told the shell something.
+    shown: HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
     /// The editor placing each editor the root shows as a child, as the root last said
     /// (`host.show-children`), each by the root's instance and the editor: what a show request
     /// climbs to find its handler.
@@ -984,11 +1104,11 @@ struct Editors {
 }
 
 /// An editor be-host opened in an app the root spawned: the app's manifest, the editor it opened
-/// and its block.
+/// and its block, none for a dialog (a picker, a rename form, an Export dialog).
 struct OpenedFor {
     app: std::sync::Arc<be_sdk_manifest::AppManifest>,
     editor: Uuid,
-    block: Uuid,
+    block: Option<Uuid>,
 }
 
 /// Said of a child the root shows nothing of and gave no reason for: one whose editor is still
@@ -1003,6 +1123,7 @@ const CHILD_OPENING: &str = "the block's editor is opening";
 fn child_status(
     core: &crate::HostCore,
     opened: &HashMap<(u64, u64), OpenedFor>,
+    served: &HashMap<u64, Forwarded>,
     child: &be_wasm_root_api::ShownChild,
 ) -> HostChildStatus {
     let shown = child
@@ -1016,7 +1137,7 @@ fn child_status(
         .shows
         .as_ref()
         .filter(|_| manifest.is_none())
-        .and_then(|shows| core.editor_of(shows).ok());
+        .and_then(|shows| shown_editor(core, shows).ok());
     let described = manifest.or_else(|| {
         edits
             .as_ref()
@@ -1030,8 +1151,24 @@ fn child_status(
     };
     let available =
         manifest.is_some() || (child.preview != ShownPreview::None && child.error.is_none());
+    // A dialog's pick, answer and card, as what it told the shell that the root relays says
+    // (`host.tell-shell`), as be-host's `picker_status` says them.
+    let dialog = child
+        .shown_in
+        .as_ref()
+        .filter(|_| shown.is_some_and(|shown| shown.block.is_none()))
+        .and_then(|shown| {
+            let forwarded = served.get(&shown.instance)?;
+            let editor = EditorInstanceId(shown.editor);
+            Some((
+                forwarded.picked(editor),
+                forwarded.dialog_status(editor),
+                forwarded.card(editor),
+            ))
+        });
     let error = shown
-        .and_then(|shown| be_host_stack::revisions::error(shown.block))
+        .and_then(|shown| shown.block)
+        .and_then(be_host_stack::revisions::error)
         .or_else(|| child.error.clone())
         .or_else(|| (!available).then(|| CHILD_OPENING.to_owned()));
     HostChildStatus {
@@ -1053,9 +1190,11 @@ fn child_status(
             .unwrap_or_default(),
         creation: None,
         preview,
-        dialog: DialogStatus::default(),
-        picked: None,
-        card: false,
+        dialog: dialog
+            .as_ref()
+            .map_or_else(DialogStatus::default, |(_, dialog, _)| *dialog),
+        picked: dialog.as_ref().and_then(|(picked, ..)| picked.clone()),
+        card: dialog.as_ref().is_some_and(|(.., card)| *card),
         title: None,
         icon: None,
         group: None,
@@ -1076,28 +1215,42 @@ fn open_editor(
     served: &mut HashMap<u64, Forwarded>,
     opened_for: &mut HashMap<(u64, u64), OpenedFor>,
 ) -> Result<OpenedEditor, String> {
-    let (app, editor, opened) = core.editor_of(&opening.shown)?;
+    let (app, editor, shows) = shown_editor(core, &opening.shown)?;
     if opening.app.as_deref() != Some(app.identity.id.as_str()) {
         return Err(format!(
-            "{} edits the block, which the root's instance does not run",
+            "{} runs it, which the root's instance does not run",
             app.identity.id
         ));
     }
     let instance = crate::editors::app::next_instance();
-    let role = InstanceRole::Editor(
-        editor,
-        EditorBlock {
-            id: opened.id,
-            block_type: opened.block_type,
-            view_block: opened.view_block,
-        },
-    );
+    let (role, block) = match shows {
+        Shows::Block(opened) => (
+            InstanceRole::Editor(
+                editor,
+                EditorBlock {
+                    id: opened.id,
+                    block_type: opened.block_type,
+                    view_block: opened.view_block,
+                },
+            ),
+            Some(opened.id),
+        ),
+        Shows::Picker(request) => {
+            be_host_runtime::ask_picker(instance, request);
+            (InstanceRole::Picker(editor), None)
+        }
+        Shows::Rename(block) => (InstanceRole::Rename(editor, block, false), None),
+        Shows::Export(block, request) => {
+            be_host_runtime::ask_export(instance, request);
+            (InstanceRole::Export(editor, block), None)
+        }
+    };
     opened_for.insert(
         (opening.instance, instance.0),
         OpenedFor {
             app: std::sync::Arc::clone(&app),
             editor,
-            block: opened.id,
+            block,
         },
     );
     let frames = served

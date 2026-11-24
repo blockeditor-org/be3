@@ -1111,7 +1111,18 @@ interface host {
 
     /// The editor that shows `shown`, or why none does: no app edits its
     /// block's type, or the person may not view it.
-    editor-of: async func(shown: shown-block) -> result<editor-app, string>;
+    editor-of: async func(shown: shown) -> result<editor-app, string>;
+
+    /// What a child the root opens an editor for shows: a block, or a
+    /// dialog an app runs for its placer, a picker, a rename form or an
+    /// Export dialog (the app protocol's `child-content`, be-sdk-api's
+    /// `ChildContent`, in be-wasm-ops' encoding), which the host opens in
+    /// the editor that runs it, as be-host does: the editor accepting
+    /// `pick` or `rename`, or the one declaring the export's exporter.
+    variant shown {
+        block(shown-block),
+        dialog(list<u8>),
+    }
 
     /// An editor the host opened in an app the root spawned.
     record opened-editor {
@@ -1132,7 +1143,16 @@ interface host {
     /// starts under them the root forwards (`forward`), and what the host
     /// answers (`forwarded`) it sends the app unread. The host's ops carry
     /// be-wasm-ops' `RELAYED_BIT`, so they never meet the root's.
-    open-editor: async func(instance: u64, shown: shown-block) -> result<opened-editor, string>;
+    open-editor: async func(instance: u64, shown: shown) -> result<opened-editor, string>;
+
+    /// Hands the host what the editor `editor`, opened in the root's
+    /// `instance` as a dialog (`shown.dialog`), told the shell that its
+    /// placer's status says (be-sdk-api's `Vec<ShellMessage>`, in be-wasm-ops'
+    /// encoding): the block it picked (`picked`), its answer
+    /// (`close-dialog`), whether it takes Escape itself
+    /// (`handles-dismiss`), and whether it shows as a card (`show-card`).
+    /// The root acts on the rest itself, and the host drops any other.
+    tell-shell: async func(instance: u64, editor: u64, messages: list<u8>);
 
     /// Closes the editor `editor` the host opened in the root's `instance`:
     /// the host stops serving it, drops what it held for it, and closes it in
@@ -1176,7 +1196,7 @@ interface host {
         /// editor that edits it (`editor-of`) until that editor is open, as
         /// be-host knows a child's editor before it opens (a canvas sizes a
         /// new card by its `resize`).
-        shows: option<shown-block>,
+        shows: option<shown>,
         /// The editor that shows it, once the host opened it (`open-editor`)
         /// in an app the root spawned for it: none while that is under way,
         /// or when the root shows nothing of it.

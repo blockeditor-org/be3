@@ -30,7 +30,7 @@ use be_sdk_app_host::{
     session::{Session, SessionFailure, SessionState},
     wire::Wire,
 };
-use be_wasm_root_api::{ShownBlock, guest::host};
+use be_wasm_root_api::{Shown, ShownBlock, guest::host};
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
@@ -217,7 +217,7 @@ impl Embedded {
     /// which it serves from then on. Call it on the root's executor at the frame clock's `now`;
     /// it answers once the host did, or with why the host would not.
     pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Hosted, SpawnFailure> {
-        let editor = host::editor_of(spawn.shown.clone())
+        let editor = host::editor_of(Shown::Block(spawn.shown.clone()))
             .await
             .map_err(|error| {
                 format!("the host did not answer which app edits the block: {error:?}")
@@ -230,7 +230,7 @@ impl Embedded {
         let shows = editor.editor;
         let app = Self::spawn_app(editor.app, editor.module, spawn.surface, spawn.fonts, now);
         let editor = app
-            .open_editor(spawn.shown)
+            .open_editor(Shown::Block(spawn.shown))
             .await
             .map_err(|why| SpawnFailure {
                 name: Some(name.clone()),
@@ -270,7 +270,7 @@ impl Embedded {
     /// Has the root's host open `shown`'s editor in this app (`host.open-editor`), which must
     /// run the app that edits it, and serve it from then on: the editor's instance, once the
     /// frames that open it are on their way to the app, or why the host would not.
-    pub async fn open_editor(&self, shown: ShownBlock) -> Result<EditorInstanceId, String> {
+    pub async fn open_editor(&self, shown: Shown) -> Result<EditorInstanceId, String> {
         let opened = host::open_editor(self.instance, shown)
             .await
             .map_err(|error| format!("the host did not open the block's editor: {error:?}"))
@@ -984,6 +984,23 @@ impl State {
                 | ShellMessage::LeaveFrame => {
                     self.told.push((instance, message));
                     self.wake();
+                    continue;
+                }
+                // What a dialog's placer's status says (its pick, its answer, whether it takes
+                // Escape itself or shows as a card), which its host words that status from.
+                ShellMessage::Picked(_)
+                | ShellMessage::CloseDialog(_)
+                | ShellMessage::HandlesDismiss(_)
+                | ShellMessage::ShowCard(_) => {
+                    let told = host::tell_shell(
+                        self.instance.op(),
+                        instance.0,
+                        be_wasm_ops::encode(&vec![message]),
+                    );
+                    be_wasm_ops::guest::spawn(async move {
+                        // A host that stopped answering stops the root too.
+                        let _ = told.await;
+                    });
                     continue;
                 }
                 // A drag its root carries once it hears it (`Embedding::input`).

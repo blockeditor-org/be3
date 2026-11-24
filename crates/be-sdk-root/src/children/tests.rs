@@ -5,6 +5,7 @@ use super::*;
 
 mod a_block_placed_in_several_places_shares_one_editor_but_a_twin;
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
+mod a_dialog_child_runs_in_an_editor_of_its_own;
 mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
 mod a_child_placed_in_a_dock_tabs_body_joins_its_placers_dock;
 mod a_child_placed_to_fit_its_content_is_asked_for_at_most_that_room;
