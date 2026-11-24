@@ -1035,6 +1035,7 @@ dependencies = [
  "be-type-example-counter",
  "be-type-image",
  "be-type-infinite-canvas",
+ "be-type-workspace",
  "beui",
  "beui-text-editor-core",
  "image",

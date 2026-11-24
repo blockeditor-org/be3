@@ -1,5 +1,5 @@
 use be_sdk_beui::be_block_content::{Artifact, BlockContent};
-use be_sdk_beui::{Artifacts, BlockList, BlockQuery, Blocks, EditorHost, OwnedContentProjection};
+use be_sdk_beui::{BlockQuery, Blocks, Editor, ExportSettings, ExporterOf, Made};
 use be_type_logic_grid::CompiledLogic;
 use be_type_logic_grid::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
 use beui::NodeId;
@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-struct ComponentSettings {
+#[serde(default)]
+pub(super) struct ComponentSettings {
     rename_with_source: bool,
 }
 
@@ -23,6 +24,7 @@ impl Default for ComponentSettings {
 }
 
 impl ComponentSettings {
+    #[cfg(test)]
     fn decode(data: &[u8]) -> Result<Self, String> {
         serde_json::from_slice(data)
             .map_err(|error| format!("logic grid component descriptor is unreadable: {error}"))
@@ -37,8 +39,40 @@ pub(super) fn descriptor(source_id: Uuid) -> Artifact {
     Artifact {
         source: source_id.into(),
         source_type: LogicGridContent::CONTENT_TYPE,
+        exporter: EXPORTER.to_owned(),
         settings: ComponentSettings::default().encode(),
+        made: None,
     }
+}
+
+/// The name the manifest declares the grid's one exporter under.
+const EXPORTER: &str = "component";
+
+/// The grid compiled into a component (guides/apps/editor.md, "Exporting"), which the grid's
+/// Compile makes in the workspace and the Export dialog makes anywhere.
+pub(super) fn exporter() -> ExporterOf<CompiledLogicContent, ComponentSettings> {
+    ExporterOf::new(EXPORTER, |editor: Editor| {
+        let source = editor.block_id();
+        let content = editor.block_content::<LogicGridContent>();
+        let listed = Blocks::of(&editor.host()).watch(BlockQuery::Block(source));
+        move |settings: &ComponentSettings| {
+            let grid = content.read(|content| content.root().grid())?;
+            let compiled = generate_initial(source, &grid).map_err(Pending::Failed)?;
+            let source_name = listed
+                .read()?
+                .into_iter()
+                .next()
+                .and_then(|info| info.name())
+                .unwrap_or_else(|| "Logic Grid".to_owned());
+            Ok(Made {
+                content: CompiledLogicContent::new(&CompiledLogicDocument::of(compiled)),
+                name: artifact_name(&source_name),
+                renames: settings.rename_with_source,
+            })
+        }
+    })
+    .settings(|settings| view! { <Settings settings /> })
+    .describe(|settings: &ComponentSettings| summary_of(settings).to_owned())
 }
 
 pub(super) fn generate_initial(source_id: Uuid, grid: &Grid) -> Result<CompiledLogic, String> {
@@ -49,114 +83,35 @@ pub(super) fn artifact_name(source_name: &str) -> String {
     format!("{source_name} Component")
 }
 
+#[cfg(test)]
 pub(super) fn summary(data: &[u8]) -> String {
-    let Ok(settings) = ComponentSettings::decode(data) else {
-        return "Compiled component".to_owned();
-    };
-    if settings.rename_with_source {
-        "Compiled component, named after its grid".to_owned()
-    } else {
-        "Compiled component".to_owned()
+    ComponentSettings::decode(data)
+        .map_or("Compiled component", |settings| summary_of(&settings))
+        .to_owned()
+}
+
+fn summary_of(settings: &ComponentSettings) -> &'static str {
+    match settings.rename_with_source {
+        true => "Compiled component, named after its grid",
+        false => "Compiled component",
     }
 }
 
 const SETTINGS_SPACING: Space = Space::Lg;
 
 #[component]
-pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
-    let data = artifacts.settings();
-    let decoded = create_memo(move || ComponentSettings::decode(&data.get()).ok());
-    let renamed = create_memo(move || {
-        decoded
-            .get()
-            .is_some_and(|settings| settings.rename_with_source)
-    });
-    let edited = artifacts.clone();
-    let rename = move |on: bool| {
-        let Some(mut settings) = decoded.get_untracked() else {
-            return;
-        };
-        settings.rename_with_source = on;
-        edited.edit_settings(settings.encode());
-    };
+fn Settings(settings: ExportSettings<ComponentSettings>) -> NodeId {
+    let value = settings.value();
+    let renamed = create_memo(move || value.get().rename_with_source);
+    let rename = move |on: bool| settings.update(|settings| settings.rename_with_source = on);
     view! {
         <List spacing=SETTINGS_SPACING>
-            <Show
-                value={move || decoded.with(Option::is_some)}
-                fallback={|| view! {
-                    <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
-                }}
-            >
-                <Checkbox
-                    label="Rename with the grid"
-                    checked={Binding::new(renamed, rename.clone())}
-                    @test_id={"logic-grid.rename-with-source"}
-                />
-            </Show>
+            <Checkbox
+                label="Rename with the grid"
+                checked={Binding::new(renamed, rename)}
+                @test_id={"logic-grid.rename-with-source"}
+            />
         </List>
-    }
-}
-
-pub(super) fn regenerate(
-    host: &EditorHost,
-    target_id: Uuid,
-    target_type: Uuid,
-    source: Uuid,
-    data: &[u8],
-) -> Result<CompileRegeneration, String> {
-    if target_type != CompiledLogicContent::CONTENT_TYPE {
-        return Err(format!(
-            "compiling a logic grid expected a Compiled Logic target, found {target_type}"
-        ));
-    }
-    let settings = ComponentSettings::decode(data)?;
-    Ok(CompileRegeneration {
-        host: host.clone(),
-        source_id: source,
-        source: host.content_of::<LogicGridContent>(source).into(),
-        source_block: Blocks::of(host).watch(BlockQuery::Block(source)),
-        target: target_id,
-        settings,
-    })
-}
-
-pub(super) struct CompileRegeneration {
-    host: EditorHost,
-    source_id: Uuid,
-    source: OwnedContentProjection<LogicGridContent>,
-    source_block: BlockList,
-    target: Uuid,
-    settings: ComponentSettings,
-}
-
-impl CompileRegeneration {
-    pub(super) fn poll(&mut self) -> Option<Result<(), String>> {
-        let grid = match self.source.read(|content| content.root().grid()) {
-            Ok(grid) => grid,
-            Err(Pending::Loading) => return None,
-            Err(Pending::Failed(error)) => return Some(Err(error)),
-        };
-        let compiled = match generate_initial(self.source_id, &grid) {
-            Ok(compiled) => compiled,
-            Err(error) => return Some(Err(error)),
-        };
-        self.host.replace_content(
-            self.target,
-            &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled)),
-        );
-        if self.settings.rename_with_source {
-            let source_name = self
-                .source_block
-                .read()
-                .ok()
-                .and_then(|listed| listed.into_iter().next())
-                .and_then(|info| info.name())
-                .unwrap_or_else(|| "Logic Grid".to_owned());
-            let name = artifact_name(&source_name);
-            let name = be_sdk_beui::be_block_content::metadata::clip_name(&name).to_owned();
-            let _named = Blocks::of(&self.host).set_name(self.target, Some(name));
-        }
-        Some(Ok(()))
     }
 }
 

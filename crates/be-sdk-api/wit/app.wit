@@ -7,7 +7,7 @@ interface app {
     use accessibility.{action-request};
     use shell-types.{drag-over, focus};
     use be3:ui/types@0.1.0.{clip-body, rect, vec2};
-    use types.{failure};
+    use types.{export-request, failure};
     use blocks.{channel-event, hosting-here, member-event, search-location};
 
     /// The user picked command `id` of the menu of the editor's view `view`
@@ -28,10 +28,12 @@ interface app {
     }
 
     /// What the instance that draws the window does for a block it shows:
-    /// shows its sharing dialog, or closes it (the editor showing the block
+    /// shows its sharing dialog, shows its Export dialog (placing a
+    /// `child-content.export`), or closes it (the editor showing the block
     /// asked to close itself).
     variant shell-dialog {
         share,
+        %export(export-request),
         close,
     }
 

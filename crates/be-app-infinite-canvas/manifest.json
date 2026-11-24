@@ -22,8 +22,13 @@
       "resize": "Both",
       "views": [
         "Main",
-        "Preview"
-      ]
+        "Preview",
+        "ArtifactSettings"
+      ],
+      "exporters": {
+        "png": {"label": "PNG image"},
+        "svg": {"label": "SVG image"}
+      }
     }
   },
   "block_types": {

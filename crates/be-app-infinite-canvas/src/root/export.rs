@@ -15,7 +15,10 @@ use be_sdk_beui::beui::{
     Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
     Stroke, TextAlign, TextLayout, Vec2, native::line_height, pos2, reactive::Painter,
 };
-use be_sdk_beui::{FileSave, SavedFile};
+use be_sdk_beui::be_block_content::blob::Blob;
+use be_sdk_beui::{Editor, ExportSettings, ExporterOf, Made};
+use be_type_workspace::{FileContent, FileHeader};
+use serde::{Deserialize, Serialize};
 use be_type_infinite_canvas::{
     CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTextWeight,
 };
@@ -26,66 +29,38 @@ use be_sdk_beui::beui::CanvasView;
 
 use super::paint::{EntityPaint, Palette, resolve_color, with_opacity};
 use super::sketch::{Ink, Mark, Sketch};
-use super::state::CanvasState;
+use super::entities::Entities;
+use be_sdk_beui::{BlockInfo, BlockQuery, ContentProjection};
+use be_type_infinite_canvas::{Canvas, CanvasContent};
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
 use crate::raster::nearest_upscaled;
-use be_type_image::ImageContent;
+use be_type_image::{ImageContent, ImageHeader};
 use beui::{Align, Direction};
 
 pub(crate) const PADDING: f32 = 16.0;
 const MAX_SIDE: f32 = 16_384.0;
 const MAX_PIXELS: f32 = 64.0 * 1024.0 * 1024.0;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ExportFormat {
-    Png,
-    Svg,
-}
-
-impl ExportFormat {
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Png => "PNG",
-            Self::Svg => "SVG",
-        }
-    }
-
-    fn extension(self) -> &'static str {
-        match self {
-            Self::Png => "png",
-            Self::Svg => "svg",
-        }
-    }
-
-    fn mime_type(self) -> &'static str {
-        match self {
-            Self::Png => "image/png",
-            Self::Svg => "image/svg+xml",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ExportTo {
-    Clipboard,
-    File,
-    /// To the answers a paste of a copy waits on (`CanvasState::copy_selection`).
-    Render,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ExportOptions {
+/// What the canvas's PNG and SVG exporters draw, and how (guides/apps/editor.md, "Exporting").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub(crate) struct ImageExport {
+    /// Pixels per canvas unit, for a PNG.
     pub(crate) scale: f32,
+    /// The canvas's background is drawn behind the items.
     pub(crate) background: bool,
+    /// The items drawn: every item for none, or what one frame frames.
+    pub(crate) items: Vec<Uuid>,
 }
 
-impl Default for ExportOptions {
+impl Default for ImageExport {
     fn default() -> Self {
         Self {
             scale: 2.0,
             background: true,
+            items: Vec::new(),
         }
     }
 }
@@ -118,14 +93,28 @@ pub(crate) struct ImageFile {
 pub(crate) type Images = BTreeMap<Uuid, ImageFile>;
 
 impl Scene {
-    pub(crate) fn of(state: &CanvasState, palette: Palette, background: Color32) -> Option<Self> {
+    /// What `items` (every item for none) of the canvas `state` shows draw, as it is now and
+    /// tracking it.
+    pub(crate) fn of(
+        state: &CanvasReader,
+        palette: Palette,
+        background: Color32,
+        items: &[Uuid],
+    ) -> Ready<Self> {
+        // Nothing to draw is only known once the canvas has arrived.
+        state.content.read(|_| ())?;
+        let references = state.references.get()?;
         let all: Vec<CanvasEntity> = state
             .entities
-            .all_untracked()
+            .all()
             .into_iter()
             .filter(|entity| !entity.hidden)
             .collect();
-        let selected = untrack(|| state.selected_entities());
+        let selected: Vec<CanvasEntity> = all
+            .iter()
+            .filter(|entity| items.contains(&entity.id))
+            .cloned()
+            .collect();
         let (entities, area, clipped, background, name) = match selected.as_slice() {
             [frame] if frame.is_frame() => {
                 let area = world_rect(entity_bounds(frame));
@@ -156,14 +145,14 @@ impl Scene {
                     .into_iter()
                     .filter(|entity| !entity.is_frame())
                     .collect();
-                let area = chosen
-                    .iter()
-                    .map(reach)
-                    .reduce(|all, next| all.union(next))?;
+                let Some(area) = chosen.iter().map(reach).reduce(|all, next| all.union(next))
+                else {
+                    return Err(Pending::Failed("There is nothing to export.".to_owned()));
+                };
                 let name = state
-                    .editor()
+                    .editor
                     .blocks()
-                    .info(state.editor().block_id())
+                    .info(state.editor.block_id())
                     .and_then(|info| info.name())
                     .filter(|name| !name.trim().is_empty())
                     .unwrap_or_else(|| "Canvas".to_owned());
@@ -171,23 +160,27 @@ impl Scene {
             }
         };
         if entities.is_empty() {
-            return None;
+            return Err(Pending::Failed("There is nothing to export.".to_owned()));
         }
+        let catalog = state.editor.block_types();
         let embeds = entities
             .iter()
             .filter(|entity| entity.shape.embeds_block())
             .filter_map(|entity| {
                 let block = entity.block?;
-                let label = state.label_of(block);
+                let info = references.iter().find(|info| info.id == block);
+                let label = info.map(|info| info.label(catalog.as_ref()));
                 Some((
                     block,
                     Embed {
                         title: label
                             .as_ref()
                             .map(|label| label.name.clone())
-                            .unwrap_or_else(|| state.unlabeled()),
+                            .unwrap_or_default(),
                         glyph: label.as_ref().and_then(be_sdk_beui::label_glyph),
-                        image: state.block_type_of(block) == Some(ImageContent::CONTENT_TYPE),
+                        image: info.is_some_and(|info| {
+                            info.block_type == ImageContent::CONTENT_TYPE
+                        }),
                     },
                 ))
             })
@@ -195,9 +188,16 @@ impl Scene {
         let rasters = entities
             .iter()
             .filter(|entity| entity.shape == CanvasShape::Raster)
-            .filter_map(|entity| Some((entity.id, state.raster_of(entity.id)?)))
+            .filter_map(|entity| {
+                let raster = state
+                    .content
+                    .read(|canvas| Canvas::raster(canvas, entity.id))
+                    .ok()
+                    .flatten()?;
+                Some((entity.id, raster))
+            })
             .collect();
-        Some(Self {
+        Ok(Self {
             entities,
             area,
             clipped,
@@ -216,7 +216,7 @@ impl Scene {
             .map(|(block, _)| *block)
     }
 
-    fn file_name(&self, format: ExportFormat) -> String {
+    fn file_name(&self, extension: &str) -> String {
         let stem: String = self
             .name
             .chars()
@@ -225,7 +225,7 @@ impl Scene {
                 character => character,
             })
             .collect();
-        format!("{stem}.{}", format.extension())
+        format!("{stem}.{extension}")
     }
 }
 
@@ -243,165 +243,148 @@ fn reach(entity: &CanvasEntity) -> Rect {
     }
 }
 
-#[derive(Clone, PartialEq)]
-struct Job {
-    scene: Scene,
-    format: ExportFormat,
-    to: ExportTo,
-    options: ExportOptions,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct Exporter {
-    state: CanvasState,
-    pub(crate) options: Signal<ExportOptions>,
-    pub(crate) dialog: Signal<Option<ExportFormat>>,
-    job: Signal<Option<Job>>,
-    palette: Memo<Palette>,
-    background: Memo<Color32>,
-}
-
-impl Exporter {
-    pub(crate) fn new(
-        state: CanvasState,
-        palette: Memo<Palette>,
-        background: Memo<Color32>,
-    ) -> Self {
-        let exporter = Self {
-            state,
-            options: create_signal(ExportOptions::default()),
-            dialog: create_signal(None),
-            job: create_signal(None),
-            palette,
-            background,
-        };
-        let editor = state.editor();
-        let job = exporter.job;
-        create_effect(move || {
-            let Some(wanted) = job.get() else {
-                return;
-            };
-            let mut images = Images::new();
-            for block in wanted.scene.images() {
-                let image = editor.content_of::<ImageContent>(block);
-                let read = image
-                    .read(|image| image.header().media_type.clone())
-                    .and_then(|media_type| {
-                        let data = image.payload().get()?;
-                        Ok(ImageFile {
-                            media_type,
-                            data: data.to_vec(),
-                        })
-                    });
-                match read {
-                    Ok(file) => {
-                        images.insert(block, file);
-                    }
-                    Err(Pending::Loading) => return,
-                    Err(Pending::Failed(_)) => {}
-                }
-            }
-            untrack(|| {
-                job.set(None);
-                let made = match wanted.format {
-                    ExportFormat::Png => png(&wanted.scene, wanted.options, &images),
-                    ExportFormat::Svg => {
-                        Ok(svg(&wanted.scene, wanted.options, &images).into_bytes())
-                    }
-                };
-                let data = match (made, wanted.to) {
-                    (made, ExportTo::Render) => {
-                        for answer in state.take_render_answers() {
-                            answer(made.as_ref().ok().cloned().map(Into::into));
-                        }
-                        return;
-                    }
-                    (Ok(data), _) => data,
-                    (Err(error), _) => {
-                        editor
-                            .host()
-                            .report_failure(format!("The canvas could not be exported. {error}"));
-                        return;
-                    }
-                };
-                match (wanted.to, wanted.format) {
-                    (ExportTo::Clipboard, ExportFormat::Png) => copy(Clip::png(data)),
-                    (ExportTo::Clipboard, ExportFormat::Svg) => {
-                        let text = String::from_utf8_lossy(&data).into_owned();
-                        copy(
-                            Clip::new()
-                                .with(ClipItem::new(ExportFormat::Svg.mime_type(), data))
-                                .with(ClipItem::text(text)),
-                        )
-                    }
-                    (ExportTo::Render, _) => {}
-                    (ExportTo::File, format) => {
-                        let asked = editor.host().save_file(SavedFile {
-                            name: wanted.scene.file_name(format),
-                            mime_type: format.mime_type().to_owned(),
-                            data,
-                        });
-                        editor.then(asked, move |saved| {
-                            if let FileSave::Failed(failure) = saved {
-                                editor.host().report_failure(format!(
-                                    "The canvas could not be exported. {failure}"
-                                ));
-                            }
-                        });
-                    }
-                }
+/// The images the scene shows, from the blocks it embeds: loading until each has arrived.
+fn images_of(editor: Editor, scene: &Scene) -> Ready<Images> {
+    let mut images = Images::new();
+    for block in scene.images() {
+        let image = editor.content_of::<ImageContent>(block);
+        let read = image
+            .read(|image| image.header().media_type.clone())
+            .and_then(|media_type| {
+                let data = image.payload().get()?;
+                Ok(ImageFile {
+                    media_type,
+                    data: data.to_vec(),
+                })
             });
-        });
-        exporter
+        match read {
+            Ok(file) => {
+                images.insert(block, file);
+            }
+            Err(Pending::Loading) => return Err(Pending::Loading),
+            Err(Pending::Failed(_)) => {}
+        }
     }
+    Ok(images)
+}
 
-    pub(crate) fn run(&self, format: ExportFormat, to: ExportTo) {
-        let scene = Scene::of(
-            &self.state,
-            self.palette.get_untracked(),
-            self.background.get_untracked(),
-        );
-        let Some(scene) = scene else {
-            return;
-        };
-        self.job.set(Some(Job {
-            scene,
-            format,
-            to,
-            options: self.options.get_untracked(),
-        }));
-    }
+/// The canvas as an export reads it: its items, and what the graph says of the blocks it
+/// embeds. Unlike `CanvasState` it needs no document, so an artifact instance, which shows
+/// nothing, makes one too.
+#[derive(Clone, Copy)]
+pub(crate) struct CanvasReader {
+    editor: Editor,
+    content: ContentProjection<CanvasContent>,
+    entities: Entities,
+    references: Memo<Ready<Vec<BlockInfo>>>,
+}
 
-    /// The scene a PNG of the selection would show now, kept by a copy to
-    /// render when a paste asks for it.
-    pub(crate) fn selection_scene(&self) -> Option<Scene> {
-        Scene::of(
-            &self.state,
-            self.palette.get_untracked(),
-            self.background.get_untracked(),
-        )
-    }
-
-    /// Renders `scene` as a PNG for the answers waiting on it.
-    pub(crate) fn render(&self, scene: Scene) {
-        self.job.set(Some(Job {
-            scene,
-            format: ExportFormat::Png,
-            to: ExportTo::Render,
-            options: ExportOptions::default(),
-        }));
-    }
-
-    pub(crate) fn ask(&self, format: ExportFormat) {
-        self.dialog.set(Some(format));
+impl CanvasReader {
+    fn new(editor: Editor) -> Self {
+        let content = editor.block_content::<CanvasContent>();
+        let listed = editor
+            .blocks()
+            .watch(BlockQuery::References(editor.block_id()));
+        Self {
+            editor,
+            content,
+            entities: Entities::new(content),
+            references: create_memo(move || listed.read()),
+        }
     }
 }
 
+/// The colours an export draws in: always the same, so what it makes does not change with the
+/// theme of whoever makes it (an artifact is made again on every device that shows it).
+fn export_palette() -> (Palette, Color32) {
+    let theme = Theme::DARK;
+    (
+        Palette {
+            auto: theme.text,
+            surface: theme.surface,
+            control: theme.control,
+            border: theme.border,
+            muted: theme.text_muted,
+        },
+        theme.background,
+    )
+}
+
+/// The scene `settings` draws of the canvas `editor` reads, with the images it shows.
+fn scenes(editor: Editor) -> impl Fn(&ImageExport) -> Ready<(Scene, Images)> {
+    let reader = CanvasReader::new(editor);
+    move |settings: &ImageExport| {
+        let (palette, background) = export_palette();
+        let scene = Scene::of(&reader, palette, background, &settings.items)?;
+        let images = images_of(editor, &scene)?;
+        Ok((scene, images))
+    }
+}
+
+/// The settings an export from the open canvas starts from: what is selected.
+fn selected(editor: Editor) -> ImageExport {
+    ImageExport {
+        items: super::state::selection_of(editor.block_id()),
+        ..ImageExport::default()
+    }
+}
+
+fn describe(settings: &ImageExport) -> String {
+    match settings.items.is_empty() {
+        true => "The whole canvas".to_owned(),
+        false => "Part of the canvas".to_owned(),
+    }
+}
+
+/// The canvas as a PNG image block.
+pub(crate) fn png_exporter() -> ExporterOf<ImageContent, ImageExport> {
+    ExporterOf::new("png", |editor: Editor| {
+        let scenes = scenes(editor);
+        move |settings: &ImageExport| {
+            let (scene, images) = scenes(settings)?;
+            let (data, [width, height]) = png(&scene, settings, &images).map_err(Pending::Failed)?;
+            let name = scene.file_name("png");
+            let header = ImageHeader {
+                source_name: name.clone(),
+                media_type: "image/png".to_owned(),
+                width,
+                height,
+                ..ImageHeader::default()
+            };
+            Ok(Made::named(Blob::new(header, data), name))
+        }
+    })
+    .settings(|settings| view! { <ImageSettings settings png=true /> })
+    .describe(describe)
+    .initial(selected)
+}
+
+/// The canvas as an SVG file block.
+pub(crate) fn svg_exporter() -> ExporterOf<FileContent, ImageExport> {
+    ExporterOf::new("svg", |editor: Editor| {
+        let scenes = scenes(editor);
+        move |settings: &ImageExport| {
+            let (scene, images) = scenes(settings)?;
+            let name = scene.file_name("svg");
+            let header = FileHeader {
+                source_name: name.clone(),
+                media_type: "image/svg+xml".to_owned(),
+            };
+            let data = svg(&scene, settings, &images).into_bytes();
+            Ok(Made::named(Blob::new(header, data), name))
+        }
+    })
+    .settings(|settings| view! { <ImageSettings settings png=false /> })
+    .describe(describe)
+    .initial(selected)
+}
+
+/// `scene` drawn as a PNG, and its size in pixels.
 pub(crate) fn png(
     scene: &Scene,
-    options: ExportOptions,
+    options: &ImageExport,
     images: &Images,
-) -> Result<Vec<u8>, String> {
+) -> Result<(Vec<u8>, [u32; 2]), String> {
     let scale = options.scale.max(0.1);
     let size = scene.area.size();
     let pixels = size * scale;
@@ -444,7 +427,11 @@ pub(crate) fn png(
         Punches::Shown,
     )?;
     let raster = rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
-    encode_png(raster.size, raster.rgba.into_iter().flatten().collect())
+    let size = raster.size;
+    Ok((
+        encode_png(size, raster.rgba.into_iter().flatten().collect())?,
+        size,
+    ))
 }
 
 const MAX_RASTER_UPSCALE: u32 = 64;
@@ -668,7 +655,7 @@ fn written(
         .collect()
 }
 
-pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> String {
+pub(crate) fn svg(scene: &Scene, options: &ImageExport, images: &Images) -> String {
     let area = scene.area;
     let mut out = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"{x} {y} {w} {h}\">\n",
@@ -1061,76 +1048,47 @@ pub(crate) fn encode_raster(raster: &CanvasRaster) -> Option<String> {
 
 pub(crate) const DIALOG_SPACING: Space = Space::Lg;
 
+/// The settings of the canvas's PNG (`png`) or SVG export.
 #[component]
-pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
-    let tab = use_frame_anchor();
-    let dialog = exporter.dialog;
-    let options = exporter.options;
-    let open = create_memo(move || dialog.get().is_some());
-    let title = create_memo(move || {
-        let format = dialog.get().unwrap_or(ExportFormat::Png);
-        format!("Export as {}", format.name())
-    });
-    let scale = create_memo(move || Some(options.get().scale));
+fn ImageSettings(settings: ExportSettings<ImageExport>, png: bool) -> NodeId {
+    let value = settings.value();
+    let scale = create_memo(move || Some(value.get().scale));
     let choose_scale = move |chosen: Option<f32>| {
         if let Some(scale) = chosen {
-            options.update(|options| options.scale = scale);
+            settings.update(|settings| settings.scale = scale);
         }
     };
-    let background = create_memo(move || options.get().background);
-    let set_background = move |on: bool| options.update(|options| options.background = on);
-    let finish = move |to: ExportTo| {
-        if let Some(format) = dialog.get_untracked() {
-            dialog.set(None);
-            exporter.run(format, to);
-        }
-    };
+    let background = create_memo(move || value.get().background);
+    let set_background = move |on: bool| settings.update(|settings| settings.background = on);
     view! {
-        <Dialog
-            open={open}
-            title={title}
-            id="infinite-canvas.export"
-            anchor={move || DialogAnchor::Rect(tab.get())}
-            actions={vec![
-                DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
-                DialogAction::cancel("Cancel"),
-                DialogAction::primary("Save…", move || finish(ExportTo::File)),
-            ]}
-            on_dismiss={move || dialog.set(None)}
-        >
-            <List spacing=DIALOG_SPACING>
-                <Show value={move || dialog.get() == Some(ExportFormat::Png)}>
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=DIALOG_SPACING
-                    >
-                        <ListItem grow=1.0>
-                            <Text>"Scale"</Text>
-                        </ListItem>
-                        <Select
-                            options={view! {
-                                <ChoiceOption value=1.0f32 label="1x" />
-                                <ChoiceOption value=2.0f32 label="2x" />
-                                <ChoiceOption value=3.0f32 label="3x" />
-                            }}
-                            selected={Binding::new(scale, choose_scale)}
-                            label="Scale"
-                            @test_id={"infinite-canvas.export.scale"}
-                        />
-                    </List>
-                </Show>
+        <List spacing=DIALOG_SPACING>
+            <Show value={move || png}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
                     <ListItem grow=1.0>
-                        <Text>"Background"</Text>
+                        <Text>"Scale"</Text>
                     </ListItem>
-                    <Switch
-                        on={Binding::new(background, set_background)}
-                        label="Background"
-                        @test_id={"infinite-canvas.export.background"}
+                    <Select
+                        options={view! {
+                            <ChoiceOption value=1.0f32 label="1x" />
+                            <ChoiceOption value=2.0f32 label="2x" />
+                            <ChoiceOption value=3.0f32 label="3x" />
+                        }}
+                        selected={Binding::new(scale, choose_scale)}
+                        label="Scale"
+                        @test_id={"infinite-canvas.export.scale"}
                     />
                 </List>
+            </Show>
+            <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
+                <ListItem grow=1.0>
+                    <Text>"Background"</Text>
+                </ListItem>
+                <Switch
+                    on={Binding::new(background, set_background)}
+                    label="Background"
+                    @test_id={"infinite-canvas.export.background"}
+                />
             </List>
-        </Dialog>
+        </List>
     }
 }
