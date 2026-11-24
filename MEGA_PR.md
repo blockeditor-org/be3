@@ -33,6 +33,7 @@ Landed on 2026-11-24:
 - `windows-restored-chips`: on Windows, windows from last time wait in chips and restore from the start menu; two dead-code errors on Windows fixed.
 - `one-way-in-apps-2`: one replace panel (ContentFileReplace) for the image, audio, PDF and game module editors; each file type says its extensions and MIME types, and pickers filter by them; m4a, oga, pnm and tga are recognised.
 - `one-way-batch-3`: one way each in the block stack: one export of a subtree to a block file (refusing owner-only blocks and unchecked parents), one read-change-write loop (Peer::update), and the type-module WIT maps onto the block stack's own types with one wire form for hashes (verify: only the known flaky lease test failed).
+- `one-way-in-apps-3`: step 5, a name too long is refused and the editor says why (`Editor::notify`); names taken from content are cut with `metadata::clip_name`; file types list their media types.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
