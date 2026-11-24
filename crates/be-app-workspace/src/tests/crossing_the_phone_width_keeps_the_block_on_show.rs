@@ -48,4 +48,3 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     assert_eq!(narrowed.top_bar, TopBar::Hidden);
     assert_eq!(fixture.test.take_phone_layout_requests(), [true]);
 }
-}keyboard_ask: 0,

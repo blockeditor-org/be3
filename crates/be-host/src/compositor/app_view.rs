@@ -135,7 +135,6 @@ pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
 
 #[derive(Clone, Copy)]
 struct AskedFocus {
-    asked: Memo<bool>,
     placer: Placer,
     child: ChildId,
 }
@@ -699,7 +698,7 @@ pub(crate) fn AppView(
     focus_when_asked(app_id, instance, region, &catcher, primary);
     focus_when_given(
         asked,
-        (app_id, instance),
+        (app_id, instance, region.id),
         state,
         revision,
         &catcher,
@@ -1654,7 +1653,7 @@ pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: 
 /// went to hands it on to the child that fills it, if any.
 fn focus_when_given(
     asked: Option<AskedFocus>,
-    (app, own): (Stored<String>, EditorInstanceId),
+    (app, own, region): (Stored<String>, EditorInstanceId, ViewId),
     state: Memo<PlacedView>,
     revision: Trigger,
     catcher: &NodeRef,
@@ -1670,12 +1669,12 @@ fn focus_when_given(
     create_effect(move || {
         let now = viewing.get();
         if registered.replace(now) != now {
-            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, now);
+            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, (own, region), now);
         }
     });
     on_cleanup(move || {
         if registered.replace(false) {
-            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, false);
+            asks::viewed(asked.placer.app, asked.placer.instance, asked.child, (own, region), false);
         }
     });
     let passing = create_signal(false);
@@ -1693,9 +1692,20 @@ fn focus_when_given(
         });
     });
     // A view still loading has no field to put the keyboard in yet: it takes it once it is up.
+    // Of the child's views, the one showing its content acts (`asks::acts`).
     create_effect(move || {
         revision.track();
-        if !asked.asked.get() || !primary.get() || !viewing.get() {
+        if !primary.get() || !viewing.get() {
+            return;
+        }
+        let content = untrack(|| be_host_runtime::content_view(&app.value(), own));
+        let acts = asks::acts(
+            asked.placer.app,
+            asked.placer.instance,
+            asked.child,
+            (own, region, content),
+        );
+        if !acts {
             return;
         }
         untrack(|| {
@@ -2126,7 +2136,6 @@ impl ChildNodes {
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
             provide_context(ChildFocus(Some(AskedFocus {
-                asked: create_memo(move || asks::asks(placer.app, placer.instance, key)),
                 placer,
                 child: key,
             })));
