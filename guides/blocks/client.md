@@ -86,7 +86,10 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   or nothing, and writes that against the head read. A write refused because
   another landed first is read and made again, up to `UPDATE_ATTEMPTS`, then
   `ClientError::Contended`, so nothing it writes goes over a write `make` did
-  not see. `make` answers a future that borrows nothing of it, so an update is
+  not see. Before each write after a refusal it waits a step longer, with
+  jitter (`backoff`), on the connection's clock when that is real; the crate's
+  own tests never wait. The typed form reads the head's stored form alone, not
+  the session's journal past it. `make` answers a future that borrows nothing of it, so an update is
   `Send` whenever that future is; state kept across reads (a type module, what
   was written) lives outside it. `update_content::<C>(block, ops)` is the typed
   form, for content this device decodes: `ops` answers the `LiveEdit`

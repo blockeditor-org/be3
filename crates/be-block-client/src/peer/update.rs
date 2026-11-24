@@ -2,6 +2,8 @@
 //! read a block's head, make its new content from it and write against that head, and when
 //! another write landed first, read again and make again, up to `UPDATE_ATTEMPTS` writes.
 
+use std::time::Duration;
+
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, Entries, LiveEdit, derived_metadata};
 use be_block_store::{ObjectStore, Part};
@@ -13,6 +15,19 @@ use crate::ClientError;
 /// How many writes an update makes before it gives up with `ClientError::Contended`: each after
 /// the first follows a write that landed between its read and its write.
 pub const UPDATE_ATTEMPTS: usize = 8;
+
+/// How long an update waits before writing again after its `refused`th refusal: a step longer
+/// each time, plus as much again at random, so devices of one account that sign in together and
+/// write its block at once do not refuse each other in lockstep: between `10 × refused` and
+/// `20 × refused` milliseconds, `jitter` picking where.
+pub(crate) fn backoff(refused: usize, jitter: u128) -> Duration {
+    const STEP_MS: u64 = 10;
+    if refused == 0 {
+        return Duration::ZERO;
+    }
+    let step = STEP_MS * refused as u64;
+    Duration::from_millis(step + (jitter % u128::from(step + 1)) as u64)
+}
 
 /// The content an update writes: its stored form and what it says of itself
 /// (`Write::described`).
@@ -51,7 +66,8 @@ impl<S: ObjectStore> Peer<S> {
         E: From<ClientError>,
         Fut: Future<Output = Result<Option<NewContent>, E>>,
     {
-        for _ in 0..UPDATE_ATTEMPTS {
+        for refused in 0..UPDATE_ATTEMPTS {
+            self.back_off(refused).await;
             let read = self.current(block).await?;
             let head = read.summary.head;
             let Some(change) = make(read).await? else {
@@ -75,7 +91,8 @@ impl<S: ObjectStore> Peer<S> {
         change: &NewContent,
     ) -> Result<Saved, ClientError> {
         let mut head = self.newest_head(block).await?;
-        for _ in 0..UPDATE_ATTEMPTS {
+        for refused in 0..UPDATE_ATTEMPTS {
+            self.back_off(refused).await;
             match self.write_change(block, content_type, change, head).await? {
                 Saved::Rejected { head: newer } => head = newer,
                 saved => return Ok(saved),
@@ -85,7 +102,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// `update` for content this device decodes: `ops` gets the content as read and answers the
-    /// operations to apply to it. None when they change nothing.
+    /// operations to apply to it. None when they change nothing. The content is the head's
+    /// stored form alone: what the block's live session sequenced past it (`BlockRead::journal`)
+    /// is not applied, since only the block's type module reads a journal; an edit the session
+    /// holds reaches the head when its owner seals it, and the type merges this write with it
+    /// then. A caller with the type modules folds the journal in itself through `update`
+    /// (be-tool-cli's tracker, `Modules::readable`).
     pub async fn update_content<C, Fut>(
         &self,
         block: Uuid,
@@ -124,8 +146,12 @@ impl<S: ObjectStore> Peer<S> {
         .await
     }
 
-    /// `block` as this device has it newest: the head of its own commits still in the outbox,
-    /// read from its store, or else what the server holds, with the session's journal past it.
+    /// `block` as this device has it newest. While this device has commits of it in the outbox
+    /// (`pending_commits`), their head, read from its store with no journal: what the server
+    /// holds is older than what this device wrote, and a write over it would wait behind them
+    /// anyway. Otherwise, the server's head and the session's journal past it (`read_contents`,
+    /// which offline answers what this device holds), even when this device remembers a head:
+    /// a head it remembers may be one another device has written over since.
     pub async fn current(&self, block: Uuid) -> Result<BlockRead, ClientError> {
         if let Some(head) = self.local_head(block)
             && !self.pending_commits(block).is_empty()
@@ -151,6 +177,18 @@ impl<S: ObjectStore> Peer<S> {
             self.remember(block, head)?;
         }
         Ok(read)
+    }
+
+    /// Waits `backoff` on the connection's clock before the write after a refusal. Only on a
+    /// real clock: a manual one moves only when its test moves it, which knows nothing of this
+    /// wait. Never in this crate's tests, whose contended writes are refused on purpose and
+    /// must not wait.
+    async fn back_off(&self, refused: usize) {
+        let wait = backoff(refused, Uuid::new_v4().as_u128());
+        let clock = self.connection().clock().clone();
+        if !cfg!(test) && !wait.is_zero() && clock.is_real() {
+            clock.sleep(wait).await;
+        }
     }
 
     async fn write_change(
