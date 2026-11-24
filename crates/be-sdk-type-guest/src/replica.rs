@@ -815,7 +815,16 @@ where
             (None, _) => self.load(C::default()),
         }
         for read in std::mem::take(&mut self.reads_carried) {
-            self.read_log_for(read);
+            match self.has_log {
+                true => self.read_log_for(read),
+                false => self.tell_editor(
+                    read.editor,
+                    &ToEditor::LogRead {
+                        token: read.token,
+                        result: Err("this type keeps no log".to_owned()),
+                    },
+                ),
+            }
         }
         self.run(out);
     }
@@ -1892,6 +1901,9 @@ where
             Input::Resent { editor } => self.resent(editor),
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
+                // Its reads of the log are answered to no one, and carry to no next replica.
+                self.log_reads
+                    .retain(|_, read| read.is_none_or(|read| read.editor != editor));
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
                 self.snapshots_shown.remove(&editor);
