@@ -197,7 +197,7 @@ host owes a replica (the WIT documents each call):
   current one: an earlier opening made it. The host answers every call a
   replica made all the same, and the module drops what answers an earlier
   opening, but for a call made for an editor (a read of the log, a part put,
-  an append): the next replica takes those of editors still attached
+  an append): the next replica takes those whose editor has not detached
   (`Carried::asks`) and hands each answer on to its editor alone
   (`AnyReplica::late`), so none is made twice, and a page of the log read before
   it opened never undoes a redaction it has since taken. A released replica's
