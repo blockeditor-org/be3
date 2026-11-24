@@ -10,10 +10,13 @@
 //!   as long as a job needs without holding up the app's frames. It has WASI and its libraries,
 //!   but no gpu: it computes, and sends what it made back as bytes.
 //! - The app starts it with `Worker::spawn` through the sandbox API (`be3:sandbox`), sends it
-//!   messages with `send` and takes its answers with `receive`. Each message is one byte buffer,
-//!   delivered whole and in order. Dropping the `Worker` stops it.
+//!   messages with `send` and takes its answers with `receive`. Messages are typed: the worker's
+//!   `Work::In` and `Work::Out`, which travel encoded with postcard, each whole and in order.
+//!   Dropping the `Worker` stops it.
 //! - Or, for work every editor of the app asks of one worker, each holds a `Shared`: they share
-//!   one instance of the module, and each hears only the answers to what it asked.
+//!   one instance of the module, and each hears only the answers to what it asked, each with
+//!   the ticket its job was given, and a ticket failed for each job a worker that stopped will
+//!   never answer.
 //!
 //! Each message travels with the client that sent it or that it answers, which `Shared` tells its
 //! editors apart by: a `Work` answers the client whose message it is taking, and `Worker` is
@@ -22,11 +25,13 @@
 //! Nothing here assumes the guest has one thread: it keeps no state of its own, and a `Worker` is
 //! used from the thread whose executor spawned it, as every op is.
 
-use std::{collections::VecDeque, rc::Rc};
+use std::{collections::VecDeque, marker::PhantomData, rc::Rc};
 
 mod shared;
 
-pub use shared::{Answer, Generation, Shared};
+pub use shared::{Shared, Ticket};
+
+use serde::{Serialize, de::DeserializeOwned};
 
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
@@ -52,7 +57,7 @@ pub const NO_WORKERS: &str = "this host runs no workers";
 pub const UNFRAMED: &str = "a worker broke the worker protocol: its message came with no client \
                             (is the module exported with be_sdk_worker::worker!?)";
 
-/// What a worker said, as `Worker::receive_framed` hears it.
+/// What a worker said, as `Raw::receive_framed` hears it.
 enum Received {
     /// A message, and the client it answers.
     Message(u64, Vec<u8>),
@@ -62,18 +67,70 @@ enum Received {
     Unframed,
 }
 
-/// A worker the app started: an instance of one of its worker modules.
-pub struct Worker {
-    sender: Sender,
-    received: VecDeque<Vec<u8>>,
+/// A message as it travels: postcard.
+fn encode<T: Serialize>(message: &T) -> Vec<u8> {
+    postcard::to_stdvec(message).expect("a worker message always encodes")
 }
 
-impl Worker {
+fn decode<T: DeserializeOwned>(message: &[u8], from: &str) -> Result<T, String> {
+    postcard::from_bytes(message)
+        .map_err(|error| format!("{from} sent a message that did not decode: {error}"))
+}
+
+/// A worker the app started: an instance of one of its worker modules, which takes `Job`s and
+/// answers with `Answer`s (its `Work::In` and `Work::Out`).
+pub struct Worker<Job, Answer> {
+    raw: Raw,
+    _messages: PhantomData<fn(Job) -> Answer>,
+}
+
+impl<Job: Serialize, Answer: DeserializeOwned> Worker<Job, Answer> {
     /// Starts `module`, one of the worker modules the app's manifest names under `workers`
     /// (such as `"tiles.wasm"`), as an instance of its own. One that cannot start, such as a
     /// module the app does not stage, says why from `receive`. Drop a `Worker` (and its
     /// `Sender`s) once `receive` says it stopped: a stopped worker stays held until then.
     pub fn spawn(module: &str) -> Self {
+        Self {
+            raw: Raw::spawn(module),
+            _messages: PhantomData,
+        }
+    }
+
+    /// Sends the worker one job. Jobs arrive in the order they were sent; one sent to a worker
+    /// that stopped is dropped, and `receive` says why it stopped.
+    pub fn send(&self, job: &Job) {
+        self.raw.sender.send_as(0, &encode(job));
+    }
+
+    /// Something that sends to this worker, for a task that sends while another receives.
+    pub fn sender(&self) -> Sender<Job> {
+        Sender {
+            raw: self.raw.sender.clone(),
+            _jobs: PhantomData,
+        }
+    }
+
+    /// The worker's next message, once it has sent one, or why it stopped: it could not start,
+    /// trapped or panicked. Once it stopped, every later call fails the same way. A message that
+    /// broke the protocol, or did not decode as an `Answer`, fails instead, and the next call
+    /// goes on to the one after it.
+    pub async fn receive(&mut self) -> Result<Answer, String> {
+        match self.raw.receive_framed().await {
+            Received::Message(_, message) => decode(&message, "a worker"),
+            Received::Stopped(why) => Err(why),
+            Received::Unframed => Err(UNFRAMED.to_owned()),
+        }
+    }
+}
+
+/// A worker instance as bytes, which `Worker` and `Shared` type.
+struct Raw {
+    sender: RawSender,
+    received: VecDeque<Vec<u8>>,
+}
+
+impl Raw {
+    fn spawn(module: &str) -> Self {
         // The host serves an app the sandbox for its own workers, so no app id names them.
         let source = Source::App(StagedModule {
             app: String::new(),
@@ -84,31 +141,8 @@ impl Worker {
             memory_limit: MEMORY_LIMIT,
         };
         Self {
-            sender: Sender(Rc::new(Instance::new(source, config))),
+            sender: RawSender(Rc::new(Instance::new(source, config))),
             received: VecDeque::new(),
-        }
-    }
-
-    /// Sends the worker one message. Messages arrive in the order they were sent; one sent to a
-    /// worker that stopped is dropped, and `receive` says why it stopped.
-    pub fn send(&self, message: Vec<u8>) {
-        self.sender.send(message);
-    }
-
-    /// Something that sends to this worker, for a task that sends while another receives.
-    pub fn sender(&self) -> Sender {
-        self.sender.clone()
-    }
-
-    /// The worker's next message, once it has sent one, or why it stopped: it could not start,
-    /// trapped or panicked. Once it stopped, every later call fails the same way. A message that
-    /// broke the protocol fails with `UNFRAMED` instead, and the next call goes on to the one
-    /// after it.
-    pub async fn receive(&mut self) -> Result<Vec<u8>, String> {
-        match self.receive_framed().await {
-            Received::Message(_, message) => Ok(message),
-            Received::Stopped(why) => Err(why),
-            Received::Unframed => Err(UNFRAMED.to_owned()),
         }
     }
 
@@ -133,17 +167,33 @@ impl Worker {
     }
 }
 
-/// Sends messages to a worker (`Worker::sender`). The worker stops once its `Worker` and every
+/// Sends jobs to a worker (`Worker::sender`). The worker stops once its `Worker` and every
 /// `Sender` are dropped.
-#[derive(Clone)]
-pub struct Sender(Rc<Instance>);
+pub struct Sender<Job> {
+    raw: RawSender,
+    _jobs: PhantomData<fn(Job)>,
+}
 
-impl Sender {
-    /// Sends the worker one message (`Worker::send`).
-    pub fn send(&self, message: Vec<u8>) {
-        self.send_as(0, &message);
+impl<Job> Clone for Sender<Job> {
+    fn clone(&self) -> Self {
+        Self {
+            raw: self.raw.clone(),
+            _jobs: PhantomData,
+        }
     }
+}
 
+impl<Job: Serialize> Sender<Job> {
+    /// Sends the worker one job (`Worker::send`).
+    pub fn send(&self, job: &Job) {
+        self.raw.send_as(0, &encode(job));
+    }
+}
+
+#[derive(Clone)]
+struct RawSender(Rc<Instance>);
+
+impl RawSender {
     fn send_as(&self, client: u64, message: &[u8]) {
         self.0.send(vec![frame(client, message)]).detach();
     }
@@ -161,30 +211,37 @@ fn unframe(frame: &[u8]) -> Option<(u64, &[u8])> {
 }
 
 /// What a worker module does: its state, made when it starts, and how it takes each message from
-/// the app that spawned it. Export it with `worker!`.
+/// the app that spawned it, an `In`, answering with `Out`s (the app's `Worker<In, Out>` or
+/// `Shared<In, Out>`). Export it with `worker!`.
 pub trait Work: Sized + 'static {
+    /// What the app sends it.
+    type In: DeserializeOwned;
+    /// What it answers with.
+    type Out: Serialize;
+
     /// Starts the worker.
-    fn start(app: &mut App) -> Result<Self, String>;
+    fn start(app: &mut App<Self::Out>) -> Result<Self, String>;
 
     /// Takes one message from the app. Whatever answers it is sent through `app` before this
     /// returns: `app` addresses it to the client that asked (`Shared`), and lasts only for this
     /// call, so a worker has no way to answer later. An error stops the worker, and the app's
-    /// `receive` says why.
-    fn receive(&mut self, message: Vec<u8>, app: &mut App) -> Result<(), String>;
+    /// `receive` says why; so does a message that does not decode as an `In`.
+    fn receive(&mut self, message: Self::In, app: &mut App<Self::Out>) -> Result<(), String>;
 }
 
 /// The app that spawned a worker, as the worker sees it.
-pub struct App<'a> {
+pub struct App<'a, Out> {
     outbound: &'a mut Vec<Vec<u8>>,
     /// The client whose message the worker is taking, which what it sends answers.
     client: u64,
+    _out: PhantomData<fn(Out)>,
 }
 
-impl App<'_> {
+impl<Out: Serialize> App<'_, Out> {
     /// Sends the app one message, which its `Worker::receive` answers with: an answer to the
     /// client whose message the worker is taking (`Shared`), or to client 0 as it starts.
-    pub fn send(&mut self, message: Vec<u8>) {
-        self.outbound.push(frame(self.client, &message));
+    pub fn send(&mut self, message: &Out) {
+        self.outbound.push(frame(self.client, &encode(message)));
     }
 }
 
@@ -193,6 +250,7 @@ fn start<W: Work>(outbound: &mut Vec<Vec<u8>>) -> Result<W, String> {
     W::start(&mut App {
         outbound,
         client: 0,
+        _out: PhantomData,
     })
 }
 
@@ -207,7 +265,15 @@ fn step<W: Work>(
             "the app broke the worker protocol: its message came with no client (send through \
              be_sdk_worker's Worker or Shared)",
         )?;
-        work.receive(message.to_vec(), &mut App { outbound, client })?;
+        let message = decode(message, "the app")?;
+        work.receive(
+            message,
+            &mut App {
+                outbound,
+                client,
+                _out: PhantomData,
+            },
+        )?;
     }
     Ok(())
 }
@@ -239,15 +305,17 @@ impl Hosted {
 
     /// Sends the worker one message as a `Worker` would, and answers what it sent back: how a
     /// worker crate's tests ask it something.
-    pub fn ask(&mut self, message: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+    pub fn ask<In: Serialize, Out: DeserializeOwned>(
+        &mut self,
+        message: &In,
+    ) -> Result<Vec<Out>, String> {
         let mut outbound = Vec::new();
-        self.step(vec![frame(0, message)], &mut outbound)?;
+        self.step(vec![frame(0, &encode(message))], &mut outbound)?;
         outbound
             .iter()
             .map(|frame| {
-                unframe(frame)
-                    .map(|(_, message)| message.to_vec())
-                    .ok_or_else(|| UNFRAMED.to_owned())
+                let (_, message) = unframe(frame).ok_or_else(|| UNFRAMED.to_owned())?;
+                decode(message, "the worker")
             })
             .collect()
     }

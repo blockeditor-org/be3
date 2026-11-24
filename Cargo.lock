@@ -2532,6 +2532,8 @@ version = "0.1.0"
 dependencies = [
  "be-wasm-guest-abi",
  "be-wasm-sandbox-api",
+ "postcard",
+ "serde",
 ]
 
 [[package]]
@@ -3434,7 +3436,6 @@ version = "0.1.0"
 name = "be-worker-map"
 version = "0.1.0"
 dependencies = [
- "postcard",
  "serde",
  "serde_bytes",
 ]
@@ -3453,7 +3454,6 @@ name = "be-worker-pdf"
 version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
- "postcard",
  "serde",
  "serde_bytes",
 ]

@@ -22,16 +22,19 @@ pub const STOPPED: &str = "the echo worker was asked to stop";
 pub struct Echo;
 
 impl Work for Echo {
-    fn start(app: &mut App) -> Result<Self, String> {
-        app.send(STARTED.to_vec());
+    type In = Vec<u8>;
+    type Out = Vec<u8>;
+
+    fn start(app: &mut App<Vec<u8>>) -> Result<Self, String> {
+        app.send(&STARTED.to_vec());
         Ok(Self)
     }
 
-    fn receive(&mut self, message: Vec<u8>, app: &mut App) -> Result<(), String> {
+    fn receive(&mut self, message: Vec<u8>, app: &mut App<Vec<u8>>) -> Result<(), String> {
         if message == STOP {
             return Err(STOPPED.to_owned());
         }
-        app.send([ECHOED, &message].concat());
+        app.send(&[ECHOED, &message].concat());
         Ok(())
     }
 }

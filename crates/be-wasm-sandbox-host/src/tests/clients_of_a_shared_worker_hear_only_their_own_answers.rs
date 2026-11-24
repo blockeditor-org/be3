@@ -3,13 +3,13 @@ use std::{
     task::{Poll, Waker},
 };
 
-use be_sdk_worker::Shared;
+use be_sdk_worker::{Shared, Ticket};
 use be_sdk_worker_echo::{ECHOED, MODULE};
 
 use super::*;
 
 /// A client of the shared echo worker, and the task that waits on it.
-fn client() -> (Shared, Rc<RefCell<Option<Waker>>>) {
+fn client() -> (Shared<Vec<u8>, Vec<u8>>, Rc<RefCell<Option<Waker>>>) {
     let waiting = Rc::new(RefCell::new(None::<Waker>));
     let woken = Rc::clone(&waiting);
     let shared = Shared::new(MODULE, move || {
@@ -20,9 +20,12 @@ fn client() -> (Shared, Rc<RefCell<Option<Waker>>>) {
     (shared, waiting)
 }
 
-async fn answer(shared: &Shared, waiting: &RefCell<Option<Waker>>) -> Result<Vec<u8>, String> {
+async fn answer(
+    shared: &mut Shared<Vec<u8>, Vec<u8>>,
+    waiting: &RefCell<Option<Waker>>,
+) -> (Ticket, Result<Vec<u8>, String>) {
     poll_fn(|context| match shared.try_receive() {
-        Some(answer) => Poll::Ready(answer.result),
+        Some(answer) => Poll::Ready(answer),
         None => {
             *waiting.borrow_mut() = Some(context.waker().clone());
             Poll::Pending
@@ -39,29 +42,25 @@ fn clients_of_a_shared_worker_hear_only_their_own_answers() {
     let answers = pump.run(async {
         let (mut first, first_waits) = client();
         let (mut second, second_waits) = client();
-        let generations = [
-            second.send(b"two"),
-            first.send(b"one"),
-            first.send(b"three"),
+        let tickets = [
+            second.send(&b"two".to_vec()),
+            first.send(&b"one".to_vec()),
+            first.send(&b"three".to_vec()),
         ];
-        assert!(
-            generations
-                .iter()
-                .all(|generation| *generation == generations[0]),
-            "every client talks to one instance"
-        );
-        [
-            answer(&first, &first_waits).await,
-            answer(&second, &second_waits).await,
-            answer(&first, &first_waits).await,
-        ]
+        let answers = [
+            answer(&mut first, &first_waits).await,
+            answer(&mut second, &second_waits).await,
+            answer(&mut first, &first_waits).await,
+        ];
+        (tickets, answers)
     });
+    let ([two, one, three], answers) = answers;
     assert_eq!(
         answers,
         [
-            Ok([ECHOED, b"one"].concat()),
-            Ok([ECHOED, b"two"].concat()),
-            Ok([ECHOED, b"three"].concat()),
+            (one, Ok([ECHOED, b"one"].concat())),
+            (two, Ok([ECHOED, b"two"].concat())),
+            (three, Ok([ECHOED, b"three"].concat())),
         ]
     );
 }

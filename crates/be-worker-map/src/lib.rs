@@ -74,26 +74,3 @@ pub struct Rasterized {
     pub id: TileId,
     pub result: Result<TileRaster, String>,
 }
-
-impl Job {
-    pub fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).expect("a job always encodes")
-    }
-
-    pub fn decode(message: &[u8]) -> Result<Self, String> {
-        postcard::from_bytes(message)
-            .map_err(|error| format!("the map sent a job that did not decode: {error}"))
-    }
-}
-
-impl Rasterized {
-    pub fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).expect("a rasterized tile always encodes")
-    }
-
-    pub fn decode(message: &[u8]) -> Result<Self, String> {
-        postcard::from_bytes(message).map_err(|error| {
-            format!("the tile rasterizer sent an answer that did not decode: {error}")
-        })
-    }
-}

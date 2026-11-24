@@ -10,26 +10,27 @@ use std::{
 };
 
 use be_wasm_sandbox_api::ops::guest;
+use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{Received, Sender, Worker};
+use crate::{Raw, RawSender, Received, decode, encode};
 
 /// Which instance of a shared worker a message went to and an answer came from. A worker that
-/// stopped is started anew by the next `send`, as the next generation, so an editor can tell what
+/// stopped is started anew by the next `send`, as the next generation, so a client can tell what
 /// a stop fails (what it sent to that generation) from what it sent since.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Generation(u64);
+struct Generation(u64);
 
-/// An answer to one client of a shared worker (`Shared::try_receive`): a message the worker sent
-/// it, or why the worker stopped, from the generation it came from.
+/// An answer to one client of a shared worker: a message the worker sent it, or why the worker
+/// stopped, from the generation it came from.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Answer {
-    pub generation: Generation,
+struct Heard {
+    generation: Generation,
     /// The worker's message, or why the generation stopped: nothing more sent to it will be
     /// answered.
-    pub result: Result<Vec<u8>, String>,
+    result: Result<Vec<u8>, String>,
 }
 
-type Answers = Rc<RefCell<VecDeque<Answer>>>;
+type Answers = Rc<RefCell<VecDeque<Heard>>>;
 
 /// Where a client's answers go, and how it hears they came.
 struct Route {
@@ -52,7 +53,7 @@ thread_local! {
 /// hands each client its answers.
 struct Running {
     generation: Generation,
-    sender: Sender,
+    sender: RawSender,
     routes: Routes,
     next: Cell<u64>,
     /// Whether it stopped, after which a client that sends starts it anew.
@@ -80,8 +81,8 @@ impl Running {
 
     fn start(module: &str) -> Self {
         let generation = Generation(NEXT_GENERATION.replace(NEXT_GENERATION.get() + 1));
-        let mut worker = Worker::spawn(module);
-        let sender = worker.sender();
+        let mut worker = Raw::spawn(module);
+        let sender = worker.sender.clone();
         let routes = Routes::default();
         let stopped = Rc::new(Cell::new(false));
         let heard = Rc::clone(&routes);
@@ -93,7 +94,7 @@ impl Running {
                 let why = match answer {
                     Received::Message(client, message) => {
                         if let Some(route) = routes.get(&client) {
-                            route.answers.borrow_mut().push_back(Answer {
+                            route.answers.borrow_mut().push_back(Heard {
                                 generation,
                                 result: Ok(message),
                             });
@@ -108,7 +109,7 @@ impl Running {
                 };
                 stops.set(true);
                 for route in routes.values() {
-                    route.answers.borrow_mut().push_back(Answer {
+                    route.answers.borrow_mut().push_back(Heard {
                         generation,
                         result: Err(why.clone()),
                     });
@@ -136,10 +137,8 @@ impl Running {
     }
 }
 
-/// One editor's way to a worker of the app's that every editor shares (`Shared::new`): it sends
-/// that editor's messages and hears only their answers, in order. Every `Shared` of the same
-/// module in the app talks to one instance, which stops once none holds it.
-pub struct Shared {
+/// One client's way to a shared worker, as bytes, which `Shared` types.
+struct Client {
     module: String,
     running: Rc<Running>,
     client: u64,
@@ -147,10 +146,8 @@ pub struct Shared {
     wake: Rc<dyn Fn()>,
 }
 
-impl Shared {
-    /// A client of the worker module `module` (such as `"tiles.wasm"`), started if no other
-    /// client runs it. `wake` is called whenever an answer comes, which `try_receive` then takes.
-    pub fn new(module: &str, wake: impl Fn() + 'static) -> Self {
+impl Client {
+    fn new(module: &str, wake: impl Fn() + 'static) -> Self {
         let running = Running::of(module);
         let answers = Answers::default();
         let wake: Rc<dyn Fn()> = Rc::new(wake);
@@ -170,7 +167,7 @@ impl Shared {
     /// Sends the worker one message, and answers the generation it went to. If the worker
     /// stopped (a job it could not do stops it), this starts it anew first, as the next
     /// generation, so one bad job fails only what was in flight.
-    pub fn send(&mut self, message: &[u8]) -> Generation {
+    fn send(&mut self, message: &[u8]) -> Generation {
         if self.running.stopped.get() {
             self.leave();
             self.running = Running::of(&self.module);
@@ -186,7 +183,7 @@ impl Shared {
     /// The next answer to this client, once it came. An error says why a generation stopped,
     /// which fails everything this client sent to that generation, and nothing sent to a later
     /// one: none of it will be answered.
-    pub fn try_receive(&self) -> Option<Answer> {
+    fn try_receive(&self) -> Option<Heard> {
         self.answers.borrow_mut().pop_front()
     }
 
@@ -195,9 +192,91 @@ impl Shared {
     }
 }
 
-impl Drop for Shared {
+impl Drop for Client {
     fn drop(&mut self) {
         self.leave();
+    }
+}
+
+/// One job a client of a shared worker sent (`Shared::send`), which its answer, or its failure
+/// when the worker stopped before answering it, comes with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Ticket(u64);
+
+/// One editor's way to a worker of the app's that every editor shares (`Shared::new`): it sends
+/// that editor's `Job`s and hears only their `Answer`s, in order, each with the ticket its job
+/// was given. Every `Shared` of the same module in the app talks to one instance, which stops
+/// once none holds it. A worker that stops (a job it could not do stops it) fails each ticket it
+/// was sent and had not answered, and the next `send` starts it anew, so one bad job fails only
+/// what was in flight.
+pub struct Shared<Job, Answer> {
+    client: Client,
+    /// The jobs sent and not yet answered, oldest first, and the generation each went to.
+    sent: VecDeque<(Ticket, Generation)>,
+    /// Tickets a stopped generation failed, not yet taken, and why.
+    failed: VecDeque<(Ticket, String)>,
+    next: u64,
+    _messages: std::marker::PhantomData<fn(Job) -> Answer>,
+}
+
+impl<Job: Serialize, Answer: DeserializeOwned> Shared<Job, Answer> {
+    /// A client of the worker module `module` (such as `"tiles.wasm"`), started if no other
+    /// client runs it. `wake` is called whenever an answer comes, which `try_receive` then takes.
+    pub fn new(module: &str, wake: impl Fn() + 'static) -> Self {
+        Self {
+            client: Client::new(module, wake),
+            sent: VecDeque::new(),
+            failed: VecDeque::new(),
+            next: 0,
+            _messages: std::marker::PhantomData,
+        }
+    }
+
+    /// Sends the worker one job, and answers its ticket.
+    pub fn send(&mut self, job: &Job) -> Ticket {
+        let ticket = Ticket(self.next);
+        self.next += 1;
+        let generation = self.client.send(&encode(job));
+        self.sent.push_back((ticket, generation));
+        ticket
+    }
+
+    /// The jobs sent and not yet answered or failed.
+    pub fn in_flight(&self) -> usize {
+        self.sent.len()
+    }
+
+    /// The next answer, once it came, with its job's ticket: the worker's `Answer`, or why it
+    /// could not give one (it stopped before it did, or what it sent did not decode).
+    pub fn try_receive(&mut self) -> Option<(Ticket, Result<Answer, String>)> {
+        loop {
+            if let Some((ticket, why)) = self.failed.pop_front() {
+                return Some((ticket, Err(why)));
+            }
+            let Heard { generation, result } = self.client.try_receive()?;
+            match result {
+                // The oldest job sent to that generation: a worker answers its client in order.
+                Ok(message) => {
+                    let Some(index) = self.sent.iter().position(|(_, sent)| *sent == generation)
+                    else {
+                        continue;
+                    };
+                    let (ticket, _) = self.sent.remove(index)?;
+                    return Some((ticket, decode(&message, "a shared worker")));
+                }
+                // It answers nothing more it was sent; what went to a later generation (a send
+                // that started it anew) is still to come.
+                Err(why) => {
+                    let (lost, kept) = std::mem::take(&mut self.sent)
+                        .into_iter()
+                        .partition(|(_, sent)| *sent == generation);
+                    self.sent = kept;
+                    let lost: VecDeque<(Ticket, Generation)> = lost;
+                    self.failed
+                        .extend(lost.into_iter().map(|(ticket, _)| (ticket, why.clone())));
+                }
+            }
+        }
     }
 }
 

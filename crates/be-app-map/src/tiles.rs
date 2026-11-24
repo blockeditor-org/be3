@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::rc::Rc;
 
 use be_sdk_beui::network::{Request, Response};
-use be_sdk_beui::worker::{Answer, Generation, Shared};
+use be_sdk_beui::worker::{Shared, Ticket};
 use be_sdk_beui::{EditorHost, Task, Waker};
 pub(crate) use be_worker_map::TileId;
 use be_worker_map::{Job, Rasterized, TileRaster};
@@ -105,18 +105,13 @@ pub(crate) struct TileWorker {
     kept: VecDeque<TileId>,
     /// Tiles to rasterize, oldest first, not yet sent to the rasterizer.
     pending: VecDeque<(TileId, TileId, Rc<Vec<u8>>)>,
-    /// Tiles to rasterize that were not cancelled, pending or sent, and the generation of the
-    /// rasterizer each pending one went to once it went: what it answers for any other tile, one
-    /// cancelled meanwhile, is dropped.
-    sent: HashMap<TileId, Option<Generation>>,
-    /// How many jobs each generation of the rasterizer was sent and has not answered, cancelled
-    /// or not; a generation that stopped answers none of them.
-    by_generation: HashMap<Generation, usize>,
-    /// Their sum: the jobs the rasterizer has in hand.
-    rasterizing: usize,
+    /// Tiles to rasterize that were not cancelled, pending or sent, and the ticket of the job
+    /// each pending one went as once it went: what the rasterizer answers for any other job, one
+    /// for a tile cancelled meanwhile, is dropped.
+    sent: HashMap<TileId, Option<Ticket>>,
     /// This map's way to the rasterizer (be-worker-map-tiles), which every map of the app shares,
     /// once it sent it a tile.
-    rasterizer: Option<Shared>,
+    rasterizer: Option<Shared<Job, Rasterized>>,
 }
 
 impl TileWorker {
@@ -134,8 +129,6 @@ impl TileWorker {
             kept: VecDeque::new(),
             pending: VecDeque::new(),
             sent: HashMap::new(),
-            by_generation: HashMap::new(),
-            rasterizing: 0,
             rasterizer: None,
         }
     }
@@ -257,7 +250,7 @@ impl TileWorker {
             });
             self.downloads.insert(id, task);
         }
-        while self.rasterizing < MAX_RASTERIZING {
+        while self.rasterizer.as_ref().map_or(0, Shared::in_flight) < MAX_RASTERIZING {
             let Some((id, source, body)) = self.pending.pop_front() else {
                 break;
             };
@@ -267,14 +260,12 @@ impl TileWorker {
                 body: body.as_ref().clone(),
             };
             let waker = self.waker.clone();
-            let generation = self
+            let ticket = self
                 .rasterizer
                 .get_or_insert_with(|| Shared::new(be_worker_map::MODULE, move || waker.wake()))
-                .send(&job.encode());
-            *self.by_generation.entry(generation).or_default() += 1;
-            self.rasterizing += 1;
+                .send(&job);
             if let Some(sent) = self.sent.get_mut(&id) {
-                *sent = Some(generation);
+                *sent = Some(ticket);
             }
         }
     }
@@ -325,42 +316,21 @@ impl TileWorker {
                 }
             }
         }
-        while let Some(Answer { generation, result }) =
-            self.rasterizer.as_ref().and_then(Shared::try_receive)
-        {
-            match result.and_then(|message| Rasterized::decode(&message)) {
-                Ok(Rasterized { id, result }) => {
-                    if let Some(count) = self.by_generation.get_mut(&generation)
-                        && *count > 0
-                    {
-                        *count -= 1;
-                        self.rasterizing -= 1;
-                    }
-                    if self.sent.remove(&id).is_some() {
-                        results.push(TileResult { id, result });
-                    }
-                }
-                // That generation of the rasterizer stopped: what was sent to it fails, and the
-                // next tile starts it anew. A tile still pending, or sent to a later generation
-                // (dispatch can restart it before this hears the stop), waits for that.
-                Err(why) => {
-                    let lost = self.by_generation.remove(&generation).unwrap_or(0);
-                    self.rasterizing -= lost;
-                    let failed: Vec<TileId> = self
-                        .sent
-                        .iter()
-                        .filter(|(_, sent)| **sent == Some(generation))
-                        .map(|(id, _)| *id)
-                        .collect();
-                    for id in failed {
-                        self.sent.remove(&id);
-                        results.push(TileResult {
-                            id,
-                            result: Err(why.clone()),
-                        });
-                    }
-                }
-            }
+        // A job the rasterizer stopped on fails alone; the next tile starts it anew.
+        while let Some((ticket, answer)) = self.rasterizer.as_mut().and_then(Shared::try_receive) {
+            let Some(id) = self
+                .sent
+                .iter()
+                .find(|(_, sent)| **sent == Some(ticket))
+                .map(|(id, _)| *id)
+            else {
+                continue;
+            };
+            self.sent.remove(&id);
+            results.push(TileResult {
+                id,
+                result: answer.and_then(|rasterized| rasterized.result),
+            });
         }
         self.dispatch(host);
         results

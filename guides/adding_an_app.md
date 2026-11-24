@@ -301,11 +301,12 @@ crates/be-sdk-worker; decisions/guests_are_single_threaded.md). The map's
 (crates/be-worker-pdf, be-worker-pdf-render) are the examples to copy.
 
 - `be-worker-<app>` holds the messages the app and its workers exchange,
-  encoded however suits them (both examples use postcard, with `serde_bytes`
-  for pixels), and the module names. The app depends on it alone: an app links
+  as serde types (`serde_bytes` for pixels; be-sdk-worker encodes them with
+  postcard), and the module names. The app depends on it alone: an app links
   whatever it depends on, so it must not depend on a worker's work.
-- `be-worker-<app>-<worker>` is one worker: a `Work` (`start`, then `receive`
-  for each message, answering through `App::send`), and beside its Cargo.toml
+- `be-worker-<app>-<worker>` is one worker: a `Work` (its `In` and `Out`
+  message types; `start`, then `receive` for each message, answering through
+  `App::send`), and beside its Cargo.toml
   a `worker.rs` that only calls `be_sdk_worker::worker!` on it, which
   `worker(module = "tiles")` from `buck/wasm/defs.bzl` links as `:module`
   (against the app's libraries unless `libraries` says; both examples need only
@@ -316,26 +317,25 @@ crates/be-sdk-worker; decisions/guests_are_single_threaded.md). The map's
   and in its manifest's `"workers": ["tiles.wasm"]`; the stage puts it under
   `workers/<app id>/` and refuses an app staged without a worker its manifest
   names.
-- The app starts it with `Worker::spawn("tiles.wasm")`, sends it byte buffers
-  with `send` (or a `Sender` from `sender()`) and awaits each answer with
-  `receive`, one buffer a message, whole and in order. Dropping the `Worker`
+- The app starts it with `Worker::<Job, Answer>::spawn("tiles.wasm")`, sends
+  it jobs with `send` (or a `Sender` from `sender()`) and awaits each answer
+  with `receive`, whole and in order. Dropping the `Worker`
   and its senders stops it; `receive` says why one stopped (it could not
   start, trapped or panicked).
 - Work every editor of the app asks of goes to one worker they share, since a
   canvas can show more editors than the app may run workers: each editor holds
-  a `Shared::new("tiles.wasm", wake)`, sends with `send` and takes its own
-  answers with `try_receive` once `wake` is called. The worker starts with the
-  first and stops with the last; one that stopped (a job it failed stops it)
-  fails what each editor had in flight, and the next `send` starts it anew.
-  Each instance is a `Generation`: `send` answers the one a message went to
-  and each `Answer` names the one it came from, so a stop fails only what was
-  sent to that generation, even when a `send` started the next before the
-  editor heard the stop.
+  a `Shared::<Job, Answer>::new("tiles.wasm", wake)`, sends with `send`, which
+  answers the job's `Ticket`, and takes its own answers with `try_receive` once
+  `wake` is called, each with its ticket. The worker starts with the first and
+  stops with the last; one that stopped (a job it failed stops it) fails each
+  ticket it had not answered, and the next `send` starts it anew, so a stop
+  fails only what that instance was sent, even when a `send` started the next
+  before the editor heard the stop.
   Each message carries its client, so a `Work` answers whoever asked without
   the app's messages naming them; it answers inside `receive`, through the
   `App` it is handed, which lasts only for that call. The map and the PDF editor work this way.
 - A worker has WASI and its libraries but no gpu and no host services: it
-  computes and sends back bytes, which the app uploads or shows. It may block
+  computes and sends back answers, which the app uploads or shows. It may block
   its own thread as long as a job needs.
 - An app may spawn only its own workers, named, never by a path, at most 16 at
   once with at most 1 GiB of memory each (natively: the browser cannot cap a

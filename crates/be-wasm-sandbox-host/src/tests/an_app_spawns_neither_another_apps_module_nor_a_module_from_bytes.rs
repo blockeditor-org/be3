@@ -13,7 +13,7 @@ fn an_app_spawns_neither_another_apps_module_nor_a_module_from_bytes() {
             }),
             app_config(),
         );
-        let mut unstaged = Worker::spawn("../echo.wasm");
+        let mut unstaged = Worker::<Vec<u8>, Vec<u8>>::spawn("../echo.wasm");
         (
             other.next().await.unwrap(),
             unstaged.receive().await,

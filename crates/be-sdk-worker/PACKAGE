@@ -19,6 +19,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -30,6 +32,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -41,6 +45,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -52,6 +58,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -63,6 +71,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -74,6 +84,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -85,6 +97,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -96,6 +110,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],

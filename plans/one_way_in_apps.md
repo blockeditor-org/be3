@@ -15,12 +15,6 @@ Pieces several editors write for themselves, which be-sdk-beui or the types shou
    keyed by path, an unfold policy and filters, fed either by live per-folder watches
    (file-tree) or a `Graph` snapshot (the picker). The three render it, and workspace-index
    gets file-tree's row menu (rename, delete, move, export) instead of only accepting drops.
-2. **Typed workers.** be-worker-map and be-worker-pdf hand-write postcard encoding both ways
-   over the bytes-only `Work` and `Shared` (be-sdk-worker), and the map's `tiles.rs`
-   (`TileWorker`: `sent`, `by_generation`, `rasterizing`) and the pdf's `render.rs`
-   (`RenderClient.sent`) each work out which jobs a stopped generation will never answer.
-   be-sdk-worker gets `Shared<Job, Answer>` and `Work<In, Out>`, which do the serde, give each
-   job a ticket and fail the tickets a stopped generation leaves; both apps use them.
 
 ## The test
 
