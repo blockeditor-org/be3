@@ -4116,7 +4116,10 @@ impl<H: Host> Replicas<H> {
             }
             Io::Retried { replica, commit } => {
                 if let Some(block) = self.open.get(&replica).map(|open| open.block)
-                    && self.retried.get(&block).is_some_and(|(retried, _)| *retried == commit)
+                    && self
+                        .retried
+                        .get(&block)
+                        .is_some_and(|(retried, _)| *retried == commit)
                 {
                     self.retried.remove(&block);
                 }
@@ -5366,7 +5369,8 @@ impl<H: Host> Replicas<H> {
                     .retried
                     .get(&block)
                     .filter(|(retried, _)| *retried == commit);
-                let retried = tried.is_some_and(|(_, tries)| !joining || *tries >= NOT_YET_OPENINGS);
+                let retried =
+                    tried.is_some_and(|(_, tries)| !joining || *tries >= NOT_YET_OPENINGS);
                 let tried = tried.is_some();
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
@@ -5411,12 +5415,12 @@ impl<H: Host> Replicas<H> {
                         }
                         _ => false,
                     };
-                    let result = read.map(be_sdk_type_api::Loaded::of).map_err(|error| {
-                        match not_yet {
-                            true => be_sdk_type_api::LoadError::NotYet(error.to_string()),
-                            false => be_sdk_type_api::LoadError::Unreadable(error.to_string()),
-                        }
-                    });
+                    let result =
+                        read.map(be_sdk_type_api::Loaded::of)
+                            .map_err(|error| match not_yet {
+                                true => be_sdk_type_api::LoadError::NotYet(error.to_string()),
+                                false => be_sdk_type_api::LoadError::Unreadable(error.to_string()),
+                            });
                     if tried && result.is_ok() {
                         let _ = io.send(Io::Retried { replica, commit });
                     }

@@ -484,7 +484,9 @@ impl Inner {
                 };
                 let result = loaded
                     .map(be_sdk_type_guest::api::Loaded::of)
-                    .map_err(|error| be_sdk_type_guest::api::LoadError::Unreadable(error.to_string()));
+                    .map_err(|error| {
+                        be_sdk_type_guest::api::LoadError::Unreadable(error.to_string())
+                    });
                 reply.send(&mut self.host, &result);
             }
             Call::Load { reply, commit, .. } => {

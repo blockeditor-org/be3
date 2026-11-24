@@ -18,7 +18,11 @@ fn a_replica_whose_opening_is_not_yet_to_be_had_runs_nothing_on_default_content(
 
     let ticket = sim.with_replica(1, |replica, host| replica.content(host));
     let outcome = sim.answered(1, ticket.op());
-    assert_eq!(ticket.decode(outcome).ok(), Some(None), "no content is shown");
+    assert_eq!(
+        ticket.decode(outcome).ok(),
+        Some(None),
+        "no content is shown"
+    );
     assert!(!sim.change(1, Change::Undo));
     let ticket = sim.with_replica(1, |replica, host| replica.seal(host, true));
     let outcome = sim.answered(1, ticket.op());

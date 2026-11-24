@@ -90,6 +90,7 @@ mod a_replica_opening_on_a_base_whose_state_part_will_not_read_opens_with_edits_
 mod a_replica_that_gains_the_lease_takes_a_head_it_heard_of_before;
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_replica_whose_content_does_not_decode_tells_its_editors_it_failed;
+mod a_replica_whose_opening_is_not_yet_to_be_had_runs_nothing_on_default_content;
 mod a_restart_keeps_a_peers_pending_edit_and_the_peers_cursors;
 mod a_restart_on_a_seal_the_order_moved_past_keeps_what_came_after;
 mod a_restart_replayed_on_a_journal_from_an_earlier_seal_carries_alike;
@@ -98,7 +99,6 @@ mod a_restart_waits_for_the_holder_to_be_alone_below_the_ceiling;
 mod a_seal_counted_in_another_run_of_the_order_is_merged_not_taken_as_news;
 mod a_seal_mid_drag_leaves_the_drag_out_of_the_commit;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
-mod a_replica_whose_opening_is_not_yet_to_be_had_runs_nothing_on_default_content;
 mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_waiting_on_its_state_part_lets_a_reload_land_first;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
@@ -1660,11 +1660,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                             true => self.vault.load_first(&stored.manifest),
                             false => self.vault.load(&stored.manifest),
                         };
-                        loaded
-                            .map(be_sdk_type_api::Loaded::of)
-                            .map_err(|error| be_sdk_type_api::LoadError::Unreadable(error.to_string()))
+                        loaded.map(be_sdk_type_api::Loaded::of).map_err(|error| {
+                            be_sdk_type_api::LoadError::Unreadable(error.to_string())
+                        })
                     }
-                    None => Err(be_sdk_type_api::LoadError::Unreadable("no such commit".to_owned())),
+                    None => Err(be_sdk_type_api::LoadError::Unreadable(
+                        "no such commit".to_owned(),
+                    )),
                 };
                 self.to(device, |host| reply.send(host, &result));
             }

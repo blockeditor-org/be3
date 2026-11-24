@@ -32,7 +32,10 @@ fn a_held_block_whose_known_head_was_replaced_reads_the_next_and_is_not_reset() 
 
     harness.connect();
     wait_until("knew the block's first head", |shared| {
-        shared.graph.get(block).is_some_and(|node| node.head.is_some())
+        shared
+            .graph
+            .get(block)
+            .is_some_and(|node| node.head.is_some())
     });
     // The server answers this device nothing for now, so it hears neither the next head nor
     // its join of the block's session, while the other device replaces the head it knows: the
@@ -59,8 +62,9 @@ fn a_held_block_whose_known_head_was_replaced_reads_the_next_and_is_not_reset() 
     // Held, it opens on the head it knows once its join is slow, which reads that head.
     let mut joins = harness.relay().count(|method, args| {
         method == be_block_protocol::__args::SERVER_READ
-            && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
-                .is_some_and(|asked| matches!(asked.query, be_block_protocol::Query::Session { .. }))
+            && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args).is_some_and(
+                |asked| matches!(asked.query, be_block_protocol::Query::Session { .. }),
+            )
     });
     hold(block, CounterContent::CONTENT_TYPE);
     runtime()

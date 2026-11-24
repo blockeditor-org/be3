@@ -23,8 +23,10 @@ pub trait Open {
     /// `block`'s content as a replica held open has it; none when no replica of it is open
     /// (or it did not answer), and the block is read as stored. Fails for a block whose replica
     /// waits for its head's objects (`Replicas::not_yet`).
-    fn content(&mut self, block: Uuid)
-    -> impl Future<Output = Result<Option<Vec<u8>>, ClientError>>;
+    fn content(
+        &mut self,
+        block: Uuid,
+    ) -> impl Future<Output = Result<Option<Vec<u8>>, ClientError>>;
 
     /// The metadata the exporter derived from `block`'s content, in place of what was saved.
     fn derived(&self, block: Uuid) -> Option<Entries>;

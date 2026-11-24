@@ -29,10 +29,7 @@ fn a_head_gone_everywhere_opens_once_more_then_is_unreadable() {
                 .count()
         };
         let unreadable = loop {
-            if let Some(reason) = replicas
-                .status(block)
-                .and_then(|status| status.unreadable)
-            {
+            if let Some(reason) = replicas.status(block).and_then(|status| status.unreadable) {
                 break reason;
             }
             replicas.woken().await;
