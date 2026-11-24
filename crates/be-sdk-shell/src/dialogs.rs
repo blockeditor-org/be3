@@ -338,13 +338,17 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             Err(_) => Vec::new(),
         })
     });
-    // An invitation is offered only where the server would make its share link.
+    // An invitation is offered only where the server would make its share link, which it
+    // refuses a guest.
+    let role = workspace.editor().watch::<be_sdk_beui::RoleWatch>();
     let invites = create_memo(move || {
         let outside = policy.with(OrganizationPolicies::shares_outside);
-        listing.with(|listing| match listing {
-            Ok(listing) => Share::invites(outside, listing.company),
-            Err(_) => false,
-        })
+        let guest = role.get() == Some(be_sdk_beui::AccountRole::Guest);
+        !guest
+            && listing.with(|listing| match listing {
+                Ok(listing) => Share::invites(outside, listing.company),
+                Err(_) => false,
+            })
     });
     // Whom the person asked to give ownership to, as the question to confirm it.
     let transferring = create_memo(move || {

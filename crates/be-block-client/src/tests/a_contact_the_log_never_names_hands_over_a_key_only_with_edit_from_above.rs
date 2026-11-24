@@ -56,7 +56,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
         .await
         .unwrap();
     // A scope of its own, whose log names the owner alone.
-    owner.offer(note, Access::View).await.unwrap();
+    owner.offer_scope(note, Access::View).await.unwrap();
     let (_, checked) = owner.checked_access(note).await.unwrap();
     assert!(!checked.levels.contains_key(&editor.account().into_bytes()));
 

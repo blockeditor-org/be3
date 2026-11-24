@@ -11,7 +11,7 @@ fn a_debug_print_shows_no_key() {
         root: None,
         heads: be_block_keys::Heads::default(),
     };
-    let offer = crate::GrantOffer {
+    let offer = crate::ScopeOffer {
         organization: Uuid::nil(),
         block: Uuid::nil(),
         access: be_block_graph::Access::View,

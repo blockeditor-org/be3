@@ -66,7 +66,7 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   (`KeyBook::trusted`); keys opened only through escrow, or the server's seal
   of the organization settings key, are not. A device reads with any key it
   holds but seals, wraps or hands over (`seal_to`, `wrap`, `escrow_wrap`,
-  `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
+  `Peer::sealing_key`, `Peer::offer_scope`) only with trusted ones, so a key the
   server made up never protects anything new. A key the server holds is
   *server-held* (`KeyBook::server_held`): every key of the settings block,
   which is sealed to the server for it to read the policies, and every key
@@ -658,7 +658,7 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   for the block (`InviteCode::share_key`), and what the link hands its opener
   (`share_links::Handed`: the block's scope key as it travels, with its log's root, and the
   organization log's root), sealed with the code (`InviteCode::seal_share`). The block becomes
-  a scope of its own, as for `Peer::offer`. A share link record (`Record::ShareLink`: the
+  a scope of its own, as for `Peer::offer_scope`. A share link record (`Record::ShareLink`: the
   link's key, its level, View or Edit, whom it admits, `Admits`, and its signer's authority)
   opens it in the block's log, signed with Manage. The maker's account block keeps the code
   (`AccountBlock::shares`) until the link is revoked, so the share dialog shows the link again.
@@ -716,8 +716,8 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   served the whole log of each block above it, as any editor is, since key work seals by
   them; that is meant), and may not make agents or links, move or grant
   (`client::guest_may_write`), makes only its own shell's blocks, which it alone reads
-  (decisions/a_guest_makes_only_its_own_shell.md), is no member for a grant or a pending
-  grant (`store::is_member_of`), and leaves when its last grant falls, its shell's blocks with
+  (decisions/a_guest_makes_only_its_own_shell.md), is no member for a grant
+  (`store::is_member_of`), and leaves when its last grant falls, its shell's blocks with
   it (`share_links::drop_idle_guest`). Its be-host shows the organization only through
   Shared with me (`role-watch`). Accepting an invitation makes it a member.
   A guest pins the organization log's root the link hands it, when it pinned none, so it checks
@@ -1213,10 +1213,11 @@ keys the granter verified that way, which every device then seals to.
   marked as not confirmed, and nothing is sealed to it.
 - **Links** are one family (`contacts.wit`): a card sealed with the code, a
   lookup id derived from it, and an accept that makes the two accounts
-  contacts. Its `link-kind` says what else accepting does: a `contact` link
-  nothing (an invitation to a block carries a share link instead, below); an
-  `invitation` joins its organization as an editor. Any account makes a contact link; only an administrator of the
-  organization makes an invitation (`rule` splits `create-link` on the kind),
+  contacts. Its `link-kind` says what else accepting does: a `contact` link does
+  nothing more (an invitation to a block carries a share link instead, below); an
+  `invitation` joins its organization as an editor. Any account makes a contact link;
+  only an administrator of the organization makes an invitation (`rule` splits
+  `create-link` on the kind),
   and any account opens and accepts it. No call lists an account's links: its
   block keeps their codes, and `delete-link` revokes one, or finishes one
   accepted; an invitation's row stays for the invite list.

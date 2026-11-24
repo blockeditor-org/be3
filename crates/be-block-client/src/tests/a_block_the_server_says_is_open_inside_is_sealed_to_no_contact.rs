@@ -51,7 +51,7 @@ async fn a_block_the_server_says_is_open_inside_is_sealed_to_no_contact() {
         .create::<be_type_text::TextContent>(BlockParent::Block(private))
         .await
         .unwrap();
-    admin.offer(note, Access::View).await.unwrap();
+    admin.offer_scope(note, Access::View).await.unwrap();
     let secret = admin.keys().scope_key(note).unwrap();
 
     // The server makes the note a kind open inside.

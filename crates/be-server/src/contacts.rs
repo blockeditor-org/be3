@@ -661,6 +661,12 @@ impl ServerStore {
                 "accepting a contact link signs no one in".into(),
             ));
         }
+        if matches!(found.kind, LinkKind::Contact) && !key.is_empty() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "a contact link carries no key".into(),
+            ));
+        }
         match found.kind {
             LinkKind::Contact => {
                 self.with_database(move |_, database| {
