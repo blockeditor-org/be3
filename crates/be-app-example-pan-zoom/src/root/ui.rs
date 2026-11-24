@@ -4,11 +4,11 @@ use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
     DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
-use be_sdk_beui::beui::icons::{ICON_PANEL_LEFT_OPEN, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
+use be_sdk_beui::beui::icons::ICON_PANEL_LEFT_OPEN;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
-use be_sdk_beui::{Editor, Fitting};
+use be_sdk_beui::{Editor, ZoomBar};
 
 const STAGE: &str = "stage";
 const CARDS_TAB: &str = "cards";
@@ -23,7 +23,6 @@ const CARD_PADDING: f32 = 12.0;
 const CARD_SPACING: f32 = 6.0;
 const CARD_OUTLINE: f32 = 2.0;
 const CARD_RADIUS: f32 = 10.0;
-const ZOOM_STEP: f32 = 1.25;
 
 pub const WORLD: Vec2 = Vec2::new(880.0, 580.0);
 
@@ -103,8 +102,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let selected = create_signal(None::<usize>);
     let stage = NodeRef::new();
     editor.content(&stage);
-    let fitting =
-        editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
+    editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
 
     let chrome = editor.chrome_shown();
     let layout = DockingLayout::<&'static str>::new();
@@ -131,7 +129,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                     parent=STAGE
                     placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::End)}
                 >
-                    <ZoomBar editor fitting />
+                    <ZoomBar editor />
                 </DockBar>
             </Show>
             <Show value={move || chrome.get() && !open.get()}>
@@ -144,44 +142,6 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                 </DockBar>
             </Show>
         </Docking>
-    }
-}
-
-#[component]
-fn ZoomBar(editor: Editor, fitting: Fitting) -> NodeId {
-    let scale = editor.scale();
-    let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
-    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
-    let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let fit = move || fitting.fit();
-    view! {
-        <DockBarSurface @test_id={"pan_zoom.zoom_bar"}>
-            <DockBarGrip />
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_OUT
-                label="Zoom out"
-                on_click={zoom_out}
-                @test_id={"pan_zoom.zoom_out"}
-            />
-            <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.zoom"}>
-                {readout}
-            </Text>
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_IN
-                label="Zoom in"
-                on_click={zoom_in}
-                @test_id={"pan_zoom.zoom_in"}
-            />
-            <Button
-                icon_only=true
-                glyph=ICON_SCAN
-                label="Fit"
-                on_click={fit}
-                @test_id={"pan_zoom.fit"}
-            />
-        </DockBarSurface>
     }
 }
 

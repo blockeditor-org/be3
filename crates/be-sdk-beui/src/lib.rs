@@ -29,6 +29,7 @@ mod related_content;
 mod rotation;
 pub mod sections;
 pub mod version_control;
+mod zoom;
 
 pub use beui_frame::phone_layout;
 pub use block_link::{BlockDisplay, BlockLink, label_glyph, watch_block_label};
@@ -52,6 +53,7 @@ pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
 pub use version_control::{VersionHistory, VersionSteps};
+pub use zoom::{ZoomActions, ZoomBar};
 
 #[beui::reactive::component]
 pub trait BeuiRoot: 'static {

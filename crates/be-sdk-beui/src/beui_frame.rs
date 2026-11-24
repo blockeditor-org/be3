@@ -411,6 +411,8 @@ struct FrameActions {
     /// palette lists it only then too.
     keep_hosting: ReadSignal<Option<Action>>,
     close: Action,
+    /// Zoom in, out, to 100% and fit, while the manifest declares `pan_and_zoom` (`zoom.rs`).
+    _zoom: Option<crate::ZoomActions>,
 }
 
 fn frame_actions(
@@ -441,6 +443,11 @@ fn frame_actions(
         });
         keep_hosting.set(action);
     });
+    let zoom = editor
+        .host()
+        .capabilities()
+        .pan_and_zoom
+        .then(|| crate::zoom::register(editor, live));
     FrameActions {
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
@@ -484,6 +491,7 @@ fn frame_actions(
             .glyph(ICON_X)
             .enabled(closable)
             .register(),
+        _zoom: zoom,
     }
 }
 
@@ -555,6 +563,7 @@ pub(crate) fn FrameMenu(
         details,
         keep_hosting,
         close,
+        _zoom: _,
     } = actions;
     let menu = create_memo(move || {
         if !live.get() {

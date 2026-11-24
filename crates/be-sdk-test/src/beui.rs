@@ -281,6 +281,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             Adopted::Creation(creation) => creation.host().clone(),
             Adopted::Artifacts(artifacts) => artifacts.host().clone(),
         };
+        host.set_capabilities(capabilities::<A>());
         let template = match &adopted {
             Adopted::Creation(creation) => creation.template().to_owned(),
             _ => String::new(),
@@ -2313,6 +2314,22 @@ impl<A: BeuiRoot + AppEditor> Snapshots for BeuiTest<A> {
 fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: &str) -> T {
     be_sdk_api::ops::decode(&be_sdk_api::ops::encode(&value))
         .unwrap_or_else(|| panic!("{what} could not be read back"))
+}
+
+/// What `A`'s manifest says its editor can do, as be-sdk hands it the editor it opens
+/// (`EditorHost::capabilities`): its first editor's, which a root several editors share is given
+/// alike.
+fn capabilities<A: AppEditor>() -> be_sdk_manifest::EditorCapabilities {
+    let manifest =
+        be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
+    let editor = A::EDITORS[0];
+    let (_, document) = manifest
+        .editors
+        .0
+        .iter()
+        .find(|(name, _)| *name == editor)
+        .unwrap_or_else(|| panic!("the app's manifest names no editor {editor:?}"));
+    document.capabilities.clone()
 }
 
 /// The deepest the host zooms the editor `A`: its manifest's `max_zoom`, or be-host's default.
