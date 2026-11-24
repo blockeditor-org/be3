@@ -158,6 +158,75 @@ fn row(invite: &Invite) -> InvitationRow {
     }
 }
 
+/// What a root guest is shown and handed (`be3:root`'s `core-view` and `make-secret`;
+/// root/block_stack.rs).
+impl Invitations {
+    /// The organization's invitations as a root shows them: listed once `show` asked and the
+    /// server answered.
+    pub(crate) fn root_area(&self) -> be_wasm_root_api::InvitationsArea {
+        use be_wasm_root_api::InvitationState as State;
+        let at = |milliseconds: i64| (milliseconds != 0).then_some(milliseconds);
+        be_wasm_root_api::InvitationsArea {
+            listed: self.listing && !self.busy,
+            rows: self
+                .rows
+                .iter()
+                .map(|invite| be_wasm_root_api::InvitationRow {
+                    id: invite.id.into_bytes(),
+                    state: match invite.state {
+                        InvitationState::Waiting => State::Waiting,
+                        InvitationState::Opened => State::Opened,
+                        InvitationState::Accepted => State::Accepted,
+                        InvitationState::Expired => State::Expired,
+                        InvitationState::Revoked => State::Revoked,
+                    },
+                    inviter: invite.inviter.clone(),
+                    accepter: (!invite.accepter.is_empty()).then(|| invite.accepter.clone()),
+                    created: invite.created,
+                    opened: at(invite.opened),
+                    expires: invite.expires,
+                    ended: at(invite.ended),
+                    has_link: open_link(invite).is_some(),
+                })
+                .collect(),
+            busy: self.busy,
+            error: self.error.clone().filter(|_| !self.inviting),
+        }
+    }
+
+    /// The link of the invitation `id` again, while it is one of the person's own and still
+    /// open.
+    pub(crate) fn link_of(&self, id: Uuid) -> Option<String> {
+        self.rows
+            .iter()
+            .find(|invite| invite.id == id)
+            .and_then(open_link)
+    }
+
+    /// How the invitation `invite` asked for stands: its link once made, or why it failed;
+    /// none while it is being made.
+    pub(crate) fn made(&self) -> Option<Result<String, String>> {
+        if let Some(link) = &self.made {
+            return Some(Ok(link.clone()));
+        }
+        match (self.busy, &self.error) {
+            (true, _) => None,
+            (false, Some(error)) => Some(Err(error.clone())),
+            (false, None) => Some(Err("no invitation was made".to_owned())),
+        }
+    }
+}
+
+/// An invitation's link, for one of the person's own still open.
+fn open_link(invite: &Invite) -> Option<String> {
+    matches!(
+        invite.state,
+        InvitationState::Waiting | InvitationState::Opened
+    )
+    .then(|| invite.link.clone())
+    .flatten()
+}
+
 /// A day in UTC, from milliseconds since the epoch, as `2026-11-15`.
 fn date(milliseconds: i64) -> String {
     let days = milliseconds.div_euclid(86_400_000);
