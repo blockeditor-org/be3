@@ -45,6 +45,7 @@ fn descriptors(openers: &[Opener]) -> Vec<EditorDescriptor> {
             name: opener.name.clone(),
             icon_codepoint: beui::icons::ICON_APP_WINDOW.as_str().to_owned(),
             extensions: opener.extensions.clone(),
+            exporters: Vec::new(),
         })
         .collect()
 }

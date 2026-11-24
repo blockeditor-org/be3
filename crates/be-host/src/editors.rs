@@ -201,6 +201,20 @@ impl EditorRegistry {
                     name: editor.name.clone(),
                     icon_codepoint: editor.icon.clone(),
                     extensions: Vec::new(),
+                    exporters: editor
+                        .manifest
+                        .editor(editor.id.into_bytes())
+                        .map(|manifest| {
+                            manifest
+                                .exporters
+                                .iter()
+                                .map(|exporter| be_sdk_api::ExporterDescriptor {
+                                    name: exporter.name.clone(),
+                                    label: exporter.label.clone(),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 })
                 .collect(),
         };
@@ -263,6 +277,7 @@ impl EditorRegistry {
         &self,
         source_type: Uuid,
         source: Uuid,
+        exporter: &str,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
@@ -273,22 +288,19 @@ impl EditorRegistry {
         let generates = editor
             .manifest
             .editor(editor.id.into_bytes())
-            .is_some_and(|manifest| {
-                manifest
-                    .views
-                    .contains(&be_sdk_api::ParentView::ArtifactSettings)
-            });
+            .is_some_and(|manifest| manifest.exporter(exporter).is_some());
         match generates {
             true => Ok(Box::new(app::AppArtifact::new(
                 Arc::clone(&editor.manifest),
                 editor.id,
                 source,
+                exporter.to_owned(),
                 target_id,
                 target_type,
                 client_id,
             ))),
             false => Err(format!(
-                "{} blocks do not generate dynamic artifacts",
+                "{} blocks are not exported as \"{exporter}\"",
                 self.display_name(source_type).unwrap_or("These")
             )),
         }
@@ -304,6 +316,31 @@ impl EditorRegistry {
         Some(app::AppPicker::new(
             Arc::clone(&editor.manifest),
             editor.id,
+            request,
+        ))
+    }
+
+    /// The Export dialog of `block`, of `block_type`, in the app of the type's editor, which
+    /// declares `request.exporter`.
+    pub(crate) fn export(
+        &self,
+        block: Uuid,
+        block_type: Uuid,
+        request: be_sdk_api::ExportRequest,
+    ) -> Option<app::AppPicker> {
+        let editor = self.default_editor(block_type)?;
+        editor
+            .manifest
+            .editor(editor.id.into_bytes())?
+            .exporter(&request.exporter)?;
+        Some(app::AppPicker::export(
+            Arc::clone(&editor.manifest),
+            editor.id,
+            be_host_runtime::EditorBlock {
+                id: block,
+                block_type,
+                view_block: None,
+            },
             request,
         ))
     }

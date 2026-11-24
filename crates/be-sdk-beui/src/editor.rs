@@ -294,6 +294,15 @@ impl OwnedEditor {
         Self::scaled(host, block, Rc::default(), Rc::default())
     }
 
+    /// An editor reading `block`, which is not the instance's own: its `block_content` is the
+    /// block's content as `content_of` reads another's. An exporter reads its source so in an
+    /// instance opened for the export or the artifact it makes (`crate::export`).
+    pub fn reading(host: EditorHost, block: Uuid) -> Self {
+        let owned = Self::new(host, block);
+        owned.editor.state().reads_another.set(true);
+        owned
+    }
+
     pub(crate) fn scaled(
         host: EditorHost,
         block: Uuid,
@@ -312,6 +321,7 @@ impl OwnedEditor {
         let zoom = create_signal(None);
         let fit = create_signal(None);
         let notices = create_signal(Vec::new());
+        let export_actions = create_signal(Vec::new());
         let pushed = Rc::new(Mirror::new(&host));
         let mirrored = Rc::downgrade(&pushed);
         let syncing = core.on_pumped(move || {
@@ -340,6 +350,9 @@ impl OwnedEditor {
             zoom,
             fit,
             notices,
+            reads_another: Cell::new(false),
+            exporters: RefCell::new(Rc::from([])),
+            export_actions,
         });
         Self {
             editor: Editor(state.handle()),
@@ -389,6 +402,12 @@ struct EditorState {
     pub(crate) fit: Signal<Option<crate::zoom::Fitter>>,
     /// The toasts the frame shows over the editor (`notify`).
     notices: Signal<Vec<beui::styled::Toast>>,
+    /// The block is not the instance's own (`OwnedEditor::reading`).
+    reads_another: Cell<bool>,
+    /// What the editor exports its block as (`BeuiRoot::exporters`).
+    exporters: RefCell<Rc<[crate::Exporter]>>,
+    /// Their `editor.export.<name>` actions, while the frame's menu has them registered.
+    export_actions: Signal<Vec<beui::reactive::Action>>,
 }
 
 impl Editor {
@@ -458,7 +477,11 @@ impl Editor {
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
-        let projection = self.projection_of(None);
+        let block = match self.state().reads_another.get() {
+            true => Some(self.block_id()),
+            false => None,
+        };
+        let projection = self.projection_of(block);
         // Read where it is asked for: an editor shows its own content, so a `Loaded` it is
         // asked for under holds until the content arrives, however the editor reads it later
         // (in an effect, a callback, a painting).
@@ -481,6 +504,26 @@ impl Editor {
 
     pub fn view_block(&self) -> Option<Uuid> {
         self.state().core.host().view_block()
+    }
+
+    /// What the editor exports its block as (`BeuiRoot::exporters`; guides/apps/editor.md,
+    /// "Exporting").
+    pub fn exporters(&self) -> Rc<[crate::Exporter]> {
+        Rc::clone(&self.state().exporters.borrow())
+    }
+
+    pub(crate) fn set_exporters(&self, exporters: Rc<[crate::Exporter]>) {
+        *self.state().exporters.borrow_mut() = exporters;
+    }
+
+    /// The `editor.export.<name>` action of each exporter, for an editor's own menus to list
+    /// beside the frame's.
+    pub fn export_actions(&self) -> Vec<beui::reactive::Action> {
+        self.state().export_actions.get()
+    }
+
+    pub(crate) fn set_export_actions(&self, actions: Vec<beui::reactive::Action>) {
+        self.state().export_actions.set(actions);
     }
 
     /// The `K` kept in the editor's view block, which outlives the editor: where it was
@@ -558,7 +601,7 @@ impl Editor {
         }
         let owned = match block {
             Some(block) => OwnedContentProjection::unless_unviewable(
-                state.core.content_of::<C>(block),
+                state.core.watched_content::<C>(block),
                 state.core.host().graph().watch(BlockQuery::Block(block)),
             ),
             None => OwnedContentProjection::from(state.core.content::<C>(None)),

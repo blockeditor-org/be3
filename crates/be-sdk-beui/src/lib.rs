@@ -16,6 +16,7 @@ mod content;
 mod dialog;
 mod docked;
 mod editor;
+mod export;
 mod file_chooser;
 mod fitting;
 mod graph;
@@ -43,6 +44,7 @@ pub use editor::{
     Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind,
     ViewStateHandle, node_anchor,
 };
+pub use export::{ExportSettings, Exporter, ExporterOf, Made};
 pub use file_chooser::{ContentFileCreation, ContentFileReplace, FileChooser};
 pub use fitting::Fitting;
 pub use graph::{BlockList, Blocks};
@@ -91,16 +93,10 @@ pub trait BeuiRoot: 'static {
     fn host(editor: Editor) {
         let _ = editor;
     }
-    fn connect_artifact(_artifacts: &Artifacts) {}
-    fn describe_artifact(_data: &[u8]) -> Result<String, String> {
-        Err("this editor does not generate artifacts".into())
-    }
-    #[beui::reactive::component]
-    fn ArtifactSettings(artifacts: Artifacts) -> beui::NodeId {
-        let _ = artifacts;
-        beui::reactive::view! {
-            <beui::styled::Frame />
-        }
+    /// What the editor exports its block as, each named as the manifest's `exporters` name
+    /// it (guides/apps/editor.md, "Exporting").
+    fn exporters() -> Vec<Exporter> {
+        Vec::new()
     }
     fn intrinsic_size() -> Option<beui::Vec2> {
         None

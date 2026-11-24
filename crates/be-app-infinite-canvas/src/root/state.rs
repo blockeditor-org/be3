@@ -35,7 +35,6 @@ use uuid::Uuid;
 use crate::geometry::*;
 
 use super::entities::Entities;
-use super::export::Exporter;
 use super::raster::{RasterTools, Stroke};
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
@@ -51,7 +50,6 @@ struct Pasting {
     entities: Vec<CanvasEntity>,
 }
 
-use beui::clip::RenderAnswer;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CommonValue<T> {
@@ -510,8 +508,8 @@ struct Placeholder {
 
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
-    exporter: Cell<Option<Exporter>>,
-    render_answers: RefCell<Vec<RenderAnswer>>,
+    /// The PNG a paste of the last copy asked for, while the PNG exporter makes it.
+    rendering: RefCell<Option<beui::reactive::Scope>>,
     pasting: Signal<Option<Pasting>>,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
@@ -545,6 +543,20 @@ struct CanvasCells {
     drawing_tool: Cell<PixelTool>,
     /// The drag board the canvas's moves are carried on.
     board: std::rc::Rc<beui::unstyled::Board>,
+}
+
+thread_local! {
+    /// What each canvas open here has selected, by its block: what an export from it starts
+    /// from (`selection_of`).
+    static SELECTIONS: RefCell<HashMap<Uuid, Signal<HashSet<Uuid>>>> = RefCell::default();
+}
+
+/// The items the canvas open on `block` has selected, none when it is not open here.
+pub(crate) fn selection_of(block: Uuid) -> Vec<Uuid> {
+    SELECTIONS
+        .with(|shown| shown.borrow().get(&block).copied())
+        .map(|selection| selection.with_untracked(|selection| selection.iter().copied().collect()))
+        .unwrap_or_default()
 }
 
 #[derive(Clone, Copy)]
@@ -609,6 +621,13 @@ impl CanvasState {
             })
         });
         let selection = create_signal(HashSet::new());
+        if !preview {
+            let block = editor.block_id();
+            SELECTIONS.with(|shown| shown.borrow_mut().insert(block, selection));
+            on_cleanup(move || {
+                SELECTIONS.with(|shown| shown.borrow_mut().remove(&block));
+            });
+        }
         let entered_group = create_signal(None);
         let gesture = create_signal(None);
         let focused_editor = create_signal(None);
@@ -660,8 +679,7 @@ impl CanvasState {
         let caret = create_signal(None);
         let cells = store(CanvasCells {
             content,
-            exporter: Cell::new(None),
-            render_answers: RefCell::new(Vec::new()),
+            rendering: RefCell::new(None),
             pasting: create_signal(None),
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
@@ -2252,13 +2270,6 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn set_exporter(&self, exporter: Exporter) {
-        self.cells.value().exporter.set(Some(exporter));
-    }
-
-    pub(crate) fn take_render_answers(&self) -> Vec<RenderAnswer> {
-        std::mem::take(&mut self.cells.value().render_answers.borrow_mut())
-    }
 
     /// Copies the selection as canvas items, which name this canvas for the
     /// pixels of their raster layers, and as a PNG rendered only when a paste
@@ -2294,19 +2305,23 @@ impl CanvasState {
         if !blocks.blocks.is_empty() {
             clip = clip.with(blocks.encode());
         }
-        let exporter = self.cells.value().exporter.get();
-        if let Some((exporter, scene)) =
-            exporter.and_then(|exporter| Some((exporter, exporter.selection_scene()?)))
-        {
-            let state = *self;
-            clip = clip.with_lazy(formats::PNG, move |answer| {
-                if !state.is_alive() {
-                    return answer(None);
-                }
-                state.cells.value().render_answers.borrow_mut().push(answer);
-                exporter.render(scene.clone());
-            });
-        }
+        let items: Vec<Uuid> = entities.iter().map(|entity| entity.id).collect();
+        let state = *self;
+        clip = clip.with_lazy(formats::PNG, move |answer| {
+            if !state.is_alive() {
+                return answer(None);
+            }
+            let settings = super::export::ImageExport {
+                items: items.clone(),
+                ..super::export::ImageExport::default()
+            };
+            let rendering = super::export::png_exporter().once(
+                state.editor(),
+                settings,
+                move |made| answer(made.ok().map(|made| made.content.data().to_vec().into())),
+            );
+            state.cells.value().rendering.replace(Some(rendering));
+        });
         let text = entities
             .iter()
             .filter(|entity| entity.shape == CanvasShape::Text)

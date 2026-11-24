@@ -25,6 +25,7 @@ pub(super) fn editor(name: &str, edits: Edits) -> EditorManifest {
         views: Vec::new(),
         accepts: Vec::new(),
         opens: Vec::new(),
+        exporters: Vec::new(),
     }
 }
 

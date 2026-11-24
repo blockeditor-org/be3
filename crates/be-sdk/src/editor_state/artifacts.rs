@@ -107,6 +107,15 @@ impl ArtifactsCore {
         self.0.artifact.source
     }
 
+    pub fn artifact(&self) -> &Artifact {
+        &self.0.artifact
+    }
+
+    /// The exporter of the source's editor that makes the artifact.
+    pub fn exporter(&self) -> &str {
+        &self.0.artifact.exporter
+    }
+
     pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
         *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
     }

@@ -9,7 +9,7 @@ use be_sdk_api::{
 };
 use uuid::Uuid;
 
-use crate::{Artifact, EditorHost};
+use crate::{Artifact, EditorHost, ExportDialogRequest};
 
 pub trait App: 'static {
     fn open(host: EditorHost) -> Box<dyn Instance>;
@@ -32,8 +32,9 @@ pub trait Instance: std::any::Any {
         self.connect(block_id);
     }
 
-    /// Runs for a host component each time it is woken, in place of the frame it is never
-    /// given: it takes in what changed (its content first) as `begin_frame` does for an editor.
+    /// Runs for a host component or an artifact instance each time it is woken, in place of
+    /// the frame it is never given: it takes in what changed (its content first) as
+    /// `begin_frame` does for an editor.
     fn pass(&mut self) {}
 
     fn connect_creation(&mut self, _template: String) {}
@@ -42,7 +43,13 @@ pub trait Instance: std::any::Any {
         Err("this editor does not create blocks".into())
     }
 
-    fn connect_artifact(&mut self, _artifact: Artifact) {}
+    /// Opens on an artifact block (`opening-kind.artifact`), made from `data`, its settings as
+    /// stored.
+    fn connect_artifact(&mut self, _artifact: Artifact, _data: &[u8]) {}
+
+    /// Opens as the Export dialog of another block (`opening-kind.export`), which the instance
+    /// draws and closes with a dialog answer once the export is done or cancelled.
+    fn connect_export(&mut self, _export: ExportDialogRequest) {}
 
     fn describe_artifact(&mut self, _data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())

@@ -325,6 +325,13 @@ pub(super) enum Command {
         block: Uuid,
         reply: PlainReply,
     },
+    FileOfContent {
+        content_type: Uuid,
+        #[serde(with = "serde_bytes")]
+        content: Vec<u8>,
+        name: String,
+        reply: PlainReply,
+    },
     Import(Vec<(be_block_client::transfer::SavedBlock, BlockParent)>),
     ContentOfFile {
         name: String,
@@ -507,6 +514,7 @@ impl Command {
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
             Command::PlainFile { .. } => "plain file",
+            Command::FileOfContent { .. } => "file of content",
             Command::Import(..) => "import",
             Command::ContentOfFile { .. } => "content of file",
             Command::Version { .. } => "version",
@@ -659,6 +667,7 @@ impl Command {
             | Command::Unsent { .. }
             | Command::Import(_)
             | Command::ContentOfFile { .. }
+            | Command::FileOfContent { .. }
             | Command::Flush(_)
             | Command::SealOwed
             | Command::ApprovePairing { .. }
@@ -4588,6 +4597,27 @@ async fn apply(
         }
         Command::PlainFile { block, reply } => {
             reply.send(plain_file(peer, replicas, shared, block).await);
+            crate::changes::wake();
+            false
+        }
+        Command::FileOfContent {
+            content_type,
+            content,
+            name,
+            reply,
+        } => {
+            let file = replicas
+                .to_file((peer, shared), content_type, content)
+                .await
+                .and_then(|file| file.ok_or_else(|| "This block has no plain-file form.".to_owned()))
+                .map(|mut file| {
+                    if file.name.is_none() {
+                        file.name =
+                            Some(be_block_content::plain::export_name(&name, &file.extension));
+                    }
+                    file
+                });
+            reply.send(file);
             crate::changes::wake();
             false
         }

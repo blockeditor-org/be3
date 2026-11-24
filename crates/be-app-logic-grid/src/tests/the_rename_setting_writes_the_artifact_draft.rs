@@ -9,6 +9,7 @@ fn the_rename_setting_writes_the_artifact_draft() {
             block_id: Uuid::new_v4(),
             block_type: CompiledLogicContent::CONTENT_TYPE,
             source,
+            exporter: "component".to_owned(),
         },
     );
     let data = crate::root::descriptor_data(source);

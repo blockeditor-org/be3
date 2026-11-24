@@ -97,6 +97,13 @@ pub enum SubregionContent {
     },
     DockTab(be_sdk_api::DockTabPath),
     Rename(Uuid),
+    /// The Export dialog of `block`, running its editor's exporter `exporter` from `settings`
+    /// (empty for the exporter's defaults), which the host runs in that editor's app.
+    Export {
+        block: Uuid,
+        exporter: String,
+        settings: Vec<u8>,
+    },
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -130,6 +137,17 @@ impl SubregionContent {
             },
             Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
             Self::Rename(block) => ChildContent::Rename(block.into_bytes()),
+            Self::Export {
+                block,
+                exporter,
+                settings,
+            } => ChildContent::Export {
+                block_id: block.into_bytes(),
+                request: be_sdk_api::ExportRequest {
+                    exporter: exporter.clone(),
+                    settings: settings.clone(),
+                },
+            },
         }
     }
 }
@@ -345,6 +363,16 @@ impl EditorCore {
         if block == self.0.block {
             return self.content(None);
         }
+        self.watched_content(block)
+    }
+
+    /// The content of `block` as the host sends it to an instance that holds it open, even
+    /// when `block` is this editor's: an editor reading a block not its instance's own (an
+    /// exporter's source) holds it so.
+    pub fn watched_content<C>(&self, block: Uuid) -> LiveContent<C>
+    where
+        C: be_block_content::LiveEdit + Clone + Default,
+    {
         self.0.host.watch_content(block, C::CONTENT_TYPE);
         self.content(Some(block))
     }
