@@ -499,7 +499,10 @@ impl Notice {
                     from,
                     payload,
                 },
-                SessionEvent::Host(host) => Notice::Host { block, host },
+                SessionEvent::Host(change) => Notice::Host {
+                    block,
+                    host: change.host,
+                },
                 SessionEvent::Joiner(change) => Notice::Joiner { block, change },
             },
         }

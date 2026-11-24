@@ -23,14 +23,27 @@ pub struct Headless {
     woken: Arc<(Mutex<bool>, Condvar)>,
 }
 
-impl Headless {
-    pub fn start() -> Self {
+/// What wakes a `Headless`: one for the process, as the host's waker is installed once
+/// (`host::install_waker`), so a second `Headless` (a test after another, in one process) is
+/// woken too rather than sleeping until its wait runs out.
+fn woken() -> Arc<(Mutex<bool>, Condvar)> {
+    static WOKEN: std::sync::OnceLock<Arc<(Mutex<bool>, Condvar)>> = std::sync::OnceLock::new();
+    Arc::clone(WOKEN.get_or_init(|| {
         let woken = Arc::new((Mutex::new(true), Condvar::new()));
         let waking = Arc::clone(&woken);
         host::install_waker(move || {
             *waking.0.lock().unwrap_or_else(PoisonError::into_inner) = true;
             waking.1.notify_all();
         });
+        woken
+    }))
+}
+
+impl Headless {
+    pub fn start() -> Self {
+        let woken = woken();
+        // Its first step runs at once.
+        *woken.0.lock().unwrap_or_else(PoisonError::into_inner) = true;
         host::install_clock(Instant::now);
         crate::install_headless();
         Self { woken }

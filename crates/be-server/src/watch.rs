@@ -59,10 +59,12 @@ pub enum Push {
         payload: std::sync::Arc<[u8]>,
         received: i64,
     },
-    /// Who holds a session's lease now, told to every member as it changes.
+    /// Who holds a session's lease now, told to every member as it changes, as of the
+    /// membership entry `index` that changed it.
     Host {
         block: Place,
         host: Option<be_block_protocol::SessionHost>,
+        index: u64,
     },
     /// A Join member came or went, told to the lease holder.
     Joiner {
