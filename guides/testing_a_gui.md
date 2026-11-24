@@ -269,11 +269,14 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   so `gone` after closing one needs a `pause` past its exit first. `HostTest`'s doc comments cover cropping, and
   `Options` covers the desktop, previews, space and rendering.
 - `HostTest::root(APP)` runs be-host with a root guest in place of its UI (`--root=APP`), drawn
-  through lavapipe. A snapshot paints what the root's own surfaces painted (`be3:root`'s
-  `paintings`, which be-sdk-beui-root's `BeuiSurface::painting` answers for one drawn with
-  beui) where its layers show them, but not the app screens it embeds yet, so a test reads those
-  from the window's pixels with `shot()`. The root is staged by naming its package's label in
-  `APPS`.
+  through lavapipe, with no workspace; `HostTest::root_with_dev_workspace(APP)` opens the dev
+  workspace under it too (`--root=APP --dev-workspace`), whose session's view the root shows. A
+  snapshot paints what the root's surfaces painted (`be3:root`'s `paintings`) where its layers
+  show them: its own (be-sdk-beui-root's `BeuiSurface::painting` answers for one drawn with
+  beui), and the screens of the apps it embeds when the root asks them for theirs
+  (`Embedded::paintings`, which be-root does and be-sdk-root-testing does not; a test of that
+  one reads them from the window's pixels with `shot()`). The root is staged by naming its
+  package's label in `APPS`.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK (the comment there

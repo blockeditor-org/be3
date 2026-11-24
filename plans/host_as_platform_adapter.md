@@ -1587,8 +1587,12 @@ Each step lands on its own.
            `a_root_shows_why_the_block_its_session_shows_cannot_be_opened`. The host test
            above paints the workspace app's frame.
 
-           Left for later: grafting the app's accessibility tree, which needs the root to
-           describe its own tree to the host first (4g7f's `tree` and `find`).
+           Left for later:
+           - grafting the app's accessibility tree, which needs the root to describe its own
+             tree to the host first (4g7f's `tree` and `find`);
+           - building `core-view` only when the stack or one of the core's areas changed
+             (`stack_changes`, the areas' own state), rather than each frame, and comparing it
+             with the last view handed (`root/block_stack.rs`'s `view`).
          - 4g7b3. Children: their placements, focus, the keyboard, drags and gifts, through
            the root's layers. Desktop windows stay with 4g7e.
        - 4g7c. Anchored views placed outside groups (`anchored`).
