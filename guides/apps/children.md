@@ -57,7 +57,8 @@ editor's manifest and tells the placer, as it does for its own children.
 The keyboard follows the same rules as under be-host (Focus, below): the root
 reads each editor's `keyboard-ask` from the placements it settles and, once the
 frame's layers are drawn, moves the keyboard into the child's layer, or out of
-the placer's screen until the child shows (`Children::keyboard`). Placers hear
+the placer's screen until the child shows (`Children::keyboard`), while
+nothing outside the editor took it meanwhile. Placers hear
 `child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
 active child or Escape in its placer takes it back (`Children::revoke`). Frame
 takeovers, joined docks and drags are not there yet, and a child of any other

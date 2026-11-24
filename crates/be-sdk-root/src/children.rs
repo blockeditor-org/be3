@@ -282,6 +282,11 @@ impl Children {
             .iter()
             .map(|screen| (parent.layer_id(screen.screen), screen.instance, screen.view))
             .collect();
+        // The asks of editors no longer shown are forgotten: one opened again counts afresh.
+        self.asked
+            .retain(|editor, _| screens.iter().any(|screen| screen.instance == *editor));
+        self.asks
+            .retain(|ask| screens.iter().any(|screen| screen.instance == ask.editor));
         let mut wanted = Vec::new();
         let mut asking: HashMap<EditorInstanceId, (u64, ChildId)> = HashMap::default();
         let mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>> = HashMap::default();
@@ -575,6 +580,7 @@ impl Children {
         }
         self.told.clear();
         self.asks.clear();
+        self.asked.clear();
     }
 
     /// The apps of every child shown, any number of levels deep, each with the id of the layer

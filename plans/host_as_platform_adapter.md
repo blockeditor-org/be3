@@ -1634,9 +1634,9 @@ Each step lands on its own.
              (decisions/keys_are_never_held.md). be-root's session applies it before its own
              dialog, lock screen or accounts take the focus (`keyboard_into_children`). Each
              placer above the child the keyboard goes into, pressed or moved there, hears
-             `child-focused` (`Embedding::take_focused`, `Children::focused_into`, `be3:root`'s
+             `child-focused` (be-root's `follow_focus`, `Children::focused_into`, `be3:root`'s
              `host.tell-placer`, `Forwarded::tell_placer`). A press anywhere but in an active
-             child, or Escape in its placer's view, takes it back (`Embedding::take_pressed`,
+             child, or Escape in its placer's view, takes it back (`Routed::pressed`,
              `Children::revoke`), and its placer hears it is no longer active. `Forwarded`
              answers what an editor tells the shell and refuses what it asks (the root's views
              take none of it yet). Tests: be-sdk-root's `children::tests` and `tests`; host test

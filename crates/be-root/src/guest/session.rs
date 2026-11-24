@@ -13,8 +13,8 @@ use be_sdk_api::{
     SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_root::{
-    BlockSpawn, CHILD_SCREEN, Children, Delivery, Embedded, Hosted, KeyboardMove, SpawnFailure,
-    Spawning,
+    BlockSpawn, CHILD_SCREEN, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed,
+    SpawnFailure, Spawning,
 };
 use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
 use beui::reactive::*;
@@ -305,15 +305,13 @@ impl Root {
         }
     }
 
-    /// Takes back the active children the presses and Escapes routed since took back
-    /// (`Embedding::take_pressed`, `Children::revoke`), whose placers hear it with the next
-    /// frame.
-    pub(super) fn revoke_children(&self) {
-        let pressed = self.embedding.borrow_mut().take_pressed();
+    /// Takes back the active children the presses and Escapes of a window's input took back
+    /// (`Routed::pressed`, `Children::revoke`), whose placers hear it with the next frame.
+    pub(super) fn revoke_children(&self, pressed: &[Pressed]) {
         if pressed.is_empty() {
             return;
         }
-        self.with_children(|children| children.revoke(&pressed));
+        self.with_children(|children| children.revoke(pressed));
         self.waker.wake();
     }
 
@@ -334,11 +332,16 @@ impl Root {
         }
     }
 
-    /// Tells the editors placing the child the keyboard went into, each time it goes into one
-    /// (`Embedding::take_focused`): each hears which of its children holds it
-    /// (`child-focused`), from the innermost out.
+    /// Tells the editors placing the child the keyboard went into, each time it goes into one,
+    /// pressed or moved there: each hears which of its children holds it (`child-focused`), from
+    /// the innermost out. The keyboard going anywhere else, the root's own surfaces included,
+    /// is followed too, so going back into the child is heard again.
     pub(super) fn follow_focus(&self) {
-        let Some(focused) = self.embedding.borrow_mut().take_focused() else {
+        let now = self.embedding.borrow().focused(None).map(|layer| layer.id);
+        if self.followed_focus.replace(now) == now {
+            return;
+        }
+        let Some(focused) = now else {
             return;
         };
         let into = self

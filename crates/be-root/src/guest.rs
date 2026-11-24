@@ -161,6 +161,9 @@ struct Root {
     session_rounds: Rc<Cell<u64>>,
     /// Whether the session's notice asked to start its app again, done with the next frame.
     session_reload: Rc<Cell<bool>>,
+    /// The layer that had the keyboard when the root last told placers where it went
+    /// (`follow_focus`).
+    followed_focus: Rc<Cell<Option<LayerId>>>,
     /// The notice over the session's editor (`SessionNotice`), which beui draws, made on its
     /// first frame.
     session_notice: Rc<RefCell<Option<BeuiSurface>>>,
@@ -379,6 +382,7 @@ impl Root {
             session: Rc::default(),
             session_rounds: Rc::default(),
             session_reload: Rc::default(),
+            followed_focus: Rc::default(),
             session_notice: Rc::default(),
             session_notice_shown: Rc::default(),
             waker,
@@ -1774,13 +1778,13 @@ impl frames::Guest for Root {
 
 impl input::Guest for Root {
     fn deliver(&self, window: Option<u64>, events: Vec<u8>) -> LocalFuture<()> {
-        let own = self
+        let routed = self
             .embedding
             .borrow_mut()
             .input(window, &events)
             .unwrap_or_default();
-        self.heard(&own);
-        self.revoke_children();
+        self.heard(&routed.own);
+        self.revoke_children(&routed.pressed);
         self.follow_focus();
         // What it asked of the dialog is done with the next frame, which this asks for.
         if self.asked.get().is_some() {

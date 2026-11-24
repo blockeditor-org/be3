@@ -978,7 +978,8 @@ impl input::Guest for Root {
             .embedding
             .borrow_mut()
             .input(window, &events)
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .own;
         self.heard(&own);
         // What it asked of the dialog is done with the next frame, which this asks for.
         if self.asked.get().is_some() {
