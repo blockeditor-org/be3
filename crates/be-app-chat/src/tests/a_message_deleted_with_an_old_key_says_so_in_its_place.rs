@@ -17,7 +17,7 @@ fn a_message_deleted_with_an_old_key_says_so_in_its_place() {
 
     chat.editor
         .store()
-        .set_log_signer(ROSA, LogSigner::Replaced);
+        .set_log_signer(ROSA, Signer::Replaced);
     chat.arrive(
         ROSA,
         &ChatEntry::Delete {

@@ -50,11 +50,11 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
             [
                 (
                     Some(b"hello".to_vec()),
-                    be_block_content::LogSigner::Verified
+                    be_block_content::Signer::Verified
                 ),
                 (
                     Some(b"forged".to_vec()),
-                    be_block_content::LogSigner::Verified
+                    be_block_content::Signer::Verified
                 ),
             ],
             "the editor hears its entries, signed as its app's"
@@ -85,12 +85,12 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
             };
             assert_eq!(
                 as_app("test.ledger").await,
-                be_block_client::Signer::Verified,
+                be_block_content::Signer::Verified,
                 "every entry on the server is signed as the module's app"
             );
             assert_eq!(
                 as_app("be3.other").await,
-                be_block_client::Signer::Bad,
+                be_block_content::Signer::Bad,
                 "an entry verifies as no other app's"
             );
             assert_eq!(entry.author, peer.account());

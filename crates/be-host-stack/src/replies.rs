@@ -113,16 +113,3 @@ struct OpenedNotification {
     text: String,
 }
 
-/// Who signed bytes (`be_block_client::Signer`), as an answer.
-#[derive(Deserialize, Serialize)]
-pub(crate) struct Signed(#[serde(with = "Signer")] pub be_block_client::Signer);
-
-#[derive(Deserialize, Serialize)]
-#[serde(remote = "be_block_client::Signer")]
-enum Signer {
-    Verified,
-    Unverified,
-    Changed,
-    Replaced,
-    Bad,
-}

@@ -1,5 +1,6 @@
 use be_block_content::block_url::block_url;
-use be_sdk_type_guest::api::{Change, ChildChange, ReplaceChild, guest::exports::replicas::Guest};
+use be_block_content::ChildChange;
+use be_sdk_type_guest::api::{Change, guest::exports::replicas::Guest};
 use uuid::Uuid;
 
 use super::*;
@@ -36,7 +37,7 @@ fn a_replaced_child_repoints_every_block_url_naming_it() {
     };
     let content = TextBlock::of(&text(old));
 
-    let replaced = changed(&content, ChildChange::Replace(ReplaceChild { old, new }))
+    let replaced = changed(&content, ChildChange::Replace { old, new })
         .expect("the text takes the replacement");
     assert_eq!(TextBlock::text(&replaced), text(new));
     assert_eq!(replaced.references(), [new, other]);
@@ -51,7 +52,7 @@ fn a_replaced_child_repoints_every_block_url_naming_it() {
     assert!(
         changed(
             &content,
-            ChildChange::Replace(ReplaceChild { old: unlinked, new })
+            ChildChange::Replace { old: unlinked, new }
         )
         .is_none(),
         "a text naming no such block is left alone"

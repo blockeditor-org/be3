@@ -1,5 +1,4 @@
 use super::*;
-use be_sdk_type_api::{ChildChange, ReplaceChild};
 
 #[test]
 fn child_changes_become_edits_of_the_parent() {
@@ -19,10 +18,10 @@ fn child_changes_become_edits_of_the_parent() {
     );
     sim.change(
         0,
-        Change::Child(ChildChange::Replace(ReplaceChild {
+        Change::Child(ChildChange::Replace {
             old: child,
             new: other,
-        })),
+        }),
     );
     for device in 0..2 {
         assert_eq!(sim.content(device).references(), [other]);

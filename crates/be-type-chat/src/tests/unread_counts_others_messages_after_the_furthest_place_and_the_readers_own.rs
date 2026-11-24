@@ -39,8 +39,8 @@ fn unread_counts_others_messages_after_the_furthest_place_and_the_readers_own() 
     assert_eq!(ChatLog::of(&answered).unread(Some(0), ADA), 1);
 
     let mut forged = entries.to_vec();
-    forged.push(signed(6, BO, &message("forged"), LogSigner::Bad));
-    forged.push(signed(7, ADA, &message("forged hi"), LogSigner::Bad));
+    forged.push(signed(6, BO, &message("forged"), Signer::Bad));
+    forged.push(signed(7, ADA, &message("forged hi"), Signer::Bad));
     assert_eq!(
         ChatLog::of(&forged).unread(Some(0), ADA),
         2,

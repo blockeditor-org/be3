@@ -7,18 +7,6 @@ drifted into a bug.
 
 ## Steps
 
-2. **The type-module WIT uses the stack's types.** `be-sdk-type-api/wit/types.wit` redeclares
-   `journal-entry`, `journal-base`, `journal`, `log-item`, `log-import`, `log-page`,
-   `log-search`, `along`, `announcement`, `child-change`, `search-document`, `part-ref`,
-   `chunk-ref` and `node-ref`, and the signer enum exists three times
-   (`be_block_client::Signer`, `be_block_content::LogSigner`, the generated
-   `be_sdk_type_api::Signer`). About 27 struct literals in be-block-type-host's `replicas.rs`
-   and `modules.rs` and be-sdk-type-guest's `lib.rs`, and two `From<PartRef>` impls, convert
-   field by field. Map these WIT types onto the Rust types with bindgen's `with:`, as
-   `commit-id`, `participant`, `session-state` and `resume` already are, and keep one
-   `Signer`. The log types move down to a crate be-sdk-type-api may depend on (be-block-content
-   itself, or the crate below it that holds `PartRef`), whichever keeps the guest's dependency
-   tree small.
 3. **One read-change-write loop.** Six loops read a head, change the content, write against
    that head and retry when the write is refused, each with its own attempt count and error:
    `peer/prefixes.rs` (8), `peer/account_block.rs` (4, plus an outer retry on `Contended` in

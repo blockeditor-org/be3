@@ -31,7 +31,8 @@ pub use editor_view::{
 };
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
 pub use log::{
-    Along, LogAppended, LogFold, LogImport, LogItem, LogNotAppended, LogPage, LogSearch, LogSigner,
+    Along, KeptEntry, LogAppended, LogFold, LogImport, LogItem, LogNotAppended, LogPage, LogSearch,
+    RefusedEntry, Signer,
 };
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
@@ -182,7 +183,7 @@ pub trait Unread: BlockContent {
 pub const UNREAD_ENTRIES: u32 = 100;
 
 /// A searchable document of a block's content (`BlockContent::search_text`).
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SearchDocument {
     /// Stable across edits and rekeys, unlike a part's ref: a chat segment's part hash (of its
     /// plaintext, so a rekey keeps it), a database row's id, a long text's section id, or empty
@@ -221,7 +222,7 @@ pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {
     metadata.derived
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ChildChange {
     Add(Uuid),
     Delete(Uuid),

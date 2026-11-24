@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use be_block_client::Peer;
-pub use be_block_client::Signer;
+use be_block_content::Signer;
 use uuid::Uuid;
 
 use crate::worker::{Command, Store, Tasks};
@@ -24,7 +24,7 @@ pub(crate) enum AuthorshipCommand {
         bytes: Vec<u8>,
         signature: Vec<u8>,
         arrived: Option<i64>,
-        reply: Reply<crate::replies::Signed>,
+        reply: Reply<Signer>,
     },
 }
 
@@ -57,9 +57,7 @@ pub fn verify(
         bytes,
         signature,
         arrived,
-        reply: crate::replies::expect(move |signer: Result<crate::replies::Signed, String>| {
-            reply(signer.map(|crate::replies::Signed(signer)| signer));
-        }),
+        reply: crate::replies::expect(reply),
     }));
 }
 
@@ -83,11 +81,7 @@ pub(crate) fn run(peer: &Arc<Peer<Store>>, tasks: &Tasks, command: AuthorshipCom
                 let verified = peer
                     .verify_authored(account, block, &bytes, &signature, arrived)
                     .await;
-                reply.send(
-                    verified
-                        .map(crate::replies::Signed)
-                        .map_err(|error| error.to_string()),
-                );
+                reply.send(verified.map_err(|error| error.to_string()));
                 crate::changes::wake();
             });
         }

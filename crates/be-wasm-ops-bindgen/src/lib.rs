@@ -122,9 +122,11 @@ mod tests;
 ///
 /// Options, each a list of WIT type names unless said:
 /// - `with` (map): an existing Rust type in place of a WIT type with the same serde data
-///   model. Nothing checks that the two agree, so use it only for byte arrays (uuids,
-///   hashes, colours) and newtype ids; generate anything with fields of its own.
-///   Network worlds may map onto the very types their client and server share.
+///   model: byte arrays (uuids, hashes, colours), newtype ids, or a type both sides already
+///   share (network worlds' client and server, the block stack's types a type module and its
+///   host exchange). Nothing checks that the two agree: a mapped record keeps the WIT's fields
+///   in their order, a variant its cases, a record a case carries is `inline` when the Rust
+///   case has fields of its own, and byte fields use `serde_bytes`.
 /// - `uses` (map): take a whole interface of another package from its generated crate.
 ///   A type another interface `use`s needs a `uses` entry for its defining interface.
 /// - `copy`: mapped types that are `Copy`. `default`: types that derive `Default` (a

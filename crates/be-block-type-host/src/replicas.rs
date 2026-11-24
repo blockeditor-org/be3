@@ -9,6 +9,7 @@ use std::sync::PoisonError;
 
 use be_block_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed, Write};
 use be_block_commit::CommitId;
+use be_block_content::Signer;
 use be_block_graph::BlockParent;
 use be_block_protocol::{ClientId, ErrorCode, Participant, SessionState};
 use be_block_session::Membership;
@@ -137,30 +138,6 @@ pub(crate) fn answer_in(
     }
 }
 
-/// An entry of the order, opened, as a type module takes it. `received` stays on the server's
-/// clock: every replica applies the same stamp, so they hold the same content.
-fn api_entry(entry: be_block_protocol::JournalEntry) -> be_sdk_type_api::JournalEntry {
-    be_sdk_type_api::JournalEntry {
-        sequence: entry.sequence,
-        origin: entry.origin,
-        counter: entry.counter,
-        base: entry.base,
-        floor: entry.floor,
-        received: entry.received,
-        payload: entry.payload,
-    }
-}
-
-/// An announcement as the type module sent it.
-fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announcement {
-    be_block_content::Announcement {
-        key: sent.key,
-        text: sent.text,
-        several: sent.several,
-        mentions: sent.mentions,
-    }
-}
-
 /// Entries of `block`'s signed log as a replica of the app `app` is handed them: opened, and
 /// who signed each as that app's, judged by its arrival (`Peer::verify_entry`); `unknown` where
 /// that cannot be told now (offline, or unopened), `redacted` for an entry whose payload is
@@ -170,7 +147,7 @@ async fn log_items<S: be_block_store::ObjectStore>(
     block: Uuid,
     app: &str,
     entries: Vec<be_block_client::LoggedEntry>,
-) -> Vec<be_sdk_type_api::LogItem> {
+) -> Vec<be_block_content::LogItem> {
     let mut untold = HashSet::new();
     let mut items = Vec::with_capacity(entries.len());
     for logged in entries {
@@ -179,21 +156,21 @@ async fn log_items<S: be_block_store::ObjectStore>(
         // (`Peer::verify_imported`).
         if logged.imported.is_some() {
             let signer = match peer.verify_imported(block, app, &logged).await {
-                Ok(Some(signer)) => api_signer(signer),
-                Ok(None) => be_sdk_type_api::Signer::Redacted,
-                Err(_) => be_sdk_type_api::Signer::Unknown,
+                Ok(Some(signer)) => signer,
+                Ok(None) => Signer::Redacted,
+                Err(_) => Signer::Unknown,
             };
             let Some(original) = logged.imported else {
                 continue;
             };
-            items.push(be_sdk_type_api::LogItem {
+            items.push(be_block_content::LogItem {
                 seq: logged.entry.seq,
                 id: logged.entry.id,
                 author: original.author,
                 arrival: original.arrival,
                 payload: original.said.map(|said| said.bytes),
                 signer,
-                imported: Some(be_sdk_type_api::LogImport {
+                imported: Some(be_block_content::LogImport {
                     block: original.block,
                     seq: original.seq,
                     importer: logged.entry.author,
@@ -203,10 +180,10 @@ async fn log_items<S: be_block_store::ObjectStore>(
         }
         let entry = logged.entry;
         let signer = match &logged.opened {
-            None if entry.payload.is_none() => be_sdk_type_api::Signer::Redacted,
-            None if logged.malformed => be_sdk_type_api::Signer::Bad,
-            None => be_sdk_type_api::Signer::Unknown,
-            Some(_) if untold.contains(&entry.author) => be_sdk_type_api::Signer::Unknown,
+            None if entry.payload.is_none() => Signer::Redacted,
+            None if logged.malformed => Signer::Bad,
+            None => Signer::Unknown,
+            Some(_) if untold.contains(&entry.author) => Signer::Unknown,
             Some(said) => match peer
                 .verify_entry(
                     block,
@@ -219,14 +196,14 @@ async fn log_items<S: be_block_store::ObjectStore>(
                 )
                 .await
             {
-                Ok(signer) => api_signer(signer),
+                Ok(signer) => signer,
                 Err(_) => {
                     untold.insert(entry.author);
-                    be_sdk_type_api::Signer::Unknown
+                    Signer::Unknown
                 }
             },
         };
-        items.push(be_sdk_type_api::LogItem {
+        items.push(be_block_content::LogItem {
             seq: entry.seq,
             id: entry.id,
             author: entry.author,
@@ -241,16 +218,6 @@ async fn log_items<S: be_block_store::ObjectStore>(
 
 /// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
 /// unreachable server leaves them for the next time.
-fn api_signer(signer: be_block_client::Signer) -> be_sdk_type_api::Signer {
-    match signer {
-        be_block_client::Signer::Verified => be_sdk_type_api::Signer::Verified,
-        be_block_client::Signer::Unverified => be_sdk_type_api::Signer::Unverified,
-        be_block_client::Signer::Changed => be_sdk_type_api::Signer::Changed,
-        be_block_client::Signer::Replaced => be_sdk_type_api::Signer::Replaced,
-        be_block_client::Signer::Bad => be_sdk_type_api::Signer::Bad,
-    }
-}
-
 pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
     if let Err(error) = peer.send_announcements().await
         && !unreachable(&error)
@@ -332,16 +299,16 @@ pub enum Answered {
         Result<Vec<u8>, String>,
     ),
     PutPart(
-        Reply<Result<be_sdk_type_api::PartRef, String>>,
-        Result<be_sdk_type_api::PartRef, String>,
+        Reply<Result<be_block_store::PartRef, String>>,
+        Result<be_block_store::PartRef, String>,
     ),
     Append(
         Reply<Result<be_sdk_type_api::host::Appended, be_sdk_type_api::host::NotAppended>>,
         Result<be_sdk_type_api::host::Appended, be_sdk_type_api::host::NotAppended>,
     ),
     ReadLog(
-        Reply<Result<be_sdk_type_api::LogPage, String>>,
-        Result<be_sdk_type_api::LogPage, String>,
+        Reply<Result<be_block_content::LogPage, String>>,
+        Result<be_block_content::LogPage, String>,
     ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
@@ -374,7 +341,7 @@ pub enum Io {
     /// Entries appended to an open block's signed log, verified (`Replicas::appended`).
     Logged {
         block: Uuid,
-        items: Vec<be_sdk_type_api::LogItem>,
+        items: Vec<be_block_content::LogItem>,
     },
     Answer {
         replica: ReplicaId,
@@ -448,7 +415,7 @@ impl Merged {
 /// A block's searchable text, as its type answered `search-text` and the host checked it.
 #[derive(Debug)]
 pub struct Searched {
-    pub documents: Vec<be_sdk_type_api::SearchDocument>,
+    pub documents: Vec<be_block_content::SearchDocument>,
     /// The parts the type read, in the order it asked.
     pub read: Vec<be_block_store::PartRef>,
 }
@@ -540,12 +507,12 @@ pub(crate) enum Replayed {
     /// Entries of the order, opened. Given only to the replica that heard them: one opened
     /// again reads them in the journal.
     Sequenced {
-        entries: Vec<be_sdk_type_api::JournalEntry>,
+        entries: Vec<be_block_protocol::JournalEntry>,
     },
     /// Entries appended to the block's signed log, verified. Like `Sequenced`, given only to the
     /// replica that heard them: one opened again reads the log afresh.
     Logged {
-        items: Vec<be_sdk_type_api::LogItem>,
+        items: Vec<be_block_content::LogItem>,
     },
     Change {
         change: Change,
@@ -603,18 +570,6 @@ impl Replayed {
         }
         None
     }
-}
-
-/// The entries this device appended to `block`'s log that the server refused and no app let
-/// go, as the protocol carries them.
-fn refused_entries<S: be_block_store::ObjectStore>(
-    peer: &Peer<S>,
-    block: Uuid,
-) -> Vec<be_sdk_type_api::RefusedEntry> {
-    peer.refused_entries(block)
-        .into_iter()
-        .map(|(id, payload, why)| be_sdk_type_api::RefusedEntry { id, payload, why })
-        .collect()
 }
 
 fn resend(
@@ -2839,7 +2794,7 @@ impl<H: Host> Replicas<H> {
     /// its replica hears every refused entry the device keeps (`Peer::refused_entries`).
     pub fn not_appended(&mut self, (peer, _): Ctx<'_, H>, block: Uuid) {
         if let Some(replica) = self.blocks.get(&block).copied() {
-            let entries = refused_entries(peer, block);
+            let entries = peer.refused_entries(block);
             self.with_replica(replica, |handle, connection| {
                 handle.refused(connection, entries);
             });
@@ -3074,7 +3029,6 @@ impl<H: Host> Replicas<H> {
             }
             let source = document
                 .source
-                .map(be_block_store::PartRef::from)
                 .filter(|source| scope.allows(*source));
             if source.is_some_and(|source| indexed.contains(&source)) {
                 document.body = None;
@@ -3236,17 +3190,17 @@ impl<H: Host> Replicas<H> {
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let app = self.modules.name(module).to_owned();
         // Verified, so an entry signed as nobody's (`Bad`) changes nothing.
-        let items: Vec<be_sdk_type_api::LogItem> = log_items(&peer, block, &app, read.entries)
+        let items: Vec<be_block_content::LogItem> = log_items(&peer, block, &app, read.entries)
             .await
             .into_iter()
-            .filter(|item| item.signer != be_sdk_type_api::Signer::Bad)
+            .filter(|item| item.signer != Signer::Bad)
             .collect();
         // Imported history is searched apart, by its places in the block it was written in, so
         // none of it changes the block's own documents nor theirs it.
         let mut history = HashMap::new();
         let (own, imported): (Vec<_>, Vec<_>) =
             items.into_iter().partition(|item| item.imported.is_none());
-        let imported: Vec<be_sdk_type_api::LogItem> = imported
+        let imported: Vec<be_block_content::LogItem> = imported
             .into_iter()
             .filter_map(|item| {
                 let original = item.imported?;
@@ -3254,7 +3208,7 @@ impl<H: Host> Replicas<H> {
                     original.seq,
                     (item.seq, item.author, item.payload.is_none()),
                 );
-                Some(be_sdk_type_api::LogItem {
+                Some(be_block_content::LogItem {
                     seq: original.seq,
                     ..item
                 })
@@ -3265,11 +3219,11 @@ impl<H: Host> Replicas<H> {
         let mut changes = redacted;
         // The entries outside the page a change names, read once each.
         let mut named_elsewhere: HashMap<u64, Option<(Uuid, bool, bool)>> = HashMap::new();
-        for change in self.searched(ctx, module, content_type, own).await? {
-            let Some(author) = own_authors.get(&change.seq).copied() else {
+        for (seq, change) in self.searched(ctx, module, content_type, own).await? {
+            let Some(author) = own_authors.get(&seq).copied() else {
                 continue;
             };
-            let Some((_, arrival, id, _)) = entries.get(&change.seq).copied() else {
+            let Some((_, arrival, id, _)) = entries.get(&seq).copied() else {
                 continue;
             };
             // The entry whose document it changes: its author, whether it is redacted, which no
@@ -3313,9 +3267,9 @@ impl<H: Host> Replicas<H> {
             }
         }
         if !imported.is_empty() {
-            for change in self.searched(ctx, module, content_type, imported).await? {
+            for (seq, change) in self.searched(ctx, module, content_type, imported).await? {
                 let (Some((source, author, _)), Some((place, named, gone))) = (
-                    history.get(&change.seq).copied(),
+                    history.get(&seq).copied(),
                     history.get(&change.place).copied(),
                 ) else {
                     continue;
@@ -3340,14 +3294,15 @@ impl<H: Host> Replicas<H> {
         })
     }
 
-    /// What the type says `items` change in its searchable text (`LogFold::search`).
+    /// What the type says `items` change in its searchable text (`LogFold::search`), each
+    /// change with the place of the entry that makes it.
     async fn searched(
         &mut self,
         ctx: Ctx<'_, H>,
         module: usize,
         content_type: Uuid,
-        items: Vec<be_sdk_type_api::LogItem>,
-    ) -> Result<Vec<be_sdk_type_api::LogSearch>, NotSearched> {
+        items: Vec<be_block_content::LogItem>,
+    ) -> Result<Vec<(u64, be_block_content::LogSearch)>, NotSearched> {
         let (answer, _) = self
             .ask_reading(ctx, module, types::Scope::of([]), |connection| {
                 replicas::search_log(connection, content_type, items)
@@ -3758,7 +3713,7 @@ impl<H: Host> Replicas<H> {
                     H::record(shared, error);
                 }
                 let entry = match peer.open_entry(*block, entry.clone()) {
-                    Ok(entry) => api_entry(entry),
+                    Ok(entry) => entry,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
                             .insert(*block, VecDeque::from([Told::Event(event.clone())]));
@@ -4961,7 +4916,6 @@ impl<H: Host> Replicas<H> {
             }
             // Numbered in this device's own order: the replica hears it at once.
             Ok(be_block_client::peer::Submitted::Offline(entry)) => {
-                let entry = api_entry(entry);
                 self.replay(
                     replica,
                     Replayed::Sequenced {
@@ -5090,7 +5044,6 @@ impl<H: Host> Replicas<H> {
                     barrier: submission.barrier,
                     payload: submission.payload,
                 };
-                let announcements = announcements.into_iter().map(announcement).collect();
                 self.submit(
                     (peer, shared),
                     module,
@@ -5210,10 +5163,6 @@ impl<H: Host> Replicas<H> {
                 bytes,
                 along,
             } => {
-                let along = be_block_content::Along {
-                    announcement: along.announcement.map(announcement),
-                    redacts: along.redacts,
-                };
                 let peer = Arc::clone(peer);
                 let app = self.modules.name(module).to_owned();
                 self.answer_later(replica, module, async move {
@@ -5251,15 +5200,11 @@ impl<H: Host> Replicas<H> {
                 self.answer_later(replica, module, async move {
                     let read = async {
                         let read = peer.read_log(block, from, limit).await?;
-                        Ok::<_, ClientError>(be_sdk_type_api::LogPage {
+                        Ok::<_, ClientError>(be_block_content::LogPage {
                             size: read.head.size,
                             items: log_items(&peer, block, &app, read.entries).await,
-                            kept: peer
-                                .kept_entries(block)
-                                .into_iter()
-                                .map(|(id, payload)| be_sdk_type_api::KeptEntry { id, payload })
-                                .collect(),
-                            refused: refused_entries(&peer, block),
+                            kept: peer.kept_entries(block),
+                            refused: peer.refused_entries(block),
                         })
                     }
                     .await
@@ -5288,9 +5233,7 @@ impl<H: Host> Replicas<H> {
                             .unwrap_or_else(PoisonError::into_inner)
                             .hand([*put]);
                     }
-                    let result = put
-                        .map(be_sdk_type_api::PartRef::from)
-                        .map_err(|error| error.to_string());
+                    let result = put.map_err(|error| error.to_string());
                     (Answered::PutPart(reply, result), None)
                 });
                 false
@@ -6117,18 +6060,14 @@ fn kept_edits(
 
 fn kept_change(change: &Change) -> be_block_client::KeptChange {
     use be_block_client::KeptChange;
-    use be_sdk_type_api::ChildChange;
+    use be_block_content::ChildChange;
     match change.clone() {
         Change::Child(ChildChange::Add(block)) => KeptChange::AddChild(block),
         Change::Child(ChildChange::Delete(block)) => KeptChange::DeleteChild(block),
-        Change::Child(ChildChange::Replace(replace)) => KeptChange::ReplaceChild {
-            old: replace.old,
-            new: replace.new,
-        },
-        Change::Child(ChildChange::Reorder(reorder)) => KeptChange::ReorderChild {
-            block: reorder.block,
-            after: reorder.after,
-        },
+        Change::Child(ChildChange::Replace { old, new }) => KeptChange::ReplaceChild { old, new },
+        Change::Child(ChildChange::Reorder { block, after }) => {
+            KeptChange::ReorderChild { block, after }
+        }
         Change::FromFile(file) => KeptChange::FromFile {
             name: file.name,
             bytes: file.bytes,
@@ -6141,15 +6080,14 @@ fn kept_change(change: &Change) -> be_block_client::KeptChange {
 
 fn api_change(kept: be_block_client::KeptChange) -> Change {
     use be_block_client::KeptChange;
-    use be_sdk_type_api::{ChildChange, FileChange, ReorderChild, ReplaceChild};
+    use be_block_content::ChildChange;
+    use be_sdk_type_api::FileChange;
     match kept {
         KeptChange::AddChild(block) => Change::Child(ChildChange::Add(block)),
         KeptChange::DeleteChild(block) => Change::Child(ChildChange::Delete(block)),
-        KeptChange::ReplaceChild { old, new } => {
-            Change::Child(ChildChange::Replace(ReplaceChild { old, new }))
-        }
+        KeptChange::ReplaceChild { old, new } => Change::Child(ChildChange::Replace { old, new }),
         KeptChange::ReorderChild { block, after } => {
-            Change::Child(ChildChange::Reorder(ReorderChild { block, after }))
+            Change::Child(ChildChange::Reorder { block, after })
         }
         KeptChange::FromFile { name, bytes } => Change::FromFile(FileChange { name, bytes }),
         KeptChange::Replace(bytes) => Change::Replace(bytes),
@@ -6218,34 +6156,30 @@ fn lost_edits(
 
 /// An opened journal as a replica of this module takes it: as it is when the module wrote it;
 /// otherwise with none of its entries, which this build cannot read, on `head` at the order's
-/// last number, so the replica follows the order on from there (and its holder starts the
-/// journal over, `opening.lost-edits`).
+/// last number, as this build's (lost when it dropped any), so the replica follows the order on
+/// from there (and its holder starts the journal over, `opening.lost-edits`).
 fn replayable(
     journal: be_block_protocol::Journal,
     tag: be_sdk_type_api::SessionTag,
     head: Option<CommitId>,
-) -> Option<be_sdk_type_api::Journal> {
-    if journal.tag.as_bytes() != &tag.0 {
-        let last = journal
-            .entries
-            .last()
-            .map_or(journal.base.sequence, |entry| entry.sequence);
-        return Some(be_sdk_type_api::Journal {
-            base: be_sdk_type_api::JournalBase {
-                commit: head,
-                sequence: last,
-                state: Vec::new(),
-            },
-            entries: Vec::new(),
-        });
+) -> Option<be_block_protocol::Journal> {
+    if journal.tag.as_bytes() == &tag.0 {
+        return Some(journal);
     }
-    Some(be_sdk_type_api::Journal {
-        base: be_sdk_type_api::JournalBase {
-            commit: journal.base.commit,
-            sequence: journal.base.sequence,
-            state: journal.base.state,
+    let last = journal
+        .entries
+        .last()
+        .map_or(journal.base.sequence, |entry| entry.sequence);
+    let lost = journal.lost || !journal.entries.is_empty();
+    Some(be_block_protocol::Journal {
+        tag: be_block_store::Hash::from_bytes(tag.0),
+        base: be_block_protocol::JournalBase {
+            commit: head,
+            sequence: last,
+            state: Vec::new(),
         },
-        entries: journal.entries.into_iter().map(api_entry).collect(),
+        entries: Vec::new(),
+        lost,
     })
 }
 

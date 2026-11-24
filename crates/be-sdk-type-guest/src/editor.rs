@@ -194,7 +194,7 @@ pub enum ToEditor {
     },
     /// Every entry this device appended that the server refused and keeps until let go, each
     /// id with its bytes and why, as a drain refused one.
-    Refused(Vec<(Uuid, Vec<u8>, String)>),
+    Refused(Vec<be_block_content::RefusedEntry>),
     /// Entries of the block's signed log, in order: what the replica heard appended, every
     /// editor's own too.
     Logged(Vec<be_block_content::LogItem>),
@@ -314,7 +314,7 @@ impl HeldLog {
             }
             Some(seq) if seq == item.seq => {
                 let unchanged = self.items.get(&seq).is_none_or(|held| {
-                    *held == item || item.signer == be_block_content::LogSigner::Unknown
+                    *held == item || item.signer == be_block_content::Signer::Unknown
                 });
                 if unchanged {
                     return Taken::Held;
@@ -454,7 +454,7 @@ pub struct EditorMirror<C: LiveEdit> {
     /// The entries this device appended that the server has not taken yet, by id: those this
     /// editor appended, and those a read told of (`LogPage::kept`), which another editor, or
     /// this one before the editor opened again, appended.
-    kept: Vec<(Uuid, Vec<u8>)>,
+    kept: Vec<be_block_content::KeptEntry>,
     /// The entries not appended, by the token of the `append` (or one this editor gave an entry
     /// a read or the replica told of): the bytes, why, and the id of one the server refused,
     /// which the device keeps until let go, until dismissed.
@@ -654,7 +654,9 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     /// The entries this device appended that the server has not taken yet, in the order they
     /// were appended as far as this editor knows: each id and the bytes the app appended.
     pub fn kept(&self) -> impl Iterator<Item = (Uuid, &[u8])> {
-        self.kept.iter().map(|(id, bytes)| (*id, bytes.as_slice()))
+        self.kept
+            .iter()
+            .map(|kept| (kept.id, kept.payload.as_slice()))
     }
 
     /// The entries not appended, by the token of the `append`, in the order they were refused:
@@ -676,12 +678,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
 
     /// Takes the entries the device keeps as refused, all of them: one let go elsewhere goes,
     /// one not held yet joins under a token of this editor's, and none is sending any more.
-    fn take_refused(&mut self, entries: Vec<(Uuid, Vec<u8>, String)>) {
-        let ids: BTreeSet<Uuid> = entries.iter().map(|(id, ..)| *id).collect();
+    fn take_refused(&mut self, entries: Vec<be_block_content::RefusedEntry>) {
+        let ids: BTreeSet<Uuid> = entries.iter().map(|entry| entry.id).collect();
         self.refused
             .retain(|_, refused| refused.id.is_none_or(|id| ids.contains(&id)));
-        self.kept.retain(|(id, _)| !ids.contains(id));
-        for (id, bytes, why) in entries {
+        self.kept.retain(|kept| !ids.contains(&kept.id));
+        for be_block_content::RefusedEntry { id, payload, why } in entries {
             if self.refused.values().any(|refused| refused.id == Some(id)) {
                 continue;
             }
@@ -690,7 +692,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.reads,
                 NotSent {
                     id: Some(id),
-                    bytes,
+                    bytes: payload,
                     why,
                 },
             );
@@ -701,7 +703,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     fn take_log(&mut self, items: Vec<be_block_content::LogItem>) {
         for item in items {
             self.log_size = self.log_size.max(item.seq + 1);
-            self.kept.retain(|(id, _)| *id != item.id);
+            self.kept.retain(|kept| kept.id != item.id);
             self.log.take(item);
         }
         // An editor holds the latest entries it heard or read, and reads older ones again.
@@ -839,9 +841,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                         // It waits on the device, unless the log already holds it.
                         Ok(appended) if appended.place.is_none() => {
                             let known = self.log.holds_id(appended.id)
-                                || self.kept.iter().any(|(id, _)| *id == appended.id);
+                                || self.kept.iter().any(|kept| kept.id == appended.id);
                             if !known {
-                                self.kept.push((appended.id, bytes));
+                                self.kept.push(be_block_content::KeptEntry {
+                                    id: appended.id,
+                                    payload: bytes,
+                                });
                             }
                         }
                         Ok(_) => {}
@@ -880,7 +885,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                     self.kept = page
                         .kept
                         .into_iter()
-                        .filter(|(id, _)| !self.log.holds_id(*id))
+                        .filter(|kept| !self.log.holds_id(kept.id))
                         .collect();
                     self.take_refused(page.refused);
                     self.take_log(page.items);

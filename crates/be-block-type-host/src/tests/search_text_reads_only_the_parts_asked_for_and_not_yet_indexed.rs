@@ -1,5 +1,5 @@
 use be_block_client::Saved;
-use be_sdk_type_api::{PartRef, SearchDocument};
+use be_block_content::SearchDocument;
 
 use super::*;
 
@@ -81,7 +81,7 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
         let changed = search(None, indexed).await;
         assert_eq!(changed.documents.len(), sections::SECTIONS);
         for (index, document) in changed.documents.iter().enumerate() {
-            assert_eq!(document.source, Some(PartRef::from(parts[index])));
+            assert_eq!(document.source, Some(parts[index]));
             assert_eq!(
                 document.body.as_deref(),
                 (index == 6).then_some("six"),
