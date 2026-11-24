@@ -1,5 +1,5 @@
-use crate::BlobFile as _;
 use super::*;
+use crate::BlobFile as _;
 
 #[test]
 fn an_image_is_decoded_into_its_header_and_keeps_its_bytes() {

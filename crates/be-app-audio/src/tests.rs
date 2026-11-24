@@ -19,10 +19,7 @@ fn editor() -> (BeuiTest<AudioRoot>, Editor) {
     let owner = OwnedEditor::new(host.clone(), block);
     let editor = *owner;
     let mut test = BeuiTest::new(owner);
-    test.hold(
-        None,
-        AudioFile::from_file("song.flac", vec![1, 2, 3]),
-    );
+    test.hold(None, AudioFile::from_file("song.flac", vec![1, 2, 3]));
     test.run();
     (test, editor)
 }

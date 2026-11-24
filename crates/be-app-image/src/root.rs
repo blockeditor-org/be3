@@ -1,9 +1,9 @@
-use be_type_image::BlobFile as _;
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::Root;
 use be_sdk_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
+use be_type_image::BlobFile as _;
 use be_type_image::{ImageContent, ImageFile};
 
 mod picture;

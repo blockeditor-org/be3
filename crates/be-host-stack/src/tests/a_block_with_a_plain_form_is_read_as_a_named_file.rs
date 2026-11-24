@@ -1,5 +1,5 @@
-use be_type_image::BlobFile as _;
 use super::*;
+use be_type_image::BlobFile as _;
 
 fn read(block: Uuid) -> Result<be_block_type_host::PlainFile, String> {
     let (sender, receiver) = std::sync::mpsc::channel();

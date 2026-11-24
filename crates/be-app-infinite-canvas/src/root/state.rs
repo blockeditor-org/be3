@@ -1,8 +1,8 @@
-use be_type_image::BlobFile as _;
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::CanvasView;
 use be_sdk_beui::beui::icons::Glyph;
 use be_type_database::DatabaseSchemaContent;
+use be_type_image::BlobFile as _;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 

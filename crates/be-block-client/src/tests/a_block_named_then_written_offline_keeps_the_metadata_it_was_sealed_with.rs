@@ -1,5 +1,5 @@
-use be_type_image::BlobFile as _;
 use super::*;
+use be_type_image::BlobFile as _;
 
 use be_block_content::{BlockContent, INTRINSIC_NAME, NAME};
 use be_type_image::{ImageContent, ImageFile};
