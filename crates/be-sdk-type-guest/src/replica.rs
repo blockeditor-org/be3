@@ -351,7 +351,10 @@ impl<C> Job<C> {
 /// too large to submit inline, by their hash.
 #[derive(Clone, Copy)]
 enum Putting {
-    Editor { editor: EditorId, token: u64 },
+    Editor {
+        editor: EditorId,
+        token: u64,
+    },
     Operation(Hash),
     /// A session state a journal's base goes by (`journal_state`), by the hash of its bytes.
     State(Hash),
@@ -1612,7 +1615,10 @@ where
         match self.state_parts.get(&hash) {
             Some(Upload::Put(part)) => {
                 let part = *part;
-                Ok((self.base_state(Vec::new(), Some(part), sequence), vec![part]))
+                Ok((
+                    self.base_state(Vec::new(), Some(part), sequence),
+                    vec![part],
+                ))
             }
             Some(Upload::Putting) => Err(hash),
             None => {
@@ -1632,7 +1638,8 @@ where
     /// The part a journal's state goes by was put, or could not be: the seal or rebase that
     /// waited for it goes on, or is tried again later.
     fn state_put(&mut self, hash: Hash, result: Result<PartRef, String>) {
-        let waits = matches!(&self.waiting, Some(Wait::StatePut { hash: waits, .. }) if *waits == hash);
+        let waits =
+            matches!(&self.waiting, Some(Wait::StatePut { hash: waits, .. }) if *waits == hash);
         let rebase = self.rebase_putting == Some(hash);
         match result {
             Ok(part) => {
@@ -1687,9 +1694,8 @@ where
         };
         let sealed = Hash::of(&self.sealed_state);
         let rebase = self.rebase_putting;
-        self.state_parts.retain(|hash, _| {
-            Some(*hash) == waiting || Some(*hash) == rebase || *hash == sealed
-        });
+        self.state_parts
+            .retain(|hash, _| Some(*hash) == waiting || Some(*hash) == rebase || *hash == sealed);
     }
 
     /// Starts the journal from this holder's base: its last commit, the sequence it holds, and

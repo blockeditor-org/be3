@@ -28,7 +28,11 @@ fn a_session_whose_state_outgrows_a_base_still_seals_by_its_part() {
     assert_ne!(sim.head, before, "the seal moved the head");
     assert_eq!(sim.devices[0].status.restarts, 0, "no restart came due");
     assert_eq!(prose(&sim.head_content()), "b start\n");
-    assert_eq!(sim.base_parts.len(), 1, "the base names the part its state goes by");
+    assert_eq!(
+        sim.base_parts.len(),
+        1,
+        "the base names the part its state goes by"
+    );
     let part = be_block_store::PartRef::from(sim.base_parts[0].clone());
     assert!(
         part.length() > 128,
@@ -36,7 +40,10 @@ fn a_session_whose_state_outgrows_a_base_still_seals_by_its_part() {
         part.length()
     );
     let state = &sim.journal.as_ref().expect("a journal").base.state;
-    assert!(state.len() <= 128, "the base carries the part, not the state");
+    assert!(
+        state.len() <= 128,
+        "the base carries the part, not the state"
+    );
 
     // What comes after the seal was made on that state: a replica opening on the base reads
     // the part and replays it alike.

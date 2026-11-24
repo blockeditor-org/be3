@@ -71,9 +71,7 @@ fn windows_from_last_time_on_windows_wait_in_chips_and_restore_from_the_start_me
     let [paint, calculator] = [3, 4].map(|id| before.tab_of(id));
 
     let mut resumed = Fixture::resumed(before.saved());
-    resumed
-        .test
-        .set_watched::<ProgramsWatch>(&start_menu());
+    resumed.test.set_watched::<ProgramsWatch>(&start_menu());
     resumed.settle();
     assert!(resumed.test.shown("desktop.windows.restore"));
     for tab in [paint, calculator] {

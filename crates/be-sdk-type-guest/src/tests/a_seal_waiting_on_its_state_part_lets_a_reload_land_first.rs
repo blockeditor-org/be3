@@ -32,7 +32,11 @@ fn a_seal_waiting_on_its_state_part_lets_a_reload_land_first() {
     sim.stalled = false;
     assert!(sim.change(1, Change::Replace(prose_of("replaced\n").encode())));
     sim.settle();
-    assert_eq!(prose(&sim.content(1)), "replaced\n", "the replacement landed");
+    assert_eq!(
+        prose(&sim.content(1)),
+        "replaced\n",
+        "the replacement landed"
+    );
 
     // The part is put: the seal goes on, then the replacement lands on the holder too, and the
     // session seals what it holds.
@@ -49,5 +53,9 @@ fn a_seal_waiting_on_its_state_part_lets_a_reload_land_first() {
     sim.type_at(1, 1, 0, "more ");
     sim.advance(crate::QUIET_INTERVAL);
     sim.advance(crate::QUIET_INTERVAL);
-    assert_eq!(prose(&sim.head_content()), "more replaced\n", "and it seals again");
+    assert_eq!(
+        prose(&sim.head_content()),
+        "more replaced\n",
+        "and it seals again"
+    );
 }

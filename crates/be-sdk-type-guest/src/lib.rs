@@ -1046,7 +1046,10 @@ impl Module {
                 restarts,
                 parts,
             } => {
-                let parts = parts.into_iter().map(be_sdk_type_api::PartRef::from).collect();
+                let parts = parts
+                    .into_iter()
+                    .map(be_sdk_type_api::PartRef::from)
+                    .collect();
                 ops::with_parent(replica, || host::rebase_journal(base, restarts, parts)).detach()
             }
             Effect::Release { replica } => {

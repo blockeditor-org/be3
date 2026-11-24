@@ -390,7 +390,9 @@ pub fn rebase(
             |row| row.get(0),
         )?;
         if !held {
-            return Err(refuse("a journal's base names an object its block does not hold"));
+            return Err(refuse(
+                "a journal's base names an object its block does not hold",
+            ));
         }
     }
     for part in &base.parts {

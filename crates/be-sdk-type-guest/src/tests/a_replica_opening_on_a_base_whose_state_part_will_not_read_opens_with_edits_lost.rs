@@ -43,7 +43,11 @@ fn a_replica_opening_on_a_base_whose_state_part_will_not_read_opens_with_edits_l
     for _ in 0..20 {
         sim.advance(60_000);
     }
-    assert_eq!(prose(&sim.content(3)), "b start\n", "it opens on the commit");
+    assert_eq!(
+        prose(&sim.content(3)),
+        "b start\n",
+        "it opens on the commit"
+    );
     assert!(sim.devices[3].undo.lost_edits, "and says edits were lost");
 
     // An operation the journal holds goes by its part, which never reads: the replica opens on
@@ -118,11 +122,15 @@ fn a_replica_opening_on_a_base_whose_state_part_will_not_read_opens_with_edits_l
     assert!(sim.devices[0].status.restarts >= 1, "the restart landed");
     // The peer live in the session read the restart's state part too (its base is below its
     // floor, as a restart's always is), and holds what the holder holds.
-    assert!(sim.part_reads > reads, "the peer read the restart's state part");
+    assert!(
+        sim.part_reads > reads,
+        "the peer read the restart's state part"
+    );
     assert_eq!(prose(&sim.content(1)), prose(&sim.content(0)));
     let journal = sim.journal.clone().expect("a journal");
     assert!(
-        crate::wire::BaseState::decode(&journal.base.state).is_some_and(|state| state.part.is_none()),
+        crate::wire::BaseState::decode(&journal.base.state)
+            .is_some_and(|state| state.part.is_none()),
         "the base is inline"
     );
     assert!(
