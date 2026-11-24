@@ -1597,9 +1597,11 @@ Each step lands on its own.
            the root's layers. Desktop windows stay with 4g7e. In parts:
            - 4g7b3a (built). Block children placed. be-sdk-root's `Embedded` keeps the
              children each view placed (`Embedded::placed`), those that come or go with the
-             present that draws their holes (be-sdk-app-host's holds), and `Children` shows
-             them: each block child placed to run its editor (passive, active, live or in
-             place) is the block's editor in an app of its own (`Embedded::spawn_block`), asked
+             present that draws their holes (be-sdk-app-host's holds), owing the root a frame
+             until it reads them, and `Children` shows them: each block child placed to run its
+             editor (passive, active, live or in place) is the block's editor in an app of its
+             own (`Embedded::spawn_block`, whose `editor-of` and `open-editor` now take a
+             `shown-block`: the block with the editor and view block its placement names), asked
              for one screen (`CHILD_SCREEN`) the size of its place at its placer's raster, in a
              frame of its own when placed with one. Its layer goes under its placer's, or over
              it for `ChildLayer::Above`, clipped to what shows of it, and the placer is hit
@@ -1621,8 +1623,7 @@ Each step lands on its own.
              (a child placed in a dock tab asked `docked`, its bars spliced; be-sdk-app-host's
              `Docks`).
            - 4g7b3d. Drags out of and into children, and the rest of what a placement says:
-             the editor it names (`ChildContent::Block`'s `editor` and `view_block`, which
-             `editor-of` takes no part of yet), a block in several places sharing one editor
+             a block in several places sharing one editor
              (and one app per staged app rather than per child), occluders, `fit`, a child in
              place at its zoom, rotation and opacity, previews, and the other kinds of child
              (web views, host panels, pickers, creations, artifact settings, rename forms and

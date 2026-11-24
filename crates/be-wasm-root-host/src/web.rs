@@ -283,7 +283,7 @@ impl Root {
 
     /// The blocks the root asked the editor of since the last call (`host.editor-of`), each by
     /// the id `answer_editor` answers it by.
-    pub fn take_editor_asks(&self) -> Vec<(u64, [u8; 16])> {
+    pub fn take_editor_asks(&self) -> Vec<(u64, be_wasm_root_api::ShownBlock)> {
         self.shared.core.borrow_mut().take_editor_asks()
     }
 

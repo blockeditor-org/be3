@@ -669,15 +669,17 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
     let asks = std::mem::take(&mut editors.asks)
         .into_iter()
         .chain(root.take_editor_asks());
-    for (id, block) in asks {
+    for (id, shown) in asks {
         // While the stack does not list the session's block (yet, or again for a moment), an
         // ask for a block it does not list waits for it rather than failing.
-        if core.root_session_pending && be_host_stack::node(Uuid::from_bytes(block)).is_none() {
-            editors.asks.push((id, block));
+        if core.root_session_pending
+            && be_host_stack::node(Uuid::from_bytes(shown.block)).is_none()
+        {
+            editors.asks.push((id, shown));
             continue;
         }
         let editor = core
-            .editor_of(Uuid::from_bytes(block))
+            .editor_of(&shown)
             .map(|(app, _, _)| EditorApp {
                 app: app.identity.id.clone(),
                 module: app.entry_point.clone(),
@@ -690,7 +692,7 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         .chain(root.take_openings());
     for opening in openings {
         if core.root_session_pending
-            && be_host_stack::node(Uuid::from_bytes(opening.block)).is_none()
+            && be_host_stack::node(Uuid::from_bytes(opening.shown.block)).is_none()
         {
             editors.openings.push(opening);
             continue;
@@ -743,7 +745,7 @@ struct Editors {
     /// Each editor opened, by the root's instance and the editor: what its app's manifest says
     /// of it, for the statuses of the children it shows.
     opened: HashMap<(u64, u64), OpenedFor>,
-    asks: Vec<(u64, [u8; 16])>,
+    asks: Vec<(u64, be_wasm_root_api::ShownBlock)>,
     openings: Vec<EditorOpening>,
 }
 
@@ -813,7 +815,7 @@ fn open_editor(
     served: &mut HashMap<u64, Forwarded>,
     opened_for: &mut HashMap<(u64, u64), OpenedFor>,
 ) -> Result<OpenedEditor, String> {
-    let (app, editor, opened) = core.editor_of(Uuid::from_bytes(opening.block))?;
+    let (app, editor, opened) = core.editor_of(&opening.shown)?;
     if opening.app.as_deref() != Some(app.identity.id.as_str()) {
         return Err(format!(
             "{} edits the block, which the root's instance does not run",

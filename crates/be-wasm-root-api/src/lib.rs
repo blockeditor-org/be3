@@ -32,6 +32,6 @@ pub use host::{
     Notice, NoticeAction, OpenedEditor, OpenedIn, OrganizationRow, OrganizationsArea, OrganizationsListed,
     PairingApproval, PairingRequest, PowerAction, ProfileRow, Reauthenticating, RecoveryArea,
     Refusal, RelayedFrames, RoleChange, SavingState, SecretCommand, ServerAccount, SessionKind,
-    SessionRow, SessionsArea, SetAside, ShareAccess, ShownChild, ShareLinksArea, SharePreview, ShownNotices,
+    SessionRow, SessionsArea, SetAside, ShareAccess, ShownBlock, ShownChild, ShareLinksArea, SharePreview, ShownNotices,
     SigningIn, StatisticRow, SyncState, UnlockArea, UnsentEdit,
 };

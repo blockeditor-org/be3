@@ -13,9 +13,8 @@
 //!
 //! Left for later (4g7b3's later parts): giving a child the keyboard (`focus-child`) and the
 //! gifts of keys held for it, promoting and taking back an active child, a child that takes its
-//! placer's frame, docks that join across apps (a child is asked for its own dock), drags, the
-//! editor a placement names (`ChildContent::Block`'s `editor`), a block shown in several places
-//! sharing one editor, occluders, a child sized to its content (`fit`), one placed in place at
+//! placer's frame, docks that join across apps (a child is asked for its own dock), drags, a block
+//! shown in several places sharing one editor, occluders, a child sized to its content (`fit`), one placed in place at
 //! its zoom, previews, and every other kind of child (web views, host panels, program windows,
 //! pickers, creations, artifact settings, rename forms and dock tab bodies), which the placer
 //! hears are unavailable.
@@ -37,7 +36,7 @@ use be_sdk_api::{
     FrameSpec, Fonts, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec,
     Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
-use be_wasm_root_api::{OpenedIn, ShownChild, guest::host};
+use be_wasm_root_api::{OpenedIn, ShownBlock, ShownChild, guest::host};
 
 use crate::{BlockSpawn, Embedded, Embedding, Hosted, SpawnFailure};
 
@@ -239,11 +238,14 @@ impl Children {
     }
 
     /// Whether a child's editor is still being opened, any number of levels deep: its host has
-    /// yet to open it, so the root owes its host the frame that shows it (a host waiting for its
+    /// yet to open it, or the root to embed its app, so the root owes its host the frame that shows it (a host waiting for its
     /// root to settle waits for it). Once its app runs, the app's own pacing says what it owes.
     pub fn opening(&self) -> bool {
         self.shown.iter().any(|child| match &*child.showing.borrow() {
-            Showing::Opening => true,
+            Showing::Opening
+            | Showing::Shown {
+                embedded: false, ..
+            } => true,
             Showing::Shown { children, .. } => children.opening(),
             Showing::Failed(_) => false,
         })
@@ -436,7 +438,7 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
     let raster = child.raster;
     let spawned = Embedded::spawn_block(
         BlockSpawn {
-            block: child.block,
+            shown: shown_block(&child.placement.content),
             screens: Box::new(move |editor| vec![child_screen(&placement, editor, raster)]),
             surface: spawning.surface.clone(),
             fonts: Rc::clone(&spawning.fonts),
@@ -463,6 +465,24 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
         };
         wake();
     });
+}
+
+/// The block a child placed showing `content` shows, with the editor and view block its
+/// placement names.
+fn shown_block(content: &ChildContent) -> ShownBlock {
+    match content {
+        ChildContent::Block {
+            block_id,
+            view_block,
+            editor,
+            ..
+        } => ShownBlock {
+            block: *block_id,
+            editor: *editor,
+            view_block: *view_block,
+        },
+        _ => unreachable!("only a block child is spawned"),
+    }
 }
 
 /// Lets go of a child's app and of those of its own children, as embedded.

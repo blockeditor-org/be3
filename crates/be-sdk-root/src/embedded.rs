@@ -26,7 +26,7 @@ use be_sdk_app_host::{
     session::{Session, SessionFailure, SessionState},
     wire::Wire,
 };
-use be_wasm_root_api::guest::host;
+use be_wasm_root_api::{ShownBlock, guest::host};
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
@@ -58,7 +58,8 @@ pub struct Spawn {
 /// What `Embedded::spawn_block` starts: the editor of a block, which the root's host opens and
 /// serves (`be3:root`'s `host.open-editor`), in the app it names (`host.editor-of`).
 pub struct BlockSpawn {
-    pub block: [u8; 16],
+    /// The block, and the editor and view block its placement names, if any.
+    pub shown: ShownBlock,
     /// The screens asked of the editor, given the instance the host opened it as.
     pub screens: Box<dyn FnOnce(EditorInstanceId) -> Vec<ScreenRequest>>,
     /// The surface the app draws to, granted if its hello asks for one.
@@ -134,6 +135,9 @@ struct State {
     /// The children each of its editors' views placed, as its last layout applied said
     /// (`Embedded::placed`).
     placed: Vec<ChildPlacements>,
+    /// Whether what its views placed changed since the root last read it (`Embedded::placed`):
+    /// the root owes its host the frame that shows that.
+    placing: bool,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -180,7 +184,7 @@ impl Embedded {
     /// which it serves from then on. Call it on the root's executor at the frame clock's `now`;
     /// it answers once the host did, or with why the host would not.
     pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Hosted, SpawnFailure> {
-        let editor = host::editor_of(spawn.block)
+        let editor = host::editor_of(spawn.shown.clone())
             .await
             .map_err(|error| {
                 format!("the host did not answer which app edits the block: {error:?}")
@@ -193,7 +197,7 @@ impl Embedded {
             why,
         };
         let instance = instance(editor.app, editor.module);
-        let opened = host::open_editor(instance.op(), spawn.block)
+        let opened = host::open_editor(instance.op(), spawn.shown)
             .await
             .map_err(|error| format!("the host did not open the block's editor: {error:?}"))
             .and_then(|opened| opened)
@@ -302,6 +306,7 @@ impl Embedded {
             surfaces: HashMap::default(),
             windows: HashMap::default(),
             placed: Vec::new(),
+            placing: false,
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -319,7 +324,9 @@ impl Embedded {
     /// The children its editors' views placed, each view's as its last layout applied said:
     /// what a root shows of them is its own (`Children`).
     pub fn placed(&self) -> Vec<ChildPlacements> {
-        self.state.borrow().placed.clone()
+        let mut state = self.state.borrow_mut();
+        state.placing = false;
+        state.placed.clone()
     }
 
     /// The screens it was asked for last.
@@ -381,18 +388,28 @@ impl Embedded {
     }
 
     /// The frame clock's time the app wants its next frame drawn for, and whether it owes the
-    /// root something now (`Wants`), as of the last frame. None and nothing once it stopped.
+    /// root something now (`Wants`), as of the last frame: at once and owed while what it
+    /// placed changed and the root has yet to read it (`placed`). None and nothing once it
+    /// stopped.
     pub fn wants(&self) -> Wants {
         let state = self.state.borrow();
         if state.failure.is_some() {
             return Wants::default();
         }
-        wants(
+        let wants = wants(
             state.run.session.state(),
             state.run.session.granted_surface().is_some(),
             &state.run.pacing,
             state.now,
-        )
+        );
+        // Children it placed that the root has yet to read want a frame now, which shows them.
+        match state.placing {
+            true => Wants {
+                next: Some(state.now),
+                owed: true,
+            },
+            false => wants,
+        }
     }
 
     /// The layer showing `screen` with its top left at `origin` in its window's points, once
@@ -547,8 +564,21 @@ impl State {
     fn place(&mut self, children: Vec<ChildPlacements>) {
         for placements in children {
             let view = (placements.instance, placements.view);
-            self.placed
-                .retain(|placed| (placed.instance, placed.view) != view);
+            let before = self
+                .placed
+                .iter()
+                .position(|placed| (placed.instance, placed.view) == view);
+            let changed = match before {
+                Some(at) => self.placed[at] != placements,
+                None => !placements.children.is_empty(),
+            };
+            if !changed {
+                continue;
+            }
+            self.placing = true;
+            if let Some(at) = before {
+                self.placed.remove(at);
+            }
             if !placements.children.is_empty() {
                 self.placed.push(placements);
             }

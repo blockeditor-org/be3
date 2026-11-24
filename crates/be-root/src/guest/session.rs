@@ -18,6 +18,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign};
 
+use be_wasm_root_api::ShownBlock;
+
 use super::{Root, Window, host};
 use crate::{LOADING_APP, NOT_OPENED_TITLE, SESSION_NOTICE_LAYER};
 
@@ -170,7 +172,11 @@ impl Root {
         let window = self.window.clone();
         let spawned = Embedded::spawn_block(
             BlockSpawn {
-                block,
+                shown: ShownBlock {
+                    block,
+                    editor: None,
+                    view_block: None,
+                },
                 screens: Box::new(move |editor| vec![screen(editor, window.get())]),
                 surface: SESSION_SURFACE,
                 fonts: self.fonts.borrow().clone().unwrap_or_default(),
