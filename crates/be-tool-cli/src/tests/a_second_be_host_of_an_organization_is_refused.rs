@@ -16,7 +16,7 @@ fn a_second_be_host_of_an_organization_is_refused() {
     other.try_lock().expect("the other process holds it");
     let error = crate::session::hold_host_data(&directory).expect_err("a second one is refused");
     assert!(
-        error.contains("another `be ... host` of this organization runs on this machine"),
+        error.contains("another `be ... host` of this account and organization runs on this machine"),
         "{error}"
     );
     drop(other);

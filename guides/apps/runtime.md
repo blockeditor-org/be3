@@ -687,9 +687,13 @@ the block's replica open (`be_host_stack::open`) so the device is in its session
 one `Headless` for as long as it runs, until Ctrl-C. Whenever no other device hosts the block
 (`be_host_stack::may_host`) it starts the type's host component, which claims the lease
 (`restart_host`, plans/hosted_blocks.md, step 4d2); while another device hosts it, it closes
-the component and stands by. Its stack keeps its data in `cache/host/<organization>`, which it
-holds as be-host holds its data directory, so a second `be ... host` of the organization on
-the machine is refused before it starts (`session::hold_host_data`). be-tool-cli's
+the component and stands by; it says which as the server names who hosts, and refuses a block
+the account may not edit. It sleeps until the stack, the app or a stop wakes it
+(`hosting::wake`); the first Ctrl-C stops it, closing the component, and a second exits at
+once. Its stack keeps its data in `cache/host/<organization>/<account>`, which it holds as
+be-host holds its data directory, for the life of the process, so a second `be ... host` of
+the account and organization on the machine is refused before it starts
+(`session::hold_host_data`). be-tool-cli's
 `be_hosts_a_block_while_no_other_device_does`, `a_second_be_host_of_an_organization_is_refused`.
 
 `be` finds its apps as be-host does (`be_tool_cli::release`), through
