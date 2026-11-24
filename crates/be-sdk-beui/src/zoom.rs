@@ -103,7 +103,9 @@ pub fn ZoomBar(editor: Editor) -> NodeId {
                     let reset = zoom.reset.clone();
                     view! {
                         <DockBarSurface @test_id={"editor.zoom_bar"}>
-                            <DockBarGrip />
+                            <Frame @test_id={"editor.zoom_bar.grip"}>
+                                <DockBarGrip />
+                            </Frame>
                             <Button
                                 icon_only=true
                                 action={zoom.zoom_out.clone()}

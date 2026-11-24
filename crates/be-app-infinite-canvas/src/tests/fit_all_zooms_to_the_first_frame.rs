@@ -13,7 +13,7 @@ fn fit_all_zooms_to_the_first_frame() {
     let mut editor = editor(&[slide, stray]);
     let canvas = editor.rect_of("infinite-canvas.canvas");
 
-    editor.click("infinite-canvas.pill.fit");
+    editor.click("editor.zoom_fit");
 
     let shown = editor.rect_of(&format!("infinite-canvas.entity.{}", Uuid::from_u128(1)));
     assert!(

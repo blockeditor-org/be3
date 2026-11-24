@@ -3,8 +3,8 @@ use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
     DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
-use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH};
-use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
+use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH, ZoomBar};
+use beui::icons::ICON_WRENCH;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, NodeId, PointerPress, Rect};
@@ -16,7 +16,6 @@ use super::*;
 use crate::renderer::GridScene;
 use beui::native::draw_gpu;
 
-const ZOOM_STEP: f32 = 1.25;
 const STAGE: &str = "stage";
 const HOTBAR: &str = "hotbar";
 const PANELS: &str = "panels";
@@ -58,6 +57,16 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
 #[component]
 fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
+    // The grid's fit returns the view to its origin, at 100%.
+    let editor = session.editor();
+    let world = editor.world();
+    editor.fit_with(move || {
+        if let Some(world) = world.get_untracked() {
+            let origin =
+                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO);
+            editor.fit(origin, editor.content_rect(), 1.0);
+        }
+    });
     view! {
         <Docking layout focus={Some(STAGE)}>
             <DockSplit id="grid" size={SplitSize::First(HOTBAR_WIDTH)}>
@@ -96,7 +105,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                     parent=STAGE
                     placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::End)}
                 >
-                    <GridZoom session={session} />
+                    <ZoomBar editor={session.editor()} />
                 </DockBar>
             </Show>
         </Docking>
@@ -252,39 +261,6 @@ fn GridTools(session: Session) -> NodeId {
                     {compile_error}
                 </Text>
             </Show>
-        </DockBarSurface>
-    }
-}
-
-#[component]
-fn GridZoom(session: Session) -> NodeId {
-    let editor = session.editor();
-    let scale = editor.scale();
-    let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
-    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
-    let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let world = editor.world();
-    let recenter = move || {
-        if let Some(world) = world.get_untracked() {
-            let origin =
-                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO);
-            editor.fit(origin, editor.content_rect(), 1.0);
-        }
-    };
-    view! {
-        <DockBarSurface @test_id={"logic-grid.zoom"}>
-            <Frame @test_id={"logic-grid.zoom.grip"}>
-                <DockBarGrip />
-            </Frame>
-            <Button icon_only=true glyph=ICON_ZOOM_OUT label="Zoom out" on_click={zoom_out} />
-            <Text style=TextStyle::CAPTION>{percent}</Text>
-            <Button icon_only=true glyph=ICON_ZOOM_IN label="Zoom in" on_click={zoom_in} />
-            <Button
-                icon_only=true
-                glyph=ICON_SCAN
-                label="Return to the origin"
-                on_click={recenter}
-            />
         </DockBarSurface>
     }
 }

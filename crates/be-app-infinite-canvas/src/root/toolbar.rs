@@ -220,42 +220,9 @@ pub(crate) fn SelectionDock(
 
 #[component]
 pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
-    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
-    let scale = state.editor().scale();
-    let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
-    let reset = actions.zoom_reset.clone();
+    let editor = state.editor();
     let content = Render::new(move |()| {
-        let reset = reset.clone();
-        view! {
-            <DockBarSurface @test_id={"infinite-canvas.zoom-pill"}>
-                <Frame @test_id={"infinite-canvas.zoom.grip"}>
-                    <DockBarGrip />
-                </Frame>
-                <Button
-                    icon_only=true
-                    @test_id={"infinite-canvas.pill.zoom-out"}
-                    action={actions.zoom_out.clone()}
-                />
-                <Button
-                    label={readout}
-                    variant=ButtonVariant::Ghost
-                    @test_id={"infinite-canvas.pill.zoom"}
-                    on_click={move || {
-                        reset.run();
-                    }}
-                />
-                <Button
-                    icon_only=true
-                    @test_id={"infinite-canvas.pill.zoom-in"}
-                    action={actions.zoom_in.clone()}
-                />
-                <Button
-                    icon_only=true
-                    @test_id={"infinite-canvas.pill.fit"}
-                    action={actions.fit_all.clone()}
-                />
-            </DockBarSurface>
-        }
+        view! { <be_sdk_beui::ZoomBar editor /> }
     })
     .once();
     view! {

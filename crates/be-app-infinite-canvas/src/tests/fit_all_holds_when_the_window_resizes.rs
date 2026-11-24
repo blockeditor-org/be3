@@ -7,14 +7,14 @@ fn fit_all_holds_when_the_window_resizes() {
     let mut editor = editor(std::slice::from_ref(&far));
     let entity = format!("infinite-canvas.entity.{}", far.id);
 
-    editor.click("infinite-canvas.pill.fit");
-    let zoom = editor.label("infinite-canvas.pill.zoom");
+    editor.click("editor.zoom_fit");
+    let zoom = editor.label("editor.zoom");
     editor.set_size(Vec2::new(1300.0, 860.0));
 
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let shown = editor.rect_of(&entity);
     assert_eq!(
-        editor.label("infinite-canvas.pill.zoom"),
+        editor.label("editor.zoom"),
         zoom,
         "the canvas keeps the zoom Fit all chose rather than going back to its origin"
     );

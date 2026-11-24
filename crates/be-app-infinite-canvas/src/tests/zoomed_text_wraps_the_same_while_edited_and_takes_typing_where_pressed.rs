@@ -5,13 +5,13 @@ use be_type_infinite_canvas::CanvasTextStyle;
 
 fn zoom_to(editor: &mut BeuiTest<CanvasRoot>, label: &str) {
     for _ in 0..8 {
-        if editor.label("infinite-canvas.pill.zoom") == label {
+        if editor.label("editor.zoom") == label {
             return;
         }
-        editor.click("infinite-canvas.pill.zoom-in");
+        editor.click("editor.zoom_in");
         editor.settle();
     }
-    assert_eq!(editor.label("infinite-canvas.pill.zoom"), label);
+    assert_eq!(editor.label("editor.zoom"), label);
 }
 
 fn index_at(editor: &BeuiTest<CanvasRoot>, field: &str, at: Pos2) -> usize {
@@ -78,7 +78,7 @@ fn zoomed_text_wraps_the_same_while_edited_and_takes_typing_where_pressed() {
         2.0,
     );
     editor.settle();
-    assert_eq!(editor.label("infinite-canvas.pill.zoom"), "200%");
+    assert_eq!(editor.label("editor.zoom"), "200%");
     let resting = editor.rect_of(&field);
     let pressed = pos2(resting.center().x, resting.center().y);
     let at = index_at(&editor, &field, pressed);

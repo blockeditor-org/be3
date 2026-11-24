@@ -8,7 +8,7 @@ use be_sdk_beui::beui::icons::{
     ICON_MAGNET, ICON_MINUS, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIN, ICON_PLUS,
     ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK, ICON_SLASH,
     ICON_SPLINE_POINTER, ICON_SQUARE_DASHED, ICON_SQUARE_DASHED_MOUSE_POINTER, ICON_TRASH,
-    ICON_TYPE, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_TYPE,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::use_theme;
@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use super::export::{ExportFormat, ExportTo, Exporter};
 use super::grid::{GridActions, grid_actions};
-use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
+use super::state::{CanvasCommand, CanvasState, Tool};
 use super::touch::TouchChoice;
 use crate::raster::PixelTool;
 
@@ -68,10 +68,8 @@ pub(crate) struct CanvasActions {
     pub(crate) back: Action,
     pub(crate) select_all: Action,
     pub(crate) invert: Action,
-    pub(crate) zoom_in: Action,
-    pub(crate) zoom_out: Action,
-    pub(crate) zoom_reset: Action,
-    pub(crate) fit_all: Action,
+    /// The frame's `editor.zoom-fit`, which fits all the canvas holds.
+    pub(crate) fit_all: Option<Action>,
     pub(crate) ignore_touch: Action,
     pub(crate) touch: TouchChoice,
     pub(crate) grid: GridActions,
@@ -201,7 +199,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
                 .shortcut(chord)
                 .enabled(reorder(movement))
         };
-    let scale = state.editor().scale();
     let cut = command("canvas.cut", "Cut", ICON_SCISSORS, CanvasCommand::Cut)
         .shortcut(Chord::ctrl(Key::X))
         .enabled(selected)
@@ -593,29 +590,13 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         Chord::ctrl(Key::BracketLeft).shift(),
     )
     .register();
-    let zoom_in = Action::new("canvas.zoom-in", "Zoom in", move || {
-        state.editor().zoom(ZOOM_STEP)
-    })
-    .glyph(ICON_ZOOM_IN)
-    .enabled(live)
-    .register();
-    let zoom_out = Action::new("canvas.zoom-out", "Zoom out", move || {
-        state.editor().zoom(1.0 / ZOOM_STEP)
-    })
-    .glyph(ICON_ZOOM_OUT)
-    .enabled(live)
-    .register();
-    let zoom_reset = Action::new("canvas.zoom-reset", "Zoom to 100%", move || {
-        state
-            .editor()
-            .zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
-    })
-    .enabled(live)
-    .register();
-    let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.request_fit_all())
-        .glyph(ICON_SCAN)
-        .enabled(live)
-        .register();
+    // The frame zooms the canvas (`editor.zoom-*`); its fit is the canvas's fit-all.
+    state.editor().fit_with(move || state.request_fit_all());
+    let fit_all = state
+        .editor()
+        .zoom_actions()
+        .get_untracked()
+        .map(|zoom| zoom.fit);
     let touch = TouchChoice::new();
     let ignore_touch = touch.action();
     let grid = grid_actions(state);
@@ -665,9 +646,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         back,
         select_all,
         invert,
-        zoom_in,
-        zoom_out,
-        zoom_reset,
         fit_all,
         ignore_touch,
         touch,

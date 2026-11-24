@@ -6,12 +6,12 @@ fn a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill() {
     let mut editor = phone(std::slice::from_ref(&rectangle));
 
     assert!(editor.shown("infinite-canvas.dock.block"));
-    assert!(editor.shown("infinite-canvas.zoom-pill"));
+    assert!(editor.shown("editor.zoom_bar"));
 
-    let before = editor.label("infinite-canvas.pill.zoom");
-    editor.click("infinite-canvas.pill.zoom-in");
-    assert_ne!(editor.label("infinite-canvas.pill.zoom"), before);
-    editor.click("infinite-canvas.pill.fit");
+    let before = editor.label("editor.zoom");
+    editor.click("editor.zoom_in");
+    assert_ne!(editor.label("editor.zoom"), before);
+    editor.click("editor.zoom_fit");
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     assert!(editor.shown("infinite-canvas.selection-bar"));

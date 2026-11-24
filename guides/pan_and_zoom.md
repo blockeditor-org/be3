@@ -35,9 +35,11 @@ What to fit is the editor's; keeping it fitted is the host's.
 same frame whenever the content band, the world or the chrome changes, with
 nothing round-tripped through the editor (`FitArea::fit` in be-sdk-api, never
 above scale one, shared by be-host's camera and be-sdk-test's). It returns a
-`Fitting` whose `fit()` is the editor's Fit button. `editor.fit(world, room,
-max_scale)` (`crates/be-sdk/src/editor_state/fitting.rs`) is a one-off move
-instead, as the canvas's Fit all and the logic grid's recenter use.
+`Fitting` whose `fit()` fits it again, and makes that the frame's
+`editor.zoom-fit`. `editor.fit(world, room, max_scale)`
+(`crates/be-sdk/src/editor_state/fitting.rs`) is a one-off move instead; an
+editor whose fit is its own hands it to `editor.fit_with(..)` (the canvas's fit
+all, the logic grid's return to the origin).
 
 The host's camera stops following the fit once moved by anything - a wheel, a
 pinch, a pan-drag, or the editor's own `pan`, `zoom` and `fit` - until
@@ -46,6 +48,17 @@ be-host runs (not in the view block), so a block reopens where the person left
 it, or fitted if they never moved it. It follows only while the editor has a
 frame and its chrome drawn; placed on a canvas, `fit()` is a single
 `editor.fit` through the camera it is placed in.
+
+## Zoom controls
+
+The editor writes none. For an editor whose manifest declares `pan_and_zoom`
+(be-sdk hands it the manifest's `EditorHost::capabilities`), the be-sdk-beui
+frame registers `editor.zoom-in`, `editor.zoom-out` (by `unstyled::ZOOM_STEP`,
+the `+` and `-` keys' step), `editor.zoom-reset` and `editor.zoom-fit` (enabled
+once the editor keeps a fit or hands one to `fit_with`), so the palette lists
+them, and `be_sdk_beui::ZoomBar` shows them on a dock bar: out, the zoom (which
+resets it), in, and fit. `editor.zoom_actions()` hands them to a menu of the
+editor's own.
 
 ## Gestures
 

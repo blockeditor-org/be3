@@ -7,9 +7,9 @@ fn fit_all_on_an_empty_canvas_returns_to_the_default_view() {
     let mut editor = editor(std::slice::from_ref(&far));
     let canvas = editor.rect_of("infinite-canvas.canvas");
 
-    editor.click("infinite-canvas.pill.fit");
-    editor.click("infinite-canvas.pill.zoom-in");
-    assert_ne!(editor.label("infinite-canvas.pill.zoom"), "100%");
+    editor.click("editor.zoom_fit");
+    editor.click("editor.zoom_in");
+    assert_ne!(editor.label("editor.zoom"), "100%");
     apply(
         &mut editor,
         InfiniteCanvasOperation::Remove { ids: vec![far.id] },
@@ -17,9 +17,9 @@ fn fit_all_on_an_empty_canvas_returns_to_the_default_view() {
     editor.run();
     assert!(entities(&editor).is_empty());
 
-    editor.click("infinite-canvas.pill.fit");
+    editor.click("editor.zoom_fit");
 
-    assert_eq!(editor.label("infinite-canvas.pill.zoom"), "100%");
+    assert_eq!(editor.label("editor.zoom"), "100%");
     let mut home = card();
     home.transform.center = CanvasPoint::new(0.0, 0.0);
     apply(

@@ -42,8 +42,6 @@ use crate::raster::PixelTool;
 use be_type_image::{ImageContent, ImageFile};
 use beui::clipboard::{Blocks, CanvasItems, ClipBlock, ClipFormat as _, formats};
 
-pub(crate) const ZOOM_STEP: f32 = 1.25;
-
 /// Canvas items a paste waits to place until the canvas they came from has
 /// loaded, for the pixels of their raster layers.
 #[derive(Clone, PartialEq)]
