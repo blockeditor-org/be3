@@ -151,8 +151,9 @@ pub(crate) trait AnyReplica {
     fn carry(&mut self, epoch: u64) -> Carried;
 
     /// The host's answer to a call a replica of the block before this one made under `epoch`:
-    /// one made for an editor is handed on to it (`asked_before`). Any other goes on purpose:
-    /// this replica made its own calls for what it needs as it opened.
+    /// one made for an editor is handed on to it (`asked_before`), and a part read fills the
+    /// editor's range read it was made for (`ranges_before`). Any other goes on purpose: this
+    /// replica made its own calls for what it needs as it opened.
     fn late(&mut self, now: u64, epoch: u64, input: Input, out: &mut Vec<Effect>);
 
     fn adopt(&mut self, carried: Carried);
@@ -341,9 +342,54 @@ enum Upload {
 }
 
 /// A range read, answered once every piece is.
-struct RangeRead {
+pub(crate) struct RangeRead {
     reader: Reader,
     pieces: Vec<Piece>,
+}
+
+impl RangeRead {
+    fn done(&self) -> bool {
+        !self
+            .pieces
+            .iter()
+            .any(|piece| matches!(piece, Piece::Waiting(_)))
+    }
+
+    /// Takes the answer to the part read `token`.
+    fn fill(&mut self, token: Token, result: &Result<Vec<u8>, String>) {
+        for piece in &mut self.pieces {
+            if matches!(piece, Piece::Waiting(waiting) if *waiting == token) {
+                *piece = match result {
+                    Ok(bytes) => Piece::Ready(bytes.clone()),
+                    Err(error) => Piece::Failed(error.clone()),
+                };
+            }
+        }
+    }
+
+    /// The bytes read, or why a piece could not be: once `done`.
+    fn bytes(self) -> Result<Vec<u8>, String> {
+        let mut bytes = Vec::new();
+        let mut failed = None;
+        for piece in self.pieces {
+            match piece {
+                Piece::Ready(piece) => bytes.extend(piece),
+                Piece::Failed(error) => failed = Some(error),
+                Piece::Waiting(_) => {}
+            }
+        }
+        match failed {
+            Some(error) => Err(error),
+            None => Ok(bytes),
+        }
+    }
+
+    fn editor(&self) -> Option<EditorId> {
+        match self.reader {
+            Reader::Editor { editor, .. } => Some(editor),
+            Reader::Content(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -777,6 +823,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     released: bool,
     reported: Reported,
     ranges: Vec<RangeRead>,
+    /// Editors' range reads a replica of the block before this one made, by the epoch their
+    /// part reads were made under, filling from those answers (`late`, `Carried::ranges`).
+    ranges_before: Vec<(u64, RangeRead)>,
     /// Parts this replica asked the host to put, by the token of the call.
     puts: BTreeMap<Token, Putting>,
     /// This replica's operations too large to submit inline, by the hash of their bytes.
@@ -955,15 +1004,34 @@ where
             )
             .filter(|(_, _, ask)| self.editors.contains_key(&ask.editor()))
             .collect();
+        // A content request's range goes: the host asks the next replica again.
+        let ranges = std::mem::take(&mut self.ranges_before)
+            .into_iter()
+            .chain(
+                std::mem::take(&mut self.ranges)
+                    .into_iter()
+                    .map(|range| (epoch, range)),
+            )
+            .filter(|(_, range)| {
+                range
+                    .editor()
+                    .is_some_and(|editor| self.editors.contains_key(&editor))
+            })
+            .collect();
         Carried {
             snapshots_shown: std::mem::take(&mut self.snapshots_shown),
             asks,
+            ranges,
             ..self.lacking.carry()
         }
     }
 
     fn late(&mut self, now: u64, epoch: u64, input: Input, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
+        if let Input::PartRead { token, result } = &input {
+            self.part_read_late(epoch, *token, result);
+            return self.run(out);
+        }
         let call = match &input {
             Input::LogRead { token, .. }
             | Input::PartPut { token, .. }
@@ -989,6 +1057,7 @@ where
 
     fn adopt(&mut self, mut carried: Carried) {
         self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
+        self.ranges_before = std::mem::take(&mut carried.ranges);
         self.asked_before = std::mem::take(&mut carried.asks)
             .into_iter()
             .map(|(epoch, call, ask)| ((epoch, call), ask))
@@ -1139,6 +1208,7 @@ where
             released: false,
             reported: Reported::default(),
             ranges: Vec::new(),
+            ranges_before: Vec::new(),
             puts: BTreeMap::new(),
             uploads: HashMap::new(),
             payloads: HashMap::new(),
@@ -1956,6 +2026,9 @@ where
                     !matches!(put, Putting::Editor { editor: asker, .. } if *asker == editor)
                 });
                 self.asked_before.retain(|_, ask| ask.editor() != editor);
+                self.ranges.retain(|range| range.editor() != Some(editor));
+                self.ranges_before
+                    .retain(|(_, range)| range.editor() != Some(editor));
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
                 self.snapshots_shown.remove(&editor);
@@ -4357,44 +4430,44 @@ where
             return self.answer_payload(part, result);
         }
         for range in &mut self.ranges {
-            for piece in &mut range.pieces {
-                if matches!(piece, Piece::Waiting(waiting) if *waiting == token) {
-                    *piece = match &result {
-                        Ok(bytes) => Piece::Ready(bytes.clone()),
-                        Err(error) => Piece::Failed(error.clone()),
-                    };
-                }
-            }
+            range.fill(token, &result);
         }
         self.finish_ranges();
     }
 
+    /// A part read a replica of the block before this one made under `epoch`, for an editor's
+    /// range read it carried (`ranges_before`).
+    fn part_read_late(&mut self, epoch: u64, token: Token, result: &Result<Vec<u8>, String>) {
+        for (made, range) in &mut self.ranges_before {
+            if *made == epoch {
+                range.fill(token, result);
+            }
+        }
+        let (done, waiting) = std::mem::take(&mut self.ranges_before)
+            .into_iter()
+            .partition(|(_, range)| range.done());
+        self.ranges_before = waiting;
+        for (_, range) in done {
+            if let Reader::Editor { editor, token } = range.reader {
+                self.tell_editor(
+                    editor,
+                    &ToEditor::Range {
+                        token,
+                        result: range.bytes(),
+                    },
+                );
+            }
+        }
+    }
+
     fn finish_ranges(&mut self) {
-        let (done, waiting) =
-            std::mem::take(&mut self.ranges)
-                .into_iter()
-                .partition(|range: &RangeRead| {
-                    !range
-                        .pieces
-                        .iter()
-                        .any(|piece| matches!(piece, Piece::Waiting(_)))
-                });
+        let (done, waiting) = std::mem::take(&mut self.ranges)
+            .into_iter()
+            .partition(RangeRead::done);
         self.ranges = waiting;
         for range in done {
-            let mut bytes = Vec::new();
-            let mut failed = None;
-            for piece in range.pieces {
-                match piece {
-                    Piece::Ready(piece) => bytes.extend(piece),
-                    Piece::Failed(error) => failed = Some(error),
-                    Piece::Waiting(_) => {}
-                }
-            }
-            let result = match failed {
-                Some(error) => Err(error),
-                None => Ok(bytes),
-            };
-            match (range.reader, result) {
+            let reader = range.reader;
+            match (reader, range.bytes()) {
                 (Reader::Editor { editor, token }, result) => {
                     self.tell_editor(editor, &ToEditor::Range { token, result });
                 }
