@@ -32,6 +32,7 @@ struct Options {
     local: BTreeSet<String>,
     secret: BTreeSet<String>,
     network: bool,
+    root: Option<syn::Path>,
 }
 
 impl Parse for Options {
@@ -46,6 +47,7 @@ impl Parse for Options {
                 "path" => options.path = content.parse::<LitStr>()?.value(),
                 "world" => options.world = content.parse::<LitStr>()?.value(),
                 "network" => options.network = content.parse::<syn::LitBool>()?.value,
+                "root" => options.root = Some(content.parse()?),
                 "with" | "encodings" => {
                     let target = match key.to_string().as_str() {
                         "with" => &mut options.with,
@@ -124,9 +126,10 @@ mod tests;
 /// - `with` (map): an existing Rust type in place of a WIT type with the same serde data
 ///   model: byte arrays (uuids, hashes, colours), newtype ids, or a type both sides already
 ///   share (network worlds' client and server, the block stack's types a type module and its
-///   host exchange). Nothing checks that the two agree: a mapped record keeps the WIT's fields
-///   in their order, a variant its cases, a record a case carries is `inline` when the Rust
-///   case has fields of its own, and byte fields use `serde_bytes`.
+///   host exchange). The generator does not check that the two agree (a test that generates
+///   the world again under `root`, with only its ids mapped, can): a mapped record keeps the
+///   WIT's fields in their order, a variant its cases, a record a case carries is `inline`
+///   when the Rust case has fields of its own, and byte fields use `serde_bytes`.
 /// - `uses` (map): take a whole interface of another package from its generated crate.
 ///   A type another interface `use`s needs a `uses` entry for its defining interface.
 /// - `copy`: mapped types that are `Copy`. `default`: types that derive `Default` (a
@@ -142,15 +145,54 @@ mod tests;
 /// - `local`: interfaces answered synchronously on the guest's own thread (the GPU);
 ///   only these may have plain `func`s.
 /// - `network: true`: a client and server over a socket instead of a guest and host.
+/// - `root` (a path): the module the world is generated in, when not the crate root, as for a
+///   test that generates a world beside the one its crate exports. Every `crate::` path of the
+///   output, the `with` and `uses` paths too, is read under it. Not with `local`.
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let options = syn::parse_macro_input!(input as Options);
+    let root = options.root.clone();
+    if root.is_some() && !options.local.is_empty() {
+        return syn::Error::new(Span::call_site(), "`root` does not take `local` interfaces")
+            .to_compile_error()
+            .into();
+    }
     match Generator::run(options) {
-        Ok(tokens) => tokens.into(),
+        Ok(tokens) => match root {
+            Some(root) => rooted(tokens, &root).into(),
+            None => tokens.into(),
+        },
         Err(error) => syn::Error::new(Span::call_site(), error)
             .to_compile_error()
             .into(),
     }
+}
+
+/// `tokens` with each `crate` path segment, outside a `$crate`, read as `root`.
+fn rooted(tokens: TokenStream, root: &syn::Path) -> TokenStream {
+    use proc_macro2::{Group, TokenTree};
+    let mut out = TokenStream::new();
+    let mut after_dollar = false;
+    for tree in tokens {
+        match tree {
+            TokenTree::Ident(ident) if ident == "crate" && !after_dollar => {
+                out.extend(quote!(#root));
+                after_dollar = false;
+            }
+            TokenTree::Group(group) => {
+                let mut rooted_group =
+                    Group::new(group.delimiter(), rooted(group.stream(), root));
+                rooted_group.set_span(group.span());
+                out.extend([TokenTree::Group(rooted_group)]);
+                after_dollar = false;
+            }
+            other => {
+                after_dollar = matches!(&other, TokenTree::Punct(punct) if punct.as_char() == '$');
+                out.extend([other]);
+            }
+        }
+    }
+    out
 }
 
 const KEYWORDS: &[&str] = &[

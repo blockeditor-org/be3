@@ -580,7 +580,7 @@ impl Module {
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
                 sealed_head: opening.sealed_head.clone(),
-                lost_edits: opening.lost_edits,
+                lost_edits: opening.journal.as_ref().is_some_and(|journal| journal.lost),
                 journal_kept: opening.journal_kept,
                 commits_kept: opening.commits_kept,
                 refused_commits: opening.refused_commits.clone(),
