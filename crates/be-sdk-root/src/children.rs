@@ -504,7 +504,9 @@ impl Children {
         let app = app_key(self.instance);
         let block = above.last().map(|block| Uuid::from_bytes(*block));
         let mut editors: Vec<EditorInstanceId> = Vec::new();
-        for screen in &screens {
+        // An editor shown only as a preview has no dock, as under be-host, which keeps previews
+        // out of its docks: another editor of its block may be docked.
+        for screen in screens.iter().filter(|screen| screen.view != ViewId::PREVIEW) {
             if !editors.contains(&screen.instance) {
                 editors.push(screen.instance);
                 settling.docks.register(screen.instance, &app, block);
@@ -559,7 +561,7 @@ impl Children {
                     placements.instance,
                     placements.view,
                     raster,
-                    placement.clone(),
+                    in_view(placement, placements.view),
                 ) {
                     Some(child) => wanted.push(child),
                     None => told.push(ShownChild {
@@ -1306,6 +1308,16 @@ fn runs_editor(mode: ChildMode) -> bool {
             | ChildMode::InPlace
             | ChildMode::Preview
     )
+}
+
+/// `placement` as its placer's view `view` shows it: a child placed in a preview is a preview
+/// too, as be-host-runtime's `Instances` makes it, unless it is kept placed hidden.
+fn in_view(placement: &ChildPlacement, view: ViewId) -> ChildPlacement {
+    let mut placement = placement.clone();
+    if view == ViewId::PREVIEW && placement.mode != ChildMode::Hidden {
+        placement.mode = ChildMode::Preview;
+    }
+    placement
 }
 
 /// Whether a child placed in `mode` takes the input where it is placed rather than leaving it to

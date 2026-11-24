@@ -88,8 +88,10 @@ nowhere and shown under its placer. The host tells the placer it is available
 with `ChildPreview::Hosted`, so be-sdk-beui leaves a hole for it as for any
 child rather than drawing a picture; one whose editor draws no preview runs no
 app, and its placer draws the block's label (`ChildPreview::Label`). Promoted,
-it keeps its editor, asked for its main view instead. Each preview is an app of
-its own, not drawn once for every place as under be-host.
+it keeps its editor, asked for its main view instead. A child placed in a
+preview view is a preview too, and an editor shown only as a preview has no
+dock, as under be-host. Each preview is an app of its own, not drawn once for
+every place as under be-host.
 
 A block a root's editor opens (`open-block`) goes to the editor that handles
 show requests, as under be-host: the nearest of the asking editor and those
