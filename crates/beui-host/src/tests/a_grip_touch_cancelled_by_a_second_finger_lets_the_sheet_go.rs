@@ -20,7 +20,7 @@ fn a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go() {
 
     harness.scroll_at(pos2(200.0, 400.0), vec2(0.0, -100.0), Modifiers::NONE);
     assert_eq!(
-        harness.document().scroll_offset(sheet),
+        sheet_scrolled(&harness, sheet),
         100.0,
         "a grip touch the second finger cancelled no longer holds the sheet, \
          so a wheel scrolls what it holds"

@@ -28,7 +28,6 @@ mod a_calendar_jumps_to_a_month_from_its_months_view;
 mod a_calendar_keeps_its_focus_between_its_limits;
 mod a_calendar_reaches_a_distant_year_from_its_years_view;
 mod a_cancelled_pointer_puts_a_held_row_back_where_it_was;
-mod a_cancelled_scrolled_sheet_dismissal_returns_before_a_later_drag_closes_it;
 mod a_cancelled_scrub_writes_back_its_start_and_reports_it_called_off;
 mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
 mod a_canvas_finds_items_added_and_removed_between_its_others;
@@ -208,7 +207,6 @@ mod a_fixed_child_that_shrinks_gives_way_inside_a_shrinking_row;
 mod a_fixed_half_of_a_dock_keeps_its_width_when_the_dock_resizes;
 mod a_fixed_lists_carried_row_holding_the_focus_stays_read_in_its_slot;
 mod a_fixed_lists_carried_row_is_read_once_as_its_preview;
-mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_bar_grabbed_stays_floating_until_pulled_into_its_edge;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
@@ -322,6 +320,7 @@ mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whi
 mod a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_toolbar_follow_the_zoom;
 mod a_long_press_lifts_a_row_a_finger_then_moves;
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
+mod a_long_sheet_scrolls_what_it_holds_from_the_keyboard;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_markdown_text_reopened_just_below_a_code_block_settles_at_its_line;
 mod a_measured_row_inside_a_scroll_follows_it_without_laying_its_content_out_again;
@@ -421,6 +420,7 @@ mod a_program_reads_the_clipboard_outside_any_focus;
 mod a_program_takes_the_platforms_input_before_its_document_hears_it;
 mod a_program_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch;
 mod a_progress_reads_as_busy_until_it_has_a_value_and_then_holds_still;
+mod a_pull_from_a_sheets_content_top_lowers_it_and_one_below_its_lowest_stop_closes_it;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
 mod a_reactive_test_id_follows_its_signal;
@@ -466,7 +466,7 @@ mod a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button;
 mod a_scroll_with_nothing_to_scroll_is_not_a_tab_stop;
 mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
-mod a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop;
+mod a_scrolls_bar_shows_only_the_offsets_past_where_it_starts;
 mod a_scrub_released_off_its_face_is_kept_once;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
@@ -531,6 +531,7 @@ mod a_stacked_dock_hands_on_the_keyboard_a_tabs_content_had_until_something_else
 mod a_stacked_dock_names_and_counts_a_joined_docks_stage_as_the_tab_it_joined;
 mod a_stacked_dock_shows_a_nested_docks_tabs_as_its_own;
 mod a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks;
+mod a_sticky_header_stays_at_the_top_of_its_scroll_until_its_section_ends;
 mod a_stopped_clock_lets_an_animating_program_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
@@ -908,7 +909,6 @@ mod instant_back_slides_complete_without_waiting_for_frames;
 mod instant_carets_do_not_request_blink_frames;
 mod instant_mode_keeps_middle_drag_autoscroll_working;
 mod instant_scrolling_follows_the_finger_without_flinging;
-mod interrupting_a_sheet_bounce_leaves_no_displacement;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod kept_overlay_content_lingers_on_every_close;
 mod key_handlers_can_move_focus_and_change_their_tab_stop;
@@ -2199,6 +2199,19 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) ->
             </List>
         }
     })
+}
+
+/// How far a sheet is raised: its one scroll's offset, up to its highest stop (the height of
+/// its node).
+pub(crate) fn sheet_raised(harness: &Harness, sheet: NodeId) -> f32 {
+    let top = harness.rect(sheet).height();
+    harness.document().scroll_offset(sheet).min(top)
+}
+
+/// How far what a sheet holds has scrolled: its one scroll's offset past its highest stop.
+pub(crate) fn sheet_scrolled(harness: &Harness, sheet: NodeId) -> f32 {
+    let top = harness.rect(sheet).height();
+    (harness.document().scroll_offset(sheet) - top).max(0.0)
 }
 
 pub(crate) fn indices(count: usize) -> Vec<usize> {

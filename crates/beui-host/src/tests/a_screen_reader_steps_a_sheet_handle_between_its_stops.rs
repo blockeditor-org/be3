@@ -41,7 +41,7 @@ fn a_screen_reader_steps_a_sheet_handle_between_its_stops() {
         harness
             .document()
             .node_rect(sheet.get())
-            .map(|rect| rect.height())
+            .map(|_| sheet_raised(harness, sheet.get()))
     };
     assert_eq!(height(&harness), Some(300.0));
 

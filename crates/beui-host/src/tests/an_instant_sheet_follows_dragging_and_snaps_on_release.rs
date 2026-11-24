@@ -17,7 +17,7 @@ fn an_instant_sheet_follows_dragging_and_snaps_on_release() {
     );
     harness.settle();
     let sheet = sheet.get();
-    let height = |harness: &Harness| harness.rect(sheet).height();
+    let height = |harness: &Harness| sheet_raised(harness, sheet);
 
     harness.finger_drag_and_hold(pos2(200.0, 450.0), pos2(200.0, 270.0));
     assert_eq!(

@@ -29,7 +29,10 @@ pub fn List(
 /// that grow; `length` fixes it, and cannot be given with `grow`. `shrink` gives up length
 /// by weight when the children overflow, down to `min`, and `max` caps the length either
 /// way. `align` overrides the list's cross alignment for this child, and `gap` the spacing
-/// before it.
+/// before it. A `sticky` child stays at the start edge of what is visible of its list (the
+/// nearest scroll around it) once scrolled to it, and goes with the list once the list's end
+/// reaches it, as CSS `position: sticky` does; it is drawn, and takes presses, above the
+/// rest of the list. A wrapping list sticks nothing.
 #[component]
 pub fn ListItem(
     #[prop(default = 0.0)] grow: Prop<f32>,
@@ -39,6 +42,7 @@ pub fn ListItem(
     #[prop(default = 0.0)] shrink: Prop<f32>,
     #[prop(default = None)] align: Prop<Option<Align>>,
     #[prop(default = None)] gap: Prop<Option<f32>>,
+    #[prop(default = false)] sticky: Prop<bool>,
     children: Child,
 ) -> ListItem {
     let sizing = move || {
@@ -61,6 +65,7 @@ pub fn ListItem(
             shrink: shrink.get(),
             align: align.get(),
             gap: gap.get(),
+            sticky: sticky.get(),
         }
     };
     let fixed = [
@@ -71,6 +76,7 @@ pub fn ListItem(
         matches!(shrink, Prop::Static(_)),
         matches!(align, Prop::Static(_)),
         matches!(gap, Prop::Static(_)),
+        matches!(sticky, Prop::Static(_)),
     ];
     let data = match fixed.iter().all(|fixed| *fixed) {
         true => Prop::Static(crate::reactive::untrack(sizing)),

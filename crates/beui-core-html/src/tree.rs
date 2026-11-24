@@ -242,6 +242,13 @@ impl ParentKind for ListKind {
             "align-self",
             sizing.align.map(|align| align_css(align).to_owned()),
         );
+        let start = match document::direction(parent) {
+            Direction::Horizontal => "left",
+            Direction::Vertical => "top",
+        };
+        set_placed_style(child, "position", sizing.sticky.then(|| "sticky".to_owned()));
+        set_placed_style(child, start, sizing.sticky.then(|| "0".to_owned()));
+        set_placed_style(child, "z-index", sizing.sticky.then(|| "1".to_owned()));
     }
 }
 

@@ -8,22 +8,9 @@ piece should do once, plus small duplicates found beside them.
 ## Steps
 
 Steps 1 (a kept subtree reads the context of the `Kept` showing it), 2 (overlays build their
-body on each open; keeping it is the caller's `Kept`) and 3 (`Scroll`'s `snaps`, natively) have
-landed.
+body on each open; keeping it is the caller's `Kept`), 3 (`Scroll`'s `snaps`) and 4 (a sheet is
+one `Scroll`, with sticky items, `bar_from` and, on the HTML core, CSS scroll snap) have landed.
 
-4. **A sheet is one Scroll.** sheet.rs drives its content's offset itself, with its own wheel
-   handling, fling and bounce phases and a `banding()` that repeats scroll.rs's
-   `rubber_banding()`, so a sheet's content has no scrollbar, keyboard scrolling or autoscroll.
-   A sheet becomes a vertical `Scroll` whose content is the space above the sheet and the sheet
-   itself, with snap stops at the sheet's rest positions: its one offset is both how far the
-   sheet is raised and how far its content has scrolled, so pulling up raises the sheet until
-   it is open and then scrolls its content. Sheet keeps only its stops and dismissing when
-   pulled below the lowest. Its own wheel, fling, bounce and `banding()` go. This is the model
-   plans/deferred/html_core.md wants on the web (the stops as CSS scroll snap), so both cores
-   share one design. On the HTML core `Scroll`'s `snaps` become CSS scroll snap
-   (`scroll-snap-type` on the scroll, an empty `scroll-snap-align: start` marker at each stop), so
-   a sheet released between stops settles on one there too; this takes the place of
-   plans/deferred/html_core.md's "Sheet's stops as CSS scroll snap".
 5. **One card surface.** `Card`, `DialogCard` and `PopoverPanel` (styled `card.rs`,
    `dialog.rs`, `popover.rs`) are the same frame (Surface fill, the default border, `Lg`
    radius) with different padding and width. One `Card` with a maximum width and an optional
@@ -39,9 +26,3 @@ landed.
    tests copy beui-host's `build_node`, `dock_tab`, `windowed_dock` and `PanZoomStage`. One
    `find_text(document, root, text, Match)` and the dock fixtures in
    `beui_platform_headless::testing`; the copies go.
-
-## The test
-
-- A sheet's content longer than the sheet shows a scrollbar and scrolls from the keyboard; a
-  pull from the content's top lowers the sheet, and a pull below the lowest stop dismisses it.
-- The demo's sheet and dialog paintings are unchanged apart from the scrollbar.
