@@ -244,14 +244,10 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
 }
 
 impl Instance {
-    /// Whether it has nothing left to do with what it was sent and nothing it sent waits to be
-    /// taken (`receive`): no frames wait for it to start or for a step, and no step on them is
-    /// in flight. One that stopped has only what it sent before it stopped left.
-    pub fn settled(&self) -> bool {
-        self.unsettled().is_none()
-    }
-
-    /// Why it is not settled (`settled`), if it is not.
+    /// Why it is not settled, if it is not: settled means it has nothing left to do with what it
+    /// was sent and nothing it sent waits to be taken (`receive`): no frames wait for it to start
+    /// or for a step, and no step on them is in flight. One that stopped has only what it sent
+    /// before it stopped left.
     pub fn unsettled(&self) -> Option<&'static str> {
         if self.worker.has_received() {
             return Some("it sent frames no one took");
