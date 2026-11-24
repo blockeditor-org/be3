@@ -828,14 +828,18 @@ index and search it locally.
 A block file (`be_block_client::transfer`) holds a tree. host-services'
 `export-block` and `be download` both collect it with
 `be_block_type_host::transfer::collect`: it refuses a block only its owner can
-read (a block file opens for anyone), starts from the parent when that
-parent's type is `exported_whole` in its manifest (a database view with its
-database), and lists the tree a level at a time, leaving out what this
-account cannot view and what only its owner can read. Each block's bytes come
-from what the caller holds open (`transfer::Open`: the host's open sessions,
-and the derived metadata its graph keeps; `Modules` alone holds nothing open),
-or its head with the journal replayed (`Modules::readable`), so it works for
-types the host does not know (they read the head alone). A type with a signed
+read, or one inside such a block (a block file opens for anyone; the server
+marks only the block made owner-only, so `collect` asks each block above),
+starts from the parent when that parent's type is `exported_whole` in its
+manifest (a database view with its database) and this account may view it,
+from the block alone otherwise, and lists the tree a level at a time, leaving
+out what this account cannot view and what only its owner can read. Each
+block's bytes come from what the caller holds open (`transfer::Open`: the
+host's open sessions, and the derived metadata its graph keeps; `Modules`
+alone holds nothing open), or its head with the journal replayed
+(`Modules::readable`), so it works for types the host does not know (they
+read the head alone). An open replica that does not answer exports what was
+last saved, as readers outside its session see it, not its unsaved state. A type with a signed
 log carries it too, opened with each entry's signature (`Peer::export_log`;
 guides/type_modules.md, "Signed logs"), which verifies against the original
 block wherever the file is imported; an import keeps the entries in the file
