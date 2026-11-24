@@ -23,8 +23,11 @@ fn a_save_that_takes_a_while_shows_a_toast_until_it_finishes() {
     test.stepped.frame(Vec::new());
     test.stepped
         .snapshot("a_save_that_takes_a_while_shows_a_toast_until_it_finishes");
+    test.after(Duration::from_millis(300), saving(true, 3));
+    // It slides off.
+    test.stepped.settle();
     assert!(
-        !test.after(Duration::from_millis(300), saving(true, 3)),
+        test.stepped.document().find_test_id(&format!("toast.{TOAST_ID}")).is_none(),
         "and goes away once everything is saved"
     );
 }

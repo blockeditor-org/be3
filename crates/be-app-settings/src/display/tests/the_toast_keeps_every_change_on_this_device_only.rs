@@ -16,6 +16,8 @@ fn the_toast_keeps_every_change_on_this_device_only() {
 
     settings.editor.click("toast.0.action.keep");
     settings.run();
+    // The answered toast slides off.
+    settings.editor.settle();
     let here = settings.here();
     assert_eq!(here.theme, Some(ThemeKind::Dark));
     assert_eq!(here.scale_percent, Some(150));

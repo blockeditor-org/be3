@@ -17,6 +17,8 @@ fn a_locked_screen_shows_no_notification_toasts() {
 
     fixture.test.set_watched::<ScreenLockedWatch>(&true);
     fixture.settle();
+    // Its toast slides off under the lock screen.
+    fixture.test.settle();
     assert!(
         !fixture.test.shown(&toast(1)) && !fixture.says("hunter2"),
         "nothing a notification says shows while the screen is locked"

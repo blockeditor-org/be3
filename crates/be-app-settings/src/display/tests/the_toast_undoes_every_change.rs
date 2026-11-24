@@ -15,6 +15,8 @@ fn the_toast_undoes_every_change() {
     settings.editor.settle();
     settings.editor.click("toast.0.action.undo");
     settings.run();
+    // The answered toast slides off.
+    settings.editor.settle();
     assert_eq!(settings.every_device().theme, Some(ThemeKind::EPaper));
     assert_eq!(settings.every_device().scale_percent, None);
     assert_eq!(settings.here(), DisplaySettings::default());

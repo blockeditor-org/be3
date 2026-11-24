@@ -46,7 +46,6 @@ pub struct SlideCurves {
     pub settle: Spring,
 }
 
-
 struct Slide {
     curves: SlideCurves,
     state: RefCell<State>,
@@ -288,13 +287,13 @@ impl Slide {
 /// the `leave` spring, at the speed it was let go at, before `on_back` runs,
 /// and the next page comes in on `enter` at that speed; a cancelled gesture
 /// springs it back on `settle`; a back with no gesture carries it off from
-/// rest. The gesture's speed is read from its progress on the frame clock. `behind` builds the page back
-/// goes to under the moving one for the gesture's length, so `on_back` swaps
-/// in what was already showing; the moving page needs an opaque background,
-/// and a page that must keep its state is built once and handed to a `Portal`
-/// in both places. Given `open`, a back only asks: `on_back` runs at once, a
-/// held page springs back, and the page slides away when `open` falls, calling
-/// `on_gone` once it's off.
+/// rest. The gesture's speed is read from its progress on the frame clock.
+/// `behind` builds the page back goes to under the moving one for the
+/// gesture's length, so `on_back` swaps in what was already showing; the
+/// moving page needs an opaque background, and a page that must keep its state
+/// is built once and handed to a `Portal` in both places. Given `open`, a back
+/// only asks: `on_back` runs at once, a held page springs back, and the page
+/// slides away when `open` falls, calling `on_gone` once it's off.
 #[component]
 pub fn BackSlide(
     curves: SlideCurves,

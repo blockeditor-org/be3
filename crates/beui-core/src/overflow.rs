@@ -56,6 +56,13 @@ impl fmt::Display for Overflow {
     }
 }
 
+/// How far the frames above a node translate it within the overlay it is in.
+#[derive(Clone, Copy, Default)]
+struct Moved {
+    by: Vec2,
+    layer: Option<NodeId>,
+}
+
 impl Document {
     pub fn overflows(&self) -> Vec<Overflow> {
         let mut found = Vec::new();
@@ -63,11 +70,12 @@ impl Document {
             return found;
         };
         let viewport = self.viewport.as_ref().map(|(_, rect, _)| *rect);
-        // How far the frames above each node translate it, so a clip is checked moved
-        // with whatever moved its content under it: a toast or page sliding under a
-        // clip is in motion, not cut off.
-        let mut shifts: HashMap<NodeId, Vec2> = HashMap::default();
-        let mut pending = vec![(root, false, viewport, Vec2::ZERO)];
+        // How far the frames above each node translate it, and the overlay it is in,
+        // so a clip is checked moved with whatever moved its content under it: a toast
+        // or page sliding under a clip is in motion, not cut off. An overlay is placed
+        // afresh, so what moves the page it is anchored in does not move it.
+        let mut shifts: HashMap<NodeId, Moved> = HashMap::default();
+        let mut pending = vec![(root, false, viewport, Moved::default())];
         while let Some((id, parent_cut, viewport, shift)) = pending.pop() {
             if !self.arena.contains(id) {
                 continue;
@@ -99,7 +107,16 @@ impl Document {
                 }
             }
             let viewport = self.viewport_inside(id, viewport);
-            let shift = shift + self.moved(id);
+            let shift = match self.arena.kind_of::<OverlayNode>(id) {
+                Some(_) => Moved {
+                    by: Vec2::ZERO,
+                    layer: Some(id),
+                },
+                None => Moved {
+                    by: shift.by + self.moved(id),
+                    layer: shift.layer,
+                },
+            };
             for child in self.arena.get(id).live_children() {
                 pending.push((child, cut, viewport, shift));
             }
@@ -159,8 +176,8 @@ impl Document {
         &self,
         id: NodeId,
         viewport: Option<Rect>,
-        shift: Vec2,
-        shifts: &HashMap<NodeId, Vec2>,
+        shift: Moved,
+        shifts: &HashMap<NodeId, Moved>,
     ) -> Rect {
         let mut bounds = Rect::EVERYTHING;
         let (mut free_x, mut free_y) = (false, false);
@@ -169,7 +186,10 @@ impl Document {
             // and not the clip.
             let between = shifts
                 .get(&space.node())
-                .map_or(Vec2::ZERO, |above| shift - *above - self.moved(space.node()));
+                .filter(|above| above.layer == shift.layer)
+                .map_or(Vec2::ZERO, |above| {
+                    shift.by - above.by - self.moved(space.node())
+                });
             (space, clip.translate(between))
         });
         let viewport = viewport.map(|rect| (SpaceId::of(id), rect));

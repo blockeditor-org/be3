@@ -33,8 +33,6 @@ const CLOSE_DISTANCE: f32 = 96.0;
 const THROWN_SECONDS: f32 = 0.2;
 const RELEASED_STRETCH: f32 = 0.35;
 const EPSILON: f32 = 0.5;
-const LEAVE_SECONDS: f32 = 0.22;
-const RETURN_SECONDS: f32 = 0.25;
 const HIDDEN_SHIFT: f32 = 100_000.0;
 const UNPLACED_FRAMES: u8 = 3;
 const HANDOFF_SECONDS: f32 = 0.1;
@@ -85,15 +83,14 @@ enum Slide {
         velocity: f32,
         waited: u8,
     },
+    /// Going down off the edge, `velocity` points a second down.
     Leaving {
         elapsed: f32,
-        from: f32,
         velocity: f32,
-        acceleration: f32,
     },
+    /// Coming back up to rest, `velocity` points a second down.
     Returning {
-        elapsed: f32,
-        from: f32,
+        velocity: f32,
     },
     Morphing {
         height: f32,
@@ -143,17 +140,19 @@ struct Held {
     slide: Slide,
     flung: f32,
     backing: bool,
+    /// The back gesture's travel on the frame clock, for the speed it is let go at.
+    back_speed: Option<Velocity>,
 }
 
-/// How a sheet's motions look: the spring it rises on, and grows or shrinks on
-/// from a sheet it takes over from (`enter`), the easing it comes back
-/// to a stop on after a drag or a back gesture lets go (`settle`), and the
-/// springs it comes back on when pulled past its top (`pull`) and its content
-/// when scrolled past an end (`rubber`).
+/// How a sheet's motions look: the springs it rises on, and grows or shrinks on
+/// from a sheet it takes over from (`enter`), goes down off the edge on or comes
+/// back up on after a drag or a back gesture lets go, from the speed it was let
+/// go at (`settle`), and comes back on when pulled past its top (`pull`) and its
+/// content when scrolled past an end (`rubber`).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SheetCurves {
     pub enter: Spring,
-    pub settle: Easing,
+    pub settle: Spring,
     pub pull: Spring,
     pub rubber: Spring,
 }
@@ -374,7 +373,7 @@ impl Motion {
         if displaced {
             self.held.borrow_mut().slide = Slide::Shown;
             if self.content().0 > 0.0 {
-                self.return_back();
+                self.return_back(0.0);
             } else {
                 let height = self.height();
                 self.place_height(Rest::Free((height - self.shifted.get()).max(0.0)));
@@ -454,7 +453,7 @@ impl Motion {
                 velocity: 0.0,
                 closes: false,
             });
-            self.return_back();
+            self.return_back(0.0);
         }
     }
 
@@ -474,37 +473,48 @@ impl Motion {
                     }
                     held.backing = true;
                     held.slide = Slide::Shown;
+                    held.back_speed = Some(Velocity::new(now(), pos2(0.0, self.shifted.get())));
                 }
             }
             BackGesture::Progressed(progress) => {
                 if let Some(height) = height.filter(|_| backing) {
-                    self.place_shift(progress * BACK_DRAG_SHARE * height, height);
+                    let shift = progress * BACK_DRAG_SHARE * height;
+                    self.place_shift(shift, height);
+                    if let Some(speed) = self.held.borrow_mut().back_speed.as_mut() {
+                        speed.sample(now(), pos2(0.0, shift));
+                    }
                 }
             }
             BackGesture::Cancelled => {
-                self.held.borrow_mut().backing = false;
+                let velocity = self.let_go_back();
                 if backing {
-                    self.return_back();
+                    self.return_back(velocity);
                 }
             }
             BackGesture::Invoked => {
-                self.held.borrow_mut().backing = false;
-                let velocity = match height.filter(|_| backing) {
-                    Some(height) => (height - self.shifted.get()).max(0.0) / LEAVE_SECONDS,
-                    None => 0.0,
-                };
-                self.close(velocity);
+                // A back with no gesture starts at rest.
+                let velocity = self.let_go_back();
+                self.close(velocity.max(0.0));
             }
         }
     }
 
-    fn return_back(&self) {
+    /// Ends a back gesture, giving the speed it was let go at in points a second down.
+    fn let_go_back(&self) -> f32 {
+        let mut held = self.held.borrow_mut();
+        held.backing = false;
+        held.back_speed.take().map_or(0.0, |speed| speed.get().y)
+    }
+
+    /// Brings a sheet pushed down back up to rest, from `velocity` (points a second
+    /// down).
+    fn return_back(&self, velocity: f32) {
         let from = self.shifted.get();
         let mut held = self.held.borrow_mut();
         if from <= 0.0 || !matches!(held.slide, Slide::Shown) {
             return;
         }
-        held.slide = Slide::Returning { elapsed: 0.0, from };
+        held.slide = Slide::Returning { velocity };
         drop(held);
         self.kick();
     }
@@ -557,30 +567,23 @@ impl Motion {
             other.morph(from);
             return;
         }
-        let Some(height) = self.sheet_height().filter(|height| *height > 0.0) else {
+        if self.sheet_height().is_none_or(|height| height <= 0.0) {
             self.held.borrow_mut().slide = Slide::Gone;
             self.on_presence.call(0.0);
             self.gone.set(true);
             self.on_gone.call(());
             return;
-        };
+        }
         {
             let mut held = self.held.borrow_mut();
             held.travel = None;
             held.handle = None;
             held.dismiss_drag = false;
             held.phase = Phase::Still;
-            let from = self.shifted.get().min(height);
             let velocity = std::mem::take(&mut held.flung);
-            let distance = height - from;
-            let acceleration = (2.0 * (distance - velocity * LEAVE_SECONDS)
-                / (LEAVE_SECONDS * LEAVE_SECONDS))
-                .max(0.0);
             held.slide = Slide::Leaving {
                 elapsed: 0.0,
-                from,
                 velocity,
-                acceleration,
             };
         }
         self.dragging.set(false);
@@ -762,37 +765,30 @@ impl Motion {
             }
             Slide::Leaving {
                 elapsed: before,
-                from,
                 velocity,
-                acceleration,
             } => {
-                let elapsed = before + elapsed;
-                let shift = from + velocity * elapsed + 0.5 * acceleration * elapsed * elapsed;
-                match shift >= height || (velocity <= 0.0 && acceleration <= 0.0) {
+                let seconds = elapsed;
+                let elapsed = before + seconds;
+                let mut displacement = self.shifted.get().min(height) - height;
+                let mut velocity = velocity;
+                self.curves
+                    .settle
+                    .advance(&mut displacement, &mut velocity, seconds);
+                // Gone once it is off the edge, rather than swinging back up past it.
+                match displacement >= -EPSILON {
                     true => (height, Slide::Gone),
-                    false => (
-                        shift,
-                        Slide::Leaving {
-                            elapsed,
-                            from,
-                            velocity,
-                            acceleration,
-                        },
-                    ),
+                    false => (height + displacement, Slide::Leaving { elapsed, velocity }),
                 }
             }
-            Slide::Returning {
-                elapsed: before,
-                from,
-            } => {
-                let elapsed = before + elapsed;
-                let progress = tween(elapsed, RETURN_SECONDS, Easing::Linear);
-                let eased = self.curves.settle.sample(progress);
-                let next = match progress >= 1.0 {
-                    true => Slide::Shown,
-                    false => Slide::Returning { elapsed, from },
-                };
-                (from * (1.0 - eased), next)
+            Slide::Returning { velocity } => {
+                let mut shift = self.shifted.get();
+                let mut velocity = velocity;
+                self.curves.settle.advance(&mut shift, &mut velocity, elapsed);
+                // At rest once it is back up, rather than rising past it off the edge.
+                match shift <= EPSILON {
+                    true => (0.0, Slide::Shown),
+                    false => (shift, Slide::Returning { velocity }),
+                }
             }
             Slide::Shown | Slide::Gone | Slide::Morphing { .. } => return false,
         };
@@ -857,7 +853,7 @@ impl Motion {
         }
         drop(held);
         if bouncing {
-            self.return_back();
+            self.return_back(0.0);
         }
     }
 
@@ -896,7 +892,7 @@ impl Motion {
             }
             return;
         }
-        self.return_back();
+        self.return_back(0.0);
         self.held.borrow_mut().phase = Phase::Still;
         let (offset, _) = self.content();
         self.place_content((offset - wheel).clamp(0.0, shape.max_offset), 0.0);
@@ -1276,6 +1272,7 @@ pub fn Sheet(
                 phase: Phase::Still,
                 slide: Slide::Gone,
                 flung: 0.0,
+                back_speed: None,
                 backing: false,
             },
             Held::flinging,

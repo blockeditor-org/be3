@@ -33,6 +33,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
 
     fixture.test.click("desktop.clock");
     fixture.settle();
+    // The toasts slide off to make way.
+    fixture.test.settle();
     assert!(
         !fixture.test.shown(&toast(1)),
         "the toasts make way for the list of notifications"
@@ -48,6 +50,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
 
     fixture.test.click(format!("{}.action.reply", toast(1)));
     fixture.settle();
+    // The answered toast slides off.
+    fixture.test.settle();
     assert_eq!(
         fixture.signals(),
         vec![
@@ -65,6 +69,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
 
     fixture.test.click(format!("{}.action.pause", toast(2)));
     fixture.settle();
+    // The answered toast slides off.
+    fixture.test.settle();
     assert_eq!(
         fixture.signals(),
         vec![NotificationSignal::ActionInvoked {
@@ -89,6 +95,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
 
     fixture.test.click("desktop.clock");
     fixture.settle();
+    // The toasts slide off to make way.
+    fixture.test.settle();
     assert!(
         fixture.says("Now playing"),
         "the resident one is still listed"
