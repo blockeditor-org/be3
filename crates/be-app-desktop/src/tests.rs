@@ -666,6 +666,8 @@ impl Fixture {
         self.test
             .set_watched::<NotificationsWatch>(&NotificationInbox { requests });
         self.settle();
+        // Their toasts slide in before they rest.
+        self.test.settle();
     }
 
     fn signals(&mut self) -> Vec<NotificationSignal> {

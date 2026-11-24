@@ -8,6 +8,7 @@ use beui_host::native::build;
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
+mod a_back_swipe_let_go_fast_carries_the_page_off_at_its_speed;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_bar_carried_into_a_band_moves_the_bars_beside_its_slot_aside;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
@@ -78,6 +79,7 @@ mod a_task_carried_into_the_other_list_parts_it_where_it_would_land;
 mod a_task_dragged_out_of_its_list_stays_in_it_at_the_end;
 mod a_thumb_lifted_at_the_press_follows_the_mouse_while_a_finger_carries_the_other;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod a_toast_swiped_far_or_fast_flies_off_and_one_let_go_short_springs_back;
 mod a_tool_bar_follows_its_grip_opens_a_band_and_springs_into_place;
 mod a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
@@ -201,7 +203,12 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {
     let (year, month, day) = TODAY;
-    DocumentTest::new(alone_document(Date::new(year, month, day), page), size)
+    let mut test = DocumentTest::new(alone_document(Date::new(year, month, day), page), size);
+    if page == Page::Overlays {
+        // Its sample toasts slide in from the side before they rest.
+        test.settle();
+    }
+    test
 }
 
 fn drop_bar(test: &mut DocumentTest, from: Pos2, to: Pos2) {

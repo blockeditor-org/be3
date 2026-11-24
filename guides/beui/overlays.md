@@ -322,6 +322,19 @@ notices as toasts on a surface of its own over everything, anchored to a
 rectangle (`OverlayAnchor::Rect`), whose layer is hit only where the
 document's overlays are (`Document::overlay_rects`, through be-sdk-beui-root's
 `BeuiSurface::overlay_area`; guides/apps/runtime.md, Apps in a root).
+Each toast slides in from the side of its `edge` on the unstyled `spring`
+(the styled one's is `Movement::Settle`) and is dragged across by a finger
+(`gestures::scroll_drag` along the horizontal, so a vertical drag still
+scrolls the stack) or the mouse; let go past `TOAST_SWIPE_SHARE` of its width
+or faster than `TOAST_SWIPE_SPEED`, it flies off at the speed it was let go
+at, otherwise it springs back. Its dismiss button and its time running out
+send it off from rest; while it is held, they send it off once it is let go,
+whichever way. `on_dismiss` hears it once it is off, and one its owner keeps
+after that collapses. A toast its owner takes out of `toasts` (after
+`on_action`, or to hide them all) slides off the same way, kept in place in
+the stack until it is off. A test settles (or pauses a stopped clock) after a
+toast is dismissed or taken away before it looks for it gone, and before it
+presses one that has just come in.
 `unstyled::Floating` pins a child
 to the top or bottom edge of another node, taking no space (`styled::Tree`'s
 reveal button).

@@ -34,10 +34,14 @@ const RUBBER: beui::reactive::Spring = beui::reactive::Spring {
     stiffness: 180.0,
     damping: 26.832_815,
 };
+const SETTLE: beui::reactive::Spring = beui::reactive::Spring {
+    stiffness: 500.0,
+    damping: 42.0,
+};
 const SLIDE_CURVES: SlideCurves = SlideCurves {
-    enter: beui::reactive::Easing::OutCubic,
-    leave: beui::reactive::Easing::OutQuad,
-    settle: beui::reactive::Easing::OutCubic,
+    enter: SETTLE,
+    leave: SETTLE,
+    settle: SETTLE,
 };
 const NUMBER_WIDTH: Size = Size::Custom(120.0);
 const SWATCH_SIZE: Size = Size::Lg;
