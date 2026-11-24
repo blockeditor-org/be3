@@ -29,19 +29,23 @@ fn a_block_whose_replica_waits_for_its_heads_objects_does_not_export() {
     // Its join is slow, so it opens on the head it knows, whose objects it asks the server for;
     // the server goes before it answers.
     harness.relay().hold_answers(true);
-    let mut reads = harness.relay().count(|method, _| {
-        method == be_block_protocol::__args::SERVER_READ
-    });
-    let before = *reads.borrow();
+    let asked = |query: fn(&be_block_protocol::Query) -> bool| {
+        harness.relay().count(move |method, args| {
+            method == be_block_protocol::__args::SERVER_READ
+                && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
+                    .is_some_and(|asked| query(&asked.query))
+        })
+    };
+    let mut joins = asked(|query| matches!(query, be_block_protocol::Query::Session { .. }));
+    let mut downloads = asked(|query| matches!(query, be_block_protocol::Query::DownloadUrls(_)));
     hold(block, CounterContent::CONTENT_TYPE);
     runtime()
-        .block_on(reads.wait_for(|reads| *reads > before))
+        .block_on(joins.wait_for(|joins| *joins > 0))
         .expect("holding the block asked to join its session");
-    let joined = *reads.borrow();
     harness.clock.advance(be_block_type_host::EARLY_OPEN);
     runtime()
-        .block_on(reads.wait_for(|reads| *reads > joined))
-        .expect("the replica asked for its head's objects");
+        .block_on(downloads.wait_for(|downloads| *downloads > 0))
+        .expect("the replica asked where to download its head's objects");
     harness.relay().offline(true);
 
     // Each export goes through the worker, after whatever it was told before: one asked as the

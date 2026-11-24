@@ -138,7 +138,7 @@ pub fn waited<'a, L: TreeLine>(lines: &'a [L], text: &str, over: Option<Pos2>) -
     lines.iter().find(|line| {
         let matches = match text.strip_prefix('#') {
             Some(id) => line.test_ids().iter().any(|named| named == id),
-            None => line.text().contains(text),
+            None => crate::target::line_holds(line.text(), text),
         };
         matches && over.is_none_or(|over| line.bounds().is_some_and(|bounds| bounds.contains(over)))
     })
