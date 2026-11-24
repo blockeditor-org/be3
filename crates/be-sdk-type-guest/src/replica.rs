@@ -647,7 +647,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     reloads_putting: VecDeque<PendingReload>,
     /// While a journal is opened (`load`, `loaded`): the commits its restarts name, loaded
     /// afresh, which a restart replayed carries what came after its seal onto
-    /// (`carried_from_seal`).
+    /// (`carried_from_seal`). Those other than the journal's base are read before replay
+    /// (`journal_restart_commits`); the base, the content opened on, is added in `loaded`.
     restart_commits: BTreeMap<CommitId, C>,
     /// The content opened on, while the commits its journal's restarts name are read.
     opened_content: Option<C>,
@@ -2085,6 +2086,8 @@ where
                     return;
                 };
                 match then {
+                    // A replica that cannot read a restart's commit does not open, rather than
+                    // replay what came after the restart wrongly.
                     Then::Load | Then::RestartCommits { .. } => {
                         self.opened_content = None;
                         self.unreadable = Some(error);
@@ -2986,8 +2989,19 @@ where
             None => self.incompatible = true,
         }
         self.restarts += 1;
-        let (carried, _) = self.carried_from_seal(at_seal, fresh, through, sequence);
+        let (carried, any) = self.carried_from_seal(at_seal, fresh, through, sequence);
         self.confirmed = carried;
+        // Where it leaves the replica, as `reloaded` leaves it: on the commit, with undo stopped
+        // there, and sealed through it unless it carried something no commit holds yet.
+        self.base = Some(commit);
+        self.replaced_at = sequence;
+        self.history.restart();
+        self.restarted_at = Some(commit);
+        if !any {
+            self.sealed = sequence;
+            self.sealed_state = self.confirmed.session_state();
+            self.own_numbered.retain(|(at, _)| *at > sequence);
+        }
         self.log.clear();
     }
 
