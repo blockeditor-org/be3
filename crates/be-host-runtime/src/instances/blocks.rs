@@ -352,14 +352,12 @@ impl BlockStore for Instances {
             owner_only,
         } = created;
         let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
-            self.refuse_block_gift(instance, block);
             return Err(OpError::Denied);
         };
         if parent.block().is_some_and(|parent| !self.editable(parent))
             || (owner_only && !own_settings(parent))
             || be_host_stack::node(block).is_some()
         {
-            self.refuse_block_gift(instance, block);
             return Err(OpError::Denied);
         }
         let mut defined = be_host_stack::app_graph::entries_of(defined);

@@ -190,6 +190,7 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
             docks: None,
             anchor: None,
             fullscreen: false,
+            keyboard_ask: 0,
         }],
         occluders: Vec::new(),
     }
@@ -525,73 +526,6 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
         .collect()
 }
 
-/// The view of a child of another app the instance's gift of the keyboard goes to.
-fn notes_view() -> gift::GiftView {
-    ("be3.text".to_owned(), EditorInstanceId(10), ViewId::MAIN)
-}
-
-/// The instance's own main view, which holds the keys typed into it while its gift is pending.
-fn own_view() -> gift::GiftView {
-    (String::new(), INSTANCE, REGION)
-}
-
-fn letter(text: &str) -> beui::Forwarded {
-    beui::Forwarded::Input(beui::Event::Key {
-        press: beui::KeyPress {
-            key: beui::Key::A,
-            pressed: true,
-            repeat: false,
-            modifiers: beui::Modifiers::NONE,
-        },
-        evdev: None,
-        text: Some(text.to_owned()),
-    })
-}
-
-fn press() -> beui::Forwarded {
-    let beui::Forwarded::Pointer { mut event, over } = moved(pos2(20.0, 20.0)) else {
-        unreachable!("moved forwards a pointer event")
-    };
-    event.phase = beui::PointerPhase::Down(beui::PointerButton::Primary);
-    beui::Forwarded::Pointer { event, over }
-}
-
-/// Where an app stands: frames asked and answered, whether its content arrived, whether a text
-/// field in the view has the keyboard.
-fn progress(frames: (u64, u64), content: bool, typing: bool) -> gift::KeyProgress {
-    gift::KeyProgress {
-        frames,
-        content: content.then_some(1),
-        typing,
-    }
-}
-
-/// Routes keys typed into the instance's own view, as its holder, in host pass `pass`.
-fn own_keys(
-    instances: &mut Instances,
-    app: gift::KeyProgress,
-    focused: bool,
-    events: Vec<beui::Forwarded>,
-    pass: u64,
-) -> Vec<beui::Forwarded> {
-    let mut input = forwarded(events, None, focused);
-    instances.hold_keys(INSTANCE, &own_view(), app, &mut input, pass);
-    input.events
-}
-
-/// Routes keys typed into the child's view the instance gave the keyboard to, in host pass `pass`.
-fn notes_keys(
-    instances: &mut Instances,
-    app: gift::KeyProgress,
-    focused: bool,
-    events: Vec<beui::Forwarded>,
-    pass: u64,
-) -> Vec<beui::Forwarded> {
-    let mut input = forwarded(events, None, focused);
-    instances.owe_keys(INSTANCE, &notes_view(), app, &mut input, pass);
-    input.events
-}
-
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
     let role = InstanceRole::Editor(
         Uuid::nil(),
@@ -616,25 +550,16 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
 }
 
 mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
-mod a_block_gift_becomes_a_gift_to_the_child_that_shows_its_block;
-mod a_block_gift_ends_when_the_instance_goes;
-mod a_block_gift_for_a_block_the_host_refused_to_make_never_starts;
-mod a_block_gift_waits_for_the_child_however_many_commits_it_takes;
+mod a_commit_asking_a_child_take_the_keyboard_names_it_to_the_compositor_once;
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_child_asked_full_screen_or_closed_reaches_the_host;
 mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
-mod a_child_that_never_takes_the_keyboard_ends_the_gift;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_failure_an_editor_reports_is_shown_as_a_notice;
 mod a_focused_screen_hears_it_has_the_keyboard_again_after_its_app_restarts;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
-mod a_gift_and_its_keys_follow_the_content_from_a_main_view_into_its_dock_tab_view;
-mod a_gift_asked_for_a_child_already_replaced_is_answered_that_it_missed;
-mod a_gift_counts_only_its_own_instances_commits;
-mod a_gift_ends_on_the_frame_clock_when_its_editor_commits_no_layout;
-mod a_gift_ends_when_the_child_showing_its_block_goes;
 mod a_hidden_window_child_takes_no_room_and_is_kept;
 mod a_host_component_opens_with_no_view_and_tells_the_shell_nothing;
 mod a_host_component_reaches_only_its_own_block_and_asks_no_one;
@@ -644,7 +569,6 @@ mod a_listing_the_host_could_not_load_reaches_the_app_as_failed;
 mod a_menu_pick_lets_an_instance_open_the_palette_only_in_the_frames_right_after_it;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not;
-mod a_new_ask_carries_the_keys_owed_to_the_first_child;
 mod a_paste_names_where_a_cut_reference_was_cut_from_once;
 mod a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_trigger;
 mod a_press_on_an_anchored_views_trigger_leaves_it_to_the_trigger;
@@ -661,13 +585,10 @@ mod a_restarted_app_s_views_describe_nothing_until_it_describes_them_again;
 mod a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens;
 mod a_revision_preview_dropped_once_open_is_let_go;
 mod a_screen_asked_to_take_the_keyboard_reaches_its_view;
-mod a_stale_input_method_does_not_release_owed_keys;
 mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_tentative_gesture_is_written_when_it_commits;
 mod a_view_attached_to_an_edge_stays_on_it_when_the_view_it_hangs_from_moves;
-mod a_view_given_the_keyboard_hears_an_input_from_before_it_had_it_and_keeps_the_gift;
 mod a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported;
-mod a_view_that_goes_with_nowhere_for_its_content_to_go_ends_its_gift;
 mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen;
 mod a_windows_actions_are_offered_while_it_is_shown_and_again_when_shown_again;
@@ -699,7 +620,6 @@ mod an_instance_the_app_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_head_is_sent_its_stored_bytes;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod any_host_is_still_reached_only_over_https;
-mod asking_again_for_the_same_child_keeps_the_count_going;
 mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod children_of_a_dock_view_holding_the_content_follow_its_camera;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
@@ -709,19 +629,10 @@ mod host_calls_are_taken_by_kind_in_the_order_they_came;
 mod input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced;
 mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
-mod keys_owed_to_a_child_wait_again_when_it_asks_for_its_content_again;
-mod keys_owed_to_a_child_wait_again_when_its_content_is_replaced;
-mod keys_owed_to_a_view_that_lost_the_keyboard_before_seeing_it_are_not_replayed;
-mod keys_reach_a_child_whose_app_takes_longer_than_the_wait_to_start;
-mod keys_typed_after_a_press_the_app_was_never_sent_are_not_held;
-mod keys_typed_before_a_child_takes_the_keyboard_wait_for_it;
-mod keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it;
 mod modifiers_let_go_in_one_view_are_held_again_in_another;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_blocks_a_clip_names_cross_into_a_checkout_by_local_id;
 mod the_contacts_reach_only_the_shell;
-mod the_latest_block_gift_replaces_the_one_before;
-mod the_placer_hears_whom_it_gives_the_keyboard_to;
 mod the_program_windows_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
 

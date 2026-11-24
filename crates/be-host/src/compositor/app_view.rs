@@ -28,14 +28,19 @@ use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
 use be_host_desktop::occlusion::{Occlusion, occlusion};
 use be_host_runtime::{
-    self, BlockDrag, EditorView, GiftView, HostChild, InstanceEvent, InstanceRole, KeyProgress,
-    Piece, PlacedView, ViewPlace, ViewSlot,
+    self, BlockDrag, EditorView, HostChild, InstanceEvent, InstanceRole, Piece, PlacedView,
+    ViewPlace, ViewSlot,
 };
 use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;
 
-pub(crate) mod gifts;
+pub(crate) mod asks;
 mod handoff;
+
+/// A view of an app's editor instance, by its app, instance and view: the keyboard follows a
+/// view, not the node that catches its input, which the host builds again when the view moves
+/// (a child placed in a new pane).
+type ShownView = (String, EditorInstanceId, ViewId);
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -132,7 +137,6 @@ pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
 struct AskedFocus {
     asked: Memo<bool>,
     placer: Placer,
-    child: ChildId,
 }
 
 #[derive(Clone, Copy)]
@@ -694,7 +698,7 @@ pub(crate) fn AppView(
     focus_when_asked(app_id, instance, region, &catcher, primary);
     focus_when_given(
         asked,
-        (app_id, instance, region.id),
+        (app_id, instance),
         state,
         revision,
         &catcher,
@@ -726,9 +730,7 @@ pub(crate) fn AppView(
             });
         }
     });
-    let shown_view: GiftView = (app_id.value().to_string(), instance, region.id);
-    let gift_placer = asked.map(|asked| (asked.placer.app, asked.placer.instance));
-    let key_placers = store(key_placers(gift_placer, instance, &region));
+    let shown_view: ShownView = (app_id.value().to_string(), instance, region.id);
     let docked = region.placement == ViewPlacement::Dock;
     let rebuilt = shown_view.clone();
     create_effect(move || {
@@ -743,7 +745,7 @@ pub(crate) fn AppView(
         }
     });
     if region.placement == ViewPlacement::Dock {
-        keyboard_follows_content(shown_view.clone(), key_placers, revision, &catcher);
+        keyboard_follows_content(shown_view.clone(), revision, &catcher);
     }
     let gone = shown_view.clone();
     on_cleanup(move || {
@@ -751,11 +753,10 @@ pub(crate) fn AppView(
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
             // A main view that goes while its instance's content shows in one of its dock tab
             // views (a joined editor's, its main view staying placed but shown nowhere) hands that
-            // view the keyboard, as the runtime hands it the keys held for it (`forget_keys`).
+            // view the keyboard.
             let moved = be_host_runtime::content_moved(&gone.0, gone.1, gone.2)
                 .map(|to| (gone.0.clone(), gone.1, to));
             if !placed || moved.is_some() {
-                be_host_runtime::forget_keys(&gone, &key_placers.value());
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
@@ -832,13 +833,8 @@ pub(crate) fn AppView(
     let steering = StoredCell::new(Steering::IDLE);
     let handing = StoredCell::new(handoff::Handoff::default());
     let pointed = StoredCell::new((false, None::<Pos2>));
-    let routed_view = store(shown_view.clone());
-    let forward = move |mut input: ForwardedInput| {
-        let routed_view = routed_view.value();
+    let forward = move |input: ForwardedInput| {
         pointed.set((input.hovered, input.pointer));
-        let app = app_id.value();
-        let progress = key_progress(&app, instance, state);
-        be_host_runtime::route_keys(&routed_view, &key_placers.value(), progress, &mut input);
         let mut handed = handing.get();
         let input = handed.route(input);
         handing.set(handed);
@@ -870,9 +866,7 @@ pub(crate) fn AppView(
             let target = |node: beui::NodeId| {
                 super::desktop::catcher(node).map(|held| (held.instance, held.region))
             };
-            let pressed = input.events.iter().any(be_host_runtime::is_press);
-            let asked = key_progress(&app, instance, state).frames.0;
-            let sent = be_host_runtime::forward_view(
+            be_host_runtime::forward_view(
                 &app_id.value(),
                 instance,
                 region.id,
@@ -880,50 +874,9 @@ pub(crate) fn AppView(
                 &aim,
                 &target,
             );
-            if pressed && sent {
-                // The app draws a frame that answers it, and what that frame asks for decides
-                // where the keys typed meanwhile go.
-                be_host_runtime::sent_press(&routed_view, asked);
-            }
         }
     };
     let forward = Callback::new(forward);
-    let typing = create_memo(move || state.with(|view| view.ime.is_some()));
-    let settled_view = store(shown_view.clone());
-    create_effect(move || {
-        revision.track();
-        typing.track();
-        gifts::track(&app_id.value(), instance);
-        for (app, instance) in key_placers.value().iter() {
-            gifts::track(app, *instance);
-        }
-        let Some(node) = catcher.try_get() else {
-            return;
-        };
-        untrack(|| {
-            let app = app_id.value();
-            let focused =
-                try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
-            let progress = key_progress(&app, instance, state);
-            let owed = be_host_runtime::settle_keys(
-                &settled_view.value(),
-                &key_placers.value(),
-                progress,
-                focused,
-            );
-            if let Some(modifiers) = owed {
-                let (hovered, pointer) = pointed.get();
-                forward.call(ForwardedInput {
-                    events: Vec::new(),
-                    rect: state.with(|view| view.rect),
-                    hovered,
-                    focused: true,
-                    pointer,
-                    modifiers,
-                });
-            }
-        });
-    });
     if let Some(block) = block.filter(|_| region.is_main()) {
         let used = create_memo(move || state.with(|view| view.used));
         create_effect(move || {
@@ -1666,9 +1619,15 @@ fn focus_when_asked(
     });
 }
 
+/// Moves the keyboard to this child's view when the editor that placed it asks for it
+/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at once once the view is built, whether the
+/// child's app runs yet or not: keys typed before it does are dropped, never held
+/// (decisions/keys_are_never_held.md). Only while the keyboard is within the placer's views and
+/// the children they show, and no view that takes the keyboard is open; otherwise the ask does
+/// nothing. A view the keyboard went to hands it on to the child that fills it, if any.
 fn focus_when_given(
     asked: Option<AskedFocus>,
-    (app, own, region): (Stored<String>, EditorInstanceId, ViewId),
+    (app, own): (Stored<String>, EditorInstanceId),
     state: Memo<PlacedView>,
     revision: Trigger,
     catcher: &NodeRef,
@@ -1678,22 +1637,6 @@ fn focus_when_given(
         return;
     };
     let catcher = *catcher;
-    // The gift is counted only from when this child is up (its app runs and its view is built),
-    // and ends if its app fails to start: before that the editor's keys wait however long a cold
-    // start takes.
-    let up = create_memo(move || state.with(|view| !view.loading && view.error.is_none()));
-    let failed = create_memo(move || state.with(|view| view.error.is_some()));
-    create_effect(move || {
-        let (up, failed) = (up.get(), failed.get());
-        if !asked.asked.get() || !(up || failed) {
-            return;
-        }
-        let editor = (asked.placer.app, asked.placer.instance);
-        untrack(|| match failed {
-            true => be_host_runtime::child_failed_for_gift(editor, asked.child),
-            false => be_host_runtime::child_up_for_gift(editor, asked.child),
-        });
-    });
     let passing = create_signal(false);
     create_effect(move || {
         let filling = state.with(filling_child);
@@ -1717,28 +1660,23 @@ fn focus_when_given(
             let Some(node) = catcher.try_get() else {
                 return;
             };
-            let AskedFocus { placer, child, .. } = asked;
+            let AskedFocus { placer, .. } = asked;
             let placing = placer.app;
-            let editor = (placing, placer.instance);
-            gifts::taken(editor.0, editor.1);
-            let own_view = (app.value().to_string(), own, region);
+            asks::taken(placing, placer.instance);
             if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
-                be_host_runtime::end_gift(editor.0, editor.1);
                 return;
             }
             try_with_document(|document| {
                 let held = document.focused_node();
+                if document.focus_is_within(node) {
+                    return;
+                }
                 let inside = held.is_some_and(|held| {
                     super::desktop::shown_within(held, |view, catcher| {
                         view == node || (catcher.instance == own && catcher.app == *app.value())
                     })
                 });
-                if document.focus_is_within(node) {
-                    be_host_runtime::take_gift(editor, child, own_view, true);
-                    return;
-                }
                 if inside {
-                    be_host_runtime::end_gift(editor.0, editor.1);
                     return;
                 }
                 let placer_holds = held.is_none_or(|held| {
@@ -1749,23 +1687,13 @@ fn focus_when_given(
                             catcher.instance == placer.instance && catcher.app == placing
                         })
                 });
-                if !placer_holds {
-                    be_host_runtime::end_gift(editor.0, editor.1);
-                } else if be_host_runtime::take_gift(editor, child, own_view, false) {
+                if placer_holds {
                     document.focus_focusable(node);
                     passing.set(true);
                 }
             });
         });
     });
-}
-
-fn key_progress(app: &str, instance: EditorInstanceId, view: Memo<PlacedView>) -> KeyProgress {
-    KeyProgress {
-        frames: be_host_runtime::frames_answered(app),
-        content: be_host_runtime::content_delivered(app, instance),
-        typing: view.with_untracked(|view| view.ime.is_some()),
-    }
 }
 
 fn filling_child(view: &PlacedView) -> Option<ChildId> {
@@ -1821,38 +1749,15 @@ thread_local! {
     /// Views whose catcher had the keyboard when it was taken down while the view stayed placed:
     /// the catcher built for the view in its place takes the keyboard back, so moving a view (a
     /// child placed in a new pane) does not drop it.
-    static REBUILT: RefCell<HashSet<GiftView>> = RefCell::new(HashSet::new());
-}
-
-/// The editors whose gifts may owe a view keys: the one that placed it, and, for a docked
-/// instance's dock tab view, the one that placed the instance, whose gift to it moves there from
-/// its main view with its content (`keyboard_follows_content`). Read once, when the view is
-/// built, from the placement the host keeps then (`docked_placer`).
-fn key_placers(
-    placer: Option<(&'static str, EditorInstanceId)>,
-    instance: EditorInstanceId,
-    region: &View,
-) -> Vec<(&'static str, EditorInstanceId)> {
-    let mut placers: Vec<_> = placer.into_iter().collect();
-    if region.placement == ViewPlacement::Dock
-        && let Some((app, placing, _)) = be_host_runtime::docked_placer(instance)
-    {
-        let docked = (app_name(&app), placing);
-        if !placers.contains(&docked) {
-            placers.push(docked);
-        }
-    }
-    placers
+    static REBUILT: RefCell<HashSet<ShownView>> = RefCell::new(HashSet::new());
 }
 
 /// A joined editor's content shows in its main view until its dock is hosted, then in one of its
 /// dock's tab views, built after the main view goes (the main view stays placed, shown nowhere).
 /// A main view that went with the keyboard left it to be taken back (`keep_focus_for_rebuild`):
-/// the dock tab view its content moved to takes it instead, and the keys held for the main view
-/// with it (`forget_keys` finds where the content moved).
+/// the dock tab view its content moved to takes it instead.
 fn keyboard_follows_content(
-    view: GiftView,
-    placers: Stored<Vec<(&'static str, EditorInstanceId)>>,
+    view: ShownView,
     revision: beui::reactive::Trigger,
     catcher: &NodeRef,
 ) {
@@ -1872,7 +1777,6 @@ fn keyboard_follows_content(
             if !REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&main)) {
                 return;
             }
-            be_host_runtime::forget_keys(&main, &placers.value());
             try_with_document(|document| {
                 if document.focused_node().is_none() {
                     document.focus_focusable(node);
@@ -1886,14 +1790,14 @@ fn forget_main_rebuild(app: &str, instance: EditorInstanceId) {
     REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&(app.to_owned(), instance, ViewId::MAIN)));
 }
 
-fn keep_focus_for_rebuild(view: &GiftView) {
+fn keep_focus_for_rebuild(view: &ShownView) {
     REBUILT.with_borrow_mut(|rebuilt| rebuilt.insert(view.clone()));
 }
 
 /// Whether a catcher just built for `view` takes the keyboard its last one had: only while
 /// nothing else has taken it since, so a view rebuilt after the person moved on does not take
 /// the keyboard back from where they put it.
-fn refocus_rebuilt(view: &GiftView, nothing_focused: bool) -> bool {
+fn refocus_rebuilt(view: &ShownView, nothing_focused: bool) -> bool {
     REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(view)) && nothing_focused
 }
 
@@ -2180,9 +2084,8 @@ impl ChildNodes {
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
             provide_context(ChildFocus(Some(AskedFocus {
-                asked: create_memo(move || gifts::gives(placer.app, placer.instance, key)),
+                asked: create_memo(move || asks::asks(placer.app, placer.instance, key)),
                 placer,
-                child: key,
             })));
             let node = child_view.with(|view| view(key, child, rect));
             (node, holder)

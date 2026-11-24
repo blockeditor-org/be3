@@ -54,9 +54,11 @@ pub enum InstanceEvent {
     },
     /// The view `ViewId` was asked to take the keyboard.
     FocusRequested(ViewId),
-    /// It gives the keyboard to this child, whose view takes it (`take_gift`) once it can; none
-    /// when the gift ended without a child's view taking it, so the keys it held go back.
-    KeyboardGift(Option<ChildId>),
+    /// It asks that this child take the keyboard (`keyboard-ask`), which the view that shows
+    /// the child takes as it is built or at once if it is, if the keyboard is within the editor's
+    /// views and no view that takes the keyboard is open; none once the editor's next commit of
+    /// children withdrew an ask not acted on.
+    KeyboardAsked(Option<ChildId>),
     /// The instance closed: nothing more comes from it.
     Closed,
 }
