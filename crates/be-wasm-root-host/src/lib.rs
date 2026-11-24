@@ -192,6 +192,13 @@ struct Core<G> {
     /// The children the root shows of the editors the host opened (`host.show-children`), the
     /// latest of each editor's view, until the host takes them.
     shown_children: Vec<ShownChildren>,
+    /// The gifts the host's editors asked for, until the root takes them (`host.gifts`).
+    gifts: Vec<be_wasm_root_api::Gift>,
+    /// The root's `host.gifts` call, waiting for the host's editors to ask for one.
+    gift_watcher: Option<Reply<Vec<be_wasm_root_api::Gift>>>,
+    /// What the root told the host's editors of their children (`host.tell-placer`), by the
+    /// root's instance and the editor, until the host takes it.
+    placer_events: Vec<(u64, u64, be_wasm_root_api::PlacerEvent)>,
 }
 
 /// The children an editor the host opened placed in one of its views, as the root shows them
@@ -328,6 +335,9 @@ impl<G: Inline> Core<G> {
             relaying: Vec::new(),
             relay_watcher: None,
             shown_children: Vec::new(),
+            gifts: Vec::new(),
+            gift_watcher: None,
+            placer_events: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -671,6 +681,26 @@ impl<G: Inline> Core<G> {
     /// latest of each editor's view.
     fn take_shown_children(&mut self) -> Vec<ShownChildren> {
         std::mem::take(&mut self.shown_children)
+    }
+
+    /// Hands the root gifts the host's editors asked for (`host.gifts`). Answers whether the
+    /// root waited for them.
+    fn give(&mut self, gifts: Vec<be_wasm_root_api::Gift>) -> bool {
+        if gifts.is_empty() {
+            return false;
+        }
+        self.gifts.extend(gifts);
+        let Some(reply) = self.gift_watcher.take() else {
+            return false;
+        };
+        reply.send(&mut self.connection, &std::mem::take(&mut self.gifts));
+        true
+    }
+
+    /// What the root told the host's editors of their children since the last call
+    /// (`host.tell-placer`): by the root's instance and the editor, in order.
+    fn take_placer_events(&mut self) -> Vec<(u64, u64, be_wasm_root_api::PlacerEvent)> {
+        std::mem::take(&mut self.placer_events)
     }
 
     /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
@@ -1127,6 +1157,23 @@ impl<G: Inline> Core<G> {
                     view,
                     children,
                 });
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Gifts { reply }) => match self.gifts.is_empty() {
+                true => {
+                    if let Some(earlier) = self.gift_watcher.replace(reply) {
+                        earlier.fail(&mut self.connection, OpError::Canceled);
+                    }
+                }
+                false => reply.send(&mut self.connection, &std::mem::take(&mut self.gifts)),
+            },
+            embed::Call::Host(embed::host::Call::TellPlacer {
+                instance,
+                editor,
+                event,
+                reply,
+            }) => {
+                self.placer_events.push((instance, editor, event));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {

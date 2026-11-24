@@ -52,9 +52,14 @@ placer's raster, composited under the placer's layer (over it when placed
 `Above`), and the placer is hit everywhere but where a child that takes input
 is. The root tells the host through `be3:root`'s `host.show-children` which
 editor shows each child, and the host makes each child's status from that
-editor's manifest and tells the placer, as it does for its own children. The
-keyboard, gifts, frame takeovers, joined docks and drags are not there yet,
-and a child of any other kind, or a preview, the placer hears is unavailable.
+editor's manifest and tells the placer, as it does for its own children.
+`focus-child` and `focus-block-child` reach the root through `host.gifts`, and
+it moves the keyboard to the child's view once that shows, under the same
+rules as above. Each placer above a child the keyboard goes into hears
+`child-focused`, and a press or Escape in a placer's view takes back its active
+children. Keys held for a gift, the promoting press replayed, frame takeovers,
+joined docks and drags are not there yet, and a child of any other kind, or a
+preview, the placer hears is unavailable.
 
 ## Drawing order
 

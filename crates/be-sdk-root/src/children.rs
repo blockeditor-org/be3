@@ -11,8 +11,13 @@
 //! (`be3:root`'s `host.show-children`): available once an editor shows the child, with what its
 //! app's manifest says of that editor, or why the root shows nothing of it.
 //!
-//! Left for later (4g7b3's later parts): giving a child the keyboard (`focus-child`) and the
-//! gifts of keys held for it, promoting and taking back an active child, a child that takes its
+//! An editor's gifts of the keyboard to its children (`focus-child`, `focus-block-child`) reach
+//! the root through `host.gifts` and are given once the child shows (`ask`, `give`); each placer
+//! above a child the keyboard goes into hears so (`focused_into`, `child-focused`), and a press
+//! or Escape in a placer's view takes back its active children (`revoke`).
+//!
+//! Left for later (4g7b3's later parts): the keys held for a gift until its child is ready, the
+//! press that promotes a child replayed in it, a child that takes its
 //! placer's frame, docks that join across apps (a child is asked for its own dock), drags, a block
 //! shown in several places sharing one editor, occluders, a child sized to its content (`fit`), one placed in place at
 //! its zoom, previews, and every other kind of child (web views, host panels, program windows,
@@ -30,13 +35,13 @@ use std::{
 
 use be_lib_geometry::{Rect, pos2};
 use be_lib_layers::{Affine, Area, Layer, LayerId};
-use be_lib_stable_hash::HashMap;
+use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, EditorInstanceId, FrameChrome,
     FrameSpec, Fonts, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec,
     Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
-use be_wasm_root_api::{OpenedIn, ShownBlock, ShownChild, guest::host};
+use be_wasm_root_api::{Gift, GiftTo, OpenedIn, PlacerEvent, ShownBlock, ShownChild, guest::host};
 
 use crate::{BlockSpawn, Embedded, Embedding, Hosted, SpawnFailure};
 
@@ -64,10 +69,32 @@ pub struct Spawning {
 /// The children one embedded app's editors placed, as the root shows them.
 #[derive(Default)]
 pub struct Children {
+    /// The handle of the app whose editors place these, as of the last `settle`.
+    instance: u64,
+    /// The layers showing that app's screens, with the editor and view each shows.
+    placers: Vec<(LayerId, EditorInstanceId, ViewId)>,
     shown: Vec<Child>,
     /// What the host was told last of each view's children (`host.show-children`).
     told: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>,
+    /// The children placed active that a press or Escape in their placer's view took back: they
+    /// are passive until placed other than active.
+    revoked: HashSet<(EditorInstanceId, ViewId, ChildId)>,
+    /// The keyboard each editor asked be given to one of its children, the latest of each, until
+    /// it is given or ends (`give`).
+    gifts: Vec<Pending>,
 }
+
+/// A gift an editor asked for, waiting for its child to show.
+struct Pending {
+    editor: EditorInstanceId,
+    to: GiftTo,
+    /// The frame clock's time it was asked at.
+    asked: Duration,
+}
+
+/// How long a gift waits for its child's view to show on the frame clock before it ends, as
+/// be-host-runtime's `GIFT_WAIT` bounds its own.
+pub const GIFT_WAIT: Duration = Duration::from_secs(3);
 
 /// A block child placed to run its editor.
 struct Child {
@@ -214,6 +241,11 @@ impl Children {
         now: Duration,
     ) {
         let screens = parent.screens();
+        self.instance = parent.instance();
+        self.placers = screens
+            .iter()
+            .map(|screen| (parent.layer_id(screen.screen), screen.instance, screen.view))
+            .collect();
         let mut wanted = Vec::new();
         let mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>> = HashMap::default();
         for placements in parent.placed() {
@@ -246,6 +278,14 @@ impl Children {
             release(&gone.showing.borrow(), embedding);
         }
         self.shown = kept;
+        // A child taken back stays passive while it is placed active.
+        let shown = &self.shown;
+        self.revoked.retain(|(editor, view, id)| {
+            shown.iter().any(|child| {
+                (child.editor, child.view, child.child) == (*editor, *view, *id)
+                    && child.placement.mode == ChildMode::Active
+            })
+        });
         let mut nested = above.to_vec();
         for child in &self.shown {
             let mut showing = child.showing.borrow_mut();
@@ -265,7 +305,7 @@ impl Children {
                     }),
                     Showing::Opening | Showing::Failed(_) => None,
                 },
-                active: takes_input(child.placement.mode),
+                active: self.takes_input(child),
                 error: match &*showing {
                     Showing::Failed(why) => Some(why.clone()),
                     Showing::Opening | Showing::Shown { .. } => None,
@@ -314,6 +354,189 @@ impl Children {
                 false => self.told.insert((editor, view), children),
             };
         }
+    }
+
+    /// Whether `child` takes the input where it is placed: placed to, and not taken back.
+    fn takes_input(&self, child: &Child) -> bool {
+        takes_input(child.placement.mode)
+            && !self
+                .revoked
+                .contains(&(child.editor, child.view, child.child))
+    }
+
+    /// Takes back the active children of each placer's view a press or Escape reached
+    /// (`Embedding::take_pressed`), as be-host does on a press in the placer or Escape: they
+    /// leave the input to their placer and their placer hears they are no longer active. Their
+    /// own children's placers likewise.
+    pub fn revoke(&mut self, pressed: &[LayerId]) {
+        for (layer, editor, view) in &self.placers {
+            if !pressed.contains(layer) {
+                continue;
+            }
+            for child in &self.shown {
+                if (child.editor, child.view) == (*editor, *view)
+                    && child.placement.mode == ChildMode::Active
+                {
+                    self.revoked.insert((child.editor, child.view, child.child));
+                }
+            }
+        }
+        for child in &self.shown {
+            if let Showing::Shown { children, .. } = &mut *child.showing.borrow_mut() {
+                children.revoke(pressed);
+            }
+        }
+    }
+
+    /// Takes the gifts asked by the editors of the app these are the children of, at the frame
+    /// clock's `now`, each in place of the one its editor asked before; those of their own
+    /// children's apps go to them.
+    pub fn ask(&mut self, gifts: &mut Vec<Gift>, now: Duration) {
+        let instance = self.instance;
+        let mut kept = Vec::new();
+        for gift in gifts.drain(..) {
+            if gift.instance != instance {
+                kept.push(gift);
+                continue;
+            }
+            let editor = EditorInstanceId(gift.editor);
+            self.gifts.retain(|pending| pending.editor != editor);
+            self.gifts.push(Pending {
+                editor,
+                to: gift.to,
+                asked: now,
+            });
+        }
+        *gifts = kept;
+        for child in &self.shown {
+            if gifts.is_empty() {
+                return;
+            }
+            if let Showing::Shown { children, .. } = &mut *child.showing.borrow_mut() {
+                children.ask(gifts, now);
+            }
+        }
+    }
+
+    /// Gives the keyboard where a gift asked, once its child shows in a layer drawn (`drawn`):
+    /// the layer to focus. A gift ends once given, when the keyboard (`focused`) is no longer
+    /// within its editor's views and their children, when its child is not placed (which its
+    /// editor hears, `told`), could not be shown, or did not show within `GIFT_WAIT` of the
+    /// frame clock's `now`. Only one layer takes the keyboard: the first gift that can be given.
+    pub fn give(
+        &mut self,
+        focused: Option<LayerId>,
+        drawn: &dyn Fn(LayerId) -> bool,
+        now: Duration,
+        told: &mut Vec<(u64, u64, PlacerEvent)>,
+    ) -> Option<LayerId> {
+        let mut given = None;
+        let gifts = std::mem::take(&mut self.gifts);
+        for pending in gifts {
+            let within = focused.is_some_and(|focused| self.within(pending.editor, focused));
+            if !within || now.saturating_sub(pending.asked) >= GIFT_WAIT {
+                continue;
+            }
+            let child = self.shown.iter().find(|child| {
+                child.editor == pending.editor
+                    && match pending.to {
+                        GiftTo::Child(id) => child.child.0 == id,
+                        GiftTo::Block(block) => child.block == block,
+                    }
+            });
+            let Some(child) = child else {
+                match pending.to {
+                    // A child it places that the root shows no editor of ends it too.
+                    GiftTo::Child(id) if !self.placed(pending.editor, id) => {
+                        told.push((
+                            self.instance,
+                            pending.editor.0,
+                            PlacerEvent::GiftMissed(id),
+                        ));
+                    }
+                    GiftTo::Child(_) => {}
+                    GiftTo::Block(_) => self.gifts.push(pending),
+                }
+                continue;
+            };
+            let layer = match &*child.showing.borrow() {
+                Showing::Shown { hosted, .. } => Some(hosted.app.layer_id(CHILD_SCREEN)),
+                Showing::Opening => None,
+                Showing::Failed(_) => continue,
+            };
+            match layer.filter(|layer| drawn(*layer)) {
+                Some(layer) if given.is_none() => given = Some(layer),
+                Some(_) => {}
+                None => self.gifts.push(pending),
+            }
+        }
+        for child in &self.shown {
+            if let Showing::Shown { children, .. } = &mut *child.showing.borrow_mut() {
+                let inner = children.give(focused, drawn, now, told);
+                given = given.or(inner);
+            }
+        }
+        given
+    }
+
+    /// Whether the layer `layer` shows one of `editor`'s views or a child it placed, any number
+    /// of levels deep.
+    fn within(&self, editor: EditorInstanceId, layer: LayerId) -> bool {
+        self.placers
+            .iter()
+            .any(|(placer, shows, _)| *shows == editor && *placer == layer)
+            || self
+                .shown
+                .iter()
+                .filter(|child| child.editor == editor)
+                .any(|child| match &*child.showing.borrow() {
+                    Showing::Shown {
+                        hosted, children, ..
+                    } => {
+                        hosted.app.layer_id(CHILD_SCREEN) == layer
+                            || children.holds(layer)
+                    }
+                    Showing::Opening | Showing::Failed(_) => false,
+                })
+    }
+
+    /// Whether `layer` shows a view of the app these are the children of, or of a child of it.
+    fn holds(&self, layer: LayerId) -> bool {
+        self.placers.iter().any(|(placer, ..)| *placer == layer)
+            || self.shown.iter().any(|child| match &*child.showing.borrow() {
+                Showing::Shown { children, .. } => children.holds(layer),
+                Showing::Opening | Showing::Failed(_) => false,
+            })
+    }
+
+    /// Whether `editor` placed a child `id` of any kind, shown or not.
+    fn placed(&self, editor: EditorInstanceId, id: u64) -> bool {
+        self.told
+            .iter()
+            .any(|((placer, _), children)| *placer == editor && children.iter().any(|child| child.child == id))
+    }
+
+    /// The children the keyboard went into when it went to the layer `layer`: for each placer
+    /// from the innermost out, the handle of its app, the editor and the child of it that holds
+    /// the layer. Empty for a layer that shows none of these children.
+    pub fn focused_into(&self, layer: LayerId) -> Vec<(u64, EditorInstanceId, ChildId)> {
+        for child in &self.shown {
+            let Showing::Shown {
+                hosted, children, ..
+            } = &*child.showing.borrow()
+            else {
+                continue;
+            };
+            let mut into = match hosted.app.layer_id(CHILD_SCREEN) == layer {
+                true => Vec::new(),
+                false => children.focused_into(layer),
+            };
+            if hosted.app.layer_id(CHILD_SCREEN) == layer || !into.is_empty() {
+                into.push((self.instance, child.editor, child.child));
+                return into;
+            }
+        }
+        Vec::new()
     }
 
     /// Whether a child's editor is still being opened, any number of levels deep: its host has
@@ -420,7 +643,7 @@ impl Children {
             };
             shown_child.clip = shown_child.clip.intersect(from_window.bounds(clip));
             shown_child.input.placer = Some(layer.id);
-            let active = takes_input(placement.mode);
+            let active = self.takes_input(child);
             if !active {
                 shown_child.input.hit = Area::Nowhere;
             }
