@@ -1,6 +1,6 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
-# What ./scripts/deploy runs: local-tools deploy, handed the server, the be
+# What ./scripts/deploy runs: be-tool-local deploy, handed the server, the be
 # bundles and the app's downloads, each built for the platform it runs on
 # whatever machine deploys them, in the profile the command asks for
 # (-m release). Each download is zipped on a worker by buck-tools archive under

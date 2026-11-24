@@ -42,5 +42,3 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
 7. **One gate and one disk in servers/.** `gate.html` and `disk.nix` are near copies in
    servers/api and servers/build (labels, the cookie name and the disk id differ). Each becomes
    one function in `common.nix` taking those.
-8. **Names that say what they are.** be-tool-local's Cargo description stops claiming it runs
-   verify (be-tool-verify does), and its binary's name matches the crate the guides name.

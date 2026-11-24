@@ -6,7 +6,7 @@ write_package_value("be3.cargo", {
     "binaries": [
         {
             "crate_root": "src/main.rs",
-            "name": "local-tools",
+            "name": "be-tool-local",
         },
     ],
     "edition": "2024",
@@ -21,7 +21,7 @@ write_package_value("be3.cargo", {
     "platforms": {
         "android-arm64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",
@@ -67,7 +67,7 @@ write_package_value("be3.cargo", {
         },
         "linux-arm64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",
@@ -113,7 +113,7 @@ write_package_value("be3.cargo", {
         },
         "linux-x86_64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",
@@ -159,7 +159,7 @@ write_package_value("be3.cargo", {
         },
         "macos-arm64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",
@@ -205,7 +205,7 @@ write_package_value("be3.cargo", {
         },
         "macos-x86_64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",
@@ -251,7 +251,7 @@ write_package_value("be3.cargo", {
         },
         "windows-arm64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",
@@ -295,7 +295,7 @@ write_package_value("be3.cargo", {
         },
         "windows-x86_64": {
             "binaries": {
-                "local-tools": [
+                "be-tool-local": [
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//crates/be-tool-fix-rust-source:be-tool-fix-rust-source",

@@ -1,12 +1,12 @@
 [package]
 name = "be-tool-local"
-description = "What runs on this machine after a buck2 command: verify, deploy and the fuzz runner"
+description = "The developer and CI commands that run on this machine after a buck2 command: paint previews, deploy, fuzz, stress, rasterize, icons, web pages and APK signing"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "local-tools"
+name = "be-tool-local"
 path = "src/main.rs"
 
 [dependencies]
