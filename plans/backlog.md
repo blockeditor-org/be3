@@ -178,6 +178,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   its way up is not listed" four times (on 1c0ba8a5e, before the worker had a
   memory of its own, so not from it). Done: the cause found and fixed, with the
   line gone from that test's log.
+- **An answer withdraws its hits while it runs again.** When an index's head
+  moves, a standing search runs again (`forget_answers`), and until snippets are
+  cut again the answer shows no hits, so a page reading in that gap briefly shows
+  no results. a_local_account_finds_the_text_it_wrote hit it (fixed in the test by
+  reading hit and snippet in one wait). Done: the previous answer stays until the
+  new one has its snippets, shown by a test that reads across a head change.
 
 ## 12. Large folders
 

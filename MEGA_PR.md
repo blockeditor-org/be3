@@ -25,6 +25,7 @@ Landed on 2026-11-24:
 - `block-rows-columns-2`: every column that names a block is listed with how forget_blocks treats it, and forget_blocks refuses a block a link still grants.
 - `flakes-batch-2`: two flakes fixed at the source (be-server's WAL switch under load waits for the other connection, and a contained panic outside be-host prints one line instead of a 300 MB backtrace); `Streamed` folded into `Blob` with `read_span`; `be_block_type_host::Host` gets no-op defaults.
 - `journaled-edits-restart-carries-4`: a restart carries what was numbered after its seal, on every replica, and journal replay carries a restart whatever seal the journal starts from.
+- `editor-range-reads-outlive-reopen-3`: an editor's log read, part put, append and range read are each answered once across a replica reopen, an append never lands twice, and a release carries no editor calls.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
