@@ -68,7 +68,9 @@ Notes on particular calls:
 - Files are picked with beui's own picker (guides/beui/components.md, Inputs and
   forms), which
   inside an app forwards to the host's; `be_sdk_beui::FileChooser` adds the
-  import step. `save_file` saves through the platform's dialog or as a
+  import step. A file type's editor makes and replaces its block from a file
+  with `ContentFileCreation` and `ContentFileReplace`, filtered by its
+  `BlobFile::FILE_EXTENSIONS` and `MIME_TYPES`. `save_file` saves through the platform's dialog or as a
   browser download.
 - `read_plain_file(block)` is a block's plain-file form from its type module
   (guides/type_modules.md); renders such as PNG or PDF are the editor's own and go
