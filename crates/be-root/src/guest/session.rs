@@ -7,18 +7,21 @@
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc, task::Poll, time::Duration};
 
 use be_lib_geometry::pos2;
-use be_lib_layers::{Area, Layer, LayerInput};
+use be_lib_layers::{Area, Layer, LayerId, LayerInput};
 use be_sdk_api::{
     EditorInstanceId, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceFormat,
     SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
-use be_sdk_root::{BlockSpawn, CHILD_SCREEN, Children, Embedded, Hosted, SpawnFailure, Spawning};
+use be_sdk_root::{
+    BlockSpawn, CHILD_SCREEN, Children, Delivery, Embedded, Hosted, KeyboardMove, SpawnFailure,
+    Spawning,
+};
 use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign};
 
-use be_wasm_root_api::ShownBlock;
+use be_wasm_root_api::{PlacerEvent, ShownBlock};
 
 use super::{Root, Window, host};
 use crate::{LOADING_APP, NOT_OPENED_TITLE, SESSION_NOTICE_LAYER};
@@ -290,6 +293,67 @@ impl Root {
             .collect()
     }
 
+    /// Does `act` with the children the session's editor places, while it runs.
+    fn with_children<R>(&self, act: impl FnOnce(&mut Children) -> R) -> Option<R> {
+        match &mut *self.session.borrow_mut() {
+            Some(Session {
+                state: Showing::Running(_),
+                children,
+                ..
+            }) => Some(act(children)),
+            _ => None,
+        }
+    }
+
+    /// Takes back the active children the presses and Escapes routed since took back
+    /// (`Embedding::take_pressed`, `Children::revoke`), whose placers hear it with the next
+    /// frame.
+    pub(super) fn revoke_children(&self) {
+        let pressed = self.embedding.borrow_mut().take_pressed();
+        if pressed.is_empty() {
+            return;
+        }
+        self.with_children(|children| children.revoke(&pressed));
+        self.waker.wake();
+    }
+
+    /// Moves the keyboard where the session's editor's children ask it to go
+    /// (`Children::keyboard`), with the layers just drawn, `drawn`: what the layers it moved
+    /// from and to hear.
+    pub(super) fn keyboard_into_children(&self, drawn: &[LayerId]) -> Vec<Delivery> {
+        let focused = self.embedding.borrow().focused(None).map(|layer| layer.id);
+        let moved = self
+            .with_children(|children| children.keyboard(focused, &|layer| drawn.contains(&layer)))
+            .flatten();
+        match moved {
+            Some(KeyboardMove::Into(layer)) if Some(layer) != focused => {
+                self.embedding.borrow_mut().focus(None, Some(layer))
+            }
+            Some(KeyboardMove::Out) => self.embedding.borrow_mut().focus(None, None),
+            Some(KeyboardMove::Into(_)) | None => Vec::new(),
+        }
+    }
+
+    /// Tells the editors placing the child the keyboard went into, each time it goes into one
+    /// (`Embedding::take_focused`): each hears which of its children holds it
+    /// (`child-focused`), from the innermost out.
+    pub(super) fn follow_focus(&self) {
+        let Some(focused) = self.embedding.borrow_mut().take_focused() else {
+            return;
+        };
+        let into = self
+            .with_children(|children| children.focused_into(focused))
+            .unwrap_or_default();
+        if into.is_empty() {
+            return;
+        }
+        for (instance, editor, child) in into {
+            tell_placer(instance, editor.0, PlacerEvent::ChildFocused(child.0));
+        }
+        // Its host takes what it was told with the next frame.
+        self.waker.wake();
+    }
+
     /// The session's notice over its editor, while it shows one: taking every press, for its
     /// Reload.
     pub(super) fn session_notice_layer(&self) -> Option<Layer> {
@@ -349,6 +413,15 @@ async fn both<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut B
         }
     })
     .await;
+}
+
+/// Tells the editor `editor`, opened in the app whose handle is `instance`, `event`.
+fn tell_placer(instance: u64, editor: u64, event: PlacerEvent) {
+    let told = host::tell_placer(instance, editor, event);
+    be_wasm_ops::guest::spawn(async move {
+        // A host that stopped answering stops the root too.
+        let _ = told.await;
+    });
 }
 
 /// Whether `left` finished before `right`, polling both until one does.
