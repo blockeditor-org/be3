@@ -46,6 +46,7 @@ Landed on 2026-11-24:
 - `backrefs-flake`: the backrefs test waits for the server to make the folder and child before it edits the folder (test timing; 18/200 → 0/800).
 - `host-adapter-4g7b2-tests`: tests for agent undo, a deferred agent and the stop after a protocol break; fixes a deferred agent taking the credentials of the one made before it.
 - `dock-defaults`: docks derive ids (stepping past held keys), a `stage` short form, chrome panes, standard panels and side panel sizes; editors moved to the short form.
+- `host-adapter-4g7b3a`: be-root shows the block children its session's editor places, opens the editor each placement names, settles them by key, and takes presses only where a child shows.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
