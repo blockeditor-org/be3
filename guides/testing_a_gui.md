@@ -368,8 +368,8 @@ Debugging:
   part does, through `//crates/be-tool-run-test:bin` with `--one-test`, the sysroot's
   `--library-path` and `-- HARNESS --exact MODULE::TEST`, many copies at once (`xargs -P 32`),
   keeping only failing runs' output; count failures before and after as for `stress`. A test
-  that panics on purpose costs a symbolized backtrace locally when `RUST_BACKTRACE` is set, as
-  in this VM, but not on the build server, so unset it unless the backtrace is the point.
+  that panics on purpose costs a symbolized backtrace locally when `RUST_BACKTRACE` is set in
+  your shell, but not on the build server, so unset it unless the backtrace is the point.
 - A symptom that shows only in a log (a warning line, no failure): `./scripts/test` prints
   nothing of a passing host test, and `stress` keeps only failing runs' logs, so make the line
   panic for the moment (an `eprintln!` turned `panic!`) and run `stress NAME`: each run that

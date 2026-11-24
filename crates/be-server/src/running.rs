@@ -110,7 +110,13 @@ impl Running {
         }
         if let Some(handle) = self.handle.take() {
             handle.abort();
-            let _ = handle.await;
+            // A server that stopped on an error panicked with it ("the test server stopped"):
+            // the test that stops or restarts it fails with that, not with what came of it.
+            if let Err(error) = handle.await
+                && error.is_panic()
+            {
+                std::panic::resume_unwind(error.into_panic());
+            }
         }
     }
 
