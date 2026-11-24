@@ -7,7 +7,7 @@ pub fn extension(name: &str) -> String {
     }
 }
 
-const MEDIA_TYPES: [(&str, &str); 18] = [
+const MEDIA_TYPES: [(&str, &str); 22] = [
     ("png", "image/png"),
     ("jpg", "image/jpeg"),
     ("jpeg", "image/jpeg"),
@@ -17,9 +17,13 @@ const MEDIA_TYPES: [(&str, &str); 18] = [
     ("tiff", "image/tiff"),
     ("tif", "image/tiff"),
     ("ico", "image/x-icon"),
+    ("pnm", "image/x-portable-anymap"),
+    ("tga", "image/x-tga"),
     ("mp3", "audio/mpeg"),
     ("wav", "audio/wav"),
     ("ogg", "audio/ogg"),
+    ("oga", "audio/ogg"),
+    ("m4a", "audio/mp4"),
     ("flac", "audio/flac"),
     ("pdf", "application/pdf"),
     ("zip", "application/zip"),

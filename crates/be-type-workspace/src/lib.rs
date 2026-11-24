@@ -11,6 +11,8 @@ use be_sdk_type_guest::BlobFile;
 
 impl BlobFile for AnyFile {
     const ANY_FILE: bool = true;
+    const FILE_EXTENSIONS: &'static [&'static str] = &[];
+    const MIME_TYPES: &'static [&'static str] = &[];
 
     fn header(name: &str, _: &[u8]) -> FileHeader {
         FileHeader {

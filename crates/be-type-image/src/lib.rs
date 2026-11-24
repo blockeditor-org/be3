@@ -1,6 +1,7 @@
 mod image;
 
 pub use image::{ImageContent, ImageFile, ImageHeader, ImageOp};
+pub use be_sdk_type_guest::BlobFile;
 
 be_sdk_type_guest::be_block_types![ImageContent { file }];
 

@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use super::*;
 
 use be_block_content::{BlockMetadata, INTRINSIC_NAME, MetaKey, NAME};

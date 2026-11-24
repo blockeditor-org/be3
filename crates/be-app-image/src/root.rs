@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;

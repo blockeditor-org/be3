@@ -2,7 +2,7 @@ use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayo
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{ContentFileReplace, Editor, SIDE_PANEL_WIDTH};
 use be_type_deterministic_game::GameModuleContent;
 use tabletop_host::Game;
 
@@ -99,33 +99,17 @@ pub fn ModuleView(editor: Editor) -> NodeId {
 
 #[component]
 fn ModulePanel(editor: Editor) -> NodeId {
-    let chooser = FileChooser::new(filter(), imported);
-    chooser.on_chosen(move |chooser| {
-        if let Some(replacement) = chooser.take() {
-            editor.replace_content(editor.block_id(), &replacement);
-        }
-    });
-
-    let read_only = editor.read_only();
-    let busy = chooser.busy();
-    let error = chooser.error();
-    let replace = move || chooser.open();
     view! {
         <Frame fill=ColorRole::Surface>
             <Scroll>
                 <Frame padding=PADDING>
-                    <List spacing=SPACING>
-                        <Button
-                            label="Replace module..."
-                            variant=ButtonVariant::Secondary
-                            disabled={move || busy.get() || read_only.get()}
-                            @test_id={"game-module.replace"}
-                            on_click={replace}
-                        />
-                        <Show value={error}>|reason: ReadSignal<String>|
-                            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                        </Show>
-                    </List>
+                    <ContentFileReplace
+                        editor
+                        label="Replace module…"
+                        id_prefix="game-module"
+                        filter={filter()}
+                        import={imported}
+                    />
                 </Frame>
             </Scroll>
         </Frame>

@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use super::*;
 
 fn read(block: Uuid) -> Result<be_block_type_host::PlainFile, String> {

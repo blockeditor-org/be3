@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::{BlockInfo, BlockParent, EditorHost};
 use be_sdk_test::BeuiTest;

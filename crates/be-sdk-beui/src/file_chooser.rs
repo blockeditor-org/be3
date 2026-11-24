@@ -4,7 +4,7 @@ use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 
-use crate::Creation;
+use crate::{Creation, Editor};
 use beui::{Align, Direction, PickedFile};
 
 const SPACING: Space = Space::Md;
@@ -184,5 +184,53 @@ where
                 </Text>
             </Show>
         </DialogBody>
+    }
+}
+
+/// "Replace …" for a file type's editor: a button that picks a file, imports it with `import`
+/// and replaces the block's content with it (`Editor::replace_content`), and the reason an
+/// import failed. It is disabled while a file is read and for a reader. `on_replaced` runs
+/// once the content is replaced (the PDF goes back to its first page).
+#[component]
+pub fn ContentFileReplace<C>(
+    editor: Editor,
+    label: String,
+    id_prefix: String,
+    filter: FileFilter,
+    import: Func<PickedFile, Result<C, String>>,
+    on_replaced: Option<Callback<()>>,
+) -> NodeId
+where
+    C: be_block_content::BlockContent + 'static,
+{
+    let chooser = FileChooser::new(filter, move |file| import.call(file));
+    chooser.on_chosen(move |chooser| {
+        if let Some(replacement) = chooser.take() {
+            editor.replace_content(editor.block_id(), &replacement);
+            if let Some(replaced) = on_replaced {
+                replaced.call(());
+            }
+        }
+    });
+    let read_only = editor.read_only();
+    let busy = chooser.busy();
+    let failure = chooser.error();
+    let replace_id = format!("{id_prefix}.replace");
+    let error_id = format!("{id_prefix}.replace-error");
+    view! {
+        <List spacing=SPACING>
+            <Button
+                label
+                variant=ButtonVariant::Secondary
+                disabled={move || read_only.get() || busy.get()}
+                @test_id={replace_id}
+                on_click={move || chooser.open()}
+            />
+            <Show value={failure}>|reason: ReadSignal<String>|
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>
+                    {reason}
+                </Text>
+            </Show>
+        </List>
     }
 }
