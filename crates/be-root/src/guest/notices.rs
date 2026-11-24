@@ -30,12 +30,14 @@ pub(super) fn answer(id: u64, action: Option<String>) {
     });
 }
 
-/// Its host's notices as toasts at the top right of its surface, each gone at once from here
+/// Its host's notices as toasts at the top right of `area`, its whole surface, each gone at once from here
 /// when dismissed, as its host lets go of it.
 #[component]
-pub(super) fn Notices(toasts: Signal<Vec<Toast>>, saving: Signal<SavingState>) -> NodeId {
-    let (width, height) = TOAST_AREA;
-    let area = Rect::from_min_size(Pos2::ZERO, vec2(width as f32, height as f32));
+pub(super) fn Notices(
+    toasts: Signal<Vec<Toast>>,
+    saving: Signal<SavingState>,
+    area: Signal<Rect>,
+) -> NodeId {
     let slow = slow_save(saving);
     let shown = create_memo(move || {
         let mut shown = toasts.get();
@@ -45,7 +47,7 @@ pub(super) fn Notices(toasts: Signal<Vec<Toast>>, saving: Signal<SavingState>) -
                 Toast {
                     id: SLOW_SAVE_TOAST,
                     title: SLOW_SAVE_TITLE.to_owned(),
-                    message: "This is taking longer than usual. Keep it open until it finishes."
+                    message: "This is taking longer than usual. Keep be-host open until it finishes."
                         .to_owned(),
                     sticky: true,
                     ..Toast::default()
@@ -56,7 +58,7 @@ pub(super) fn Notices(toasts: Signal<Vec<Toast>>, saving: Signal<SavingState>) -
     });
     view! {
         <Toasts
-            anchor={OverlayAnchor::Rect(area)}
+            anchor={move || OverlayAnchor::Rect(area.get())}
             edge=Edge::TopEnd
             toasts={shown}
             on_dismiss={move |id: u64| {

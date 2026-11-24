@@ -1,12 +1,18 @@
 //! The lock screen over everything while the session is locked.
 
 use super::*;
+use beui::datetime::{DateTime, HourCycle};
 
-/// The lock screen: whose session it is, a password field it focuses, why the last password
-/// was refused, and what the host offers besides unlocking. What is typed is handed to the host
-/// to check, and the field cleared as it is.
+/// The lock screen, as be-host's own shows it: the time and date at the host's UTC offset
+/// (`utc_offset`, seconds east of UTC), whose session it is, a password field it focuses, why
+/// the last password was refused, and what the host offers besides unlocking. What is typed is
+/// handed to the host to check, and the field cleared as it is.
 #[component]
-pub(super) fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> NodeId {
+pub(super) fn LockCard(
+    state: Signal<LockState>,
+    shown_at: Signal<Duration>,
+    utc_offset: i32,
+) -> NodeId {
     let password = create_signal(String::new());
     let user = create_memo(move || state.with(|state| state.user.clone()));
     let checking = create_memo(move || state.with(|state| state.checking));
@@ -14,6 +20,13 @@ pub(super) fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> 
     let powers = create_memo(move || state.with(|state| state.power.clone()));
     let wait = retry_wait(state, shown_at);
     let slots = create_memo(move || (0..powers.with(Vec::len)).collect::<Vec<usize>>());
+    let focused = create_memo(move || !checking.get());
+    let clock = clock(utc_offset);
+    let time = create_memo(move || clock.get().time.format(HourCycle::H24));
+    let date = create_memo(move || {
+        let date = clock.get().date;
+        format!("{}, {} {}", date.weekday().name(), date.day, date.month_name())
+    });
     let submit = move |typed: String| {
         if typed.is_empty() || checking.get_untracked() {
             return;
@@ -23,26 +36,34 @@ pub(super) fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> 
     };
     view! {
         <Frame width=Length::FILL height=Length::FILL align=Align2::CENTER padding=Space::Lg>
-            <List spacing=Space::Md align=Align::Center>
-                <Text style=TextStyle::TITLE>{user}</Text>
-                <TextInput
-                    value={password}
-                    placeholder="Password"
-                    label="Password"
-                    kind={InputKind::Password}
-                    disabled={checking}
-                    focused=true
-                    on_submit={submit}
-                />
-                <Show value={move || checking.get() && refused.with(Option::is_none)}>
-                    <Text style=TextStyle::CAPTION>"Checking…"</Text>
-                </Show>
-                <Show value={refused}>|reason: ReadSignal<String>|
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                </Show>
-                <Show value={wait}>|left: ReadSignal<String>|
-                    <Text style=TextStyle::CAPTION>{left}</Text>
-                </Show>
+            <List spacing=Space::Xl3 align=Align::Center>
+                <List spacing=Space::Md align=Align::Center>
+                    <Text style=TextStyle::DISPLAY>{time}</Text>
+                    <Text color=TextColor::Muted>{date}</Text>
+                </List>
+                <List spacing=Space::Md align=Align::Center>
+                    <Text style=TextStyle::TITLE>{user}</Text>
+                    <Frame width={Size::Custom(280.0)}>
+                        <TextInput
+                            value={password}
+                            placeholder="Password"
+                            label="Password"
+                            kind={InputKind::Password}
+                            disabled={checking}
+                            focused={focused}
+                            on_submit={submit}
+                        />
+                    </Frame>
+                    <Show value={move || checking.get() && refused.with(Option::is_none)}>
+                        <Text style=TextStyle::CAPTION>"Checking…"</Text>
+                    </Show>
+                    <Show value={refused}>|reason: ReadSignal<String>|
+                        <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+                    </Show>
+                    <Show value={wait}>|left: ReadSignal<String>|
+                        <Text style=TextStyle::CAPTION>{left}</Text>
+                    </Show>
+                </List>
                 <List direction=Direction::Horizontal spacing=Space::Xs>
                     <ForEach value={slots}>|index: usize| {
                         let action = create_memo(move || {
@@ -67,6 +88,28 @@ pub(super) fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> 
             </List>
         </Frame>
     }
+}
+
+/// The wall clock at `utc_offset` seconds east of UTC, to the minute, ticking over as each
+/// minute starts.
+fn clock(utc_offset: i32) -> ReadSignal<DateTime> {
+    const SECONDS_PER_MINUTE: u64 = 60;
+    let unix = beui::reactive::wall_clock;
+    let shown = move || {
+        let seconds = i64::try_from(unix().as_secs()).unwrap_or(0) + i64::from(utc_offset);
+        DateTime::from_unix(seconds)
+    };
+    let until_next_minute = move || {
+        let into = unix().as_secs() % SECONDS_PER_MINUTE;
+        Duration::from_secs(SECONDS_PER_MINUTE - into)
+    };
+    let clock = create_signal(shown());
+    let ticking = create_timer(move || {
+        clock.set(shown());
+        Some(until_next_minute())
+    });
+    ticking.start(until_next_minute());
+    clock.read_only()
 }
 
 /// "Try again in N s" while the host makes the person wait after failed passwords (`retry-at`,

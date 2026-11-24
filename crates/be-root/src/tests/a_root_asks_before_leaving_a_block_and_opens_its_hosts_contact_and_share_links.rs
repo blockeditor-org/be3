@@ -121,7 +121,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     step(&mut root, time);
 
     // The host asks before leaving a block an editor asked to leave.
-    root.show_core(leaving(false));
+    show_core(&mut root, leaving(false));
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_leaving_a_block",
         painting(&mut root, &mut time),
@@ -132,23 +132,23 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         matches!(commands.as_slice(), [CoreCommand::ConfirmLeave(NOTES)]),
         "Leave leaves it: {commands:?}"
     );
-    root.show_core(leaving(true));
+    show_core(&mut root, leaving(true));
     assert!(shows_dialog(&mut root, &mut time), "it stays while leaving");
-    root.show_core(CoreView::default());
+    show_core(&mut root, CoreView::default());
     let commands = asks(&mut root, &mut time, Vec::new());
     assert!(
         commands.is_empty(),
         "left, it goes asking nothing more: {commands:?}"
     );
     assert!(!shows_dialog(&mut root, &mut time));
-    root.show_core(leaving(false));
+    show_core(&mut root, leaving(false));
     let _ = asks(&mut root, &mut time, Vec::new());
     let commands = asks(&mut root, &mut time, key(Key::Escape));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::CancelLeave]),
         "Escape stays: {commands:?}"
     );
-    root.show_core(CoreView::default());
+    show_core(&mut root, CoreView::default());
     let _ = asks(&mut root, &mut time, Vec::new());
 
     // F12 opens the contacts afresh; New link makes a contact link, which comes back once.
@@ -157,7 +157,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         matches!(commands.as_slice(), [CoreCommand::ForgetContactLink]),
         "opening them starts afresh: {commands:?}"
     );
-    root.show_core(contacts(None));
+    show_core(&mut root, contacts(None));
     let listed = painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_lists_its_hosts_contacts", listed.clone());
     // While it is being made the contacts stay open: Escape waits, so the link is never left
@@ -186,7 +186,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
 
     // A contact link opened: who it is from, to connect with.
     let _ = menu(&mut root, &mut time, Entry::Contacts);
-    root.show_core(contacts(Some(ContactCard {
+    show_core(&mut root, contacts(Some(ContactCard {
         name: "Ada".to_owned(),
         email: "ada@example.com".to_owned(),
     })));
@@ -194,23 +194,24 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         "a_root_asks_to_connect_with_a_contact",
         painting(&mut root, &mut time),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(296.0, 150.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(566.0, 248.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::AcceptContact]),
         "Connect connects: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(202.0, 150.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(477.0, 248.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ForgetContactLink]),
-        "Not now puts it aside: {commands:?}"
+        "Cancel puts it aside: {commands:?}"
     );
 
     // Removing a contact asks first.
-    root.show_core(contacts(None));
+    show_core(&mut root, contacts(None));
     let _ = painting(&mut root, &mut time);
-    let commands = asks(&mut root, &mut time, click(pos2(324.0, 134.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(593.0, 270.0)));
     assert!(commands.is_empty(), "asking removes no one: {commands:?}");
-    let commands = asks(&mut root, &mut time, click(pos2(296.0, 163.0)));
+    beui_paint_snapshot::assert_painting("a_root_asks_before_removing_a_contact", painting(&mut root, &mut time));
+    let commands = asks(&mut root, &mut time, click(pos2(566.0, 340.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::RemoveContact(GRACE)]),
         "Remove removes them: {commands:?}"
@@ -235,7 +236,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         }
         other => panic!("Open opens the link: {other:?}"),
     }
-    root.show_core(shared(true));
+    show_core(&mut root, shared(true));
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_opening_a_share_link",
         painting(&mut root, &mut time),
@@ -245,7 +246,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         matches!(commands.as_slice(), [CoreCommand::AcceptShareLink]),
         "Open it opens what it shares: {commands:?}"
     );
-    root.show_core(shared(false));
+    show_core(&mut root, shared(false));
     beui_paint_snapshot::assert_painting(
         "a_root_shows_what_a_share_link_opened",
         painting(&mut root, &mut time),

@@ -139,6 +139,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-quoted-name:be-lib-quoted-name",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-root-accounts-ui:be-root-accounts-ui",
                 "//crates/be-sdk-api:be-sdk-api",

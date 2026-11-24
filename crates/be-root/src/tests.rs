@@ -5,7 +5,7 @@ use be_wasm_host::Host;
 use be_wasm_root_api::{FrameDone, FrameRequest};
 use be_wasm_root_host::{Password, Root};
 
-use crate::{MENU_ORIGIN, MENU_SURFACE};
+use crate::{MENU_BUTTON, MENU_SURFACE};
 
 mod a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_links;
 mod a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once;
@@ -26,24 +26,92 @@ const BASE_LIBRARY: &[u8] = include_bytes!(env!("BASE_LIBRARY_WASM"));
 
 const BEUI_LIBRARY: &[u8] = include_bytes!(env!("BEUI_LIBRARY_WASM"));
 
+thread_local! {
+    /// The size of the window the root is drawn in, in points, a pixel to a point.
+    static WINDOW: std::cell::Cell<(f32, f32)> = const { std::cell::Cell::new((800.0, 600.0)) };
+}
+
+/// The window the root draws in this frame: 800 by 600 points, unless `resize` changed it.
+fn window() -> be_wasm_root_api::WindowSize {
+    let (width, height) = WINDOW.get();
+    be_wasm_root_api::WindowSize {
+        width,
+        height,
+        pixels_per_point: 1.0,
+    }
+}
+
+/// Makes the window `width` by `height` points from the next frame on.
+fn resize(width: f32, height: f32) {
+    WINDOW.set((width, height));
+}
+
 /// Far enough off that a root that answers at all answers before it.
 const PATIENT: Duration = Duration::from_secs(60);
 
-/// What the root's menu holds, in its order, which `menu` picks by.
+/// What the root's menu offers, which `menu` picks by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Entry {
     Unsent,
     Contacts,
     ShareLink,
-    Invitations,
+    Invite,
     Members,
+    Invitations,
     Agents,
     Sessions,
     SwitchOrganization,
     NewRecoveryPhrase,
     ManageAccounts,
-    Lock,
     Performance,
+}
+
+thread_local! {
+    /// The block stack's view the root was shown last, which says what its menu offers.
+    static SHOWN: std::cell::RefCell<be_wasm_root_api::CoreView> =
+        std::cell::RefCell::new(be_wasm_root_api::CoreView::default());
+}
+
+/// Shows the root `view` as its host's block stack would, keeping it for `menu`.
+fn show_core(root: &mut Root, view: be_wasm_root_api::CoreView) {
+    SHOWN.with(|shown| *shown.borrow_mut() = view.clone());
+    root.show_core(view);
+}
+
+/// The rows the root's menu shows for what it was shown last, in its order, each the entry it
+/// is or none for one that is not an entry the tests pick: its status, the escrow warning and
+/// the blocks kept hosting. Each is a stop of the menu's keyboard, disabled or not.
+fn offered() -> Vec<Option<Entry>> {
+    SHOWN.with(|shown| {
+        let view = shown.borrow();
+        let mut rows = vec![None];
+        if !view.unsent.is_empty() {
+            rows.push(Some(Entry::Unsent));
+        }
+        if view.escrow_warning.is_some() {
+            rows.push(None);
+        }
+        rows.extend(view.hosting.iter().map(|_| None));
+        rows.extend([Some(Entry::Contacts), Some(Entry::ShareLink)]);
+        if view.company {
+            rows.push(Some(Entry::Invite));
+        }
+        if view.administrator {
+            rows.extend([Some(Entry::Members), Some(Entry::Invitations)]);
+        }
+        rows.extend(
+            [
+                Entry::Agents,
+                Entry::Sessions,
+                Entry::SwitchOrganization,
+                Entry::NewRecoveryPhrase,
+                Entry::ManageAccounts,
+                Entry::Performance,
+            ]
+            .map(Some),
+        );
+        rows
+    })
 }
 
 /// be-root loaded as be-host loads a root, as an app is, started on this thread with beui's
@@ -99,6 +167,8 @@ fn own_paintings(root: &mut Root, time: u64) -> Vec<(u64, beui_paint_format::Pai
         FrameRequest {
             time,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now() + PATIENT,
     )
@@ -141,6 +211,8 @@ fn step(root: &mut Root, time: u64) -> FrameDone {
         FrameRequest {
             time,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now() + PATIENT,
     )
@@ -234,14 +306,19 @@ fn hand(root: &mut Root, time: &mut u64, events: Vec<be_lib_ui_types::input::Tim
 
 /// Where the root's menu button is, in the window's points: at its top right.
 fn menu_button() -> be_lib_geometry::Pos2 {
-    be_lib_geometry::pos2(MENU_ORIGIN.0 + 256.0, MENU_ORIGIN.1 + 24.0)
+    let (width, _) = WINDOW.get();
+    be_lib_geometry::pos2(width - MENU_BUTTON / 2.0, MENU_BUTTON / 2.0)
 }
 
 /// Opens the root's menu with a press of its button, then picks `entry` from it with the
 /// keyboard, as a person may, answering what it asked of the block stack.
 fn menu(root: &mut Root, time: &mut u64, entry: Entry) -> Vec<be_wasm_root_api::CoreCommand> {
+    let at = offered()
+        .iter()
+        .position(|offered| *offered == Some(entry))
+        .unwrap_or_else(|| panic!("the menu offers no {entry:?} for what the root was shown"));
     hand(root, time, click(menu_button()));
-    for _ in 0..=entry as usize {
+    for _ in 0..=at {
         hand(
             root,
             time,

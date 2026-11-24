@@ -12,6 +12,8 @@ fn a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_as
             FrameRequest {
                 time,
                 wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             Instant::now() + PATIENT,
         )

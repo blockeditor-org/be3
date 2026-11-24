@@ -11,6 +11,8 @@ fn a_frame_past_its_deadline_draws_without_the_child_it_waits_for() {
             FrameRequest {
                 time: HANGS_CHILD,
                 wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             started,
         )

@@ -83,6 +83,8 @@ fn reauthenticating(signing_in: Option<SigningIn>) -> CoreView {
 
 fn invitations() -> CoreView {
     CoreView {
+        organization: "Analytical Engines".to_owned(),
+        administrator: true,
         invitations: InvitationsArea {
             listed: true,
             rows: vec![
@@ -123,7 +125,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     step(&mut root, time);
 
     // The host asks before discarding unsaved changes: Keep, or Escape, keeps them.
-    root.show_core(discarding(Some(DiscardReason::SwitchOrganization)));
+    show_core(&mut root, discarding(Some(DiscardReason::SwitchOrganization)));
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_its_host_discards_unsaved_changes",
         dialog_painting(&mut root, &mut time),
@@ -133,14 +135,14 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         matches!(commands.as_slice(), [CoreCommand::CancelDiscard]),
         "Escape keeps the changes: {commands:?}"
     );
-    root.show_core(discarding(None));
+    show_core(&mut root, discarding(None));
     assert!(
         !shows_dialog(&mut root, &mut time),
         "answered, the question goes"
     );
 
     // Confirmed, they are discarded, and the question going asks nothing more.
-    root.show_core(discarding(Some(DiscardReason::Close)));
+    show_core(&mut root, discarding(Some(DiscardReason::Close)));
     let _ = settle(&mut root, &mut time);
     let _ = press(&mut root, &mut time, Key::Tab);
     let commands = press(&mut root, &mut time, Key::Enter);
@@ -148,15 +150,15 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         matches!(commands.as_slice(), [CoreCommand::ConfirmDiscard]),
         "Discard and close discards them: {commands:?}"
     );
-    root.show_core(discarding(None));
+    show_core(&mut root, discarding(None));
     let commands = settle(&mut root, &mut time);
     assert!(commands.is_empty(), "{commands:?}");
     assert!(!shows_dialog(&mut root, &mut time));
 
     // Withdrawn unanswered, it goes answering nothing.
-    root.show_core(discarding(Some(DiscardReason::Close)));
+    show_core(&mut root, discarding(Some(DiscardReason::Close)));
     let _ = settle(&mut root, &mut time);
-    root.show_core(discarding(None));
+    show_core(&mut root, discarding(None));
     let commands = settle(&mut root, &mut time);
     assert!(
         commands.is_empty(),
@@ -166,7 +168,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
 
     // An account's sign-in ended: Continue in browser signs in again, which shows as adding
     // an account does, and closes once done, stopping nothing.
-    root.show_core(reauthenticating(None));
+    show_core(&mut root, reauthenticating(None));
     beui_paint_snapshot::assert_painting(
         "a_root_asks_to_sign_in_again_to_its_hosts_account",
         dialog_painting(&mut root, &mut time),
@@ -176,7 +178,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         matches!(commands.as_slice(), [CoreCommand::Reauthenticate]),
         "Continue in browser signs in again: {commands:?}"
     );
-    root.show_core(reauthenticating(Some(SigningIn {
+    show_core(&mut root, reauthenticating(Some(SigningIn {
         browser: Some(BrowserSignIn {
             url: "https://example.com/auth".to_owned(),
             code: "WXYZ-1234".to_owned(),
@@ -188,7 +190,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         "the sign-in shows, stopping nothing: {commands:?}"
     );
     assert!(shows_dialog(&mut root, &mut time));
-    root.show_core(CoreView::default());
+    show_core(&mut root, CoreView::default());
     let commands = settle(&mut root, &mut time);
     assert!(
         commands.is_empty(),
@@ -200,23 +202,23 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     );
 
     // Closing the question leaves the account for the accounts, as be-host's own does.
-    root.show_core(reauthenticating(None));
+    show_core(&mut root, reauthenticating(None));
     let _ = settle(&mut root, &mut time);
     let commands = press(&mut root, &mut time, Key::Escape);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::SwitchAccount]),
         "closed, it switches account: {commands:?}"
     );
-    root.show_core(CoreView::default());
+    show_core(&mut root, invitations());
     let _ = settle(&mut root, &mut time);
 
-    // F9 lists the invitations, which hold no link.
+    // An administrator's menu lists the invitations, which hold no link.
     let commands = menu(&mut root, &mut time, Entry::Invitations);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ListInvitations]),
         "opening them lists them: {commands:?}"
     );
-    root.show_core(invitations());
+    show_core(&mut root, invitations());
     let listed = dialog_painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_lists_its_hosts_invitations", listed.clone());
 
@@ -253,11 +255,11 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     let copied = root.take_copies();
     assert_eq!(copied.len(), 1, "Copy copies the link once");
 
-    // Done drops it, back in the list. A row's Link asks for its link again; one the host
+    // Done drops it, back in the list. A row's Show link asks for its link again; one the host
     // could not make (answered with nothing) shows none, the list asking afresh.
     root.input(
         None,
-        be_lib_ui_types::input::encode(&click(pos2(91.0, 168.0))),
+        be_lib_ui_types::input::encode(&click(pos2(193.0, 383.0))),
     )
     .expect("the root takes input");
     assert_eq!(
@@ -269,7 +271,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     let _ = settle(&mut root, &mut time);
     root.input(
         None,
-        be_lib_ui_types::input::encode(&click(pos2(222.0, 128.0))),
+        be_lib_ui_types::input::encode(&click(pos2(505.0, 297.0))),
     )
     .expect("the root takes input");
     let again = requested(&mut root, &mut time);
@@ -286,7 +288,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     // Answered, it may ask again.
     root.input(
         None,
-        be_lib_ui_types::input::encode(&click(pos2(222.0, 128.0))),
+        be_lib_ui_types::input::encode(&click(pos2(505.0, 297.0))),
     )
     .expect("the root takes input");
     let retried = requested(&mut root, &mut time);
@@ -299,7 +301,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     assert!(commands.is_empty(), "{commands:?}");
     root.input(
         None,
-        be_lib_ui_types::input::encode(&click(pos2(299.0, 128.0))),
+        be_lib_ui_types::input::encode(&click(pos2(599.0, 297.0))),
     )
     .expect("the root takes input");
     let commands = settle(&mut root, &mut time);

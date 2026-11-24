@@ -5,7 +5,8 @@ use super::*;
 /// The question of keeping display settings that just changed: Keep, or Revert. It counts down
 /// on its clock, which the root pins to its host's frame clock, from `shown_at`, the host's
 /// time it opened at, to `revert-at`, when the host reverts them itself; reaching it, it closes
-/// answering not kept, a courtesy the host does not wait for. Escape reverts at once.
+/// answering not kept, a courtesy the host does not wait for. Escape and a press on the scrim
+/// revert at once, as be-host's prompt does (`Presented`).
 #[component]
 pub(super) fn KeepDisplayDialog(
     asked: DisplayQuestion,
@@ -30,32 +31,11 @@ pub(super) fn KeepDisplayDialog(
         1 => "Reverting in 1 second.".to_owned(),
         seconds => format!("Reverting in {seconds} seconds."),
     });
-    on_key(
-        KeyAt::Node(component_node()),
-        KeyPhase::Bubble,
-        KeyReveal::Focus,
-        move |event| {
-            let closes = event
-                .press()
-                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
-            if closes {
-                done.call(Closed::Reverted(round));
-            }
-            closes
-        },
-    );
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <DialogBody
                 kind=DialogKind::Alert
                 title=KEEP_DISPLAY_TITLE
-                scrolls=false
                 actions={vec![
                     DialogAction::primary("Keep", move || done.call(Closed::Kept(round))),
                     DialogAction::cancel("Revert"),
@@ -112,13 +92,7 @@ pub(super) fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
         },
     );
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <Show
                 value={asks}
                 fallback={move || view! {
@@ -128,6 +102,9 @@ pub(super) fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
                         <List spacing=Space::Md>
+                            <Text style=TextStyle::CAPTION>
+                                "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
+                            </Text>
                             <ForEach
                                 value={edits}
                                 key={|edit: &UnsentEdit| edit.block}
@@ -172,7 +149,6 @@ pub(super) fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
                 <DialogBody
                     kind=DialogKind::Alert
                     title=DISCARD_UNSENT_TITLE
-                    scrolls=false
                     actions={vec![
                         DialogAction::destructive("Discard", discard),
                         DialogAction::cancel("Keep"),
@@ -188,7 +164,7 @@ pub(super) fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
 
 /// Another device's request to pair, the host's question: the code that device shows, typed as
 /// a secret and cleared, to approve it, which stays until the host no longer lists the request;
-/// or Not now, after which the root asks about it no more.
+/// or Ignore, after which the root asks about it no more, as be-host's Add a device does.
 #[component]
 pub(super) fn PairingDialog(core: Signal<CoreView>, id: u64, done: Callback<Closed>) -> NodeId {
     let request = create_memo(move || {
@@ -205,11 +181,14 @@ pub(super) fn PairingDialog(core: Signal<CoreView>, id: u64, done: Callback<Clos
                 .as_ref()
                 .map(|it| it.device.clone())
                 .unwrap_or_default();
-            format!("{device} asks to pair. Type the code it shows.")
+            format!(
+                "A {device} device wants this account's key. If it is yours, type the code it shows."
+            )
         })
     });
     let refused = create_memo(move || request.with(|request| request.as_ref()?.refused.clone()));
     let code = create_signal(String::new());
+    let cannot = create_memo(move || code.with(|code| code.trim().is_empty()));
     let approve = move || {
         let typed = code.get_untracked();
         code.set(String::new());
@@ -220,31 +199,25 @@ pub(super) fn PairingDialog(core: Signal<CoreView>, id: u64, done: Callback<Clos
             }));
         }
     };
-    escape_dismisses(done);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <DialogBody
+                kind=DialogKind::Alert
                 title=PAIRING_TITLE
                 actions={vec![
-                    DialogAction::cancel("Not now"),
-                    DialogAction::primary("Approve", approve),
+                    DialogAction::primary("Approve", approve).disabled(cannot),
+                    DialogAction::cancel("Ignore"),
                 ]}
                 on_dismiss={move || done.call(Closed::Dismissed)}
             >
-                <Text style=TextStyle::CAPTION>{lead}</Text>
-                <be_root_accounts_ui::ErrorText text={refused} />
+                <Text style=TextStyle::PARAGRAPH>{lead}</Text>
                 <TextInput
                     value={code}
                     label="Code"
-                    placeholder="Code"
+                    placeholder="XXXX-XXXX"
                     on_submit={move |_: String| approve()}
                 />
+                <be_root_accounts_ui::ErrorText text={refused} />
             </DialogBody>
         </Frame>
     }
@@ -263,7 +236,9 @@ pub(super) fn ReauthDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
                 .as_ref()
                 .map(|asked| asked.name.as_str())
                 .unwrap_or_default();
-            format!("{name}'s sign-in ended. Sign in again to go on.")
+            format!(
+                "Your session for {name} is no longer valid. Continue in your browser to sign in again."
+            )
         })
     });
     let error = create_memo(move || asked.with(|asked| asked.as_ref()?.error.clone()));
@@ -273,19 +248,14 @@ pub(super) fn ReauthDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
             ask_core(CoreCommand::ForgetAccount(key));
         }
     };
-    escape_dismisses(done);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <DialogBody
+                kind=DialogKind::Alert
                 title=REAUTH_TITLE
                 actions={vec![
                     DialogAction::secondary("Log out", log_out),
+                    DialogAction::cancel("Not now"),
                     DialogAction::primary("Continue in browser", || ask_core(CoreCommand::Reauthenticate))
                         .busy(busy),
                 ]}
@@ -304,30 +274,22 @@ pub(super) fn ReauthDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
 pub(super) fn DiscardDialog(reason: DiscardReason, done: Callback<Closed>) -> NodeId {
     let (message, button) = match reason {
         DiscardReason::SwitchOrganization => (
-            "Switching organizations discards changes not saved on this device yet. Changes waiting to sync are kept.",
+            "Switching organizations will discard changes that are not saved on this device yet. Changes waiting to sync are kept.",
             "Discard and switch",
         ),
         DiscardReason::Close => (
-            "Closing discards changes not saved on this device yet. Changes waiting to sync are kept.",
+            "Closing be-host will discard changes that are not saved on this device yet. Changes waiting to sync are kept.",
             "Discard and close",
         ),
     };
-    escape_dismisses(done);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <DialogBody
                 kind=DialogKind::Alert
                 title=DISCARD_TITLE
-                scrolls=false
                 actions={vec![
                     DialogAction::destructive(button, move || done.call(Closed::Confirmed)),
-                    DialogAction::cancel("Keep"),
+                    DialogAction::cancel("Cancel"),
                 ]}
                 on_dismiss={move || done.call(Closed::Dismissed)}
             >
@@ -356,6 +318,14 @@ pub(super) fn InvitationsDialog(
     let error = create_memo(move || area.with(|area| area.error.clone()));
     let showing = create_memo(move || link.with(Option::is_some));
     let listing = create_memo(move || !showing.get());
+    let joins = create_memo(move || {
+        core.with(|view| {
+            format!(
+                "Anyone who opens this link with an account on this server can join {} as an editor, once, within seven days.",
+                view.organization
+            )
+        })
+    });
     // What it shows of the link, the one copy it keeps beside the link itself.
     let shown = create_memo(move || {
         link.with(|link| {
@@ -375,33 +345,27 @@ pub(super) fn InvitationsDialog(
             });
         }
     };
-    escape_dismisses(done);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <List spacing=Space::None>
                 <Show value={listing}>
                     <DialogBody
                         title=INVITATIONS_TITLE
                         actions={vec![
-                            DialogAction::cancel("Close"),
-                            DialogAction::primary("New link", move || ask.call(SecretCommand::InviteMember))
+                            DialogAction::primary("New invite link", move || ask.call(SecretCommand::InviteMember))
                                 .busy(busy)
                                 .disabled(move || pending.get()),
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
-                        <be_root_accounts_ui::ErrorText text={error} />
+                        <Text style=TextStyle::CAPTION>
+                            "An invite link joins whoever opens it as an editor, once, within seven days. Revoke one you no longer want used; remove someone who joined from Members."
+                        </Text>
                         <ForEach
                             value={rows}
                             key={|row: &InvitationRow| row.id}
                             fallback={|| view! {
-                                <Text style=TextStyle::CAPTION>"No invitations yet."</Text>
+                                <Text style=TextStyle::PARAGRAPH>"No invitations yet."</Text>
                             }}
                         >|row: ReadSignal<InvitationRow>| {
                             let id = row.with_untracked(|row| row.id);
@@ -421,7 +385,7 @@ pub(super) fn InvitationsDialog(
                                     </ListItem>
                                     <Show value={has_link}>
                                         <Button
-                                            label="Link"
+                                            label="Show link"
                                             variant=ButtonVariant::Secondary
                                             disabled={pending}
                                             on_click={move || ask.call(SecretCommand::InvitationLink(id))}
@@ -437,21 +401,26 @@ pub(super) fn InvitationsDialog(
                                 </List>
                             }
                         }</ForEach>
+                        <be_root_accounts_ui::ErrorText text={error} />
                     </DialogBody>
                 </Show>
                 <Show value={showing}>
                     <DialogBody
-                        title="Invitation link"
+                        title="Invite member"
                         actions={vec![
+                            DialogAction::primary("Copy link", copy),
                             DialogAction::secondary("Done", move || link.set(None)),
-                            DialogAction::primary("Copy", copy),
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
+                        <Text style=TextStyle::PARAGRAPH>{joins}</Text>
                         <Text style=TextStyle::CAPTION>
-                            "Whoever has this link can join the organization."
+                            "Nothing was sent: send this link yourself, through an app you trust. You can copy it again from Invitations."
                         </Text>
-                        <Text>{shown}</Text>
+                        <TextInput
+                            value={Binding::new(shown, Callback::empty())}
+                            label="Invite link"
+                        />
                     </DialogBody>
                 </Show>
             </List>
@@ -487,7 +456,9 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
                 .map(|member| member.name.clone())
                 .unwrap_or_default()
         });
-        format!("Remove {name} from the organization? They lose access to its blocks.")
+        format!(
+            "Remove {name} from this organization? They lose everything shared with them here, and what they could open is given new keys."
+        )
     });
     let remove = move || {
         if let Some(member) = asked.get_untracked() {
@@ -513,13 +484,7 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
         },
     );
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <List spacing=Space::None>
                 <Show value={listing}>
                     <DialogBody
@@ -527,6 +492,9 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
                         actions={vec![DialogAction::cancel("Close")]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
+                        <Text style=TextStyle::CAPTION>
+                            "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
+                        </Text>
                         <be_root_accounts_ui::ErrorText text={error} />
                         <ForEach
                             value={members}
@@ -535,7 +503,8 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
                             let account = member.with_untracked(|member| member.account);
                             let name = create_memo(move || member.with(|member| member.name.clone()));
                             let detail = create_memo(move || member.with(member_detail));
-                            let managed = create_memo(move || member.with(|member| !member.me && !member.agent));
+                            let fixed = create_memo(move || member.with(|member| member.me || member.agent) || busy.get());
+                            let unsigned = create_memo(move || member.with(|member| member.unsigned));
                             let promote = create_memo(move || member.with(|member| member.role != MemberRole::Administrator));
                             let role_label = create_memo(move || match promote.get() {
                                 true => "Make administrator".to_owned(),
@@ -558,23 +527,26 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
                                         <List spacing=Space::Xs2>
                                             <Text>{name}</Text>
                                             <Text style=TextStyle::CAPTION>{detail}</Text>
+                                            <Show value={unsigned}>
+                                                <Text style={TextStyle::CAPTION.color(TextColor::Warning)}>
+                                                    "No invitation signed them in: the server added them. Remove them unless you know why they are here."
+                                                </Text>
+                                            </Show>
                                         </List>
                                     </ListItem>
-                                    <Show value={managed}>
-                                        <Button
-                                            label={role_label}
-                                            variant=ButtonVariant::Secondary
-                                            disabled={busy}
-                                            on_click={change}
-                                        />
-                                        <Button
-                                            icon_only=true
-                                            glyph=ICON_TRASH
-                                            label="Remove"
-                                            disabled={busy}
-                                            on_click={move || removing.set(Some(account))}
-                                        />
-                                    </Show>
+                                    <Button
+                                        label={role_label}
+                                        variant=ButtonVariant::Secondary
+                                        disabled={fixed}
+                                        on_click={change}
+                                    />
+                                    <Button
+                                        icon_only=true
+                                        glyph=ICON_USER_MINUS
+                                        label="Remove member"
+                                        disabled={fixed}
+                                        on_click={move || removing.set(Some(account))}
+                                    />
                                 </List>
                             }
                         }</ForEach>
@@ -584,7 +556,6 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
                     <DialogBody
                         kind=DialogKind::Alert
                         title=REMOVE_MEMBER_TITLE
-                        scrolls=false
                         actions={vec![
                             DialogAction::destructive("Remove", remove),
                             DialogAction::cancel("Keep"),
@@ -642,20 +613,28 @@ pub(super) fn agent_bundle(agent: &be_wasm_root_api::AgentCredentials) -> String
 #[component]
 pub(super) fn LeaveDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     let asked = create_memo(move || core.with(|view| view.leaving.clone()));
-    let question = create_memo(move || {
+    // be-host's wording: the block's name and the folder it is in quoted, as untrusted text.
+    let title = create_memo(move || {
         asked.with(|asked| match asked {
-            Some(leaving) => match &leaving.within {
-                Some(within) => format!(
-                    "Leave {} in {within}? You lose access to it until someone shares it again.",
-                    leaving.name
-                ),
-                None => format!(
-                    "Leave {}? You lose access to it until someone shares it again.",
-                    leaving.name
-                ),
-            },
-            None => String::new(),
+            Some(leaving) => Phrase::new()
+                .text("Leave ")
+                .quoted(be_lib_quoted_name::quotable_name(&leaving.name))
+                .text("?"),
+            None => Phrase::new(),
         })
+    });
+    let question = create_memo(move || {
+        let within = asked.with(|asked| asked.as_ref().and_then(|it| it.within.clone()));
+        let from = match within {
+            Some(within) => Phrase::new()
+                .text("You will no longer see it, in ")
+                .quoted(be_lib_quoted_name::quotable_name(&within))
+                .text(", or anything inside it"),
+            None => Phrase::new().text("You will no longer see it or anything inside it"),
+        };
+        from.text(
+            ", unless someone shares it with you again. Whoever can edit it gives it new keys.",
+        )
     });
     let busy = create_memo(move || asked.with(|asked| asked.as_ref().is_some_and(|it| it.busy)));
     let refused = create_memo(move || asked.with(|asked| asked.as_ref()?.refused.clone()));
@@ -664,19 +643,11 @@ pub(super) fn LeaveDialog(core: Signal<CoreView>, done: Callback<Closed>) -> Nod
             ask_core(CoreCommand::ConfirmLeave(block));
         }
     };
-    escape_dismisses(done);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <DialogBody
                 kind=DialogKind::Alert
-                title=LEAVE_TITLE
-                scrolls=false
+                title={title}
                 actions={vec![
                     DialogAction::destructive("Leave", leave).busy(busy),
                     DialogAction::cancel("Stay"),
@@ -741,7 +712,7 @@ pub(super) fn ContactsDialog(
         area.with(|area| {
             area.connected
                 .as_ref()
-                .map(|card| format!("You are connected with {}.", card_named(card)))
+                .map(|card| format!("You and {} are now contacts.", card_named(card)))
         })
     });
     let showing =
@@ -813,25 +784,22 @@ pub(super) fn ContactsDialog(
         },
     );
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <List spacing=Space::None>
                 <Show value={listing}>
                     <DialogBody
                         title=CONTACTS_TITLE
                         actions={vec![
                             DialogAction::cancel("Close").disabled(move || pending.get()),
-                            DialogAction::primary("New link", move || ask.call(SecretCommand::ContactLink))
+                            DialogAction::primary("New contact link", move || ask.call(SecretCommand::ContactLink))
                                 .busy(busy)
                                 .disabled(move || pending.get()),
                         ]}
                         on_dismiss={move || if !pending.get_untracked() { done.call(Closed::Dismissed) }}
                     >
+                        <Text style=TextStyle::CAPTION>
+                            "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
+                        </Text>
                         <be_root_accounts_ui::ErrorText text={error} />
                         <Note text={connected} />
                         <Show value={offered}>
@@ -844,7 +812,7 @@ pub(super) fn ContactsDialog(
                                     <Text>{offer}</Text>
                                 </ListItem>
                                 <Button
-                                    label="Not now"
+                                    label="Cancel"
                                     variant=ButtonVariant::Secondary
                                     on_click={|| ask_core(CoreCommand::ForgetContactLink)}
                                 />
@@ -859,6 +827,9 @@ pub(super) fn ContactsDialog(
                         <ForEach
                             value={contacts}
                             key={|contact: &ContactRow| contact.account}
+                            fallback={|| view! {
+                                <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
+                            }}
                         >|contact: ReadSignal<ContactRow>| {
                             let account = contact.with_untracked(|contact| contact.account);
                             let name = create_memo(move || contact.with(|it| card_named(&ContactCard { name: it.name.clone(), email: it.email.clone() })));
@@ -878,22 +849,27 @@ pub(super) fn ContactsDialog(
                                     <Button
                                         icon_only=true
                                         glyph=ICON_TRASH
-                                        label="Remove"
+                                        label="Remove contact"
                                         on_click={move || removing.set(Some(account))}
                                     />
                                 </List>
                             }
                         }</ForEach>
+                        <Text style=TextStyle::CAPTION>"Open a contact link someone sent you"</Text>
                         <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
                             <ListItem grow=1.0>
                                 <TextInput
                                     value={pasted}
                                     label="Contact link"
-                                    placeholder="Contact link"
                                     on_submit={move |_: String| open_link()}
                                 />
                             </ListItem>
-                            <Button label="Open" disabled={busy} on_click={open_link} />
+                            <Button
+                                label="Open"
+                                variant=ButtonVariant::Secondary
+                                disabled={busy}
+                                on_click={open_link}
+                            />
                         </List>
                     </DialogBody>
                 </Show>
@@ -901,22 +877,24 @@ pub(super) fn ContactsDialog(
                     <DialogBody
                         title="Contact link"
                         actions={vec![
+                            DialogAction::primary("Copy link", copy),
                             DialogAction::secondary("Done", move || link.set(None)),
-                            DialogAction::primary("Copy", copy),
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
-                        <Text style=TextStyle::CAPTION>
-                            "Whoever has this link can connect with you."
+                        <Text style=TextStyle::PARAGRAPH>
+                            "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
                         </Text>
-                        <Text>{shown}</Text>
+                        <TextInput
+                            value={Binding::new(shown, Callback::empty())}
+                            label="Contact link"
+                        />
                     </DialogBody>
                 </Show>
                 <Show value={asks}>
                     <DialogBody
                         kind=DialogKind::Alert
                         title=REMOVE_CONTACT_TITLE
-                        scrolls=false
                         actions={vec![
                             DialogAction::destructive("Remove", move || {
                                 if let Some(contact) = asked.get_untracked() {
@@ -1023,43 +1001,45 @@ pub(super) fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) ->
             ask_core(CoreCommand::OpenShareLink(Password::from(typed)));
         }
     };
-    escape_dismisses(done);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <List spacing=Space::None>
                 <Show value={pasting}>
                     <DialogBody
                         title=SHARE_LINK_TITLE
-                        actions={vec![
-                            DialogAction::cancel("Close"),
-                            DialogAction::primary("Open", open_link).busy(busy),
-                        ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
-                        <be_root_accounts_ui::ErrorText text={error} />
+                        <Text style=TextStyle::CAPTION>
+                            "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
+                        </Text>
+                        <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <TextInput
+                                    value={pasted}
+                                    label="Share link"
+                                    focused=true
+                                    on_submit={move |_: String| open_link()}
+                                />
+                            </ListItem>
+                            <Button
+                                label="Open"
+                                variant=ButtonVariant::Secondary
+                                disabled={busy}
+                                on_click={open_link}
+                            />
+                        </List>
                         <Note text={opened} />
-                        <TextInput
-                            value={pasted}
-                            label="Share link"
-                            placeholder="Share link"
-                            focused=true
-                            on_submit={move |_: String| open_link()}
-                        />
+                        <be_root_accounts_ui::ErrorText text={error} />
                     </DialogBody>
                 </Show>
                 <Show value={offered}>
                     <DialogBody
-                        title=SHARE_LINK_TITLE
+                        kind=DialogKind::Alert
+                        title="Open this block?"
                         actions={vec![
-                            DialogAction::secondary("Not now", || ask_core(CoreCommand::ForgetShareLink)),
-                            DialogAction::primary("Open it", || ask_core(CoreCommand::AcceptShareLink))
+                            DialogAction::primary("Open", || ask_core(CoreCommand::AcceptShareLink))
                                 .busy(busy),
+                            DialogAction::secondary("Cancel", || ask_core(CoreCommand::ForgetShareLink)),
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
@@ -1073,19 +1053,15 @@ pub(super) fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) ->
 
 /// A member's email and role, in words.
 pub(super) fn member_detail(member: &MemberRow) -> String {
-    let role = match (member.agent, &member.role) {
-        (true, _) => "agent",
-        (false, MemberRole::Administrator) => "administrator",
-        (false, MemberRole::Editor) => "editor",
-        (false, MemberRole::Guest) => "guest",
+    let role = match &member.role {
+        MemberRole::Administrator => "Administrator",
+        MemberRole::Editor => "Editor",
+        MemberRole::Guest => "Guest",
     };
-    let detail = match member.email.is_empty() {
-        true => role.to_owned(),
-        false => format!("{}, {role}", member.email),
-    };
-    match member.unsigned {
-        true => format!("{detail}, added by the server"),
-        false => detail,
+    match (member.agent, member.email.is_empty()) {
+        (true, _) => format!("{}, agent", member.email),
+        (false, true) => role.to_owned(),
+        (false, false) => format!("{}, {role}", member.email),
     }
 }
 
@@ -1121,7 +1097,7 @@ pub(super) fn AgentsDialog(
         made.with(|made| {
             let name = made.as_ref().and_then(Held::agent).map(|agent| agent.name.clone());
             format!(
-                "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value.",
+                "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value, then share a workspace or blocks with the agent.",
                 name.unwrap_or_default()
             )
         })
@@ -1144,50 +1120,38 @@ pub(super) fn AgentsDialog(
         }
     };
     // While an agent is being made it stays open, so its credentials, which cannot be had
-    // again, reach the person: Close, its close button and Escape wait for the answer.
-    on_key(
-        KeyAt::Node(component_node()),
-        KeyPhase::Bubble,
-        KeyReveal::Focus,
-        move |event| {
-            let closes = event
-                .press()
-                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
-            if closes && !pending.get_untracked() {
-                done.call(Closed::Dismissed);
-            }
-            closes
-        },
-    );
+    // again, reach the person: Close and its close button wait for the answer, and so does the
+    // root for Escape and the scrim (`Dialog::holds_while_pending`).
+    let organization = create_memo(move || core.with(|view| format!("Organization: {}", view.organization)));
     let dismiss = move || {
         if !pending.get_untracked() {
             done.call(Closed::Dismissed);
         }
     };
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <List spacing=Space::None>
                 <Show value={listing}>
                     <DialogBody
                         title=AGENTS_TITLE
                         actions={vec![
                             DialogAction::cancel("Close").disabled(move || pending.get()),
-                            DialogAction::primary("Create agent", create)
+                            DialogAction::primary("Add agent", create)
                                 .busy(busy)
                                 .disabled(move || pending.get() || name.with(|name| name.trim().is_empty())),
                         ]}
                         on_dismiss={dismiss}
                     >
-                        <be_root_accounts_ui::ErrorText text={error} />
+                        <Text style=TextStyle::CAPTION>{organization}</Text>
+                        <Text style=TextStyle::CAPTION>
+                            "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
+                        </Text>
                         <ForEach
                             value={agents}
                             key={|agent: &AgentRow| agent.account}
+                            fallback={|| view! {
+                                <Text style=TextStyle::CAPTION>"No agents yet."</Text>
+                            }}
                         >|agent: ReadSignal<AgentRow>| {
                             let account = agent.with_untracked(|agent| agent.account);
                             let label = create_memo(move || agent.with(|agent| agent.name.clone()));
@@ -1198,37 +1162,42 @@ pub(super) fn AgentsDialog(
                                     spacing=Space::Sm
                                 >
                                     <ListItem grow=1.0>
-                                        <Text>{label}</Text>
+                                        <Text overflow=Overflow::Ellipsis>{label}</Text>
                                     </ListItem>
                                     <Button
-                                        label="Remove"
-                                        variant=ButtonVariant::Secondary
+                                        icon_only=true
+                                        glyph=ICON_TRASH
+                                        label="Remove agent"
                                         disabled={busy}
                                         on_click={move || ask_core(CoreCommand::RemoveAgent(account))}
                                     />
                                 </List>
                             }
                         }</ForEach>
+                        <Text style=TextStyle::CAPTION>"Name"</Text>
                         <TextInput
                             value={name}
-                            label="New agent"
-                            placeholder="New agent"
+                            label="Agent name"
                             focused=true
                             on_submit={move |_: String| create()}
                         />
+                        <be_root_accounts_ui::ErrorText text={error} />
                     </DialogBody>
                 </Show>
                 <Show value={showing}>
                     <DialogBody
-                        title="Agent made"
+                        title="Agent credentials"
                         actions={vec![
-                            DialogAction::secondary("Done", move || made.set(None)),
                             DialogAction::primary("Copy", copy),
+                            DialogAction::secondary("Done", move || made.set(None)),
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
-                        <Text style=TextStyle::CAPTION>{heading}</Text>
-                        <Text>{credentials}</Text>
+                        <Text style=TextStyle::PARAGRAPH>{heading}</Text>
+                        <TextInput
+                            value={Binding::new(credentials, Callback::empty())}
+                            label="Agent credentials"
+                        />
                     </DialogBody>
                 </Show>
             </List>
