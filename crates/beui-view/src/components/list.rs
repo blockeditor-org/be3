@@ -32,7 +32,9 @@ pub fn List(
 /// before it. A `sticky` child stays at the start edge of what is visible of its list (the
 /// nearest scroll around it) once scrolled to it, and goes with the list once the list's end
 /// reaches it, as CSS `position: sticky` does; it is drawn, and takes presses, above the
-/// rest of the list. A wrapping list sticks nothing.
+/// rest of the list. A wrapping list sticks nothing. Natively a list that holds a sticky child
+/// is laid out again, all its children placed again, each frame its scroll moves: keep such
+/// lists short (a section of a longer list), not one long list with a sticky header.
 #[component]
 pub fn ListItem(
     #[prop(default = 0.0)] grow: Prop<f32>,

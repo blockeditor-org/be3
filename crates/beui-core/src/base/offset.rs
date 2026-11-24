@@ -614,6 +614,12 @@ impl Document {
             {
                 viewers.push(id);
             }
+            // An overlay is placed by its anchor, not by the scrolls around where it is
+            // declared: revealing what it holds scrolls none of them (a sheet opening with a
+            // focused field leaves the page under it where it is).
+            if self.arena.made_as::<crate::base::overlay::OverlayNode>(id).is_some() {
+                break;
+            }
             current = self.arena.parent(id);
         }
         viewers

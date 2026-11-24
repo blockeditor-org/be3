@@ -246,9 +246,11 @@ impl ParentKind for ListKind {
             Direction::Horizontal => "left",
             Direction::Vertical => "top",
         };
-        set_placed_style(child, "position", sizing.sticky.then(|| "sticky".to_owned()));
-        set_placed_style(child, start, sizing.sticky.then(|| "0".to_owned()));
-        set_placed_style(child, "z-index", sizing.sticky.then(|| "1".to_owned()));
+        // A wrapping list sticks nothing, as natively.
+        let sticky = sizing.sticky && !document::wraps(parent);
+        set_placed_style(child, "position", sticky.then(|| "sticky".to_owned()));
+        set_placed_style(child, start, sticky.then(|| "0".to_owned()));
+        set_placed_style(child, "z-index", sticky.then(|| "1".to_owned()));
     }
 }
 
