@@ -450,8 +450,8 @@ interface types {
     }
 
     /// The session's order since `base`, which no commit holds yet
-    /// (`be_block_protocol::Journal`), by the build `tag` names. `lost`: a
-    /// rebase by another build dropped entries since the base's commit.
+    /// (`be_block_protocol::Journal`), by the build `tag` names. `lost`: edits
+    /// made with another build since the base's commit were dropped.
     record journal {
         tag: session-tag,
         base: journal-base,

@@ -584,7 +584,6 @@ fn opening(
         head,
         session,
         journal: None,
-        lost_edits: false,
         journal_kept: false,
         commits_kept: be_sdk_type_api::KeptCommits::None,
         refused_commits: Vec::new(),
@@ -897,16 +896,30 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         let (journal, local, sealed_head) = self.journal_on(local);
         let settles_on = sealed_head.as_ref().map(|sealed| sealed.commit);
         let foreign = self.journal_tag != self.devices[device].tag;
-        let lost_edits = foreign
-            && journal
-                .as_ref()
-                .is_some_and(|journal| !journal.entries.is_empty());
+        // A journal by another build comes without its entries, lost if it held any, as a
+        // host hands it over.
+        let tag = Hash::from_bytes(self.devices[device].tag.0);
+        let journal = journal.map(|journal| match foreign {
+            false => journal,
+            true => Journal {
+                tag,
+                base: JournalBase {
+                    commit: local,
+                    sequence: journal
+                        .entries
+                        .last()
+                        .map_or(journal.base.sequence, |entry| entry.sequence),
+                    state: Vec::new(),
+                },
+                lost: journal.lost || !journal.entries.is_empty(),
+                entries: Vec::new(),
+            },
+        });
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
             origin: self.devices[device].origin,
-            journal: journal.filter(|_| !foreign),
-            lost_edits,
+            journal,
             sealed_head,
             kept_restart: self.kept_opening.map_or(0, |(restart, _)| restart),
             kept_through: self.kept_opening.take().map_or(0, |(_, through)| through),
