@@ -21,6 +21,9 @@ fn be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews() {
     host.wait("#infinite-canvas.dock");
     host.run(&["settle"]);
     host.restart_as_root(ROOT);
+    // A preview painted again soon after it was is held a while (be-sdk's `Cooldown`), as under
+    // be-host: the stopped clock moved past it lets the slide's last preview land.
+    host.pause(600);
     host.run(&["settle"]);
     host.snapshot("be_root_shows_a_presentations_slides_as_previews");
     host.close();

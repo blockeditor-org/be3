@@ -18,6 +18,10 @@ fn be_root_in_place_of_the_hosts_ui_opens_a_block_its_files_open() {
     let row = host.place("TreeItem \"Canvas\"");
     let row = format!("{:.0},{:.0}", row.0 + row.2 / 2.0, row.1 + row.3 / 2.0);
     host.restart_as_root(ROOT);
+    // `settle` under the root can return while the Files are still arriving
+    // (plans/host_as_platform_adapter.md, 4g7b3d): the stopped clock moved on lets them land
+    // before the press, which a row not there yet would miss.
+    host.pause(600);
     host.run(&["settle"]);
     host.run(&["click", &row]);
     host.run(&["settle"]);
