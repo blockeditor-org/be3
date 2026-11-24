@@ -5476,12 +5476,23 @@ pub(crate) fn replay<C: LiveEdit + Default>(
             .map_err(|error| error.to_string())?;
     }
     for entry in &journal.entries {
-        if entry.sequence <= journal.base.sequence || entry.base < entry.floor {
+        if entry.sequence <= journal.base.sequence {
             continue;
         }
         let Some(Submitted { entry: ordered, .. }) = Submitted::decode(&entry.payload) else {
             return Err("a journal entry this build cannot read".into());
         };
+        // As the order applies it (`apply_entry`): what it passed over (its base below its
+        // floor) is skipped, but a replacement and a restart apply whatever their floor, and a
+        // restart's floor is its own number.
+        let passed_over = entry.base < entry.floor
+            && !matches!(
+                ordered,
+                Entry::Reload { replace: true, .. } | Entry::Reload { restart: true, .. }
+            );
+        if passed_over {
+            continue;
+        }
         match ordered {
             Entry::Operation(Payload::Inline(bytes)) => {
                 let mut operation =
