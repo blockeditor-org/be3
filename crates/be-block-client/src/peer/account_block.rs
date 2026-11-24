@@ -200,22 +200,31 @@ impl AccountRecords {
         mut make: impl FnMut(AccountBlockContent) -> Sent<'a, Vec<Edit>> + Send + 'a,
     ) -> Sent<'a, ()> {
         Box::pin(async move {
-            match self.peer.summary(self.block).await {
-                Ok(_) => {}
-                // Made only to keep something: an account's first pass, before its identity is
-                // registered, makes nothing.
+            let saved = match self.peer.summary(self.block).await {
+                Ok(_) => self.peer.update_content(self.block, &mut make).await?,
+                // Never made: made only when `make` has something to keep in it (an account's
+                // first pass, before its identity is registered, has nothing), and the edits
+                // it answered written on no head. Another device that made and wrote it first
+                // refuses that write, and `make` is asked again of what it wrote.
                 Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
-                    if make(AccountBlockContent::default()).await?.is_empty() {
+                    let edits = make(AccountBlockContent::default()).await?;
+                    if edits.is_empty() {
                         return Ok(());
                     }
                     self.make().await?;
+                    let mut content = AccountBlockContent::default();
+                    for edit in &edits {
+                        content.apply(edit);
+                    }
+                    match self.peer.save(self.block, &content, None).await? {
+                        Saved::Rejected { .. } => {
+                            self.peer.update_content(self.block, &mut make).await?
+                        }
+                        saved => Some(saved),
+                    }
                 }
                 Err(error) => return Err(error),
-            }
-            let saved = self
-                .peer
-                .update_content(self.block, &mut make)
-                .await?;
+            };
             match saved {
                 Some(Saved::Kept(_)) => Err(ClientError::Disconnected(
                     "the account's block is saved only with the server".into(),
