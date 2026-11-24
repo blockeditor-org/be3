@@ -290,14 +290,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects`
   failed once in a `./scripts/test //crates/be-host-tests:test` run and passed
   on the rerun; its output was not kept. It passed 280 of 280 under `stress` on
-  a 4-core VM (8 at a time, with every app and with `--apps text`, and
+  a 4-core VM (8 at a time, with every app and with `--apart`, and
   `--latency 60`). Done: run it under `stress` until it fails, and fix the cause
   its output shows at its source, with a test that shows it.
 
 - **Quick open's hit without its snippet, once under verify.**
   `quick_open_finds_a_word_typed_in_a_text_and_opens_it` timed out waiting for
   the snippet "ripen late" with its result row shown. It passed 460 of 460 under
-  `stress` on a 4-core VM (8 at a time with every app, `--apps text --latency 60`,
+  `stress` on a 4-core VM (8 at a time with every app, `--apart --latency 60`,
   and 14 at a time with `--latency 100`). A suspect: be-host-stack's search
   caches a snippet's text by block, key and head (`cached_text`), failures
   included, so a `search-text` that failed once (`NotSearched`, a type module
