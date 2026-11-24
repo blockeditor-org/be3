@@ -74,6 +74,8 @@ struct Child {
     editor: EditorInstanceId,
     view: ViewId,
     child: ChildId,
+    /// Its block, with the editor and view block its placement names.
+    shown: ShownBlock,
     block: [u8; 16],
     /// Its placement, as its placer's latest layout said.
     placement: ChildPlacement,
@@ -95,6 +97,105 @@ enum Showing {
     },
     /// Why it shows nothing: its app could not start or stopped, or its block is open above it.
     Failed(String),
+}
+
+impl Child {
+    /// The child `placement` places in `editor`'s view `view`, laid out at `raster` pixels per
+    /// point, when it is a block child placed to run its editor: its editor not opened yet.
+    fn placed(
+        editor: EditorInstanceId,
+        view: ViewId,
+        raster: f32,
+        placement: ChildPlacement,
+    ) -> Option<Self> {
+        let ChildContent::Block {
+            block_id,
+            view_block,
+            editor: named,
+            ..
+        } = placement.content
+        else {
+            return None;
+        };
+        if !runs_editor(placement.mode) {
+            return None;
+        }
+        Some(Self {
+            editor,
+            view,
+            child: placement.child,
+            shown: ShownBlock {
+                block: block_id,
+                editor: named,
+                view_block,
+            },
+            block: block_id,
+            placement,
+            raster,
+            showing: Rc::new(RefCell::new(Showing::Opening)),
+        })
+    }
+
+    /// What names the editor it keeps while placed: its placer's view, its id there, and what
+    /// it shows. A child placed showing another block, or with another editor or view block
+    /// named, is another editor.
+    fn key(&self) -> ChildKey {
+        (
+            self.editor,
+            self.view,
+            self.child,
+            self.shown.block,
+            self.shown.editor,
+            self.shown.view_block,
+        )
+    }
+}
+
+type ChildKey = (
+    EditorInstanceId,
+    ViewId,
+    ChildId,
+    [u8; 16],
+    Option<[u8; 16]>,
+    Option<[u8; 16]>,
+);
+
+/// What a `settle` makes of the children shown and those placed now (`reconcile`).
+struct Reconciled {
+    /// The children placed now, in their order, each keeping the editor it had if it showed
+    /// the same before.
+    kept: Vec<Child>,
+    /// Those of `kept` (by index) whose editor is to be opened.
+    opened: Vec<usize>,
+    /// Those shown before and placed no longer, to let go of.
+    gone: Vec<Child>,
+}
+
+/// Matches the children `wanted` now with those `shown` before by what names their editor
+/// (`Child::key`): one that matches keeps its editor at its new place, one that does not is
+/// opened, unless its block is open `above` it, which it shows instead, and the rest go.
+fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Reconciled {
+    let mut before: HashMap<ChildKey, Child> =
+        shown.into_iter().map(|child| (child.key(), child)).collect();
+    let mut kept = Vec::with_capacity(wanted.len());
+    let mut opened = Vec::new();
+    for mut child in wanted {
+        match before.remove(&child.key()) {
+            Some(shown) => child.showing = shown.showing,
+            None if above.contains(&child.block) => {
+                child.showing = Rc::new(RefCell::new(Showing::Failed(
+                    ALREADY_OPEN_ABOVE.to_owned(),
+                )));
+            }
+            None => opened.push(kept.len()),
+        }
+        kept.push(child);
+    }
+    Reconciled {
+        kept,
+        opened,
+        gone: before.into_values().collect(),
+    }
 }
 
 impl Children {
@@ -124,18 +225,11 @@ impl Children {
                 .entry((placements.instance, placements.view))
                 .or_default();
             for placement in placements.children {
-                match (&placement.content, runs_editor(placement.mode)) {
-                    (ChildContent::Block { block_id, .. }, true) => wanted.push(Child {
-                        editor: placements.instance,
-                        view: placements.view,
-                        child: placement.child,
-                        block: *block_id,
-                        placement,
-                        raster,
-                        showing: Rc::new(RefCell::new(Showing::Opening)),
-                    }),
-                    _ => told.push(ShownChild {
-                        child: placement.child.0,
+                let child = placement.child;
+                match Child::placed(placements.instance, placements.view, raster, placement) {
+                    Some(child) => wanted.push(child),
+                    None => told.push(ShownChild {
+                        child: child.0,
                         shown_in: None,
                         active: false,
                         error: Some(NOT_SHOWN_YET.to_owned()),
@@ -143,27 +237,12 @@ impl Children {
                 }
             }
         }
-        // Those still placed showing the same block keep their editor, at their new place.
-        let mut kept = Vec::new();
-        for mut child in wanted {
-            match self.shown.iter().position(|shown| {
-                (shown.editor, shown.view, shown.child, shown.block)
-                    == (child.editor, child.view, child.child, child.block)
-            }) {
-                Some(at) => {
-                    let shown = self.shown.swap_remove(at);
-                    child.showing = shown.showing;
-                }
-                None if above.contains(&child.block) => {
-                    child.showing = Rc::new(RefCell::new(Showing::Failed(
-                        ALREADY_OPEN_ABOVE.to_owned(),
-                    )));
-                }
-                None => spawn(&child, spawning, now),
-            }
-            kept.push(child);
+        let Reconciled { kept, opened, gone } =
+            reconcile(std::mem::take(&mut self.shown), wanted, above);
+        for child in &opened {
+            spawn(&kept[*child], spawning, now);
         }
-        for gone in std::mem::take(&mut self.shown) {
+        for gone in gone {
             release(&gone.showing.borrow(), embedding);
         }
         self.shown = kept;
@@ -346,10 +425,7 @@ impl Children {
                 shown_child.input.hit = Area::Nowhere;
             }
             if active && placement.layer == ChildLayer::Below {
-                holes.push(Rect::from_min_max(
-                    pos2(placement.rect.min.x * pixels, placement.rect.min.y * pixels),
-                    pos2(placement.rect.max.x * pixels, placement.rect.max.y * pixels),
-                ));
+                holes.push(hole(placement, pixels, layer.clip));
             }
             let child_screen = child_screen(placement, hosted.editor, child.raster);
             let into = match placement.layer {
@@ -363,6 +439,18 @@ impl Children {
         layers.push(layer);
         layers.extend(over);
     }
+}
+
+/// The part of its placer's layer, in its pixels (`pixels` a point), that a child placed as
+/// `placement` takes the presses of: what shows of it, within its clip and the placer's
+/// `clip`. Presses on the rest, where the child is clipped away, stay its placer's.
+fn hole(placement: &ChildPlacement, pixels: f32, clip: Rect) -> Rect {
+    let shows = placement.rect.intersect(placement.clip);
+    Rect::from_min_max(
+        pos2(shows.min.x * pixels, shows.min.y * pixels),
+        pos2(shows.max.x * pixels, shows.max.y * pixels),
+    )
+    .intersect(clip)
 }
 
 /// Where a placer's layer `size` pixels big is hit, with `holes` (in its pixels) where children
@@ -438,7 +526,7 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
     let raster = child.raster;
     let spawned = Embedded::spawn_block(
         BlockSpawn {
-            shown: shown_block(&child.placement.content),
+            shown: child.shown.clone(),
             screens: Box::new(move |editor| vec![child_screen(&placement, editor, raster)]),
             surface: spawning.surface.clone(),
             fonts: Rc::clone(&spawning.fonts),
@@ -465,24 +553,6 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
         };
         wake();
     });
-}
-
-/// The block a child placed showing `content` shows, with the editor and view block its
-/// placement names.
-fn shown_block(content: &ChildContent) -> ShownBlock {
-    match content {
-        ChildContent::Block {
-            block_id,
-            view_block,
-            editor,
-            ..
-        } => ShownBlock {
-            block: *block_id,
-            editor: *editor,
-            view_block: *view_block,
-        },
-        _ => unreachable!("only a block child is spawned"),
-    }
 }
 
 /// Lets go of a child's app and of those of its own children, as embedded.
