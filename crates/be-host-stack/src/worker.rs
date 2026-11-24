@@ -813,9 +813,10 @@ pub(super) enum ContactCommand {
     },
     Remove(Uuid),
     /// Reads a share link before it is opened (guides/blocks/keys.md, "Share links").
+    /// None when no share link has the code.
     PreviewShare {
         code: be_block_keys::InviteCode,
-        reply: Reply<Result<SharePreview, String>>,
+        reply: Reply<Result<Option<SharePreview>, String>>,
     },
     /// Opens a share link as this account, refused if it no longer shares the block, or grants
     /// the level, that the person was shown (`expected`).
@@ -3669,20 +3670,20 @@ async fn contact(
     );
     match command {
         ContactCommand::Link { offer, reply } => {
-            let made = async {
-                let offer = match offer {
-                    Some((block, access)) => Some(peer.offer(block, access).await?),
-                    None => None,
-                };
-                be_block_client::contacts::make_link(
-                    &peer.connection(),
-                    identity,
-                    &me,
-                    offer.as_ref(),
-                )
-                .await
-            }
-            .await;
+            // With an offer, an invitation: a contact link and a share link admitting the first
+            // to open it, with one code (plans/invitations_without_pending_grants.md).
+            let made = match offer {
+                Some((block, access)) => peer.make_invitation(&me, block, access).await,
+                None => {
+                    be_block_client::contacts::make_link(
+                        &peer.connection(),
+                        identity,
+                        &me,
+                        None,
+                    )
+                    .await
+                }
+            };
             reply.send(
                 made.map(|code| {
                     crate::invite_link::contact_link(
@@ -3695,10 +3696,15 @@ async fn contact(
         }
         ContactCommand::PreviewShare { code, reply } => {
             let previewed =
-                be_block_client::share_links::preview_share_link(&peer.connection(), &code)
-                    .await
-                    .map(|(link, handed)| SharePreview::of(&link, handed.name));
-            reply.send(previewed.map_err(|error| error.to_string()));
+                be_block_client::share_links::preview_share_link(&peer.connection(), &code).await;
+            reply.send(match previewed {
+                Ok((link, handed)) => Ok(Some(SharePreview::of(&link, handed.name))),
+                Err(be_block_client::ClientError::Refused(
+                    be_block_protocol::ErrorCode::LinkNotFound,
+                    _,
+                )) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            });
         }
         ContactCommand::OpenShare {
             code,

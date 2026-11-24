@@ -1312,6 +1312,19 @@ pub async fn make_link(
     offer: Option<&GrantOffer>,
 ) -> Result<InviteCode, ClientError> {
     let code = InviteCode::generate();
+    make_link_with(connection, identity, me, offer, &code).await?;
+    Ok(code)
+}
+
+/// `make_link` with `code`, which an invitation shares with the share link it carries
+/// (`Peer::make_invitation`).
+pub(crate) async fn make_link_with(
+    connection: &Arc<Connection>,
+    identity: &RecoverySecret,
+    me: &ContactCard,
+    offer: Option<&GrantOffer>,
+    code: &InviteCode,
+) -> Result<(), ClientError> {
     let grant = offer.map(|offer| PendingGrant {
         organization: offer.organization,
         block: offer.block,
@@ -1325,7 +1338,7 @@ pub async fn make_link(
         connection,
         account,
         identity,
-        link_id(&code),
+        link_id(code),
         KeptLink {
             code: code.to_bytes().to_vec(),
             kind: kind.clone(),
@@ -1337,14 +1350,14 @@ pub async fn make_link(
         connection,
         None,
         be_block_protocol::Op::CreateLink {
-            link: link_id(&code),
-            card: me.seal(&code, CardRole::Owner),
+            link: link_id(code),
+            card: me.seal(code, CardRole::Owner),
             kind,
             signed: None,
         },
     )
     .await??;
-    Ok(code)
+    Ok(())
 }
 
 /// Which kind of link a caller opens: the host's Contacts dialog and its join dialog each ask

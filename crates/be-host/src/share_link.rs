@@ -11,7 +11,9 @@ use uuid::Uuid;
 use crate::ui::ShareLinkView;
 
 enum Reply {
-    Previewed(InviteCode, Result<SharePreview, String>),
+    Previewed(InviteCode, Result<Option<SharePreview>, String>),
+    /// The share link an invitation carries, read once its contact link made the contact.
+    Invited(InviteCode, Result<Option<SharePreview>, String>),
     Opened(Result<SharePreview, String>),
 }
 
@@ -101,6 +103,17 @@ impl ShareLinks {
         });
     }
 
+    /// Reads the share link an invitation carries with its contact link's code
+    /// (plans/invitations_without_pending_grants.md), once the contact is made, and offers it as
+    /// a pasted one: a contact link that carries none shows nothing.
+    pub(crate) fn follow_invitation(&mut self, code: InviteCode) {
+        let post = self.replies.1.clone();
+        let carried = code.clone();
+        be_host_stack::preview_share_link(code, move |previewed| {
+            post.send(Reply::Invited(carried, previewed));
+        });
+    }
+
     pub(crate) fn accept(&mut self) {
         let Some((code, shown)) = self.offered.take() else {
             return;
@@ -125,7 +138,21 @@ impl ShareLinks {
     fn replied(&mut self, reply: Reply) {
         self.busy = false;
         match reply {
-            Reply::Previewed(code, Ok(preview)) => self.offered = Some((code, preview)),
+            Reply::Previewed(code, Ok(Some(preview))) => self.offered = Some((code, preview)),
+            Reply::Previewed(_, Ok(None)) => {
+                self.error = Some("That link does not exist, or was revoked.".to_owned());
+            }
+            Reply::Invited(code, Ok(Some(preview))) => {
+                self.open = true;
+                self.opened = None;
+                self.error = None;
+                self.offered = Some((code, preview));
+            }
+            Reply::Invited(_, Ok(None)) => {}
+            Reply::Invited(_, Err(error)) => {
+                self.open = true;
+                self.error = Some(error);
+            }
             Reply::Opened(Ok(opened)) => {
                 self.landed = Some(opened.organization);
                 self.opened = Some(opened);
