@@ -1723,12 +1723,10 @@ Each step lands on its own.
              app asked for no screens (a child shown as its label) is asked for no frame and owes
              the root none (`Embedded::draws`): it presents nothing, so a frame asked of it waited
              out the root's stopped-clock budget. Left for later:
-             - `settle` under the root can return while what its editors show is still arriving:
-               with no pause after the restart, `..._opens_a_block_its_files_open` misses the
-               Files row in about half its runs (its painting before the press is not settled in
-               3 of 10), and `..._shows_a_presentations_slides_as_previews` paints a slide glyph
-               at a stray place in about a quarter; both keep a pause until the root reports
-               what it still waits on;
+             - with no pause after the restart, `..._shows_a_presentations_slides_as_previews`
+               paints one glyph of the slide's preview at a stray place in about a quarter of its
+               runs (4 of 15): a preview's repaint is held a while (be-sdk's `Cooldown`), and
+               what shows meanwhile is not yet understood; the test keeps a pause;
              - a search hit's place handed to the block it opens (be-host's `reveals`);
              - each preview is an app of its own rather than drawn once at its largest (4g7b3e).
            - 4g7b3e. A block in several places sharing one editor (one app per staged app
