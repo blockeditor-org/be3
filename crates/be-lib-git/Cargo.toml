@@ -1,0 +1,9 @@
+[package]
+name = "be-lib-git"
+description = "git run for its output, which is None when git fails"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

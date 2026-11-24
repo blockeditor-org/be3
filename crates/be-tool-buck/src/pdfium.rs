@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
+use be_lib_sha256::sha256;
 
 use crate::starlark::{quote, render};
 
@@ -314,10 +314,7 @@ fn pin_archives(directory: &Path, repositories: &mut Map<String, Value>) -> Resu
         }
         let contents =
             std::fs::read(&file).map_err(|error| format!("{}: {error}", file.display()))?;
-        let sha256 = Sha256::digest(&contents)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let sha256 = sha256(&contents);
         let entry = repository
             .as_object_mut()
             .ok_or("a repository is not an object")?;

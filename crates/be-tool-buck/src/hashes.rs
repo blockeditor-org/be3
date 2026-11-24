@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use sha2::{Digest, Sha256};
+use be_lib_sha256::sha256_read;
 
 pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     let [out, dir] = arguments else {
@@ -22,16 +22,9 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
             .ok_or_else(|| format!("{} is not UTF-8", relative.display()))?
             .replace('\\', "/");
         let path = Path::new(dir).join(&relative);
-        let mut file = std::fs::File::open(&path)
+        let (hash, _) = std::fs::File::open(&path)
+            .and_then(sha256_read)
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-        let mut hasher = Sha256::new();
-        std::io::copy(&mut file, &mut hasher)
-            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-        let hash: String = hasher
-            .finalize()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
         hashes.insert(name, hash);
     }
     let json = serde_json::to_string_pretty(&hashes).map_err(|error| error.to_string())?;

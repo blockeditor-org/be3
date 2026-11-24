@@ -3,12 +3,10 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
-    time::Duration,
 };
 
-use sha2::{Digest, Sha256};
-
-use crate::hex;
+use be_lib_sha256::sha256;
+use be_tool_storage::{Body, Put, Storage};
 
 const USAGE: &str = "\
 usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
@@ -263,13 +261,12 @@ fn run(options: &mut Options) -> Result<(), String> {
         }
     }
     let web_entry = web.map(|_| web_entry_point(&build));
-    let agents = Agents::new();
+    let client = Storage::new(Some(key));
     let store = Store {
         options,
-        agents: &agents,
-        storage: &storage,
+        client: &client,
+        zone: &storage,
         mirror: &mirror,
-        key: &key,
     };
 
     if !options.skip_be {
@@ -427,7 +424,7 @@ fn run(options: &mut Options) -> Result<(), String> {
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
+        purge_pages(options, &client, &api_key, &mirror, &["index.html", ""])?;
     }
 
     if page.is_some() && options.skip_server {
@@ -445,7 +442,7 @@ fn run(options: &mut Options) -> Result<(), String> {
         )?;
         purge_pages(
             options,
-            &agents,
+            &client,
             &api_key,
             &mirror,
             &["live/downloads.html"],
@@ -461,7 +458,7 @@ fn run(options: &mut Options) -> Result<(), String> {
             "text/plain; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &[BE_RELEASE])?;
+        purge_pages(options, &client, &api_key, &mirror, &[BE_RELEASE])?;
     } else if !options.skip_be {
         println!(
             "the server still runs its last build, so {mirror}/{BE_RELEASE} still names that one's be"
@@ -492,7 +489,7 @@ fn terminal_hosts(
             Ok(be_lib_build_id::TerminalHostBinary {
                 arch: arch.to_owned(),
                 url: format!("{mirror}/data/{build}/be-{triple}/be"),
-                sha256: hex(&Sha256::digest(&bytes)),
+                sha256: sha256(&bytes),
             })
         })
         .collect()
@@ -526,7 +523,7 @@ fn release_apps(
                 path.display()
             )
         })?;
-        let found = hex(&Sha256::digest(&bytes));
+        let found = sha256(&bytes);
         if found != *expected {
             return Err(format!(
                 "{} lists {expected} for {file}, but the web bundle's has {found}",
@@ -536,7 +533,7 @@ fn release_apps(
     }
     Ok(be_lib_build_id::ReleaseApps {
         url: format!("{mirror}/data/{build}/web"),
-        sha256: hex(&Sha256::digest(&listed)),
+        sha256: sha256(&listed),
     })
 }
 
@@ -614,10 +611,10 @@ fn archive_with_release(archive: &[u8], release: &Release) -> Result<Vec<u8>, St
 
 struct Store<'a> {
     options: &'a Options,
-    agents: &'a Agents,
-    storage: &'a str,
+    client: &'a Storage,
+    /// The storage zone's URL, which paths are under.
+    zone: &'a str,
     mirror: &'a str,
-    key: &'a str,
 }
 
 impl Store<'_> {
@@ -629,8 +626,8 @@ impl Store<'_> {
         content_type: &str,
         read_back: bool,
     ) -> Result<String, String> {
-        let sha256 = hex(&Sha256::digest(bytes));
-        let target = format!("{}/{path}", self.storage);
+        let sha256 = sha256(bytes);
+        let target = format!("{}/{path}", self.zone);
         println!(
             "upload {what} ({} bytes, sha256 {sha256}) to {target}",
             bytes.len()
@@ -638,39 +635,21 @@ impl Store<'_> {
         if self.options.dry_run {
             return Ok(sha256);
         }
-        if read_back {
-            match stored_sha256(self.agents.to(&target), &target, self.key)? {
-                Some(existing) if existing != sha256 => {
-                    return Err(format!(
-                        "refusing to overwrite immutable artifact {target} with different bytes; build a new release"
-                    ));
-                }
-                Some(_) => println!("  identical immutable artifact already exists"),
-                None => upload(
-                    self.agents.to(&target),
-                    &target,
-                    self.key,
-                    bytes,
-                    &sha256,
-                    content_type,
-                )?,
-            }
-        } else {
-            upload(
-                self.agents.to(&target),
-                &target,
-                self.key,
-                bytes,
-                &sha256,
-                content_type,
-            )?;
-        }
         if !read_back {
+            self.client
+                .put(&target, Body::Bytes(bytes), &sha256, content_type)?;
             return Ok(sha256);
         }
+        let put = self
+            .client
+            .put_if_absent(&target, Body::Bytes(bytes), &sha256, content_type)
+            .map_err(|error| format!("{error}; build a new release"))?;
+        if put == Put::Present {
+            println!("  identical immutable artifact already exists");
+        }
         let source = format!("{}/{path}", self.mirror);
-        let read = download(self.agents.to(&source), &source, required_headers(path))?;
-        if hex(&Sha256::digest(&read)) != sha256 {
+        let read = download(self.client, &source, required_headers(path))?;
+        if be_lib_sha256::sha256(&read) != sha256 {
             return Err(format!(
                 "{source} is not what was uploaded to {target}; check \
                  BE3_DEPLOY_STORAGE and BE3_DEPLOY_MIRROR name the same place"
@@ -793,10 +772,10 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
     })
 }
 
-fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
+fn purge(client: &Storage, api_key: &str, url: &str) -> Result<(), String> {
     let api = "https://api.bunny.net/purge";
-    agents
-        .to(api)
+    client
+        .agent(api)
         .post(api)
         .query("url", url)
         .set("AccessKey", api_key)
@@ -804,28 +783,6 @@ fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
         .map_err(|error| format!("purging {url} from the CDN failed: {error}"))?;
     println!("purged {url}");
     Ok(())
-}
-
-struct Agents {
-    proxied: ureq::Agent,
-    direct: ureq::Agent,
-}
-
-impl Agents {
-    fn new() -> Self {
-        let builder = || ureq::AgentBuilder::new().timeout(Duration::from_secs(600));
-        Self {
-            proxied: builder().try_proxy_from_env(true).build(),
-            direct: builder().build(),
-        }
-    }
-
-    fn to(&self, url: &str) -> &ureq::Agent {
-        match url.starts_with("https://") {
-            true => &self.proxied,
-            false => &self.direct,
-        }
-    }
 }
 
 fn web_entry_point(build: &str) -> String {
@@ -888,7 +845,7 @@ fn web_content_type(path: &Path) -> &'static str {
 
 fn purge_pages(
     options: &Options,
-    agents: &Agents,
+    client: &Storage,
     key: &str,
     mirror: &str,
     paths: &[&str],
@@ -898,7 +855,7 @@ fn purge_pages(
         if options.dry_run {
             println!("purge {url}");
         } else {
-            purge(agents, key.trim(), &url)?;
+            purge(client, key.trim(), &url)?;
         }
     }
     Ok(())
@@ -933,45 +890,6 @@ fn read_build(path: &Path) -> Result<String, String> {
     Ok(metadata.id)
 }
 
-fn stored_sha256(agent: &ureq::Agent, url: &str, key: &str) -> Result<Option<String>, String> {
-    let response = match agent.get(url).set("AccessKey", key).call() {
-        Ok(response) => response,
-        Err(ureq::Error::Status(404, _)) => return Ok(None),
-        Err(error) => return Err(format!("checking immutable artifact {url} failed: {error}")),
-    };
-    let mut reader = response.into_reader();
-    let mut hash = Sha256::new();
-    let mut buffer = [0u8; 65536];
-    loop {
-        let read = reader
-            .read(&mut buffer)
-            .map_err(|error| format!("reading immutable artifact {url} failed: {error}"))?;
-        if read == 0 {
-            break;
-        }
-        hash.update(&buffer[..read]);
-    }
-    Ok(Some(hex(&hash.finalize())))
-}
-
-fn upload(
-    agent: &ureq::Agent,
-    url: &str,
-    key: &str,
-    bytes: &[u8],
-    sha256: &str,
-    content_type: &str,
-) -> Result<(), String> {
-    agent
-        .put(url)
-        .set("AccessKey", key)
-        .set("Checksum", &sha256.to_ascii_uppercase())
-        .set("Content-Type", content_type)
-        .send_bytes(bytes)
-        .map_err(|error| format!("uploading to {url} failed: {error}"))?;
-    Ok(())
-}
-
 /// What `live/be-release` becomes, or `None` when this deployment leaves it alone: it names the
 /// build the server runs, so it moves only with a server swap, which always uploads `be` (`parse`
 /// refuses `--skip-be` without `--skip-server`).
@@ -997,8 +915,9 @@ fn required_headers(path: &str) -> &'static [(&'static str, &'static str)] {
     }
 }
 
-fn download(agent: &ureq::Agent, url: &str, required: &[(&str, &str)]) -> Result<Vec<u8>, String> {
-    let response = agent
+fn download(client: &Storage, url: &str, required: &[(&str, &str)]) -> Result<Vec<u8>, String> {
+    let response = client
+        .agent(url)
         .get(url)
         .call()
         .map_err(|error| format!("reading {url} back failed: {error}"))?;

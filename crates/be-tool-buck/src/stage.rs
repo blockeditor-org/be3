@@ -33,7 +33,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::ExitCode;
 
-use sha2::{Digest, Sha256};
+use be_lib_sha256::sha256_read;
 
 const USAGE: &str = "usage: stage OUT LAYOUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]... \
 [--index] [--library=MODULE]... (MANIFEST=[MODULE] [--data=DIR] [--app-type=MODULE] [--worker=MODULE]...)...";
@@ -329,12 +329,8 @@ fn type_module(path: &str, manifest: &serde_json::Value) -> Result<String, Strin
 }
 
 fn sha256(path: &str) -> Result<String, String> {
-    let mut file = std::fs::File::open(path).map_err(|error| format!("{path}: {error}"))?;
-    let mut hasher = Sha256::new();
-    std::io::copy(&mut file, &mut hasher).map_err(|error| format!("{path}: {error}"))?;
-    Ok(hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect())
+    let (sha256, _) = std::fs::File::open(path)
+        .and_then(sha256_read)
+        .map_err(|error| format!("{path}: {error}"))?;
+    Ok(sha256)
 }

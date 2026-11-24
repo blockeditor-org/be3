@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock, PoisonError};
 
 use be_lib_build_id::ReleaseApps;
-use sha2::{Digest, Sha256};
+use be_lib_sha256::sha256;
 
 /// The file a release lists its apps' hashes in, beside them.
 pub const HASHES: &str = "app-hashes.json";
@@ -132,13 +132,6 @@ fn keep(path: &Path, bytes: &[u8]) {
     if std::fs::write(&partial, bytes).is_ok() && std::fs::rename(&partial, path).is_err() {
         let _ = std::fs::remove_file(&partial);
     }
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn download(url: &str) -> Result<Vec<u8>, String> {

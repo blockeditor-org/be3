@@ -11,7 +11,7 @@ fn the_downloads_name_where_this_builds_be_and_apps_are() {
     std::fs::write(bundle.join("counter.wasm"), b"the module").unwrap();
     let listed = format!(
         r#"{{"counter.wasm":"{}"}}"#,
-        hex(&Sha256::digest(b"the module"))
+        sha256(b"the module")
     );
     std::fs::write(bundle.join("app-hashes.json"), &listed).unwrap();
     let apps = release_apps(&bundle, "tree", "https://be3.example").unwrap();
@@ -34,7 +34,7 @@ fn the_downloads_name_where_this_builds_be_and_apps_are() {
         vec![be_lib_build_id::TerminalHostBinary {
             arch: "arm64".to_owned(),
             url: "https://be3.example/data/tree/be-aarch64-unknown-linux-gnu/be".to_owned(),
-            sha256: hex(&Sha256::digest(b"be for arm")),
+            sha256: sha256(b"be for arm"),
         }],
         "only the architectures a terminal host runs on"
     );
@@ -42,7 +42,7 @@ fn the_downloads_name_where_this_builds_be_and_apps_are() {
         apps,
         be_lib_build_id::ReleaseApps {
             url: "https://be3.example/data/tree/web".to_owned(),
-            sha256: hex(&Sha256::digest(listed.as_bytes())),
+            sha256: sha256(listed.as_bytes()),
         },
         "the apps are the web bundle's, pinned by the hash of the list of their hashes"
     );

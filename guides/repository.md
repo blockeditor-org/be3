@@ -36,11 +36,14 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   its account portal. `be-wasm-*`: running wasm guests.
 - `be-lib-*`: libraries that know nothing of blocks, apps or beui. `be-lib-stable-hash` is the
   hash map to use where iteration order reaches output: be-tool-fix-rust-source
-  (`hash_order.rs`) reports randomly seeded ones in the crates it lists.
+  (`hash_order.rs`) reports randomly seeded ones in the crates it lists. `be-lib-sha256` is
+  how a tool writes a SHA-256 (lowercase hex), and `be-lib-git` how it runs git for its output.
 - `beui-*`: beui and what only beui uses.
 - `be-tool-*`: build, test and developer tools, including the bootstrap (guides/bootstrap.md),
   `be-tool-cli` (`be`), `be-tool-launcher` (runs any pull request on Android or the desktop) and
   `be-tool-paint-review` (the page for reviewing a pull request's paintings).
+  `be-tool-storage` is the client tools upload to the Bunny storage zones with (be-server's
+  backup and CI's upload step keep their own).
 
 Which family may depend on which is checked when a crate's BUCK file loads; the rules (be-wasm
 at the base, under be-lib) are in buck/cargo/layers.bzl. Fix a violation by moving code or
