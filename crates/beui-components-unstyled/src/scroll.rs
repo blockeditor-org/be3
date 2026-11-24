@@ -193,7 +193,7 @@ struct Momentum {
     velocity: f32,
     fling: Option<Fling>,
     autoscroll: f32,
-    /// The offsets a fling and a release settle on, sorted; none settles anywhere.
+    /// The offsets a fling and a release settle on; none settles anywhere.
     snaps: Vec<f32>,
     /// The snap stop being settled on.
     snap: Option<f32>,
@@ -492,8 +492,19 @@ impl Motion {
         stray
     }
 
+    /// A press stops a fling where it is, and a settle on a stop goes to the stop nearest
+    /// where it is, without the speed it had.
     fn stop_fling(&self) {
-        self.momentum.borrow_mut().stop_fling();
+        let mut momentum = self.momentum.borrow_mut();
+        momentum.stop_fling();
+        if momentum.snap.is_some()
+            && momentum.drag.is_none()
+            && momentum.stretch == 0.0
+            && let Some(position) = self.placed()
+        {
+            momentum.velocity = 0.0;
+            momentum.snap = momentum.aim(position.offset, position.max_offset());
+        }
     }
 
     fn chains(&self, along: f32) -> bool {
@@ -624,9 +635,7 @@ impl Motion {
 
     /// Lets go at `velocity` from `position`, settling on a snap stop if the scroll has any.
     fn release(&self, momentum: &mut Momentum, velocity: f32, position: &ScrollPosition) {
-        let mut snaps = self.snaps.get_untracked();
-        snaps.sort_by(f32::total_cmp);
-        momentum.snaps = snaps;
+        momentum.snaps = self.snaps.get_untracked();
         momentum.release(velocity, position);
     }
 
