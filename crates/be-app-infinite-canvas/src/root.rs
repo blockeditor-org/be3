@@ -106,7 +106,13 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let scope = NodeRef::new();
     action_scope(&scope);
     let actions = canvas_actions(state);
-    add_to_menu(menu::frame_menu(&actions));
+    // With the frame's fit once it has zoom actions, whenever it makes them.
+    let zoom = editor.zoom_actions();
+    let menu_actions = actions.clone();
+    create_effect(move || {
+        let fit_all = zoom.get().map(|zoom| zoom.fit);
+        untrack(|| add_to_menu(menu::frame_menu(&menu_actions, fit_all.as_ref())));
+    });
     let touch = actions.touch;
     let exporter = actions.exporter;
     provide_context(actions);

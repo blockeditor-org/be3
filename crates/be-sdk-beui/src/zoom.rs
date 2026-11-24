@@ -21,6 +21,8 @@ pub struct ZoomActions {
     pub zoom_out: Action,
     pub reset: Action,
     pub fit: Action,
+    /// Whether the editor has a fit (`keep_fitted`, `fit_with`), which `fit` runs.
+    pub fits: Memo<bool>,
 }
 
 impl PartialEq for ZoomActions {
@@ -56,7 +58,7 @@ impl Editor {
 pub(crate) fn register(editor: Editor, live: Memo<bool>) -> ZoomActions {
     let (actions, fit) = editor.zoom_state();
     let scale = editor.scale();
-    let fits = create_memo(move || live.get() && fit.with(Option::is_some));
+    let fits = create_memo(move || fit.with(Option::is_some));
     let zoom = ZoomActions {
         zoom_in: Action::new("editor.zoom-in", "Zoom in", move || editor.zoom(ZOOM_STEP))
             .glyph(ICON_ZOOM_IN)
@@ -79,8 +81,9 @@ pub(crate) fn register(editor: Editor, live: Memo<bool>) -> ZoomActions {
             }
         })
         .glyph(ICON_SCAN)
-        .enabled(fits)
+        .enabled(create_memo(move || live.get() && fits.get()))
         .register(),
+        fits,
     };
     actions.set(Some(zoom.clone()));
     zoom
@@ -93,8 +96,6 @@ pub fn ZoomBar(editor: Editor) -> NodeId {
     let actions = editor.zoom_actions();
     let scale = editor.scale();
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
-    let (_, fit) = editor.zoom_state();
-    let fits = create_memo(move || fit.with(Option::is_some));
     view! {
         <Frame>
             <Show value={actions}>
@@ -124,7 +125,7 @@ pub fn ZoomBar(editor: Editor) -> NodeId {
                                 action={zoom.zoom_in.clone()}
                                 @test_id={"editor.zoom_in"}
                             />
-                            <Show value={fits}>
+                            <Show value={zoom.fits}>
                                 <Button
                                     icon_only=true
                                     action={zoom.fit.clone()}
