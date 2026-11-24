@@ -1151,6 +1151,17 @@ interface host {
     /// the manifest of the app shown in it says), until the next call for
     /// that view; a child left out it no longer reports.
     show-children: async func(instance: u64, editor: u64, view: u64, children: list<shown-child>);
+
+    /// What happened to a child an editor placed, for the editor to hear.
+    variant placer-event {
+        /// The keyboard went into the child, by its `child-id`: given, or
+        /// pressed into it or into a child of it.
+        child-focused(u64),
+    }
+
+    /// Tells the editor `editor`, opened in the root's `instance`, `event`
+    /// (the app protocol's `editor-event` `child-focused`).
+    tell-placer: async func(instance: u64, editor: u64, event: placer-event);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

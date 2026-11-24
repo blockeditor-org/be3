@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use be_sdk_api::{EditorInstanceId, ViewId};
+use be_sdk_api::{
+    EditorInstanceId, ViewId, app::EditorEvent, embed::shell::Call as ShellCall, ops::OpError,
+};
 use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
 
@@ -70,6 +72,12 @@ impl Forwarded {
             .instances
             .set_forwarded_statuses(instance, view, statuses);
         self.wire.send(told);
+    }
+
+    /// Tells the editor `instance` what its root saw of a child it placed (`child-focused`),
+    /// sent with the next `step`.
+    pub fn tell_placer(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+        self.wire.send(vec![Outbound::Event(instance, event)]);
     }
 
     /// Takes the frames the root forwarded, in order, and serves what they ask: the frames that
@@ -141,6 +149,7 @@ impl Forwarded {
             Heard::Service(service) => instances.serve(service),
             Heard::Network(instance, call) => instances.network(instance, call),
             Heard::Withdrawn(op) => instances.withdraw(op),
+            Heard::Shell(call) => self.shell(call),
             // The root runs the app: nothing else of it reaches here, since the root forwards only
             // the editors' ops and those under them.
             Heard::Hello(_)
@@ -151,10 +160,25 @@ impl Forwarded {
             | Heard::Presented(_)
             | Heard::ShutDown
             | Heard::Unanswered(_)
-            | Heard::Shell(_)
             | Heard::Answer(..)
             | Heard::Paintings(_) => {}
         }
+    }
+}
+
+impl Forwarded {
+    /// Answers what an editor tells the shell around it, and refuses what it asks: the root's
+    /// views take none of it yet (plans/host_as_platform_adapter.md, 4g7b3d and 4g7c to 4g7e),
+    /// so what is told is dropped. Where its children take the keyboard rides on their
+    /// placements (`keyboard-ask`), which the root reads itself.
+    fn shell(&mut self, call: ShellCall) {
+        let ShellCall::Tell { reply, .. } = call else {
+            let (op, outcome) = call.refuse(OpError::Unsupported);
+            self.wire.answer(op, outcome);
+            return;
+        };
+        let (op, outcome) = reply.answer(&());
+        self.wire.answer(op, outcome);
     }
 }
 
