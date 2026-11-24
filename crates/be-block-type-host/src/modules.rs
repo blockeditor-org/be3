@@ -559,6 +559,14 @@ impl Modules {
         self.routes.get(&content_type).copied()
     }
 
+    /// What `content_type` is, as its module declares it, starting the module first.
+    pub async fn kind(&mut self, content_type: Uuid) -> Option<Kind> {
+        if let Some(module) = self.module_of(content_type) {
+            self.load(module).await;
+        }
+        kind_of(content_type)
+    }
+
     pub fn settled(&self) -> bool {
         self.unsettled().is_empty()
     }

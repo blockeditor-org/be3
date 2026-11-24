@@ -183,7 +183,7 @@ pub(crate) async fn step(
     let mut started = false;
     for content_type in to_start {
         // Its kind, with the reads kind it counts from, is known once its module described it.
-        started |= replicas.kind(content_type).await.is_some();
+        started |= replicas.modules.kind(content_type).await.is_some();
     }
     if started {
         moved |= pick_places(peer, shared, replicas).await;

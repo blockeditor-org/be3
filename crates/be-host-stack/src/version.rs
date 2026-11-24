@@ -2283,7 +2283,7 @@ async fn relist(
         .kind(content_type)
         .await
         .is_some_and(|kind| !kind.whole_bytes)
-        && super::worker::has_later_parts(context.peer, parent)
+        && context.peer.has_later_parts(parent)
             .await
             .map_err(failed)?
     {

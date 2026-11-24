@@ -13,63 +13,18 @@ pub struct Uploaded {
 }
 
 impl<S: ObjectStore> Tracker<S> {
+    /// `entry` and everything inside it, for a block file, as be-host exports it
+    /// (`be_block_type_host::transfer::collect`), with the entry it starts from.
     pub async fn download(&self, entry: &Entry) -> Result<(Entry, Vec<Saved>), String> {
-        let top = self.outermost(entry).await?;
-        let mut order = vec![(top.clone(), None)];
-        let mut level = vec![(top.id, 0)];
-        while !level.is_empty() {
-            let below = futures_util::future::try_join_all(
-                level.iter().map(|(parent, _)| self.children(*parent)),
-            )
-            .await?;
-            let mut next = Vec::new();
-            for ((_, position), children) in level.into_iter().zip(below) {
-                for child in children {
-                    next.push((child.id, order.len()));
-                    order.push((child, Some(position)));
-                }
-            }
-            level = next;
-        }
-        let peer = self.peer();
-        let wanted: Vec<_> = order
-            .iter()
-            .map(|(entry, _)| (entry.id, entry.head))
-            .collect();
-        let read = peer.read_contents(&wanted).await.map_err(explain)?;
-        let mut blocks = Vec::with_capacity(read.len());
-        for ((entry, parent), read) in order.into_iter().zip(read) {
-            let summary = read.summary.clone();
-            // Some types keep parts that their bytes cannot carry (`WHOLE_BYTES` is false: chat's
-            // closed segments), and a transfer, which carries bytes, would drop them: refuse until
-            // it carries parts.
-            if be_block_type_host::kind_of(entry.block_type).is_some_and(|kind| !kind.whole_bytes)
-                && read
-                    .stored
-                    .as_ref()
-                    .and_then(|stored| stored.root.as_ref())
-                    .is_some_and(|root| root.children.len() > 1)
-            {
-                return Err(format!(
-                    "block {} keeps parts after its first, which a transfer does not carry yet",
-                    entry.id
-                ));
-            }
-            let content = match read.journal {
-                Some(_) => self.types().await.readable(read).await,
-                None => read.stored.map(|stored| stored.bytes),
-            };
-            blocks.push(Saved {
-                id: entry.id,
-                block_type: entry.block_type,
-                parent,
-                metadata: peer.metadata_of_summary(&summary).await.map_err(explain)?,
-                references: peer.content_references(&summary).await.map_err(explain)?,
-                content,
-                log: Vec::new(),
-            });
-        }
-        Ok((top, blocks))
+        let blocks = be_block_type_host::transfer::collect(
+            self.peer(),
+            entry.id,
+            be_host_stack::discovery::exported_whole,
+            &mut *self.types().await,
+        )
+        .await
+        .map_err(explain)?;
+        Ok((self.entry(blocks[0].id).await?, blocks))
     }
 
     pub async fn upload(
