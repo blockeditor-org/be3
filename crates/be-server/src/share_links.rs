@@ -35,6 +35,8 @@ struct Stored {
     admits: Admits,
     key: SigningPublic,
     sealed: Vec<u8>,
+    /// The account a link admitting one (`Admits::One`) admitted, once it opened.
+    opened_by: Option<Uuid>,
 }
 
 /// What opening a link changed: who could know of its block before, for those who are told.
@@ -67,6 +69,7 @@ fn encode_admits(admits: Admits) -> &'static str {
     match admits {
         Admits::Members => "members",
         Admits::Anyone => "anyone",
+        Admits::One => "one",
     }
 }
 
@@ -74,6 +77,7 @@ fn decode_admits(value: &str) -> Result<Admits, ServerError> {
     match value {
         "members" => Ok(Admits::Members),
         "anyone" => Ok(Admits::Anyone),
+        "one" => Ok(Admits::One),
         _ => Err(ServerError::Corrupt),
     }
 }
@@ -82,6 +86,7 @@ fn wire_admits(admits: Admits) -> LinkAdmits {
     match admits {
         Admits::Members => LinkAdmits::Members,
         Admits::Anyone => LinkAdmits::Anyone,
+        Admits::One => LinkAdmits::One,
     }
 }
 
@@ -99,7 +104,8 @@ fn access_of(level: Level) -> Access {
 fn stored(connection: &Connection, link: Uuid) -> Result<Option<Stored>, ServerError> {
     let row = connection
         .prepare_cached(
-            "SELECT organization_id, block_id, maker_id, access, admits, link_key, sealed
+            "SELECT organization_id, block_id, maker_id, access, admits, link_key, sealed,
+                    opened_by
              FROM share_links WHERE id = ?1",
         )?
         .query_row([link.to_string()], |row| {
@@ -111,10 +117,11 @@ fn stored(connection: &Connection, link: Uuid) -> Result<Option<Stored>, ServerE
                 row.get::<_, String>(4)?,
                 row.get::<_, Vec<u8>>(5)?,
                 row.get::<_, Vec<u8>>(6)?,
+                row.get::<_, String>(7)?,
             ))
         })
         .optional()?;
-    let Some((organization, block, maker, access, admits, key, sealed)) = row else {
+    let Some((organization, block, maker, access, admits, key, sealed, opened_by)) = row else {
         return Ok(None);
     };
     Ok(Some(Stored {
@@ -125,12 +132,17 @@ fn stored(connection: &Connection, link: Uuid) -> Result<Option<Stored>, ServerE
         admits: decode_admits(&admits)?,
         key: SigningPublic(key.try_into().map_err(|_| ServerError::Corrupt)?),
         sealed,
+        opened_by: match opened_by.as_str() {
+            "" => None,
+            account => Some(crate::store::parse_uuid(account)?),
+        },
     }))
 }
 
 impl ServerStore {
     /// Whether `organization`'s policy lets a link admit `admits`: in the personal organization,
-    /// where every account is a member, only its members.
+    /// where every account is a member, its members or one of them; in a company one, one
+    /// person as anyone is.
     fn link_policy_allows(
         &self,
         graph: &BlockGraph,
@@ -139,7 +151,7 @@ impl ServerStore {
         admits: Admits,
     ) -> Result<bool, ServerError> {
         if crate::keys::organization_kind(connection, organization)? == OrganizationKind::Personal {
-            return Ok(admits == Admits::Members);
+            return Ok(admits != Admits::Anyone);
         }
         Ok(
             match self
@@ -245,8 +257,8 @@ impl ServerStore {
         .await
     }
 
-    /// Refuses `caller` a link it may not open: one it does not admit, or one the policy no
-    /// longer allows. Answers the caller's role in the link's organization, if any.
+    /// Refuses `caller` a link it may not open: one it does not admit (a link admitting one that
+    /// admitted another), or one the policy no longer allows. Answers the caller's role in the link's organization, if any.
     fn may_open(
         &self,
         graph: &BlockGraph,
@@ -263,6 +275,9 @@ impl ServerStore {
             return Err(refused(
                 "this link opens only for members of its organization",
             ));
+        }
+        if found.admits == Admits::One && found.opened_by.is_some_and(|opener| opener != caller) {
+            return Err(refused("this link admitted someone already"));
         }
         if !self.link_policy_allows(graph, connection, found.organization, found.admits)? {
             return Err(crate::organization::refused(
@@ -361,6 +376,12 @@ impl ServerStore {
                         caller.to_string(),
                         encode_role(OrganizationRole::Guest)
                     ],
+                )?;
+            }
+            if found.admits == Admits::One {
+                transaction.execute(
+                    "UPDATE share_links SET opened_by = ?2 WHERE id = ?1",
+                    params![link.to_string(), caller.to_string()],
                 )?;
             }
             crate::access::append_opened(

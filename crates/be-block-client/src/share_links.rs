@@ -117,6 +117,7 @@ pub fn admits_of(admits: LinkAdmits) -> Admits {
     match admits {
         LinkAdmits::Members => Admits::Members,
         LinkAdmits::Anyone => Admits::Anyone,
+        LinkAdmits::One => Admits::One,
     }
 }
 
@@ -124,6 +125,7 @@ pub fn wire_admits(admits: Admits) -> LinkAdmits {
     match admits {
         Admits::Members => LinkAdmits::Members,
         Admits::Anyone => LinkAdmits::Anyone,
+        Admits::One => LinkAdmits::One,
     }
 }
 

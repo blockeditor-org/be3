@@ -213,7 +213,9 @@ const SCHEMA: &str = "
         admits          TEXT NOT NULL,
         link_key        BLOB NOT NULL,
         sealed          BLOB NOT NULL,
-        created         INTEGER NOT NULL
+        created         INTEGER NOT NULL,
+        -- The account a link admitting one admitted, once it opened ('' before).
+        opened_by       TEXT NOT NULL DEFAULT ''
     );
 
     CREATE INDEX share_links_block
