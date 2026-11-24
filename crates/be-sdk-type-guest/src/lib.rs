@@ -649,8 +649,10 @@ impl Module {
         }
         match opened {
             Some(mut opened) => {
+                // The calls the replica before made were made under the epoch before this one.
+                let before_epoch = state.epochs[&replica] - 1;
                 let carried = match state.replicas.get_mut(&replica) {
-                    Some(before) => before.carry(),
+                    Some(before) => before.carry(before_epoch),
                     None => {
                         state.carried_order.retain(|block| *block != opening.block);
                         state.carried.remove(&opening.block).unwrap_or_default()
@@ -703,9 +705,24 @@ impl Module {
 
     fn answered(&self, replica: ReplicaId, epoch: u64, input: Input) {
         let current = self.shared.state.borrow().epochs.get(&replica).copied();
-        if current == Some(epoch) {
-            self.input(replica, input);
+        match current == Some(epoch) {
+            true => self.input(replica, input),
+            // Made by a replica of the block before this one opened: handed on to the editor
+            // it was made for (`AnyReplica::late`).
+            false => self.late(replica, epoch, input),
         }
+    }
+
+    fn late(&self, replica: ReplicaId, epoch: u64, input: Input) {
+        let mut out = Vec::new();
+        {
+            let mut state = self.shared.state.borrow_mut();
+            let now = state.now;
+            if let Some(open) = state.replicas.get_mut(&replica) {
+                open.late(now, epoch, input, &mut out);
+            }
+        }
+        self.run(out);
     }
 
     fn tick(&self, now: u64) {
@@ -778,7 +795,7 @@ impl Module {
             let carried = state
                 .replicas
                 .remove(&id)
-                .map(|mut replica| replica.carry())
+                .map(|mut replica| replica.carry(state.epochs.get(&id).copied().unwrap_or_default()))
                 .unwrap_or_default();
             if let Some(block) = state.blocks.remove(&id)
                 && (!carried.entries.is_empty() || !carried.refused.is_empty())
