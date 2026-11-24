@@ -380,6 +380,29 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
             slides.add_notes(id);
         }
     };
+    // Notes just made ask for the keyboard as they are placed, until they have it or the slide
+    // shows other notes.
+    let typing_into = slides.typing_into();
+    create_effect(move || {
+        let shown = target.get().map(|target| target.id);
+        if typing_into
+            .get()
+            .is_some_and(|notes| shown.is_some_and(|shown| shown != notes))
+        {
+            typing_into.set(None);
+        }
+    });
+    create_effect_on_change(
+        move || selected.get(),
+        move |_, _| typing_into.set(None),
+    );
+    let keyboard = move || {
+        u64::from(
+            typing_into
+                .get()
+                .is_some_and(|notes| target.get().is_some_and(|target| target.id == notes)),
+        )
+    };
     view! {
         <Frame fill=ColorRole::Surface>
             <Layers>
@@ -428,6 +451,8 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                         block={target}
                         mode=ChildMode::Live
                         own_frame=true
+                        keyboard={keyboard}
+                        on_focus={Callback::new(move |()| typing_into.set(None))}
                         @test_id={"presentation.notes"}
                     >|handle: ChildBlockHandle|
                         <SlideStatus state={handle.state} />

@@ -923,6 +923,9 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             }
         },
     );
+    // The asks that the window take the keyboard: when it is raised with no dock tab to give
+    // it, and when its dock tab calls for attention.
+    let asks = create_signal(0_u64);
     let raised = create_memo(move || heard.with(|heard| heard.raised));
     create_effect_on_change(
         move || raised.get(),
@@ -937,9 +940,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 Some(control) => control.show(),
                 None => {
                     layout.show(&tab);
-                    if let Some(child) = heard.with(|heard| heard.child) {
-                        workspace.host().focus_child(child);
-                    }
+                    asks.update(|asks| *asks += 1);
                 }
             }
         },
@@ -947,10 +948,8 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     if let Some(control) = control {
         let called = create_memo(move || control.attention());
         create_effect(move || {
-            if called.with(Option::is_some)
-                && let Some(child) = untrack(|| heard.with(|heard| heard.child))
-            {
-                untrack(|| workspace.host().focus_child(child));
+            if called.with(Option::is_some) {
+                untrack(|| asks.update(|asks| *asks += 1));
             }
         });
     }
@@ -1022,6 +1021,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 placed={Some(SubregionContent::Window(window))}
                 mode=ChildMode::Live
                 fullscreen={fullscreen}
+                keyboard={move || asks.get()}
                 on_state={Callback::new(move |state: ChildState| workspace.hear(tab, &state))}
                 @test_id={"workspace.window"}
                 @node_ref=&panel

@@ -609,7 +609,7 @@ impl Fixture {
     }
 
     fn focused_windows(&mut self) -> Vec<HostWindowId> {
-        let given = self.test.take_child_focus();
+        let given = self.test.take_keyboard_asks();
         given
             .into_iter()
             .filter_map(|child| self.window_of(child))

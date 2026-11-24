@@ -303,20 +303,6 @@ interface shell-types {
         /// answer arrives as its `dialog-status`, and answers at once for a child
         /// that does not handle dismissal.
         dismiss-child(child-id),
-        /// Gives a child the editor placed the keyboard, as the person opening
-        /// it or bringing it forward would: the view that shows the child takes
-        /// the keyboard once the child shows. It only moves the keyboard within
-        /// the editor: while the keyboard is outside the editor's views and the
-        /// children they show, or a view that takes the keyboard (a dialog, a
-        /// popover) is open, it does nothing.
-        focus-child(child-id),
-        /// As `focus-child`, for the child that shows the block once the editor
-        /// places it: an editor that makes a block to type into asks in the
-        /// frame it makes it, before the child exists, so the keys typed while
-        /// the child loads wait for it. The gift ends when the child's view
-        /// takes the keyboard or the person presses in the editor or takes the
-        /// keyboard elsewhere first.
-        focus-block-child(block-id),
         /// The person asked to close a child the editor placed, as closing its
         /// tab. For a program window the host asks its program to close it (or
         /// force-closes one that does not respond); the window leaves the list

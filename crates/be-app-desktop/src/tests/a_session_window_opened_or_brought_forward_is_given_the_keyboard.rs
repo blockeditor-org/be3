@@ -21,7 +21,7 @@ fn a_session_window_opened_or_brought_forward_is_given_the_keyboard() {
     let (mut fixture, sessions) =
         Fixture::new().with_sessions(&[("Laptop", WORKSPACE_EDITOR), ("Desk", WORKSPACE_EDITOR)]);
     fixture.settle();
-    assert_eq!(fixture.test.take_child_focus(), Vec::new());
+    assert_eq!(fixture.test.take_keyboard_asks(), Vec::new());
 
     for session in &sessions {
         fixture.test.click("desktop.apps");
@@ -32,7 +32,7 @@ fn a_session_window_opened_or_brought_forward_is_given_the_keyboard() {
         fixture.settle();
         let child = child_of(&fixture, *session);
         assert_eq!(
-            fixture.test.take_child_focus().last(),
+            fixture.test.take_keyboard_asks().last(),
             Some(&child),
             "the session just opened is given the keyboard"
         );
@@ -41,7 +41,7 @@ fn a_session_window_opened_or_brought_forward_is_given_the_keyboard() {
     fixture.test.click("desktop.windows.block.2");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_child_focus().last(),
+        fixture.test.take_keyboard_asks().last(),
         Some(&child_of(&fixture, sessions[0])),
         "the window whose chip was clicked is given the keyboard"
     );
@@ -52,7 +52,7 @@ fn a_session_window_opened_or_brought_forward_is_given_the_keyboard() {
         panic!("one session is left: {left:?}");
     };
     assert_eq!(
-        fixture.test.take_child_focus().last(),
+        fixture.test.take_keyboard_asks().last(),
         Some(&child_of(&fixture, block)),
         "closing a window gives the keyboard to the window left in front"
     );

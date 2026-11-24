@@ -138,6 +138,7 @@ impl ViewHandler for AnchoringViews {
                             false,
                             None,
                             false,
+                            0,
                         )
                     });
                 }

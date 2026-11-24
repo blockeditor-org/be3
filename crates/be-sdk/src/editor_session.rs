@@ -769,10 +769,6 @@ impl EditorSession {
         self.host.push_child_focus(child);
     }
 
-    pub fn gift_missed(&self, child: ChildId) {
-        self.host.push_gift_missed(child);
-    }
-
     pub(crate) fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {
         self.host.set_child_statuses(statuses);
     }

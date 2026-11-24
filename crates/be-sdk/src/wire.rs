@@ -272,9 +272,6 @@ impl OpenEditor {
             EditorEvent::ChildFocused(child) => {
                 wire.call(instance, move |session| session.child_focused(child));
             }
-            EditorEvent::GiftMissed(child) => {
-                wire.call(instance, move |session| session.gift_missed(child));
-            }
             EditorEvent::SetEditable(editable) => {
                 wire.call(instance, move |session| session.set_editable(editable));
             }

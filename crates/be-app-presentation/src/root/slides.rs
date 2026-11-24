@@ -35,6 +35,9 @@ pub struct Slides {
     store: KeyedStore<Uuid, Slide>,
     selected: Signal<Option<Uuid>>,
     made_notes: StoredCell<Option<ChildTarget>>,
+    /// The notes block just made to type into, whose editor asks for the keyboard once it is
+    /// placed, until it has it or the slide shows other notes.
+    typing_into: Signal<Option<Uuid>>,
 }
 
 impl Slides {
@@ -47,12 +50,18 @@ impl Slides {
             store: KeyedStore::new(),
             selected,
             made_notes: StoredCell::new(None),
+            typing_into: create_signal(None),
         };
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         create_binding(move || slides.refresh(&dependencies));
         slides
+    }
+
+    /// The notes block just made to type into, until its editor has the keyboard.
+    pub fn typing_into(&self) -> Signal<Option<Uuid>> {
+        self.typing_into
     }
 
     pub fn keys(&self) -> ReadSignal<Vec<Uuid>> {
@@ -247,9 +256,8 @@ impl Slides {
             .with_untracked(|keys| keys.iter().position(|key| *key == id))
     }
 
-    /// Makes an empty text block inside the deck as the slide's notes and asks, in the same
-    /// frame, for the keyboard to go into its editor once it is placed, so what is typed while
-    /// it loads lands there.
+    /// Makes an empty text block inside the deck as the slide's notes, whose editor asks for the
+    /// keyboard as it is placed (`typing_into`).
     pub fn add_notes(&self, id: Uuid) {
         let notes = self.editor.blocks().create_with(
             TEXT_TYPE,
@@ -259,7 +267,7 @@ impl Slides {
         );
         self.made_notes
             .set(Some(ChildTarget::new(notes, TEXT_TYPE)));
-        self.editor.host().focus_block_child(notes);
+        self.typing_into.set(Some(notes));
         self.block.operate(Presentation::set_notes(
             ObjectId::from_uuid(id),
             Some(notes),

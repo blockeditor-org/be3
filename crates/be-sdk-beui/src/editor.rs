@@ -87,6 +87,8 @@ struct ChildRecord {
     fit: Prop<Option<Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
     fullscreen: Prop<bool>,
+    /// The serial of the editor's latest ask that the child take the keyboard (`keyboard-ask`).
+    keyboard: ReadSignal<u64>,
     placed: PlacedChild,
     zone: u64,
     dock_tab: Option<u64>,
@@ -330,6 +332,7 @@ impl OwnedEditor {
             contents,
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
+            keyboard_asks: Cell::new(0),
             picking,
             popped,
             next_pick: Cell::new(0),
@@ -375,6 +378,9 @@ struct EditorState {
     contents: Rc<Contents>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
+    /// The serial of the latest ask that one of its children take the keyboard
+    /// (`keyboard-ask`).
+    keyboard_asks: Cell<u64>,
     picking: Signal<Option<crate::picking::Picking>>,
     popped: Signal<Option<crate::popover::Popped>>,
     next_pick: Cell<u64>,
@@ -1028,6 +1034,7 @@ impl Editor {
         fit: Prop<Option<Vec2>>,
         dialog: Prop<Option<DialogFrame>>,
         fullscreen: Prop<bool>,
+        keyboard: Prop<u64>,
         report: Callback<ChildState>,
         details: Callback<()>,
         focus: Callback<()>,
@@ -1037,6 +1044,28 @@ impl Editor {
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
+        // Each time the asks counted grow, the child carries the editor's next serial.
+        let ask = create_signal(0_u64);
+        let counted = StoredCell::new(0_u64);
+        let editor = self.0;
+        create_effect(move || {
+            let asks = keyboard.get();
+            if asks <= counted.replace(asks) {
+                return;
+            }
+            let serial = editor
+                .try_with(|editor| {
+                    let serial = editor.keyboard_asks.get() + 1;
+                    editor.keyboard_asks.set(serial);
+                    serial
+                })
+                .unwrap_or_default();
+            untrack(|| ask.set(serial));
+            // An ask changes nothing drawn: a frame carries it to the host in its layout commit.
+            try_with_document(|document| {
+                document.request_repaint_after(std::time::Duration::ZERO)
+            });
+        });
         let placed = editor_state.core.add_child(
             move |now: &ChildState| {
                 state.set(now.clone());
@@ -1062,6 +1091,7 @@ impl Editor {
                 fit,
                 dialog,
                 fullscreen,
+                keyboard: ask.read_only(),
                 placed,
                 zone: document_zone(),
                 dock_tab,
@@ -1069,7 +1099,6 @@ impl Editor {
                 tab,
             }),
         ));
-        let editor = self.0;
         on_cleanup(move || {
             editor.try_with(|editor| {
                 editor
@@ -1395,6 +1424,7 @@ impl Editor {
                 record.docks,
                 anchor,
                 record.fullscreen.get_untracked(),
+                record.keyboard.get_untracked(),
             )
         };
         Some(match escaped {
