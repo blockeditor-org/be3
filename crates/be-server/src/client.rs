@@ -9,7 +9,7 @@ use be_block_protocol::{
     AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Contents, CreatedAgent,
     DeviceLoginAnswer, DeviceLoginStep, Done, Error, ErrorCode, Event, Header, JoinedSession,
     LinkKind, Listing, LogRecord, MemberKind, Op, Page, PairingMessage, PushEndpointChange,
-    PutKeys, Query, RecoveryKey, ServerInfo, SessionEvent, SessionSend, SessionState, Target,
+    HostChange, PutKeys, Query, RecoveryKey, ServerInfo, SessionEvent, SessionSend, SessionState, Target,
     Topic, UploadUrl, WriteError, embed,
 };
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -866,8 +866,8 @@ impl Client {
                 ),
                 false => return Ok(()),
             },
-            Push::Host { block, host } => match self.following.sessions.contains_key(&block) {
-                true => session(block, SessionEvent::Host(host)),
+            Push::Host { block, host, index } => match self.following.sessions.contains_key(&block) {
+                true => session(block, SessionEvent::Host(HostChange { host, index })),
                 false => return Ok(()),
             },
             Push::Joiner { block, change } => match self.following.sessions.contains_key(&block) {
@@ -1368,7 +1368,7 @@ impl Client {
         {
             self.following.sessions.insert(place, tag);
             let connection = &self.connection;
-            let host = connection
+            let (host, host_as_of) = connection
                 .registry
                 .join_member(place, connection.client, identity.account)
                 .await;
@@ -1401,6 +1401,7 @@ impl Client {
                 may_edit: false,
                 joined_as: MemberKind::Join,
                 host,
+                host_as_of,
             }));
         }
         let may_edit = connection
@@ -1410,7 +1411,7 @@ impl Client {
             .is_ok();
         self.following.sessions.insert(place, tag);
         let connection = &self.connection;
-        let (state, host) = connection
+        let (state, host, host_as_of) = connection
             .registry
             .join(place, connection.client, identity.account, may_edit, tag)
             .await;
@@ -1441,6 +1442,7 @@ impl Client {
                 may_edit,
                 joined_as: MemberKind::Participant,
                 host,
+                host_as_of,
             })),
             Err(error) => {
                 connection.registry.leave(place, connection.client).await;

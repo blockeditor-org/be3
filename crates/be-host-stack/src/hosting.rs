@@ -46,6 +46,10 @@ pub struct Hosting {
     /// stays in the session's membership, so the server names this device host again once a
     /// later claimant goes, until the replica joins again (`release`) or leaves.
     claimed: std::collections::HashSet<Uuid>,
+    /// The blocks a host component runs on here (`start`, until `release`): a join of one's
+    /// session that answers no one hosts it, which drops any claim it made (a rejoin that
+    /// dropped a released claim as the component started again, or a reconnect), claims again.
+    running: std::collections::HashSet<Uuid>,
 }
 
 enum Member {
@@ -199,9 +203,18 @@ fn stop_hosting(held: &mut Shared, block: Uuid) -> bool {
 /// the session, or may no longer edit), nothing changes.
 pub fn start(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid) {
     restart(shared, block);
-    if lock(shared).seen.hosted.contains(&block) {
-        return;
+    let hosted = {
+        let mut held = lock(shared);
+        held.hosting.running.insert(block);
+        held.seen.hosted.contains(&block)
+    };
+    if !hosted {
+        claim(peer, shared, tasks, block);
     }
+}
+
+/// Claims `block`'s session for the component running on it here.
+fn claim(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid) {
     // Recorded as it is sent, so a component that stops before the answer still lets it go,
     // and again once answered, for a join the answer came after. A claim refused needs no
     // release; one more join of the session is all the record costs then.
@@ -219,7 +232,9 @@ pub fn start(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks
 /// to drop a claim it made since it last joined (`Replicas::rejoin_block`), which it then has
 /// no longer.
 pub fn release(shared: &Arc<Mutex<Shared>>, block: Uuid) -> bool {
-    lock(shared).hosting.claimed.remove(&block)
+    let mut held = lock(shared);
+    held.hosting.running.remove(&block);
+    held.hosting.claimed.remove(&block)
 }
 
 /// A host component starts on `block`: it hears every member already admitted join, and none of
@@ -294,10 +309,15 @@ pub fn heard(
             ours,
             joined,
         }) => {
-            if *joined {
-                lock(shared).hosting.claimed.remove(block);
-            }
+            let claim_again = *joined && {
+                let mut held = lock(shared);
+                held.hosting.claimed.remove(block);
+                host.is_none() && held.hosting.running.contains(block)
+            };
             host_heard(shared, *block, host.map(|_| *ours));
+            if claim_again {
+                claim(peer, shared, tasks, *block);
+            }
         }
         Some(Event::Joiner {
             block,

@@ -53,11 +53,24 @@ impl Hosting {
     }
 }
 
+/// How long `host_block` sleeps at most before it looks again: it is woken by whatever it
+/// waits on (the stack handing over a change, the app making progress, `wake` from a stop),
+/// so this only bounds a wait nothing woke.
+const LONGEST_SLEEP: Duration = Duration::from_secs(3600);
+
+/// Wakes a `host_block` that sleeps, from any thread: one asked to stop looks at `stop` then.
+pub fn wake() {
+    be_host_base::host::wake();
+}
+
 /// Hosts `block`, of `block_type`, as the device `client` (`be BLOCK host`, plans/headless_apps.md,
 /// step 2), on a block stack the caller started, until `stop` answers true: holds the block's
 /// replica open, so this device is in its session, starts the type's host component whenever
 /// no one hosts it (starting claims the lease, plans/hosted_blocks.md, step 4d2), and stops it,
-/// standing by, while another device does. `told` hears each change.
+/// standing by, while another device does. It refuses a block this account may not edit, as a
+/// claim of it would be refused. `told` hears what the server says of who hosts it, each time
+/// that changes. It sleeps until woken: by the stack handing over a change, by the app, or by
+/// `wake`, which whoever sets `stop` calls.
 pub fn host_block(
     block: Uuid,
     block_type: Uuid,
@@ -68,6 +81,25 @@ pub fn host_block(
     let (app, host) = host_of(block_type)?;
     let mut headless = be_host_runtime::Headless::start();
     be_host_stack::open(block, block_type);
+    // The account's access, once the stack knows the block.
+    let access = loop {
+        if stop() {
+            be_host_stack::close(block);
+            return Ok(());
+        }
+        if let Some(node) = be_host_stack::node(block) {
+            break node.access;
+        }
+        headless.run_until(LONGEST_SLEEP, || {
+            (stop() || be_host_stack::node(block).is_some()).then_some(())
+        });
+    };
+    if !access.can_edit() {
+        be_host_stack::close(block);
+        return Err(format!(
+            "hosting a block needs Edit on it, and this account has {access:?} on {block}"
+        ));
+    }
     let editor_block = be_host_runtime::EditorBlock {
         id: block,
         block_type,
@@ -77,39 +109,65 @@ pub fn host_block(
     let mut instances = 0;
     // The component running, and whether its app has opened it yet.
     let mut running: Option<(EditorInstanceId, bool)> = None;
-    told("standing by until no one else hosts it");
-    while !stop() {
+    let mut said = None;
+    let mut failed = None;
+    loop {
         be_host_stack::take_updates_in_frame();
+        // What the server says now, not what was asked of it: hosting once it names this device.
+        let saying = match (
+            be_host_stack::hosted().contains(&block),
+            be_host_stack::session_host(block),
+        ) {
+            (true, _) => "hosting",
+            (false, Some(Some(false))) => "another device hosts it; standing by",
+            _ => "standing by until no one else hosts it",
+        };
+        if said != Some(saying) {
+            told(saying);
+            said = Some(saying);
+        }
+        if stop() {
+            break;
+        }
         let may_host = be_host_stack::may_host(block);
         match running {
             None if may_host => {
                 instances += 1;
                 be_host_stack::restart_host(block);
                 running = Some((EditorInstanceId(instances), false));
-                told("hosting");
             }
+            // Another device hosts it: the component stops, and its claim stays in the session
+            // with no release_host, so once that device goes the server names this one host
+            // again and the component starts again here, which `be host` always wants.
             Some((instance, _)) if !may_host => {
                 be_host_runtime::close(&app.identity.id, instance);
                 running = None;
-                told("another device hosts it; standing by");
             }
             _ => {}
         }
-        // Reported, as be-host reports a component, until its app opens it.
-        if let Some((instance, false)) = running {
-            match be_host_runtime::host(&app, &catalog, client, instance, host, editor_block) {
-                be_host_runtime::CreationState::Ready => running = Some((instance, true)),
-                be_host_runtime::CreationState::Failed(error) => {
-                    be_host_stack::close(block);
-                    return Err(format!(
-                        "{}'s host component could not start: {error}",
-                        app.identity.id
-                    ));
+        let revision = be_host_stack::lease_revision();
+        // Reported, as be-host reports a component each frame, until its app opens it; it sleeps
+        // until the stack, the app or a stop wakes it.
+        headless.run_until(LONGEST_SLEEP, || {
+            if let Some((instance, false)) = running {
+                match be_host_runtime::host(&app, &catalog, client, instance, host, editor_block) {
+                    be_host_runtime::CreationState::Ready => running = Some((instance, true)),
+                    be_host_runtime::CreationState::Failed(error) => {
+                        failed = Some(error);
+                        return Some(());
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
+            (stop() || be_host_stack::lease_revision() != revision).then_some(())
+        });
+        if let Some(error) = failed.take() {
+            be_host_stack::close(block);
+            return Err(format!(
+                "{}'s host component could not start: {error}",
+                app.identity.id
+            ));
         }
-        headless.run_until(Duration::from_millis(250), || None::<()>);
     }
     if let Some((instance, _)) = running {
         be_host_runtime::close(&app.identity.id, instance);

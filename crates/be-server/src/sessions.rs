@@ -206,6 +206,7 @@ impl Sessions {
                 &Push::Host {
                     block,
                     host: host_after,
+                    index: entry.index,
                 },
             )
             .await;
@@ -319,7 +320,7 @@ impl SessionRegistry {
         account: uuid::Uuid,
         may_edit: bool,
         tag: be_block_store::Hash,
-    ) -> (SessionState, Option<SessionHost>) {
+    ) -> (SessionState, Option<SessionHost>, u64) {
         let mut sessions = self.sessions.lock().await;
         sessions.session(block).accounts.insert(client, account);
         sessions.joined.entry(client).or_default().insert(block);
@@ -329,21 +330,24 @@ impl SessionRegistry {
             .await
             .unwrap_or_default();
         let host = sessions.sessions.get(&block).and_then(Session::host);
-        (state, host)
+        let as_of = state.index;
+        (state, host, as_of)
     }
 
     /// `client`, signed in as `account`, joins `block`'s session as a Join member: in no
-    /// membership, and heard of by the lease holder alone. Answers who holds the lease.
+    /// membership, and heard of by the lease holder alone. Answers who holds the lease, and the
+    /// index of the membership that is as of.
     pub async fn join_member(
         &self,
         block: Place,
         client: ClientId,
         account: uuid::Uuid,
-    ) -> Option<SessionHost> {
+    ) -> (Option<SessionHost>, u64) {
         let mut sessions = self.sessions.lock().await;
         let session = sessions.session(block);
         session.joiners.insert(client, account);
         let host = session.host();
+        let as_of = session.state.index;
         sessions.joined.entry(client).or_default().insert(block);
         if let Some(host) = host {
             self.hub
@@ -356,7 +360,7 @@ impl SessionRegistry {
                 )
                 .await;
         }
-        host
+        (host, as_of)
     }
 
     /// Writes that `client` left `block`'s session; false when it was not in it.

@@ -446,7 +446,12 @@ counts and records nothing: `reserve-uploads` did before it signed.
   (plans/hosted_blocks.md, step 4d2); the lease, who seals, is unchanged. Every
   member hears a change of host, its claimant too, so a claim reaches the device
   that made it in order with any claim after it; only a joiner learns the host
-  from its join's answer instead. `query.log` then proves the host to a
+  from its join's answer instead. Each change carries the index of the
+  membership entry that made it (`host-change.index`) and a join answers the
+  index its host is as of (`joined-session.host-as-of`): be-block-client drops
+  a change it held while the join was on its way that is no newer, as the
+  server sent it before taking the join (a device that rejoins to drop its
+  claim would otherwise hear itself named host again). `query.log` then proves the host to a
   reader below Edit, and `query.access` names it to a manager as who hosts the
   block now (`access-list.host`, the share dialog's line on a hosted block).
 - **Join members** (plans/hosted_blocks.md): a caller below `View` joins as one

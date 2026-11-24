@@ -328,6 +328,9 @@ interface server {
         /// Who holds the lease as of joining: told again as
         /// `session-event.host` whenever it changes.
         host: option<session-host>,
+        /// The index of the session's membership `host` is as of: a
+        /// `session-event.host` no newer was sent before the join.
+        host-as-of: u64,
     }
 
     /// What a connection follows: a read with `follow` starts it, and
