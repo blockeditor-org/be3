@@ -6,8 +6,10 @@ use uuid::Uuid;
 
 use crate::{
     BlockContent, BlockMetadata, ContentError, LiveEdit, Loads, Merge, Part, PartRef, Stored,
-    streamed::{Streamed, decode_streamed, encode_streamed},
 };
+
+/// The stored form's prefix: the header's length, as a little-endian `u32`.
+const HEADER_PREFIX_BYTES: usize = 4;
 
 pub trait BlobKind: Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
@@ -71,6 +73,12 @@ impl<K: BlobKind> Blob<K> {
     /// the store, and editors read it by range (`ContentProjection::payload` in be-sdk-beui).
     pub const fn is_loaded(&self) -> bool {
         !self.unloaded
+    }
+
+    /// Where the payload starts in the stored form, after the encoded header: a reader of a
+    /// blob loaded without its payload reads the payload's bytes from here on.
+    pub fn payload_offset(&self) -> u64 {
+        encode_streamed(&self.header, &[]).len() as u64
     }
 
     pub fn payload_length(&self) -> u64 {
@@ -186,22 +194,6 @@ impl<K: BlobKind> BlockContent for Blob<K> {
     }
 }
 
-impl<K: BlobKind> Streamed for Blob<K> {
-    type Header = K::Header;
-
-    fn header(&self) -> Self::Header {
-        self.header.clone()
-    }
-
-    fn payload(&self) -> &[u8] {
-        &self.data
-    }
-
-    fn from_parts(header: Self::Header, payload: Vec<u8>) -> Self {
-        Self::new(header, payload)
-    }
-}
-
 impl<K: BlobKind> LiveEdit for Blob<K> {
     type Op = BlobOp<K::Header>;
 
@@ -225,4 +217,35 @@ impl<K: BlobKind> Merge for Blob<K> {
             conflicts: 1,
         }
     }
+}
+
+/// `[u32 header length][header][payload]`, so a reader takes the header from the start.
+fn encode_streamed<H: Serialize>(header: &H, payload: &[u8]) -> Vec<u8> {
+    let encoded = postcard::to_stdvec(header).unwrap_or_default();
+    let length = u32::try_from(encoded.len()).unwrap_or(u32::MAX);
+    let mut bytes = Vec::with_capacity(HEADER_PREFIX_BYTES + encoded.len() + payload.len());
+    bytes.extend_from_slice(&length.to_le_bytes());
+    bytes.extend_from_slice(&encoded);
+    bytes.extend_from_slice(payload);
+    bytes
+}
+
+fn decode_streamed<H: DeserializeOwned>(bytes: &[u8]) -> Result<(H, Vec<u8>), ContentError> {
+    let start = payload_start(bytes)?;
+    if bytes.len() < start {
+        return Err(ContentError::Truncated);
+    }
+    let header = postcard::from_bytes(&bytes[HEADER_PREFIX_BYTES..start])
+        .map_err(|_| ContentError::Malformed("header"))?;
+    Ok((header, bytes[start..].to_vec()))
+}
+
+fn payload_start(prefix: &[u8]) -> Result<usize, ContentError> {
+    let length = prefix
+        .get(..HEADER_PREFIX_BYTES)
+        .ok_or(ContentError::Truncated)?;
+    let length = u32::from_le_bytes(length.try_into().expect("four bytes")) as usize;
+    HEADER_PREFIX_BYTES
+        .checked_add(length)
+        .ok_or(ContentError::Malformed("header length"))
 }

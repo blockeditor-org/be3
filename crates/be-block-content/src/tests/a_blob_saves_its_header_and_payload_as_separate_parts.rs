@@ -5,7 +5,7 @@ fn a_blob_saves_its_header_and_payload_as_separate_parts() {
     let payload: Vec<u8> = (0..=255u8).cycle().take(10_000).collect();
     let content = image("frame.png", &payload);
     let encoded = content.encode();
-    let start = payload_start(&encoded).unwrap();
+    let start = content.payload_offset() as usize;
 
     let parts = content.parts();
     assert_eq!(parts.flatten().unwrap(), encoded);

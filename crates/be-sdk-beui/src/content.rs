@@ -453,8 +453,7 @@ impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>>
                 let live = this.live();
                 let read = stored.map(|(length, _)| {
                     let (start, held) = live.visible(|blob| {
-                        let start =
-                            be_block_content::encode_streamed(blob.header(), &[]).len() as u64;
+                        let start = blob.payload_offset();
                         let whole = start + blob.data().len() as u64 == length;
                         (start, whole.then(|| Payload(blob.data().into())))
                     });
