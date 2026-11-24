@@ -1084,7 +1084,7 @@ pub(crate) fn describe(
         && can_move_out_of(
             client,
             types,
-            block_types,
+            |id| block_types.get(&id).copied(),
             source,
             reference.id,
             is_reference,

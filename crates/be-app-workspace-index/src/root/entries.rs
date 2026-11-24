@@ -234,12 +234,11 @@ fn menu_block(editor: Editor, entry: &Entry) -> Option<MenuBlock> {
     let can_delete = can_move_out_of(
         &editor.blocks(),
         types.as_ref(),
-        &editor
-            .host()
-            .block_type()
-            .map(|folder_type| (folder, folder_type))
-            .into_iter()
-            .collect(),
+        |block| {
+            (block == folder)
+                .then(|| editor.host().block_type())
+                .flatten()
+        },
         source,
         id,
         is_reference,

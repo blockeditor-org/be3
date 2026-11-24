@@ -4,7 +4,6 @@
 //! own items, for a `MenuBlock` it describes its row as.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use be_sdk::be_sdk_ui::BlockTypes;
 use beui::icons::{ICON_DOWNLOAD, ICON_MOVE_UP, ICON_TRASH};
@@ -30,12 +29,12 @@ pub struct MenuBlock {
 
 /// Whether `child`, listed in `source`, may be taken out of it: deleted, moved or cut. A block
 /// listed in another needs that block's type to let children go and edit access to it, and a
-/// block of its own (not a link) edit access to itself too. `block_types` holds the types of the
-/// blocks it may be listed in.
+/// block of its own (not a link) edit access to itself too. `block_type` answers the type of a
+/// block it may be listed in.
 pub fn can_move_out_of(
     client: &Blocks,
     types: &dyn BlockTypes,
-    block_types: &HashMap<Uuid, Uuid>,
+    block_type: impl Fn(Uuid) -> Option<Uuid>,
     source: BlockParent,
     child: Uuid,
     is_reference: bool,
@@ -43,9 +42,7 @@ pub fn can_move_out_of(
     let can_delete = match source {
         BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled => true,
         BlockParent::Block(id) => {
-            block_types
-                .get(&id)
-                .is_some_and(|block_type| types.child_operations(*block_type).delete)
+            block_type(id).is_some_and(|block_type| types.child_operations(block_type).delete)
                 && client.access(id).can_edit()
         }
     };

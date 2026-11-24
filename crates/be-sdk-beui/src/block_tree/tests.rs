@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 
 use uuid::Uuid;
 
