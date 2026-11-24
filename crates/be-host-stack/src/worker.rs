@@ -4375,10 +4375,10 @@ async fn apply(
             // closed segments), and a copy through bytes would drop them: refuse until a copy of
             // parts exists.
             if replicas
-                .kind(content_type)
+                .modules.kind(content_type)
                 .await
                 .is_some_and(|kind| !kind.whole_bytes)
-                && has_later_parts(peer, from).await.unwrap_or(false)
+                && peer.has_later_parts(from).await.unwrap_or(false)
             {
                 record(
                     shared,
@@ -4414,7 +4414,7 @@ async fn apply(
             };
             let bytes = match bytes {
                 Some(bytes) => Some(bytes),
-                None => replicas.kind(content_type).await.map(|kind| kind.blank),
+                None => replicas.modules.kind(content_type).await.map(|kind| kind.blank),
             };
             if let Some(bytes) = bytes
                 && let Err(error) =
@@ -4478,7 +4478,7 @@ async fn apply(
             bytes,
             owner_only,
         } => {
-            let kind = replicas.kind(content_type).await;
+            let kind = replicas.modules.kind(content_type).await;
             let bytes = bytes.or_else(|| kind.as_ref().map(|kind| kind.blank.clone()));
             if metadata.derived.is_empty()
                 && let Some(kind) = kind
@@ -4606,7 +4606,7 @@ async fn plain_file(
     let bytes = match content {
         Some(bytes) => bytes,
         None => replicas
-            .kind(content_type)
+            .modules.kind(content_type)
             .await
             .map(|kind| kind.blank)
             .ok_or("This block's type isn't known.")?,
@@ -4627,16 +4627,6 @@ async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, Clie
     };
     let commit = peer.load_head(block, head).await?;
     Ok(Some(peer.read_manifest(&commit.manifest).await?))
-}
-
-/// Whether the block's newest save holds more than the first part a type loads.
-pub(super) async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<bool, ClientError> {
-    let Some(head) = peer.newest_head(block).await? else {
-        return Ok(false);
-    };
-    let commit = peer.load_head(block, head).await?;
-    let first = peer.load_first_part(&commit.manifest).await?;
-    Ok((first.bytes.len() as u64) < commit.manifest.length())
 }
 
 /// Makes `block` on the server unless it is there (`Peer::ensure_type`), and has the graph read
@@ -4780,118 +4770,52 @@ async fn export(
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
 ) -> Result<(String, Vec<u8>), ClientError> {
-    let picked = peer.summary(block).await?;
-    if picked.owner_only {
-        return Err(ClientError::Refused(
-            be_block_protocol::ErrorCode::PermissionDenied,
-            "a block only you can read is not exported, since a block file opens for anyone".into(),
-        ));
-    }
-    let mut top = picked.clone();
-    if let Some(BlockParent::Block(parent)) = picked.parent
-        && let Ok(whole) = peer.summary(parent).await
-        && crate::discovery::exported_whole(whole.content_type)
-    {
-        top = whole;
-    }
-    let mut found = vec![(top.clone(), None)];
-    let mut level = vec![(top.id, 0)];
-    while !level.is_empty() {
-        let below = futures_util::future::try_join_all(
-            level
-                .iter()
-                .map(|(parent, _)| peer.children(BlockParent::Block(*parent))),
-        )
-        .await?;
-        let mut next = Vec::new();
-        for ((_, position), children) in level.into_iter().zip(below) {
-            for child in children {
-                if child.access.can_view()
-                    && !child.owner_only
-                    && found.iter().all(|(held, _)| held.id != child.id)
-                {
-                    next.push((child.id, found.len()));
-                    found.push((child, Some(position)));
-                }
-            }
-        }
-        level = next;
-    }
-    let summaries: Vec<BlockSummary> = found.iter().map(|(summary, _)| summary.clone()).collect();
-    peer.learn(&summaries).await?;
-    let mut blocks: Vec<be_block_client::transfer::Saved> = Vec::with_capacity(found.len());
-    for (summary, parent) in found {
-        blocks.push(be_block_client::transfer::Saved {
-            id: summary.id,
-            block_type: summary.content_type,
-            parent,
-            metadata: node_of(peer, &summary).metadata,
-            references: peer.content_references(&summary).await?,
-            content: None,
-            log: Vec::new(),
-        });
-    }
-    let heads: HashMap<Uuid, Option<be_block_commit::CommitId>> = summaries
-        .iter()
-        .map(|summary| (summary.id, summary.head))
-        .collect();
-    // A type with a signed log carries it, opened, each entry with its author's signature in
-    // the block it was written in (`Peer::verify_exported`).
-    for block in &mut blocks {
-        if replicas
-            .kind(block.block_type)
-            .await
-            .is_some_and(|kind| kind.log)
-        {
-            block.log = peer.export_log(block.id).await?;
-        }
-    }
-    // A block file carries bytes, which drop the parts after the first of a type that loads
-    // only its first part (chat's closed segments): refuse until a file carries parts.
-    for block in &blocks {
-        if replicas
-            .kind(block.block_type)
-            .await
-            .is_some_and(|kind| !kind.whole_bytes)
-            && has_later_parts(peer, block.id).await?
-        {
-            return Err(ClientError::Encoding(
-                "a block that keeps parts after its first is not exported yet".to_string(),
-            ));
-        }
-    }
-    let wanted: Vec<_> = blocks
-        .iter()
-        .filter(|block| !replicas.is_open(block.id))
-        .map(|block| (block.id, heads[&block.id]))
-        .collect();
-    let mut read = peer.read_contents(&wanted).await?.into_iter();
-    for block in &mut blocks {
-        block.content = match replicas.is_open(block.id) {
-            true => match replicas.content((peer, shared), block.id).await {
-                Some(bytes) => Some(bytes),
-                None => stored(peer, block.id).await?,
-            },
-            false => match read.next() {
-                Some(read) => replicas.modules.readable(read).await,
-                None => None,
-            },
-        };
-        if let Some(derived) = shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .graph
-            .get(block.id)
-            .map(|node| node.metadata.derived.clone())
-        {
-            block.metadata.derived = derived;
-        }
-    }
+    let blocks = be_block_type_host::transfer::collect(
+        peer,
+        block,
+        crate::discovery::exported_whole,
+        &mut Exporting {
+            peer,
+            replicas,
+            shared,
+        },
+    )
+    .await?;
     let name = blocks[0].metadata.name().unwrap_or_default();
     Ok((
         be_block_client::transfer::file_name(&name),
         be_block_client::transfer::encode(&blocks),
     ))
+}
+
+/// What an export reads beside what is stored: the replicas the host holds open, and the
+/// metadata the graph derived.
+struct Exporting<'a> {
+    peer: &'a Arc<Peer<Store>>,
+    replicas: &'a mut Replicas,
+    shared: &'a Arc<Mutex<Shared>>,
+}
+
+impl be_block_type_host::transfer::Open for Exporting<'_> {
+    fn modules(&mut self) -> &mut Modules {
+        &mut self.replicas.modules
+    }
+
+    async fn content(&mut self, block: Uuid) -> Option<Vec<u8>> {
+        match self.replicas.is_open(block) {
+            true => self.replicas.content((self.peer, self.shared), block).await,
+            false => None,
+        }
+    }
+
+    fn derived(&self, block: Uuid) -> Option<be_block_content::Entries> {
+        self.shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .get(block)
+            .map(|node| node.metadata.derived.clone())
+    }
 }
 
 fn relist(shared: &Arc<Mutex<Shared>>) {

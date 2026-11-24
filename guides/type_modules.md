@@ -384,7 +384,7 @@ stored form read whole decodes to the content, so the host copies such a block t
 bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
 restore. A type that loads only its first part and keeps parts its first part cannot rebuild sets
 it false (none does now; plans/signed_logs.md, step 6), and the host refuses those paths for a block that has parts after
-its first (`has_later_parts`).
+its first (`Peer::has_later_parts`).
 
 ### Merging by parts
 
