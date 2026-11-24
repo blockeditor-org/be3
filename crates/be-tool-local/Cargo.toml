@@ -13,6 +13,8 @@ path = "src/main.rs"
 base64 = "0.22"
 beui-html = { path = "../beui-html" }
 be-lib-build-id = { path = "../be-lib-build-id" }
+be-lib-git = { path = "../be-lib-git" }
+be-lib-sha256 = { path = "../be-lib-sha256" }
 be-tool-fix-rust-source = { path = "../be-tool-fix-rust-source" }
 be-tool-paint-review-manifest = { path = "../be-tool-paint-review-manifest" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
@@ -24,7 +26,7 @@ rsa = { version = "0.9", features = ["getrandom", "sha2"] }
 x509-cert = { version = "0.2", features = ["builder"] }
 image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 sha2 = { version = "0.10", features = ["oid"] }
-ureq = "2"
+be-tool-storage = { path = "../be-tool-storage" }
 zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
 
 [target.'cfg(unix)'.dependencies]

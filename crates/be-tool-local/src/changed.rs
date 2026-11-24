@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use crate::git;
+use be_lib_git::git;
 use crate::previews::{PAINTINGS, generate, stage};
 
 const USAGE: &str = "usage: local-tools changed [--base REVISION] [--images FOLDER]";

@@ -22,13 +22,13 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -38,13 +38,13 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -54,13 +54,13 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -70,13 +70,13 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -86,13 +86,13 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -102,13 +102,13 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -118,13 +118,13 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "paint-compare": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],

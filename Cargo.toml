@@ -2,6 +2,9 @@
 members = [
     "crates/be-wasm-password",
     "crates/be-lib-quoted-name",
+    "crates/be-lib-git",
+    "crates/be-lib-sha256",
+    "crates/be-tool-storage",
     "crates/be-block-repository",
     "crates/be-block-input",
     "crates/be-host-archive",

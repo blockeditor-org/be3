@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use be_lib_sha256::{Digest as _, Sha256, finish};
 
 use crate::helper::{self, Manifest};
 use crate::net::Http;
@@ -117,7 +117,7 @@ fn download(
         let _ = fs::remove_file(&part);
         return Err(error);
     }
-    let received = hex(&hasher.finalize());
+    let received = finish(hasher);
     if received != hash {
         drop(file);
         let _ = fs::remove_file(&part);
@@ -212,8 +212,4 @@ fn remove(path: &Path) -> Result<(), String> {
         }
         _ => Ok(()),
     }
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

@@ -1,13 +1,14 @@
 use std::{
     fs,
-    io::{self, Read as _, Write as _},
+    io::{self, Read as _},
     os::unix::fs::PermissionsExt as _,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::Mutex,
 };
 
-use sha2::{Digest as _, Sha256};
+use be_lib_sha256::{sha256, sha256_read};
+use be_tool_storage::{Body, Put, Storage};
 
 use crate::{
     products::{Manifest, ManifestFile, Product, manifest_url},
@@ -31,7 +32,8 @@ pub struct Host {
     pub state: PathBuf,
     pub keystore: Option<PathBuf>,
     pub public: String,
-    pub storage_key: Option<String>,
+    /// The be3-ci zone, holding BUNNY_STORAGE_KEY when it was given.
+    pub storage: Storage,
     pub max_buck_out: u64,
     pub git: Mutex<()>,
 }
@@ -47,18 +49,19 @@ impl Backend for Host {
         if marker.exists() {
             return true;
         }
-        let found = match &self.storage_key {
-            Some(key) => curl_status(
-                &["--request", "GET"],
-                Some(key),
-                &format!("{STORAGE}/builds/{product}/{commit}.json"),
-            ),
-            None => curl_status(
-                &["--head"],
-                None,
-                &manifest_url(&self.public, product, commit),
-            ),
-        } == Some(200);
+        let found = match self.storage.has_key() {
+            true => self
+                .storage
+                .get(&format!("{STORAGE}/builds/{product}/{commit}.json"))
+                .map(|stored| stored.is_some()),
+            false => self
+                .storage
+                .head(&manifest_url(&self.public, product, commit)),
+        }
+        .unwrap_or_else(|error| {
+            tracing::warn!("{error}");
+            false
+        });
         if found {
             let _ = mark(&marker);
         }
@@ -123,8 +126,9 @@ impl Backend for Host {
         let built = built?;
         let mut files = Vec::new();
         for (path, file) in &built.files {
-            let (sha256, size) =
-                hash(file).map_err(|error| format!("{}: {error}", file.display()))?;
+            let (sha256, size) = fs::File::open(file)
+                .and_then(sha256_read)
+                .map_err(|error| format!("{}: {error}", file.display()))?;
             let mode = fs::metadata(file)
                 .map_err(|error| format!("{}: {error}", file.display()))?
                 .permissions()
@@ -151,18 +155,18 @@ impl Backend for Host {
             .join(format!("{commit}.json"));
         fs::create_dir_all(saved.parent().unwrap()).map_err(|error| error.to_string())?;
         fs::write(&saved, &json).map_err(|error| format!("{}: {error}", saved.display()))?;
-        let Some(key) = &self.storage_key else {
+        if !self.storage.has_key() {
             log.line(&format!(
                 "No BUNNY_STORAGE_KEY, so nothing was uploaded; the manifest is at {}",
                 saved.display()
             ));
             return Ok(());
-        };
-        put(
-            key,
-            &saved,
-            "application/json",
+        }
+        self.storage.put(
             &format!("{STORAGE}/builds/{name}/{commit}.json"),
+            Body::Bytes(&json),
+            &sha256(&json),
+            "application/json",
         )?;
         mark(&self.published_marker(&name, commit)).map_err(|error| error.to_string())?;
         log.line(&format!(
@@ -292,24 +296,26 @@ impl Host {
             return Ok(());
         }
         let public = format!("{}/files/{sha256}", self.public.trim_end_matches('/'));
-        if curl_status(&["--head"], None, &public) == Some(200) {
+        if self.storage.head(&public).unwrap_or(false) {
             let _ = mark(&marker);
             return Ok(());
         }
-        let Some(key) = &self.storage_key else {
+        if !self.storage.has_key() {
             log.line(&format!(
                 "Would upload {} as files/{sha256}",
                 file.display()
             ));
             return Ok(());
-        };
-        put(
-            key,
-            file,
-            "application/octet-stream",
+        }
+        let put = self.storage.put_if_absent(
             &format!("{STORAGE}/files/{sha256}"),
+            Body::File(file),
+            sha256,
+            "application/octet-stream",
         )?;
-        log.line(&format!("Uploaded files/{sha256}"));
+        if put == Put::Stored {
+            log.line(&format!("Uploaded files/{sha256}"));
+        }
         mark(&marker).map_err(|error| error.to_string())
     }
 
@@ -407,80 +413,7 @@ fn size(directory: &Path) -> u64 {
         .sum()
 }
 
-fn hash(path: &Path) -> io::Result<(String, u64)> {
-    let mut file = fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut chunk = vec![0u8; 1 << 20];
-    let mut size = 0;
-    loop {
-        let read = file.read(&mut chunk)?;
-        if read == 0 {
-            break;
-        }
-        size += read as u64;
-        hasher.update(&chunk[..read]);
-    }
-    let digest = hasher.finalize();
-    Ok((
-        digest.iter().map(|byte| format!("{byte:02x}")).collect(),
-        size,
-    ))
-}
-
 fn mark(path: &Path) -> io::Result<()> {
     fs::create_dir_all(path.parent().unwrap())?;
     fs::write(path, "")
-}
-
-fn curl(arguments: &[&str], key: Option<&str>, url: &str) -> io::Result<std::process::Output> {
-    let mut child = Command::new("curl")
-        .args(["--silent", "--show-error", "--retry", "3", "--config", "-"])
-        .args(arguments)
-        .arg(url)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    let mut stdin = child.stdin.take().unwrap();
-    if let Some(key) = key {
-        stdin.write_all(format!("header = \"AccessKey: {key}\"\n").as_bytes())?;
-    }
-    drop(stdin);
-    child.wait_with_output()
-}
-
-fn curl_status(arguments: &[&str], key: Option<&str>, url: &str) -> Option<u16> {
-    let mut all = vec!["--output", "/dev/null", "--write-out", "%{http_code}"];
-    all.extend_from_slice(arguments);
-    let output = curl(&all, key, url).ok()?;
-    String::from_utf8_lossy(&output.stdout).trim().parse().ok()
-}
-
-fn put(key: &str, file: &Path, content_type: &str, url: &str) -> Result<(), String> {
-    let file = file.to_str().ok_or("a path that is not UTF-8")?;
-    let content_type = format!("Content-Type: {content_type}");
-    let output = curl(
-        &[
-            "--fail",
-            "--output",
-            "/dev/null",
-            "--request",
-            "PUT",
-            "--header",
-            &content_type,
-            "--upload-file",
-            file,
-        ],
-        Some(key),
-        url,
-    )
-    .map_err(|error| format!("could not run curl: {error}"))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "uploading to {url} failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ))
-    }
 }

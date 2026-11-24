@@ -1,7 +1,6 @@
 # One way each in the tools
 
-Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release and a new pin
-(guides/bootstrap.md).
+Depends on: none. Steps 2 and 7 need a bootstrap release and a new pin (guides/bootstrap.md).
 
 ## Steps
 
@@ -38,12 +37,11 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
    `rasterize.rs` and `previews.rs`'s `ReviewSnapshot` each branch on `is_browser`, and their
    descriptions differ. A `Painting { Native, Browser }` in beui-paint-snapshot with `decode`,
    `frames`, `difference` and `render(index, browser_renderer)`; the others call it.
-6. **One storage client and one copy of the small helpers.** be-tool-local's `deploy.rs`
-   (ureq, a `Checksum` header, `stored_sha256`) and be-tool-build-helper's `host.rs` (curl by
-   content hash) share one blocking client: put if absent by sha256, get, head. be-server's
-   backup keeps its own, and CI's upload step stays separate as the only step that holds the
-   key. About nine sha256-to-hex helpers across the tool crates use the `hex` crate already in
-   Cargo.lock through one function, and be-tool-verify's and be-tool-local's `git()` and
-   `git_bytes()` become one.
-7. **Names that say what they are.** be-tool-local's Cargo description stops claiming it runs
+6. **Names that say what they are.** be-tool-local's Cargo description stops claiming it runs
    verify (be-tool-verify does), and its binary's name matches the crate the guides name.
+7. **The bootstrap's copies of the small helpers** (needs a bootstrap release (CI's
+   publish-bootstrap plus pin round)). The other tools hash through be-lib-sha256 and run git
+   through be-lib-git; crates/be-tool-bootstrap keeps its own: `download.rs`'s `hex()` and
+   `sha256_file()` and `lock.rs`'s hex of its hasher become be-lib-sha256's `sha256_read` and
+   `finish`, and `verify.rs`'s `git` closure in `changed_paintings` becomes be-lib-git's `git`
+   with `-C`.

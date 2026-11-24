@@ -103,7 +103,7 @@ pub fn run(options: &Options) -> Result<(), String> {
         let accepted = std::fs::read(options.accepted.join(name)).ok();
         write(
             &used.join(name),
-            sha256(accepted.as_deref().unwrap_or_default()).as_bytes(),
+            be_lib_sha256::sha256(accepted.as_deref().unwrap_or_default()).as_bytes(),
         )?;
         let why = match &accepted {
             None => Some("there is no accepted painting".to_owned()),
@@ -232,14 +232,6 @@ fn paintings(directory: &Path) -> Result<Vec<PathBuf>, String> {
         .collect();
     paintings.sort();
     Ok(paintings)
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    use sha2::{Digest as _, Sha256};
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn create_dir(path: &Path) -> Result<(), String> {

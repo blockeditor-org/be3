@@ -22,20 +22,22 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",
@@ -48,20 +50,22 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",
@@ -74,20 +78,22 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",
@@ -100,20 +106,22 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",
@@ -126,20 +134,22 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",
@@ -152,20 +162,22 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",
@@ -178,20 +190,22 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "build-helper": [
+                    "//crates/be-lib-sha256:be-lib-sha256",
+                    "//crates/be-tool-storage:be-tool-storage",
                     "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:tracing-0.1.44",
                     "//third-party/rust:tracing-subscriber-0.3.23",
                 ],
             },
             "deps": [
+                "//crates/be-lib-sha256:be-lib-sha256",
+                "//crates/be-tool-storage:be-tool-storage",
                 "//third-party/rust:httparse-1.10.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:tokio-1.52.3",
                 "//third-party/rust:tracing-0.1.44",
                 "//third-party/rust:tracing-subscriber-0.3.23",

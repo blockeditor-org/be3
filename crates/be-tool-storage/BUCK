@@ -1,0 +1,4 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# The storage client be-tool-local's deploy and be-tool-build-helper upload with.
+cargo_crate()

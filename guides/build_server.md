@@ -179,8 +179,8 @@ native builds. Its doc comments (`Host`, `Builds`) cover the rules.
 
 It checks no credentials, so it listens on localhost behind the API host's Caddy, which routes
 `/build/*` to it after the gateway's check (guides/hosting.md). Build it with
-`./scripts/buck build //crates/be-tool-build-helper:bin` and run it as a service with `git`,
-`curl` and what `./scripts/buck` needs:
+`./scripts/buck build //crates/be-tool-build-helper:bin` and run it as a service with `git` and
+what `./scripts/buck` needs:
 
 ```
 BUNNY_STORAGE_KEY=... be-tool-build-helper --checkout /srv/build-helper/checkout \

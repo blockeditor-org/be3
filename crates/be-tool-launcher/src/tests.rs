@@ -3,7 +3,6 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use serde_json::json;
-use sha2::{Digest, Sha256};
 
 use crate::builds::{self, Installed, Slot};
 use crate::github::{
@@ -48,10 +47,7 @@ struct Store {
 
 impl Store {
     fn put(&mut self, bytes: &[u8]) -> helper::File {
-        let sha256: String = Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+        let sha256 = be_lib_sha256::sha256(bytes);
         self.answers
             .insert(helper::file_url(&sha256), (200, bytes.to_vec()));
         helper::File {

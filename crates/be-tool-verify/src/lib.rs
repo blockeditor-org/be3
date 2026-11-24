@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::{Command, ExitCode};
+
+use be_lib_git::git;
 
 mod binds;
 mod failures;
@@ -585,7 +587,7 @@ impl Run {
                     fs::read_to_string(directory.join("used").join(name)).unwrap_or_default();
                 let to = package.join("snapshots").join(name);
                 let accepted = fs::read(&to).unwrap_or_default();
-                if compared.trim() == bootstrap::sha256(&accepted) {
+                if compared.trim() == be_lib_sha256::sha256(&accepted) {
                     changed.push((painting, to));
                 } else {
                     stale.push(to);
@@ -767,19 +769,6 @@ fn owner(package: &Path, directory: &Path) -> Option<String> {
     let name = directory.parent()?.file_name()?.to_str()?;
     let name = name.strip_prefix("__")?.strip_suffix("__")?;
     Some(format!("{}:{name}", slashed(package)))
-}
-
-fn git(arguments: &[&str]) -> Option<String> {
-    git_bytes(arguments).and_then(|bytes| String::from_utf8(bytes).ok())
-}
-
-fn git_bytes(arguments: &[&str]) -> Option<Vec<u8>> {
-    let output = Command::new("git")
-        .args(arguments)
-        .stderr(Stdio::null())
-        .output()
-        .ok()?;
-    output.status.success().then_some(output.stdout)
 }
 
 fn named_paintings(crates: &Path) -> BTreeSet<PathBuf> {
