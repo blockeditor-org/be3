@@ -464,7 +464,7 @@ impl Embedded {
         }
         let wants = wants(
             state.run.session.state(),
-            state.run.session.granted_surface().is_some(),
+            state.draws(),
             &state.run.pacing,
             state.now,
         );
@@ -590,7 +590,7 @@ pub struct Wants {
     /// by its frame's timeout (its hello or its going wakes the root first); once it runs and
     /// draws, at once while a frame it needs has not been asked for or it animates, by the
     /// timeout while one is in flight, or when it said to draw again. None for an app with no
-    /// surface, which is never asked for a frame, or one that closed.
+    /// surface or asked for no screens, which is never asked for a frame, or one that closed.
     pub next: Option<Duration>,
     /// Whether it owes the root something now: it is starting or shutting down, or draws and has
     /// a frame due or in flight. A frame it wants only later, or for an animation, is not owed,
@@ -662,9 +662,17 @@ impl State {
     }
 
     /// Asks the app for a frame if its pacing says one is due.
+    /// Whether the app draws for the root: it was granted a surface and is asked for screens.
+    /// One asked for none (a child shown as its block's label) presents nothing, so it is never
+    /// asked for a frame, which would stay in flight until the root's deadline, and owes the
+    /// root none.
+    fn draws(&self) -> bool {
+        self.run.session.granted_surface().is_some() && !self.run.screens.is_empty()
+    }
+
     fn ask(&mut self) -> Ask {
         let ask = self.run.pacing.ask(Asking {
-            drawing: self.run.session.granted_surface().is_some(),
+            drawing: self.draws(),
             seen: true,
             now: self.now,
             pass: self.pass,
