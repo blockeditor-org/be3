@@ -20,33 +20,31 @@ pub fn begin_host_frame(frame: Frame) {
 
 /// The runtime with nothing on screen. One per thread, which owns the runtime's state.
 pub struct Headless {
-    woken: Arc<(Mutex<bool>, Condvar)>,
+    wakes: Arc<(Mutex<u64>, Condvar)>,
 }
 
-/// What wakes a `Headless`: one for the process, as the host's waker is installed once
-/// (`host::install_waker`), so a second `Headless` (a test after another, in one process) is
-/// woken too rather than sleeping until its wait runs out.
-fn woken() -> Arc<(Mutex<bool>, Condvar)> {
-    static WOKEN: std::sync::OnceLock<Arc<(Mutex<bool>, Condvar)>> = std::sync::OnceLock::new();
-    Arc::clone(WOKEN.get_or_init(|| {
-        let woken = Arc::new((Mutex::new(true), Condvar::new()));
-        let waking = Arc::clone(&woken);
+/// How many times the host was woken: one count for the process, as the host's waker is
+/// installed once (`host::install_waker`), so a second `Headless` (a test after another, in one
+/// process) is woken too. Each `run_until` waits for the count to move past what it was before
+/// its step, so none takes another's wake, and a wake during a step is not lost.
+fn wakes() -> Arc<(Mutex<u64>, Condvar)> {
+    static WAKES: std::sync::OnceLock<Arc<(Mutex<u64>, Condvar)>> = std::sync::OnceLock::new();
+    Arc::clone(WAKES.get_or_init(|| {
+        let wakes = Arc::new((Mutex::new(0), Condvar::new()));
+        let waking = Arc::clone(&wakes);
         host::install_waker(move || {
-            *waking.0.lock().unwrap_or_else(PoisonError::into_inner) = true;
+            *waking.0.lock().unwrap_or_else(PoisonError::into_inner) += 1;
             waking.1.notify_all();
         });
-        woken
+        wakes
     }))
 }
 
 impl Headless {
     pub fn start() -> Self {
-        let woken = woken();
-        // Its first step runs at once.
-        *woken.0.lock().unwrap_or_else(PoisonError::into_inner) = true;
         host::install_clock(Instant::now);
         crate::install_headless();
-        Self { woken }
+        Self { wakes: wakes() }
     }
 
     /// One step: the letters that woke the host delivered, the apps polled, their calls served
@@ -80,22 +78,24 @@ impl Headless {
         mut done: impl FnMut() -> Option<T>,
     ) -> Option<T> {
         let deadline = Instant::now() + within;
+        let wakes = Arc::clone(&self.wakes);
+        let (count, ringing) = &*wakes;
         loop {
+            let before = *count.lock().unwrap_or_else(PoisonError::into_inner);
             let again = self.step();
             if let Some(done) = done() {
                 return Some(done);
             }
             let left = deadline.checked_duration_since(Instant::now())?;
             let wait = again.map_or(left, |again| again.min(left));
-            let (woken, ringing) = &*self.woken;
-            let mut woken = woken.lock().unwrap_or_else(PoisonError::into_inner);
-            if !*woken {
-                woken = ringing
-                    .wait_timeout(woken, wait)
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .0;
+            let woken = count.lock().unwrap_or_else(PoisonError::into_inner);
+            if *woken == before {
+                drop(
+                    ringing
+                        .wait_timeout_while(woken, wait, |woken| *woken == before)
+                        .unwrap_or_else(PoisonError::into_inner),
+                );
             }
-            *woken = false;
         }
     }
 }
