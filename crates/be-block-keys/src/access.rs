@@ -1605,6 +1605,9 @@ impl Checked {
                                 *level = Level::None;
                             }
                             state.set_level(account, Level::None);
+                            if state.offered.is_some_and(|(offered, _)| offered == account) {
+                                state.offered = None;
+                            }
                         }
                     }
                     // On a proof path the grants a link made may be reduced: whether revoking it
