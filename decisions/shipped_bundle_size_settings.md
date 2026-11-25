@@ -1,7 +1,8 @@
-# The deployed bundle uses type modules at opt-level s and keeps symbols (and once fat LTO and precompiled code)
+# The deployed bundle keeps symbols (and once built type modules at opt-level s, with fat LTO and precompiled code)
 
 Release builds use legacy symbol mangling and build first-party crates for
-wasm32-unknown-unknown (the type modules) at `opt-level=s` (buck/platforms/profile.bzl), linked modules use
+wasm32-unknown-unknown at `opt-level=s` (buck/platforms/profile.bzl), which is now only the
+browser's gpu shim: the type modules build at the apps' 3 (Since, below). Linked modules use
 hashed export names (guides/app_libraries.md), and the bundle ships a `.cwasm` of every
 module with be-host's symbols and the modules' name sections kept.
 
@@ -39,10 +40,12 @@ symbol settings still stand.
 
 November 2026: the pure guests (type modules, games, the input remaps) are built for
 wasm32-wasip1 in the apps' plan (plans/pure_guests_in_the_apps_plan.md), so a crate they share
-with the apps compiles once, at the apps' release opt-level 3. Type modules no longer build at
-`s` and ship about a third bigger again; `s` stays only for the gpu shim, the one crate left on
-wasm32-unknown-unknown. Building only the guests' own crates at `s`, or the apps' too, was left
-to the owner.
+with the apps compiles once, at the apps' release opt-level 3 (option a). Type modules no longer
+build at `s` and ship a third bigger again: the release checklist module 1,895,013 bytes to
+2,497,166, text's 1,957,971 to 2,566,523. `s` stays only for the gpu shim, the one crate left on
+wasm32-unknown-unknown. The owner may still choose (b), `s` for every guest, the apps' crates
+too, against the frame times above, or (c), `s` for each pure guest's own crates (its
+`be-type-*` or `tabletop-rules-*` crate and `:wasm`) while the crates it shares stay at 3.
 
 November 2026: the deploy's fat LTO over one codegen unit was removed (decisions/no_lto.md), with
 the rejection of thin LTO here.
