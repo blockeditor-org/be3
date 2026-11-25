@@ -35,7 +35,12 @@ async fn a_key_sealed_to_a_phrase_the_reader_replaced_opens_with_the_new_one() {
             });
         }
     });
-    let fresh = new_phrase(&guest.connection(), guest.account(), guest.keys().identity()).await;
+    let fresh = new_phrase(
+        &guest.connection(),
+        guest.account(),
+        guest.keys().identity(),
+    )
+    .await;
 
     let kind = admin
         .create_block(
