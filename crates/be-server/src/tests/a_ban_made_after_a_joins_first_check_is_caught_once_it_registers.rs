@@ -3,12 +3,12 @@ use be_block_graph::Access;
 use super::*;
 use crate::client::JOIN_PAUSE;
 
-/// A ban made between a join's first check of it and the connection's registering in the
-/// session (`Client::join`) is caught by the check after registering: the join is refused and
-/// the connection leaves again, for a participant and a Join member alike
-/// (guides/blocks/hosted.md, "Hosting").
+/// A join held after its first check of a ban, before it registers the connection in the
+/// session (`JOIN_PAUSE` in `Client::join`), and banned there, is caught by the check it makes
+/// once registered: it is refused and the connection leaves again, for a participant and a Join
+/// member alike (guides/blocks/hosted.md, "Hosting").
 #[tokio::test]
-async fn a_ban_made_while_a_join_registers_takes_it_out_again() {
+async fn a_ban_made_after_a_joins_first_check_is_caught_once_it_registers() {
     let harness = Harness::start().await;
     let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;

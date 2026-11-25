@@ -82,12 +82,13 @@ fn admit(
 }
 
 /// A Join member that tells its host more than the server lets one account send at once
-/// (`HOST_MESSAGE_BURST`, then `HOST_MESSAGES_PER_SECOND`) has its sends held back
+/// (its burst, here a few, then `HOST_MESSAGES_PER_SECOND`) has its sends held back
 /// (`slow-down`): each is sent again, the same bytes, before any after it, so the host hears
 /// every one, in order, on a channel that never breaks (crates/be-host-stack joining.rs).
 #[test]
 fn a_join_members_sends_held_back_by_the_server_are_sent_again_in_order() {
-    let harness = Harness::start();
+    // The handshake and the channel's first message take two of the burst.
+    let harness = Harness::holding_host_messages_after(4.0);
     let personal = harness.connect_personal();
     let host = Member::join(&harness, personal, "host@example.com", "Host");
     let block = Uuid::new_v4();
@@ -111,8 +112,8 @@ fn a_join_members_sends_held_back_by_the_server_are_sent_again_in_order() {
         shared.channel_hosts.get(&block) == Some(&host.account())
     });
 
-    // Far past the burst, so the server holds some back however fast they are sent.
-    let told: Vec<Vec<u8>> = (0..400u32).map(|at| at.to_le_bytes().to_vec()).collect();
+    // Past the burst, so the server holds some back however fast they are sent.
+    let told: Vec<Vec<u8>> = (0..12u32).map(|at| at.to_le_bytes().to_vec()).collect();
     for payload in &told {
         tell_host(block, payload.clone());
     }

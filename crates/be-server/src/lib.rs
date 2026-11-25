@@ -174,6 +174,9 @@ pub struct ServerConfig {
     /// The bytes of summaries one `query.list` page holds, its ids taking half that more
     /// (`limits::LISTING_PAGE_BYTES` unless a test lists in many pages; never more).
     pub listing_page_bytes: usize,
+    /// The host-channel messages an account may send a lease holder at once
+    /// (`limits::HOST_MESSAGE_BURST` unless a test holds sends back after a few).
+    pub host_message_burst: f64,
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
@@ -270,6 +273,7 @@ impl ServerConfig {
         max_index_bytes: limits::MAX_INDEX_BYTES,
         key_page_bytes: limits::KEY_PAGE_BYTES,
         listing_page_bytes: limits::LISTING_PAGE_BYTES,
+        host_message_burst: limits::HOST_MESSAGE_BURST,
         trusted_proxies: Cow::Borrowed(&[
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             IpAddr::V6(Ipv6Addr::LOCALHOST),
@@ -561,7 +565,10 @@ pub async fn serve_with_mail(
             objects::Objects::Bucket(_) => None,
         },
         store,
-        registry: Arc::new(SessionRegistry::new(Arc::clone(&hub))),
+        registry: Arc::new(SessionRegistry::new(
+            Arc::clone(&hub),
+            config.host_message_burst,
+        )),
         hub,
         config,
         mail,

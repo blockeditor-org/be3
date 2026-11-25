@@ -21,7 +21,7 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
-mod a_ban_made_while_a_join_registers_takes_it_out_again;
+mod a_ban_made_after_a_joins_first_check_is_caught_once_it_registers;
 mod a_block_agent_is_deleted_with_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;

@@ -5604,9 +5604,9 @@ fn replayed_part(entry: &be_sdk_type_api::JournalEntry) -> Option<PartRef> {
 }
 
 /// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a
-/// reader outside the session. The parts it needs (`replayed_part`, and its base's state when
-/// that goes by one) are read with `parts` first; it cannot reload a commit, so a journal
-/// holding a reload fails.
+/// reader outside the session. The parts it needs (its base's state when that goes by one, and
+/// operations') are read with `parts` first; it cannot reload a commit, so a journal holding a
+/// reload fails before it reads any.
 pub(crate) fn replay<C: LiveEdit + Default>(
     bytes: Option<Vec<u8>>,
     journal: Journal,
@@ -5615,20 +5615,43 @@ pub(crate) fn replay<C: LiveEdit + Default>(
     Box::pin(async move {
         let state = crate::wire::BaseState::decode(&journal.base.state)
             .ok_or("the journal's base state does not decode")?;
-        let entries: Vec<_> = journal
-            .entries
-            .iter()
-            .filter(|entry| entry.sequence > journal.base.sequence)
-            .collect();
-        let mut read = HashMap::new();
-        let needed = state
-            .part
-            .into_iter()
-            .chain(entries.iter().filter_map(|entry| replayed_part(entry)));
-        for part in needed {
-            if part.length() > LARGEST_PART {
-                return Err("the journal's base state goes by a part too large to read".into());
+        // What applies, in order, as the order applies it (`apply_entry`): what it passed over
+        // (its base below its floor) is skipped, but a replacement and a restart apply whatever
+        // their floor, and a restart's floor is its own number. Checked whole before any part
+        // is read, so a journal that cannot replay reads nothing.
+        let mut applied = Vec::new();
+        for entry in &journal.entries {
+            if entry.sequence <= journal.base.sequence {
+                continue;
             }
+            let Some(Submitted { entry: ordered, .. }) = Submitted::decode(&entry.payload) else {
+                return Err("a journal entry this build cannot read".into());
+            };
+            let passed_over = entry.base < entry.floor
+                && !matches!(
+                    ordered,
+                    Entry::Reload { replace: true, .. } | Entry::Reload { restart: true, .. }
+                );
+            match ordered {
+                _ if passed_over => {}
+                Entry::Operation(payload) => applied.push(payload),
+                // Only a replica reloads a commit.
+                Entry::Reload { .. } => return Err("a journal entry reloads a commit".into()),
+                Entry::Keep { .. } => {}
+            }
+        }
+        if state.part.is_some_and(|part| part.length() > LARGEST_PART) {
+            return Err("the journal's base state goes by a part too large to read".into());
+        }
+        // A part longer than `LARGEST_PART` is passed over unread, as every replica does.
+        let needed = state.part.into_iter().chain(applied.iter().filter_map(|payload| {
+            match payload {
+                Payload::Part(part) if part.length() <= LARGEST_PART => Some(*part),
+                _ => None,
+            }
+        }));
+        let mut read = HashMap::new();
+        for part in needed {
             if !read.contains_key(&part) {
                 read.insert(part, parts.read_all(part).await?);
             }
@@ -5646,31 +5669,13 @@ pub(crate) fn replay<C: LiveEdit + Default>(
                 .adopt_session_state(&state)
                 .map_err(|error| error.to_string())?;
         }
-        for entry in entries {
-            let Some(Submitted { entry: ordered, .. }) = Submitted::decode(&entry.payload) else {
-                return Err("a journal entry this build cannot read".into());
-            };
-            // As the order applies it (`apply_entry`): what it passed over (its base below its
-            // floor) is skipped, but a replacement and a restart apply whatever their floor,
-            // and a restart's floor is its own number.
-            let passed_over = entry.base < entry.floor
-                && !matches!(
-                    ordered,
-                    Entry::Reload { replace: true, .. } | Entry::Reload { restart: true, .. }
-                );
-            if passed_over {
-                continue;
-            }
-            let bytes = match ordered {
-                Entry::Operation(Payload::Inline(bytes)) => bytes,
-                // Too large for any replica to read: every one passes it over alike.
-                Entry::Operation(Payload::Part(part)) => match read.get(&part) {
+        for payload in applied {
+            let bytes = match payload {
+                Payload::Inline(bytes) => bytes,
+                Payload::Part(part) => match read.get(&part) {
                     Some(bytes) => bytes.clone(),
                     None => continue,
                 },
-                // Only a replica reloads a commit.
-                Entry::Reload { .. } => return Err("a journal entry reloads a commit".into()),
-                Entry::Keep { .. } => continue,
             };
             let operation = C::decode_operation(&bytes).map_err(|error| error.to_string())?;
             content.apply(&operation);
