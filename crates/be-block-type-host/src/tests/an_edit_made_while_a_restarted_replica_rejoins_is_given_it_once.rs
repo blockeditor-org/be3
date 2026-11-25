@@ -66,23 +66,33 @@ fn an_edit_made_while_a_restarted_replica_rejoins_is_given_it_once() {
         replicas.pump((&peer, &shared)).await;
         assert!(replicas.joining(), "the replica opened again rejoins");
         add(&mut replicas, block, editor, 4);
-        // The module would take the edit, and submit it, before the join is answered.
+        // Given it now, the module would take the edit, and submit it, before the join is
+        // answered.
         for _ in 0..3 {
             replicas.modules.tick_due();
             replicas.pump((&peer, &shared)).await;
         }
-        while replicas.joining() {
-            step(&peer, &shared, &mut replicas).await;
-        }
-        while replicas
-            .status(block)
-            .is_none_or(|status| !status.clean || status.taken < 1)
-        {
-            step(&peer, &shared, &mut replicas).await;
-        }
-        for _ in 0..3 {
-            step(&peer, &shared, &mut replicas).await;
-        }
+        assert!(replicas.joining(), "the join is not answered yet");
+        assert_eq!(
+            replicas.status(block).map(|status| status.taken),
+            Some(0),
+            "the replica rejoining takes no edit before the join opens it"
+        );
+        // The replica opened on the server's journal takes the edits kept for it, and journals them.
+        step_until_replicas(
+            &peer,
+            &shared,
+            &mut replicas,
+            "rejoined and journaled its edits",
+            |replicas, _| {
+                !replicas.joining()
+                    && replicas
+                        .status(block)
+                        .is_some_and(|status| status.journaled)
+            },
+        )
+        .await;
+        replicas.pump((&peer, &shared)).await;
         let bytes = replicas
             .content((&peer, &shared), block)
             .await
