@@ -21,7 +21,7 @@ fn name(tab: TabId) -> &'static str {
     }
 }
 
-fn describe(state: &DockState, tree: &DockTree) -> String {
+fn describe(tree: &DockTree) -> String {
     match tree {
         DockTree::Tabs {
             entries, active, ..
@@ -34,7 +34,7 @@ fn describe(state: &DockState, tree: &DockTree) -> String {
                     match entry {
                         DockTreeEntry::Tab(tab) => format!("{}{mark}", name(*tab)),
                         DockTreeEntry::Group(group) => {
-                            format!("{{{}}}{mark}", describe(state, group))
+                            format!("{{{}}}{mark}", describe(group))
                         }
                     }
                 })
@@ -58,8 +58,8 @@ fn describe(state: &DockState, tree: &DockTree) -> String {
             };
             format!(
                 "({} {between}{size} {})",
-                describe(state, first),
-                describe(state, second)
+                describe(first),
+                describe(second)
             )
         }
     }
@@ -72,7 +72,7 @@ fn report(state: &DockState) -> String {
         .into_iter()
         .filter_map(|surface| {
             let tree = state.tree(Tree::Surface(surface))?;
-            let described = describe(state, &tree);
+            let described = describe(&tree);
             Some(
                 match state
                     .window_rect(surface)
