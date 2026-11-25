@@ -2108,7 +2108,26 @@ Each step lands on its own.
              normal windows clear of them.
          - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as
            a `Surface::Host` layer, which the host composites and routes input to, and relays
-           its status (title, icon, raised, fullscreen) to its placer.
+           its status (title, icon, raised, fullscreen) to its placer. Under be-host's own UI
+           the platform's `DesktopHost` (be-host-desktop; the Wayland compositor on Linux)
+           is driven by be-host's shell (`create`, `start`, `before`, `after`, `frame`,
+           `exiting`), and a window is a forwarding catcher it draws (`WindowView`); under the
+           root none of it runs yet, and no host test runs a program. In parts:
+           - 4g7e3a. The compositor under the root: `RootShell` drives `DesktopHost` under
+             `--desktop`, so programs run and their windows reach the desktop app through
+             be3:desktop's `windows`; and a program host tests run (a small Wayland client
+             staged for them, started with `drive exec`). Host test: the desktop's windows
+             bar lists the program's window under the root as under be-host.
+           - 4g7e3b. The root places a window child as a `Surface::Host` layer at its place,
+             which be-host composites from the compositor's texture of it and configures to
+             its place's size; `drive paint` paints it as the placeholder it paints for a
+             program window today.
+           - 4g7e3c. Input to `Surface::Host` layers: what the root's router delivers to one
+             goes to the compositor (pointer, keys, the keyboard's focus), as a
+             `WindowView`'s catcher forwards it.
+           - 4g7e3d. Each window's status to its placer (`child-status`'s title, icon,
+             group, raised, rung, minimized, fullscreen, notice), which the host keeps
+             (`DesktopHost::window_status`), and closing a window from its tab.
        - 4g7f. Built, before 4g7e2, whose tests press windows by name: drive's `tree`,
          `find` and presses by name read the root's accessibility tree. While be-host asks
          for it (`frame-request.describe`, set as be-host-runtime's `describe` says: a driver
