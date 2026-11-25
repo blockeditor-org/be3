@@ -3,6 +3,7 @@ use be_sdk_app_host::pacing::{Ask, Asking};
 use super::*;
 
 mod an_app_owes_its_root_only_what_is_due_now;
+mod two_editors_asking_in_turn_are_shown_their_screens_once;
 
 const NOW: Duration = Duration::from_secs(5);
 

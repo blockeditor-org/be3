@@ -1843,8 +1843,8 @@ Each step lands on its own.
                encoded `ChildContent`); be-host opens a dialog in the editor that runs it, as
                its registry chooses it (`accepting(Pick)`, `accepting(Rename)`, `exporting`),
                in its role (`InstanceRole::Picker`, `Rename`, `Export`, with `ask_picker` and
-               `ask_export`). A dialog is its placer's own (`EditorKey::Twin`) and names no
-               block. What it tells the shell that its placer's status says (`picked`,
+               `ask_export`). A dialog, like every place, has an editor of its own, and names
+               no block. What it tells the shell that its placer's status says (`picked`,
                `close-dialog`, `handles-dismiss`, `show-card`) the root relays to the host
                (`host.tell-shell`, `Forwarded::shell_told`), which words the status from it
                (`picked`, `dialog`, `card`), again for every view the root showed once one
@@ -1880,6 +1880,16 @@ Each step lands on its own.
              copies of its screen (`EditorKey`, twins, `copy_layer`): the copies go, with
              what they allowed (a main view's owner among its places, a preview drawn once
              at the largest).
+             - Built: each child gets an `Editor` of its own (`reconcile`); the pool keeps
+               apps only. `Editor::show` asks for its one place's main or preview view.
+               Gone: `EditorKey`, `Pool::editors`, `editor_key`, `Child::copy`, `Child::owns`
+               and `Editor::owner`, `copy_layer`, the main and preview places. An app running
+               several editors was asked for its screens again on every settle, since
+               `Embedded::show_editor` appended each editor's last, so their order flipped:
+               they are kept in the order of their ids. be-host's own UI still shares one
+               editor per block (`Editors`), until it goes. Tests: be-sdk-root's
+               `a_block_placed_in_several_places_gets_an_editor_in_each`; host test
+               `be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_an_editor_in_each`.
            - 4g7b3j. A child never moves when clicked (the user's decision): clicking or
              focusing a child placed on a canvas, even one zoomed to fill the view, never
              moves or resizes it, nor does a side panel opening, closing or moving around

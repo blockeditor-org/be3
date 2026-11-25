@@ -297,10 +297,7 @@ impl Embedded {
     /// Asks the app for `screens` of its editor `editor` in place of those of it it was asked
     /// for, keeping its other editors' (`show`).
     pub fn show_editor(&self, editor: EditorInstanceId, screens: Vec<ScreenRequest>) {
-        let mut all = self.screens();
-        all.retain(|screen| screen.instance != editor);
-        all.extend(screens);
-        self.show(all);
+        self.show(with_editors_screens(self.screens(), editor, screens));
     }
 
     /// Closes its editor `editor`: the app is asked for none of its screens, and the root's host
@@ -981,6 +978,19 @@ pub struct Wants {
 
 /// What an app in `session` wants at the frame clock's `now`, `drawing` when it was granted a
 /// surface, as its `pacing` says.
+/// The screens `all` with those of `editor` in place of its own, in the order of their ids
+/// whichever editor asked last, so the app is asked again only once what it shows changed.
+fn with_editors_screens(
+    mut all: Vec<ScreenRequest>,
+    editor: EditorInstanceId,
+    screens: Vec<ScreenRequest>,
+) -> Vec<ScreenRequest> {
+    all.retain(|screen| screen.instance != editor);
+    all.extend(screens);
+    all.sort_by_key(|screen| screen.screen.0);
+    all
+}
+
 pub(crate) fn wants(
     session: &SessionState,
     drawing: bool,
