@@ -1,5 +1,5 @@
 //! Signing what the account writes, and telling who signed what others wrote
-//! (plans/authorship.md).
+//! (guides/blocks/keys.md, "Signing what a person writes").
 
 use std::collections::HashSet;
 use std::sync::{Arc, Weak};

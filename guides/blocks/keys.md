@@ -1046,7 +1046,7 @@ who lost access. Cited from code by these names.
   retirement it never sees. It can also number a live session's operations
   differently for different participants
   (decisions/live_edits_are_ordered_by_the_server.md). The fix
-  (plans/authorship.md) is fork detection: signed log heads carried in sessions, relays,
+  is fork detection: signed log heads carried in sessions, relays,
   commits and the account's own block (between one person's devices), compared when two
   devices meet (`Peer::compare_log_head`, which keeps
   a verdict per block: guides/blocks/client.md, "Signed logs"). Each head is
