@@ -204,7 +204,7 @@ samples bilinearly.
 - `crates/be-app-infinite-canvas/src/tests/`: the editor through be-sdk-test;
   `src/tests.rs` has the helpers that open an editor in each profile, drive it
   and a peer, and build one of every shape. Paintings show raster layers
-  blurred, since `beui_paint_format`'s rasterizer has no nearest sampling.
+  blurred, since beui-paint-raster draws a mesh's texture bilinearly.
 - Tests that a pan, zoom, drag or pen move repaints no other entity
   (`panning_and_zooming_paints_no_entity_again`,
   `dragging_one_entity_wakes_only_that_entity`) guard the per-entity memos.
