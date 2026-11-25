@@ -2077,7 +2077,20 @@ Each step lands on its own.
          - 4g7e2. App windows (`HostView::Window` views: a session the Apps panel opens, a
            window an app opens): floated by the root as be-host's `compositor/desktop.rs`
            floats them (be-sdk-window-stack), moved and resized by their grips and
-           Super+drag, kept on the displays' work areas.
+           Super+drag, kept on the displays' work areas. Today be-sdk-root drops a layout
+           commit's `window-requests`, so no window an app opens shows under the root. In
+           parts:
+           - 4g7e2a. `open`, `close` and `raise`: the root adopts the window's screen as
+             be-host-runtime's `adopt_window` does (asked for at its size, `windows: true`),
+             floats it where its `window-placement` says (`at-pointer`, `over` its opener),
+             above its opener in the stack, and shows it as a layer of its app's; `close`
+             lets it go, `raise` brings it in front of the app's others.
+           - 4g7e2b. `begin-move`, `begin-resize`, `resize` and `place`: the window stack's
+             gestures and springs (be-sdk-window-stack's `Gesture`, `Stacked`), the pointer
+             held by the root while one runs, and Super+drag on any window.
+           - 4g7e2c. Levels and host placements (`window-level`, `window-placement.host`): bars
+             and panels in front, work areas the desktop notes (`note_work_area`) that keep
+             normal windows clear of them.
          - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as
            a `Surface::Host` layer, which the host composites and routes input to, and relays
            its status (title, icon, raised, fullscreen) to its placer.
