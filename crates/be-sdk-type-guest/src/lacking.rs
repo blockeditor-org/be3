@@ -128,13 +128,7 @@ impl Lacking {
         self.push(operation, Until::Unsettled(None), false, None);
     }
 
-    fn push(
-        &mut self,
-        operation: Vec<u8>,
-        until: Until,
-        failed: bool,
-        sequence: Option<u64>,
-    ) {
+    fn push(&mut self, operation: Vec<u8>, until: Until, failed: bool, sequence: Option<u64>) {
         self.next += 1;
         let sequence = match until {
             Until::Numbered { sequence, .. } => Some(sequence),

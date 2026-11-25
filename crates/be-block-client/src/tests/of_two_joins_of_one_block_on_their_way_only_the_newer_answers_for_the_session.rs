@@ -62,9 +62,7 @@ async fn joined_before_an_entry(
         barrier: false,
         payload: b"an edit".to_vec(),
     };
-    let Ok(peer::Submitted::Server(answer)) = phone
-        .submit(block, BUILD, submission, true)
-        .await
+    let Ok(peer::Submitted::Server(answer)) = phone.submit(block, BUILD, submission, true).await
     else {
         panic!("an online submission goes to the server");
     };

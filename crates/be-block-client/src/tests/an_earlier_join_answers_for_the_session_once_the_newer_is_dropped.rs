@@ -42,9 +42,7 @@ async fn an_earlier_join_answers_for_the_session_once_the_newer_is_dropped() {
         barrier: false,
         payload: b"an edit".to_vec(),
     };
-    let Ok(peer::Submitted::Server(answer)) = phone
-        .submit(block, BUILD, submission, true)
-        .await
+    let Ok(peer::Submitted::Server(answer)) = phone.submit(block, BUILD, submission, true).await
     else {
         panic!("an online submission goes to the server");
     };

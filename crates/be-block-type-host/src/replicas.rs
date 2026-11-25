@@ -5816,10 +5816,7 @@ impl<H: Host> Replicas<H> {
                         let trim = matches!(saved, Some(Ok(Saved::Unchanged(_))))
                             && !made_up
                             && peer.is_attached();
-                        match peer
-                            .rebase_journal(block, tag, restarts, base, trim)
-                            .await
-                        {
+                        match peer.rebase_journal(block, tag, restarts, base, trim).await {
                             Ok(Some(trimmed)) => {
                                 if let Err(error) = trimmed.await
                                     && !unreachable(&error)
