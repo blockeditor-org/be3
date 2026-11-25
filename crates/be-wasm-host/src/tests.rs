@@ -95,6 +95,8 @@ fn linked_app(identity: &str) -> String {
 
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
 
+const WEBGPU: &[u8] = include_bytes!(env!("GUEST_WEBGPU_WASM"));
+
 const COUNTER_TYPES: &[u8] = include_bytes!(env!("COUNTER_TYPES_WASM"));
 
 /// Every frame the counter's type module sends from its start until it has described its type's
@@ -205,6 +207,7 @@ mod a_type_module_built_for_wasip1_imports_a_pure_guests_wasi_and_answers_alike_
 mod a_wasi_call_naming_more_than_the_memory_is_refused;
 mod an_app_linked_against_a_library_runs_on_it;
 mod an_app_runs_its_constructors_before_it_starts;
+mod a_guest_drives_wasi_webgpu_through_its_generated_bindings;
 mod an_app_runs_on_a_thread_of_its_own;
 mod an_app_runs_on_when_another_is_interrupted;
 mod an_app_that_panics_reports_its_panic_message;

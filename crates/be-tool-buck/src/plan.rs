@@ -149,6 +149,7 @@ pub(crate) const PLANS: &[Plan] = &[
             Prefix("be-app-", &[]),
             Prefix("be-sdk-library-", &[]),
             Named("be-wasm-guest-echo"),
+            Named("be-wasm-guest-webgpu"),
             Named("be-sdk-worker-echo"),
             Prefix("be-worker-", &[]),
             Named("be-sdk"),

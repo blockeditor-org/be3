@@ -1,0 +1,17 @@
+[package]
+name = "be-wasm-guest-webgpu"
+description = "A guest calling wasi:webgpu through its generated bindings, which be-wasm-host's tests run"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+
+[lints]
+workspace = true

@@ -17,7 +17,8 @@ steps:
 - **The guest half on a real host.** be-wasm-ops-local-test drives the host glue natively and
   the guest's `Settling` directly; a wasm guest calling a ticket func, a fallible func and an
   option-of-list func and polling, run by be-wasm-host on V8, needs an interface the host binds
-  with tickets, which only wasi:webgpu is: it is a test of step 2. The web leg comes with step
+  with tickets, which only wasi:webgpu is: it is a test of step 2
+  (`a_guest_drives_wasi_webgpu_through_its_generated_bindings`). The web leg comes with step
   3a, when the shim's tests run apps on wasi:webgpu.
 - **One poll per app.** Each ticketed interface has its own `[poll]`; an app's executor would
   rather make one call per wake for all of them. wasi:webgpu is the only ticketed interface,
@@ -79,7 +80,12 @@ interface host {
 
 Host tests: be-wasm-gpu-host's `*webgpu*` tests (scopes, uncaptured errors, several devices,
 canvases, maps and work); be-wasm-gpu-abi's
-`wasi_webgpus_calls_made_per_draw_take_only_wasm_values`. Today's device tests move in step 3b.
+`wasi_webgpus_calls_made_per_draw_take_only_wasm_values`; be-wasm-host's
+`a_guest_drives_wasi_webgpu_through_its_generated_bindings`, which runs
+crates/be-wasm-guest-webgpu on V8: step 1's generated guest half (tickets through `[poll]`, a
+fallible call's error through `[returned]`, options of lists) against this host. be-wasm-gpu-abi
+generating and compiling the fetched WIT is the compile check of both. Today's device tests
+move in step 3b.
 
 ## 3a. Apps use wasi:webgpu
 

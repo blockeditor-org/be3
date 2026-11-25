@@ -3369,6 +3369,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-wasm-guest-webgpu"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-gpu-abi",
+ "be-wasm-guest-abi",
+ "be-wasm-ops",
+]
+
+[[package]]
 name = "be-wasm-host"
 version = "0.1.0"
 dependencies = [
@@ -3380,6 +3389,7 @@ dependencies = [
  "be-wasm-guest-abi",
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
+ "be-wasm-guest-webgpu",
  "be-wasm-ops",
  "be-wasm-panic",
  "be-wasm-pure-wasi",

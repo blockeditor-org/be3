@@ -183,6 +183,7 @@ members = [
     "crates/be-wasm-guest-abi",
     "crates/be-wasm-guest-echo",
     "crates/be-wasm-guest-host",
+    "crates/be-wasm-guest-webgpu",
     "crates/be-wasm-host",
     "crates/be-wasm-link",
     "crates/be-wasm-ops",

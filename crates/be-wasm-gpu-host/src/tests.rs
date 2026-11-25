@@ -127,10 +127,10 @@ mod web {
 
     use super::Gpu;
 
-    pub(super) const TICKET: u64 = 1000;
+    pub(super) const TICKET: u32 = 1000;
 
     /// The value that settled for `ticket` in the next poll.
-    pub(super) fn settled<T: be_wasm_ops::DeserializeOwned>(gpu: &mut Gpu, ticket: u64) -> T {
+    pub(super) fn settled<T: be_wasm_ops::DeserializeOwned>(gpu: &mut Gpu, ticket: u32) -> T {
         let settled: Vec<Settled> = Host::settle(gpu, true);
         let value = settled
             .into_iter()
@@ -164,7 +164,7 @@ mod web {
     }
 
     /// Pops the innermost error scope and answers the error it caught.
-    pub(super) fn pop(gpu: &mut Gpu, device: GpuDevice, ticket: u64) -> Result<Option<GpuError>, PopErrorScopeError> {
+    pub(super) fn pop(gpu: &mut Gpu, device: GpuDevice, ticket: u32) -> Result<Option<GpuError>, PopErrorScopeError> {
         gpu.gpu_device_pop_error_scope(device, Promise::new(ticket));
         settled(gpu, ticket)
     }
