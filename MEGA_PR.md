@@ -123,6 +123,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7e3d-sugg`: 4g7e3d review suggestions: a close answered once the session ended, only the shell's windows worded; under the root the core's repaints stay the root's to ask.
 - `dialogs-10`: a Dialog opens as a window of its own where windows are hosted, at its level (session notices Raised, above the programs' windows); the desk harness lifts no scrim.
 - `dialogs-clear-color`: a dialog's window of its own clears to nothing, not its app's surface; the export dialog's child sits inside the card's border, rounded by the card's inner radius (card tokens RADIUS, BORDER, INSIDE_BORDER, INNER_RADIUS).
+- `backlog-7`: backlog §7 sessions: a reader outside the session replays a journal by parts; a stateless request's scope reads only its own block's parts (Scope::check); hosted channel slow-down (configurable burst), waiting join, newest handshake, inherited players; a recheck drops only the admission it checked; an edit given again by its part goes as its kept submission.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
