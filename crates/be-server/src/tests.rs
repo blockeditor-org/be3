@@ -1188,7 +1188,7 @@ impl TestClient {
     }
 
     /// Sends `payload` on `block`'s host channel (`session-send.host`).
-    async fn to_host(
+    async fn send_to_host(
         &mut self,
         block: Uuid,
         to: Option<ClientId>,
