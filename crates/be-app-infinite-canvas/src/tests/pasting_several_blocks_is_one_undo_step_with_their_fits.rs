@@ -1,8 +1,8 @@
 use super::*;
-use be_sdk_beui::beui::Input;
-use be_sdk_beui::beui::clipboard::{Blocks, ClipBlock, ClipFormat as _};
 use be_sdk_beui::Vec2;
 use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::beui::Input;
+use be_sdk_beui::beui::clipboard::{Blocks, ClipBlock, ClipFormat as _};
 use be_sdk_test::HostCall;
 
 use super::a_dropped_card_takes_its_childs_size_in_the_step_that_added_it::report;

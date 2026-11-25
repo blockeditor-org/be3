@@ -20,7 +20,11 @@ fn a_dropped_child_of_a_fixed_size_takes_it_in_the_step_that_added_it() {
     );
 
     undo(&mut editor);
-    assert_eq!(entities(&editor), [], "one undo takes the card away, size and all");
+    assert_eq!(
+        entities(&editor),
+        [],
+        "one undo takes the card away, size and all"
+    );
     redo(&mut editor);
     assert_eq!(entities(&editor), [card], "one redo brings it back sized");
 }

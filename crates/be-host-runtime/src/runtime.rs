@@ -2264,7 +2264,10 @@ pub fn intrinsic_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> 
 /// Whether the instance has reported a frame of any of its views: by then it has told its
 /// intrinsic size if it has one, as an editor tells it with its first frame.
 pub fn reported_a_frame(app_id: &str, instance: EditorInstanceId) -> bool {
-    with(app_id, |runtime| runtime.instances.reported_a_frame(instance)).unwrap_or(false)
+    with(app_id, |runtime| {
+        runtime.instances.reported_a_frame(instance)
+    })
+    .unwrap_or(false)
 }
 
 pub fn warm(app: &AppManifest) {

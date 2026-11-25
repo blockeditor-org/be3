@@ -1151,7 +1151,12 @@ impl CanvasState {
             };
             adding[at].waiting.remove(&id);
             let held = &adding[at];
-            let found = (held.group, held.own, held.committed, held.waiting.is_empty());
+            let found = (
+                held.group,
+                held.own,
+                held.committed,
+                held.waiting.is_empty(),
+            );
             if found.3 {
                 adding.remove(at);
             }
@@ -2991,15 +2996,18 @@ impl CanvasState {
             Some(open) => (open, false),
             None => (self.content().begin_gesture(), true),
         };
-        cells.placeholders.borrow_mut().extend(entities.iter().map(|entity| {
-            (
-                entity.id,
-                Placeholder {
-                    entity: entity.clone(),
-                    fitted: false,
-                },
-            )
-        }));
+        cells
+            .placeholders
+            .borrow_mut()
+            .extend(entities.iter().map(|entity| {
+                (
+                    entity.id,
+                    Placeholder {
+                        entity: entity.clone(),
+                        fitted: false,
+                    },
+                )
+            }));
         cells.adding.borrow_mut().push(Adding {
             group,
             own,

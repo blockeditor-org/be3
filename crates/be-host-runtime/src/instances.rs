@@ -3496,12 +3496,9 @@ impl Instances {
     }
 
     pub(super) fn reported_a_frame(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_some_and(|entry| {
-            entry
-                .screens
-                .values()
-                .any(|screen| screen.report.is_some())
-        })
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.screens.values().any(|screen| screen.report.is_some()))
     }
 
     pub(super) fn view_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {

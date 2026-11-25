@@ -74,11 +74,10 @@ pub use runtime::{
     frame_rects, hold, host, in_use, install, install_headless, intrinsic_size, kill, menu,
     menu_pick, pass_child_focus, picked, poll, present, presenting, preview_image, record_pacing,
     regenerate_artifact, render_clip, replace_gpu, report_child_details, report_child_focus,
-    reported_a_frame,
-    report_children, request_painting, resized, restart_app, reveal, revoke_frame_child, running,
-    set_artifact_states, set_focus, set_presence_visible, set_presented, set_shell, settle,
-    show_block, show_dialog, show_history, show_panel, start_frames, take_steps, take_stopped,
-    view_placement_of, view_size, warm,
+    report_children, reported_a_frame, request_painting, resized, restart_app, reveal,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
+    start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use wasm::{staged_app, staged_worker};

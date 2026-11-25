@@ -102,7 +102,11 @@ fn a_dropped_card_takes_its_childs_size_in_the_step_that_added_it() {
         "one undo takes the card away, fit and all"
     );
     redo(&mut editor);
-    assert_eq!(entities(&editor), [card.clone()], "redo brings it back fitted");
+    assert_eq!(
+        entities(&editor),
+        [card.clone()],
+        "redo brings it back fitted"
+    );
 
     report(&mut editor, Some(Vec2::new(600.0, 200.0)));
     assert_eq!(
