@@ -324,10 +324,10 @@ guides/blocks/server.md); be-host-runtime asks through
 `be_host_stack::list_names` once the watch opens (`members.rs`), and again
 whenever the block's `changed` moves (a grant, a revoke, a move or a share
 above it, any of which can land in the same summary as a new head, so a sent
-message asks again too), or after a failed ask (offline) once the graph
-moves. A member removed from the organization whose removal changes no grant
-on the block (an author, or a viewer through a block open in a workspace) is
-dropped only at the next ask (plans/backlog.md, "Member names"). Each answer is named afresh from the contacts
+message asks again too; removing a member from the organization moves the
+`changed` of every block they could view, guides/blocks/server.md, "Changes
+since"), or after a failed ask (offline) once the graph moves. Each answer is
+named afresh from the contacts
 (`app_graph::members_of`), so a contact's new card reaches the editor without
 asking the server. A host component may not watch it
 (`may_be_made_by_a_host`): names are for a person. Tests answer it with

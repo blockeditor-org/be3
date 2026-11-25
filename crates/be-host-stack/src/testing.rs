@@ -219,3 +219,90 @@ fn runtime() -> tokio::runtime::Runtime {
         .build()
         .expect("a test runtime starts")
 }
+
+/// Another account of the test's server, joined to the harness's organization by an
+/// invitation the harness's stack made, as an editor, and signed in there on a device of its
+/// own: someone who authors blocks and shares them with the harness's account.
+pub struct Member {
+    account: Uuid,
+    runtime: tokio::runtime::Runtime,
+    peer: std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>>,
+}
+
+impl Harness {
+    /// Invites the account `sign_in` names into the organization through the stack, which
+    /// must be connected, and has it accept on a device of its own.
+    pub fn invite(&self, sign_in: SignIn, name: &str) -> Member {
+        let runtime = runtime();
+        let link = runtime
+            .block_on(crate::invite())
+            .expect("the stack makes an invitation");
+        let code = crate::invite_link::InviteLink::parse(&link)
+            .expect("the invitation parses")
+            .code;
+        let phrase = be_block_keys::RecoveryPhrase::generate();
+        let me = crate::accounts::Me {
+            account: sign_in.account,
+            identity: phrase.secret().to_bytes(),
+            display_name: name.to_owned(),
+            email: sign_in.email,
+        };
+        runtime
+            .block_on(crate::accounts::accept_invitation(
+                sign_in.url.clone(),
+                sign_in.token.clone(),
+                me,
+                code,
+            ))
+            .expect("the invited account joins");
+        let peer = runtime
+            .block_on(be_block_client::Peer::connect(
+                be_block_client::PeerConfig::new(
+                    crate::accounts::socket_url(&sign_in.url),
+                    phrase.secret(),
+                    be_block_client::Credentials::Token(sign_in.token),
+                )
+                .organization(Some(self.organization)),
+                be_block_store::MemoryStore::new(),
+            ))
+            .expect("the member signs in");
+        Member {
+            account: sign_in.account,
+            runtime,
+            peer: std::sync::Arc::new(peer),
+        }
+    }
+}
+
+impl Member {
+    pub fn account(&self) -> Uuid {
+        self.account
+    }
+
+    /// Makes an empty block of `content_type` under `parent`.
+    pub fn make(&self, content_type: Uuid, parent: be_block_graph::BlockParent) -> Uuid {
+        let block = Uuid::now_v7();
+        self.runtime
+            .block_on(self.peer.create_block(
+                block,
+                content_type,
+                parent,
+                &be_block_content::BlockMetadata::default(),
+                false,
+            ))
+            .expect("the member makes its block");
+        block
+    }
+
+    /// Shares `block` with the harness's account at `access`.
+    pub fn share(&self, harness: &Harness, block: Uuid, access: be_block_graph::Access) {
+        self.runtime
+            .block_on(self.peer.share(
+                block,
+                harness.account,
+                access,
+                &harness.phrase.secret().identity(),
+            ))
+            .expect("the member shares its block");
+    }
+}

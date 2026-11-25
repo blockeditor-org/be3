@@ -765,17 +765,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
 
 ## 28. Member names
 
-- **A member removed from the organization leaves the names.** An editor's
-  members (`block-subject.members`) are asked for again when the block's
-  `changed` moves (be-host-runtime `members.rs`). Removing a member from the
-  organization revokes only the grants they held (be-server `remove_from`), so
-  a block they viewed without one of its own (one they authored, or one open
-  in a workspace they viewed inside) keeps its `changed`, and an open editor
-  names them until the block next changes. Done: a member's removal reaches
-  the editors of every block they could view (the server moving those blocks'
-  `changed`, or the stack asking again as the organization's members change),
-  with a be-host-runtime test where removing the author of a block shared with
-  this account drops them from an open editor's members.
 - **A failed drain waits for its timer.** A revoke then a publish on an open block
   once hung `flush_and_send` until its 60 s limit; it no longer reproduces
   (be-host-runtime `a_publish_after_a_revoke_lands_on_an_open_block`). One

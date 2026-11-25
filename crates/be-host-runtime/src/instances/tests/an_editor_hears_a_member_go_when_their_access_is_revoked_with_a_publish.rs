@@ -1,38 +1,8 @@
 use super::*;
 
 use be_block_content::{BlockContent, LiveEdit};
-use be_sdk_api::{
-    BlockMember, Failure,
-    blocks::{BlockSubject, BlockValue},
-};
+use be_sdk_api::blocks::BlockSubject;
 use be_type_example_counter::{Counter, CounterContent};
-
-/// The members the watch is answered with next, waiting for the server's names to come back.
-fn members(instances: &mut Instances, watch: OpId) -> Result<Vec<BlockMember>, Failure> {
-    loop {
-        let seen = be_host_base::host::letters_posted();
-        next_screens(instances);
-        instances.pending();
-        if let Some(value) = answered::<BlockValue>(instances, watch) {
-            match value {
-                BlockValue::Members(members) => return members,
-                other => panic!("not members: {other:?}"),
-            }
-        }
-        be_host_stack::take_updates_or_wait("the members the server named", || {
-            be_host_base::host::letters_posted() > seen
-        });
-    }
-}
-
-fn accounts(members: Vec<BlockMember>) -> Vec<Uuid> {
-    let mut accounts: Vec<Uuid> = members
-        .into_iter()
-        .map(|member| Uuid::from_bytes(member.account))
-        .collect();
-    accounts.sort();
-    accounts
-}
 
 #[test]
 fn an_editor_hears_a_member_go_when_their_access_is_revoked_with_a_publish() {

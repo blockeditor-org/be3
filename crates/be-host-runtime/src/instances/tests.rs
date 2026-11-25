@@ -336,6 +336,38 @@ fn answered<T: be_sdk_api::ops::DeserializeOwned>(
     Some(be_sdk_api::ops::decode(&bytes).expect("an answer decodes"))
 }
 
+/// The members the watch is answered with next, waiting for the server's names to come back.
+fn members(
+    instances: &mut Instances,
+    watch: OpId,
+) -> Result<Vec<be_sdk_api::BlockMember>, be_sdk_api::Failure> {
+    loop {
+        let seen = be_host_base::host::letters_posted();
+        next_screens(instances);
+        instances.pending();
+        if let Some(value) = answered::<be_sdk_api::blocks::BlockValue>(instances, watch) {
+            match value {
+                be_sdk_api::blocks::BlockValue::Members(members) => return members,
+                other => panic!("not members: {other:?}"),
+            }
+        }
+        // The stack's reply reaches the runtime's mailbox as its updates are taken.
+        be_host_stack::take_updates_or_wait("the members the server named", || {
+            be_host_base::host::letters_posted() > seen
+        });
+    }
+}
+
+/// The accounts of `members`, in order.
+fn accounts(members: Vec<be_sdk_api::BlockMember>) -> Vec<Uuid> {
+    let mut accounts: Vec<Uuid> = members
+        .into_iter()
+        .map(|member| Uuid::from_bytes(member.account))
+        .collect();
+    accounts.sort();
+    accounts
+}
+
 fn replica_of(instances: &mut Instances, block: Uuid) -> Option<OpId> {
     let entry = instances.entries.get(&INSTANCE)?;
     if let Some(op) = entry.held.replica(block) {
@@ -615,6 +647,7 @@ mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_closing_lets_go_of_its_revision_previews;
 mod a_publish_after_a_revoke_lands_on_an_open_block;
 mod an_editor_hears_a_member_go_when_their_access_is_revoked_with_a_publish;
+mod an_editor_hears_the_author_go_when_they_are_removed_from_the_organization;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;
 mod an_editor_watching_its_blocks_members_is_told_their_names;
 mod an_editor_whose_access_crosses_join_opens_again_as_the_other_kind;

@@ -575,6 +575,41 @@ impl BlockGraph {
         collected
     }
 
+    /// Every block in the subtrees of `roots`, each once, and those of `roots` that lie in no
+    /// other's subtree. Walks each block once, however the subtrees nest.
+    pub fn subtrees(&self, roots: impl IntoIterator<Item = Uuid>) -> (Vec<Uuid>, Vec<Uuid>) {
+        let mut seen = HashSet::new();
+        let mut tops = HashSet::new();
+        let mut collected = Vec::new();
+        for root in roots {
+            if !self.blocks.contains_key(&root) || !seen.insert(root) {
+                continue;
+            }
+            tops.insert(root);
+            let start = collected.len();
+            collected.push(root);
+            let mut next = start;
+            while let Some(id) = collected.get(next).copied() {
+                for child in self.child_ids(id) {
+                    match seen.insert(child) {
+                        true => collected.push(child),
+                        // A root walked before lies below this one.
+                        false => {
+                            tops.remove(&child);
+                        }
+                    }
+                }
+                next += 1;
+            }
+        }
+        let tops = collected
+            .iter()
+            .copied()
+            .filter(|block| tops.contains(block))
+            .collect();
+        (collected, tops)
+    }
+
     pub fn detached(&self) -> Vec<Uuid> {
         let mut detached: Vec<Uuid> = self
             .loose

@@ -2825,13 +2825,14 @@ impl Client {
 
 impl Connection {
     /// Tells what removing `account` from `organization` changed: its connections close, the
-    /// blocks it was revoked from are told, and key work for everyone, as for a demotion, since
-    /// the removed may have administered.
+    /// blocks it was revoked from are told, the trees of what it could view advance (each block
+    /// of them changed, as who may view it did), and key work for everyone, as for a demotion,
+    /// since the removed may have administered.
     async fn removed(
         &mut self,
         organization: Uuid,
         account: Uuid,
-        revoked: Vec<crate::contacts::Granted>,
+        removed: crate::store::Removed,
     ) {
         self.after(After::DropMember {
             organization,
@@ -2839,8 +2840,15 @@ impl Connection {
         })
         .await;
         self.after(After::Revoked {
-            revoked,
+            revoked: removed.revoked,
             accounts: vec![account],
+        })
+        .await;
+        self.after(After::Advance {
+            organization,
+            blocks: removed.viewed,
+            subtree: true,
+            above: Vec::new(),
         })
         .await;
         self.after(After::KeyWorkChangedForAll { organization })

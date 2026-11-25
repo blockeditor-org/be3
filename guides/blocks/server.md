@@ -724,7 +724,11 @@ view it sets the `changed` of what it changed to the next sequence, in the
 database and in the cached graph (`BlockNode::changed`): `touch` (create,
 publish, metadata and references, and with them the blocks they started or
 stopped referencing, whose `KnowExists` moved; a grant, for everything below the
-block, whose access moved; a block given a new key) and `touch_moved` (a new
+block, whose access moved; a member removed from the organization, for everything
+they could view (`remove_from`: the subtrees of their entry points, the open kinds
+they viewed and the organization's settings, walked once with `BlockGraph::subtrees`,
+whose tops then advance), since an author or a viewer through an open block holds no
+grant to revoke; a block given a new key) and `touch_moved` (a new
 parent, for the block and everything below it). A block that leaves an entry
 point's tree leaves a row in `block_departures` for that entry, kept a day:
 `entries_above` (the top of its tree, and each block above it that carries a
