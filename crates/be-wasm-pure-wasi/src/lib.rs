@@ -185,8 +185,8 @@ struct Keystream {
 impl Keystream {
     fn new(seed: [u8; 32]) -> Self {
         let mut key = [0; 8];
-        for (word, bytes) in key.iter_mut().zip(seed.chunks_exact(4)) {
-            *word = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        for (word, bytes) in key.iter_mut().zip(seed.as_chunks::<4>().0) {
+            *word = u32::from_le_bytes(*bytes);
         }
         Self {
             key,
