@@ -918,6 +918,7 @@ impl frames::Guest for Root {
             drop(embedding);
             root.heard(&drawn.own);
             root.heard(&focus);
+            let host_input = root.embedding.borrow_mut().take_host_input();
             let embedding = root.embedding.borrow();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
@@ -968,6 +969,7 @@ impl frames::Guest for Root {
                 cursor: requests.cursor.name().to_owned(),
                 pointer_locked: requests.pointer_locked,
                 accessibility: None,
+                host_input,
             }
         })
     }

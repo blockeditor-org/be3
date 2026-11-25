@@ -433,6 +433,22 @@ impl Windows {
         }
     }
 
+    /// Hands `id`, placed by a host that composites it itself (`place`), what that host's
+    /// router delivered to it, as its view's catcher hands it what it catches: a focus it got
+    /// or lost, then the rest of the input.
+    pub fn deliver(&self, id: WindowId, mut input: ForwardedInput) {
+        input.events.retain(|event| match event {
+            beui::Forwarded::Focus(focused) => {
+                self.focus(id, *focused);
+                false
+            }
+            _ => true,
+        });
+        if !input.events.is_empty() {
+            self.forward(id, input);
+        }
+    }
+
     /// Whether a host that composites `id` itself placed it (`place`).
     pub(crate) fn composited(&self, id: WindowId) -> bool {
         let inner = self.0.value();

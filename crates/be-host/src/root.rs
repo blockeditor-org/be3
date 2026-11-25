@@ -360,6 +360,26 @@ impl RootShell {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
+        // What the root's router delivered to the program windows it placed, which each hears
+        // as its view would have caught it.
+        if self.core.desktop {
+            let clock = self.time_origin.unwrap_or_else(|| context.now());
+            for delivered in &done.host_input {
+                let Ok(events) = be_lib_ui_types::input::decode(&delivered.events) else {
+                    continue;
+                };
+                let input = events
+                    .into_iter()
+                    .map(|timed| {
+                        let at = timed
+                            .time
+                            .map_or_else(|| context.now(), |at| clock + Duration::from_nanos(at));
+                        (timed.input, at)
+                    })
+                    .collect();
+                Host::deliver(HostWindowId(delivered.surface), input);
+            }
+        }
         publish_tree(&mut self.tree, context, area, done.accessibility.as_deref());
         clipboard(context, root, &self.pasted);
         serve_editors(&mut self.core, root, &mut self.editors);

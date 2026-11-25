@@ -2125,24 +2125,31 @@ Each step lands on its own.
            whose pixels are the window's logical pixels: `RootShell` configures the window to
            the layer's size (`DesktopHost::place_windows`) and draws its surfaces' textures
            where the layer shows it (`DesktopHost::picture`, the compositor's
-           `Windows::picture`), and `drive paint` paints them as under be-host. Host tests run
-           a program of their own, be-tool-wayland-window (`HostTest::open_test_window`),
-           stopped before the host restarts. Host test
-           `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop`: the
-           windows bar lists it and the desktop shows it in a tab, under be-host and the root.
+           `Windows::picture`), and `drive paint` paints them as under be-host. What the
+           root's router delivers to a window's layer (hit whole while its child takes input)
+           the root hands its host with its frame (`frame-done.host-input`, be-sdk-root's
+           `Embedding::take_host_input`), and `RootShell` hands it the compositor as the
+           window's view would catch it (`DesktopHost::deliver`, beui-types' `Catch`,
+           be-host-wayland's `Windows::deliver`): the pointer, the keys and the keyboard's
+           focus. drive's `settle` waits for a window shown to draw what it was configured to
+           (`Compositor::busy`). Host tests run a program of their own,
+           be-tool-wayland-window (`HostTest::open_test_window`), which turns another color
+           and says so in its app id once pressed or typed into, stopped before the host
+           restarts. Host tests
+           `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop` and
+           `be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input`: the windows
+           bar lists it, the desktop shows it in a tab, and a press and a key reach it, under
+           be-host and the root.
            - Left, for 4g7e3d: under the root the tab and the chip are named by the program
-             (its app id) rather than its window's title.
-           - Left, for 4g7e3c: programs own their windows' input while the session shows
-             (`DesktopSettings::owned`), but the root's router routes none to them yet: a
-             press on a window's layer (hit whole while its child takes input) reaches nothing.
-             Where the compositor thinks a window is (`place_windows`) is its layer's origin,
-             upright and unscaled, which pointer and popup mapping need to follow once a
-             window is placed zoomed or turned.
+             (the last part of its app id) rather than its window's title.
+           - Left: where the compositor thinks a composited window is (`place_windows`) is
+             its layer's origin, upright and unscaled, which its popups follow: a window
+             placed zoomed or turned hears its pointer right (the root's router delivers it in
+             the layer's pixels) but opens its popups where it would be unzoomed and upright.
            - Left: a window's popups (menus) show only within its place, clipped by its layer,
-             where under be-host they hang outside the window's view.
-           - 4g7e3c. Input to `Surface::Host` layers: what the root's router delivers to one
-             goes to the compositor (pointer, keys, the keyboard's focus), as a
-             `WindowView`'s catcher forwards it.
+             where under be-host they hang outside the window's view; and the pointer's shape
+             a program asks for is not shown under the root, which shows its own
+             (`frame-done.cursor`).
            - 4g7e3d. Each window's status to its placer (`child-status`'s title, icon,
              group, raised, rung, minimized, fullscreen, notice), which the host keeps
              (`DesktopHost::window_status`), and closing a window from its tab.

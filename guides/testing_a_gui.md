@@ -300,7 +300,9 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   package's label in `APPS`.
 - Under `Options::desktop`, `HostTest::open_test_window(TITLE)` runs a program window in the
   desktop's compositor: be-tool-wayland-window (`WAYLAND_TEST_WINDOW` in the tests' environment),
-  one window titled TITLE filled with one color at whatever size it is configured to, started
+  one window titled TITLE filled with one color at whatever size it is configured to (green once
+  pressed and red once a key reached it, with `.pressed` or `.typed` added to its app id, which
+  names its chip: a test waits for that before it snapshots), started
   with the variables `drive env` gives programs. The test's programs stop as it closes and before
   `restart_as_root`, which waits for the desktop to list no window. drive's `settle` waits for a
   program window shown to draw what it was last configured to (be-host-wayland's

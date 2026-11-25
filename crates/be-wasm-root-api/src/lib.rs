@@ -22,7 +22,7 @@ be_wasm_ops_bindgen::generate!({
     secret: ["password"],
 });
 
-pub use frames::{FrameDone, FrameRequest, WindowSize};
+pub use frames::{FrameDone, FrameRequest, HostInput, WindowSize};
 pub use host::{
     AccountRow, AgentCredentials, AgentRow, AgentsArea, BlockCatalog, BrowserSignIn, ContactCard,
     ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,

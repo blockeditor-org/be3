@@ -119,8 +119,8 @@ root yet.
 - `shot FILE.png [TARGET]` is a PNG of what the platform shows (under space, the 3D view).
 - `paint FILE.paint [TARGET] [in WINDOW]` is a paint snapshot (guides/testing_a_gui.md, 4) with
   every app's painting where the host composites it, which compares exactly where a PNG would
-  not; `paint FILE.png` draws it flat. What an app draws through its own `Drawing`, a web view
-  or a Wayland window is a placeholder.
+  not; `paint FILE.png` draws it flat. What an app draws through its own `Drawing` or a web view
+  is a placeholder; a Wayland window paints what its program drew.
 - `overflows` lists what the window shows out of bounds, host and apps included.
 
 ## Targets

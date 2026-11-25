@@ -357,3 +357,183 @@ impl Replay {
         }
     }
 }
+
+/// Turns what a router outside beui delivered to one surface (a program window a root guest
+/// places, which be-host's `RootShell` hands its compositor) into what a forwarding catcher
+/// there would have caught: the inverse of `Replay`. Positions stay in the surface's points,
+/// which the forwarded input's `rect` starts at the origin of.
+#[derive(Default)]
+pub struct Catch {
+    /// Where the pointer was last, for what it says where it is no more (a wheel turning).
+    pointer: Option<Pos2>,
+    modifiers: Modifiers,
+    focused: bool,
+}
+
+impl Catch {
+    /// What `inputs` (each with when it was sampled) come to for a catcher `size` points big in
+    /// `window`.
+    pub fn caught(
+        &mut self,
+        inputs: impl IntoIterator<Item = (Input, Instant)>,
+        window: crate::window::WindowId,
+        size: be_lib_geometry::Vec2,
+    ) -> ForwardedInput {
+        let mut events = Vec::new();
+        for (input, time) in inputs {
+            self.catch(input, time, window, &mut events);
+        }
+        ForwardedInput {
+            events,
+            rect: Rect::from_min_size(Pos2::ZERO, size),
+            hovered: self.pointer.is_some(),
+            focused: self.focused,
+            pointer: self.pointer,
+            modifiers: self.modifiers,
+        }
+    }
+
+    fn catch(
+        &mut self,
+        input: Input,
+        time: Instant,
+        window: crate::window::WindowId,
+        events: &mut Vec<Forwarded>,
+    ) {
+        let modifiers = self.modifiers;
+        let pointer = |pointer: PointerId, phase: PointerPhase, pos: Pos2| Forwarded::Pointer {
+            event: PointerEvent {
+                pointer,
+                window,
+                phase,
+                pos,
+                modifiers,
+                clicks: u32::from(matches!(phase, PointerPhase::Down(_))),
+                force: None,
+                pen: None,
+                predicted: None,
+                time,
+                source: 0,
+                rested: false,
+            },
+            over: None,
+        };
+        let at = self.pointer.unwrap_or(Pos2::ZERO);
+        let event = match input {
+            Input::Focus(focused) => {
+                self.focused = focused;
+                Forwarded::Focus(focused)
+            }
+            Input::Modifiers(held) => {
+                self.modifiers = held;
+                Forwarded::Input(Event::Modifiers(held))
+            }
+            Input::Key(Keystroke {
+                key,
+                pressed,
+                repeat,
+                evdev,
+                text,
+            }) => Forwarded::Input(Event::Key {
+                press: KeyPress {
+                    key: key.unwrap_or(crate::input::Key::Unidentified),
+                    pressed,
+                    repeat,
+                    modifiers,
+                },
+                evdev,
+                text,
+            }),
+            Input::Text(text) => Forwarded::Input(Event::Text(text)),
+            Input::Paste(pasted) => Forwarded::Input(Event::Paste(pasted)),
+            Input::Ime(ime) => Forwarded::Input(Event::Ime(ime)),
+            Input::PointerMotion(delta) => Forwarded::Input(Event::PointerMotion(delta)),
+            Input::PointerMoved(pos) | Input::PointerRested(pos) => {
+                self.pointer = Some(pos);
+                let mut moved = pointer(PointerId::Mouse, PointerPhase::Move, pos);
+                if let (Forwarded::Pointer { event, .. }, Input::PointerRested(_)) =
+                    (&mut moved, &input)
+                {
+                    event.rested = true;
+                }
+                moved
+            }
+            Input::PointerLeft => {
+                self.pointer = None;
+                Forwarded::Left
+            }
+            Input::PointersCancelled => pointer(PointerId::Mouse, PointerPhase::Cancel, at),
+            Input::PointerButton {
+                pos,
+                button,
+                pressed,
+            } => {
+                self.pointer = Some(pos);
+                let phase = match pressed {
+                    true => PointerPhase::Down(button),
+                    false => PointerPhase::Up(button),
+                };
+                pointer(PointerId::Mouse, phase, pos)
+            }
+            Input::ScrollStarted => pointer(PointerId::Mouse, PointerPhase::ScrollStarted, at),
+            Input::Scroll(delta) => {
+                let notches = match delta {
+                    ScrollDelta::Lines(notches) => Some(notches),
+                    _ => None,
+                };
+                let delta = crate::input::scrolled(delta, 1.0);
+                pointer(PointerId::Mouse, PointerPhase::Scroll { delta, notches }, at)
+            }
+            Input::ScrollEnded => pointer(
+                PointerId::Mouse,
+                PointerPhase::ScrollEnded {
+                    fling: be_lib_geometry::Vec2::ZERO,
+                },
+                at,
+            ),
+            Input::Zoom(factor) => pointer(PointerId::Mouse, PointerPhase::Zoom(factor), at),
+            Input::Touchpad(gesture) => {
+                pointer(PointerId::Mouse, PointerPhase::Touchpad(gesture), at)
+            }
+            Input::Touch {
+                id,
+                phase,
+                pos,
+                force,
+            } => {
+                let phase = match phase {
+                    TouchPhase::Start => PointerPhase::Down(crate::input::PointerButton::Primary),
+                    TouchPhase::Move => PointerPhase::Move,
+                    TouchPhase::End => PointerPhase::Up(crate::input::PointerButton::Primary),
+                    TouchPhase::Cancel => PointerPhase::Cancel,
+                };
+                let mut touched = pointer(PointerId::Touch(id), phase, pos);
+                if let Forwarded::Pointer { event, .. } = &mut touched {
+                    event.force = force;
+                }
+                touched
+            }
+            Input::Pen { phase, pos, pen } => {
+                let phase = match phase {
+                    PenPhase::Move => PointerPhase::Move,
+                    PenPhase::Down(button) => PointerPhase::Down(button),
+                    PenPhase::Up(button) => PointerPhase::Up(button),
+                    PenPhase::Gone => PointerPhase::Gone,
+                };
+                let mut penned = pointer(PointerId::Pen, phase, pos);
+                if let Forwarded::Pointer { event, .. } = &mut penned {
+                    event.pen = Some(pen);
+                }
+                penned
+            }
+            // What a program window has no use for: a predicted point, a back gesture, the
+            // keys and taps a host intercepted for itself, a paste in pieces, the pointer's
+            // lock ending.
+            _ => return,
+        };
+        events.push(event);
+    }
+}
+
+#[cfg(test)]
+mod tests;

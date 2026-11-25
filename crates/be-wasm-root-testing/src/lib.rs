@@ -255,6 +255,7 @@ impl Frames {
             .to_owned(),
             pointer_locked: windows.locked(None).is_some(),
             accessibility: None,
+            host_input: Vec::new(),
         }
     }
 
