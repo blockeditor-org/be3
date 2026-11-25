@@ -128,7 +128,8 @@ What keeps a gesture's cost independent of the document's size:
 - A pen move costs the same at the end of a long stroke as at its start: the pen appends only new
   points (`InfiniteCanvasOperation::Extend`), the projection rereads only what was appended
   (`Model::reread`), and `freehand::LiveStroke` recomputes only the stroke's end, painting the
-  settled part as kept meshes joined on unantialiased seams (`PathPaint::with_seams`).
+  settled part as kept pieces joined on seams (`PathPaint::with_seams`), which the renderer
+  fills as one path so the seams do not show.
 - Opening still builds an item for every shape (decisions/canvas_builds_every_item_on_open.md).
 
 ## Comparing two builds

@@ -139,7 +139,10 @@ impl Fade {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Content {
+    /// Triangles each texel or colour is interpolated across: a 3D scene's panels, images,
+    /// colour glyphs and lines.
     Mesh(Vec<Triangle>),
+    Path(PathShape),
     Callback([f32; 4]),
     RoundedRect(RoundedRect),
     Glyph(Glyph),
@@ -276,6 +279,144 @@ impl Turn {
                 ]
             },
         )
+    }
+}
+
+/// A path in the frame's points, placed (its offset, scale and turn applied), filled or stroked
+/// in one colour.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PathShape {
+    pub commands: Vec<PathCommand>,
+    pub style: PathStyle,
+    pub color: [u8; 4],
+    /// Whether it meets the fills beside it on seams: the seamed nonzero fills that follow it
+    /// alike but for their outline are filled with it as one path, as the renderer fills them.
+    pub seamed: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PathCommand {
+    MoveTo([f32; 2]),
+    LineTo([f32; 2]),
+    QuadTo([f32; 2], [f32; 2]),
+    CubicTo([f32; 2], [f32; 2], [f32; 2]),
+    Close,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PathStyle {
+    Fill { even_odd: bool },
+    Stroke(PathStroke),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PathStroke {
+    pub width: f32,
+    pub join: Join,
+    pub miter_limit: f32,
+    pub cap: Cap,
+    /// Dash and gap lengths, in turn; none for a solid line.
+    pub dashes: Vec<f32>,
+    pub dash_offset: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Join {
+    Miter,
+    Round,
+    Bevel,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Cap {
+    Butt,
+    Round,
+    Square,
+}
+
+impl PathCommand {
+    /// The command with each of its points moved by `to`.
+    pub fn mapped(self, to: impl Fn([f32; 2]) -> [f32; 2]) -> Self {
+        match self {
+            Self::MoveTo(at) => Self::MoveTo(to(at)),
+            Self::LineTo(at) => Self::LineTo(to(at)),
+            Self::QuadTo(control, at) => Self::QuadTo(to(control), to(at)),
+            Self::CubicTo(first, second, at) => Self::CubicTo(to(first), to(second), to(at)),
+            Self::Close => Self::Close,
+        }
+    }
+
+    pub fn each_point(&self, mut visit: impl FnMut([f32; 2])) {
+        match *self {
+            Self::MoveTo(at) | Self::LineTo(at) => visit(at),
+            Self::QuadTo(control, at) => {
+                visit(control);
+                visit(at);
+            }
+            Self::CubicTo(first, second, at) => {
+                visit(first);
+                visit(second);
+                visit(at);
+            }
+            Self::Close => {}
+        }
+    }
+}
+
+impl PathShape {
+    /// The points it may cover: its points' bounds, grown by as far as its stroke reaches past
+    /// them (half its width, more at a miter or a square cap), as `beui_types::Stroke::reach`.
+    pub fn bounds(&self) -> [f32; 4] {
+        let mut bounds = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
+        for command in &self.commands {
+            command.each_point(|[x, y]| {
+                bounds = [
+                    bounds[0].min(x),
+                    bounds[1].min(y),
+                    bounds[2].max(x),
+                    bounds[3].max(y),
+                ];
+            });
+        }
+        let reach = match &self.style {
+            PathStyle::Fill { .. } => 0.0,
+            PathStyle::Stroke(stroke) => {
+                let join = match stroke.join {
+                    Join::Miter => stroke.miter_limit.max(1.0),
+                    Join::Round | Join::Bevel => 1.0,
+                };
+                let cap = match stroke.cap {
+                    Cap::Square => std::f32::consts::SQRT_2,
+                    Cap::Butt | Cap::Round => 1.0,
+                };
+                stroke.width / 2.0 * join.max(cap)
+            }
+        };
+        [
+            bounds[0] - reach,
+            bounds[1] - reach,
+            bounds[2] + reach,
+            bounds[3] + reach,
+        ]
+    }
+
+    /// It with each point moved by `to`, and its stroke's lengths scaled by `scale`.
+    pub fn mapped(&self, to: impl Fn([f32; 2]) -> [f32; 2], scale: f32) -> Self {
+        Self {
+            commands: self.commands.iter().map(|command| command.mapped(&to)).collect(),
+            style: match &self.style {
+                PathStyle::Fill { even_odd } => PathStyle::Fill {
+                    even_odd: *even_odd,
+                },
+                PathStyle::Stroke(stroke) => PathStyle::Stroke(PathStroke {
+                    width: stroke.width * scale,
+                    dashes: stroke.dashes.iter().map(|dash| dash * scale).collect(),
+                    dash_offset: stroke.dash_offset * scale,
+                    ..stroke.clone()
+                }),
+            },
+            ..self.clone()
+        }
     }
 }
 
@@ -442,6 +583,7 @@ fn bounds(content: &Content) -> [f32; 4] {
                 ]
             },
         ),
+        Content::Path(path) => path.bounds(),
         Content::Callback(rect) => *rect,
         Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => {
             let reach = shape.stroke_width / 2.0;
@@ -691,6 +833,7 @@ impl Placing<'_> {
                     })
                     .collect(),
             ),
+            Content::Path(path) => Content::Path(path.mapped(|at| map.apply(at), map.scale)),
             Content::Callback(rect) => Content::Callback(map.bounds(*rect)),
             Content::RoundedRect(shape) => Content::RoundedRect(self.scaled_rect(*shape)),
             Content::CorneredRect(shape, corners) => Content::CorneredRect(
@@ -763,6 +906,7 @@ fn cropped(primitives: &mut Vec<Primitive>, rect: [f32; 4]) {
                     }
                 }
             }
+            Content::Path(path) => *path = path.mapped(shift, 1.0),
             Content::Callback(rect) => *rect = moved(*rect),
             Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => {
                 shape.rect = moved(shape.rect);

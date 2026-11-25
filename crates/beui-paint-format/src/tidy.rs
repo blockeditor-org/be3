@@ -111,7 +111,7 @@ fn plain(primitive: &mut Primitive) {
     match &mut primitive.content {
         Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => still(&mut shape.turn),
         Content::Glyph(glyph) => still(&mut glyph.turn),
-        Content::Mesh(_) | Content::Callback(_) | Content::Group(_) => {}
+        Content::Mesh(_) | Content::Path(_) | Content::Callback(_) | Content::Group(_) => {}
     }
     for round in &mut primitive.rounds {
         still(&mut round.turn);
@@ -192,6 +192,14 @@ fn touched(content: &Content, clip: Option<[f32; 4]>, scale: f32, size: [i64; 2]
                 })
                 .fold(NOTHING, union)
         }
+        // An antialiased path covers a pixel its bounds reach into.
+        Content::Path(path) => intersect_pixels(
+            intersect_pixels(
+                whole_pixels(path.bounds().map(|value| value * scale)),
+                whole_pixels(clip),
+            ),
+            frame,
+        ),
         // A callback's outline ignores its clip.
         Content::Callback(rect) => {
             intersect_pixels(whole_pixels(rect.map(|value| value * scale)), frame)
@@ -254,7 +262,9 @@ fn clips(primitive: &Primitive, scale: f32, size: [i64; 2]) -> bool {
     let clip = primitive.clip.map(|value| value * scale);
     match &primitive.content {
         Content::Callback(_) => false,
-        Content::Mesh(_) | Content::Group(_) => !inside(area, whole_pixels(clip)),
+        Content::Mesh(_) | Content::Path(_) | Content::Group(_) => {
+            !inside(area, whole_pixels(clip))
+        }
         // The others keep the pixels whose centres lie in the clip.
         _ => !inside(
             area,
@@ -275,6 +285,7 @@ fn transparent(primitive: &Primitive) -> bool {
         Content::Mesh(triangles) => triangles
             .iter()
             .all(|triangle| triangle.corners.iter().all(|corner| corner.color[3] == 0)),
+        Content::Path(path) => path.color[3] == 0,
         Content::Callback(_) => false,
         Content::Group(group) => group.opacity <= 0.0 || group.primitives.iter().all(transparent),
     }
@@ -285,6 +296,7 @@ fn colour(content: &Content) -> Option<[u8; 4]> {
     match content {
         Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => Some(shape.color),
         Content::Glyph(glyph) => Some(glyph.color),
+        Content::Path(path) => Some(path.color),
         Content::Mesh(_) | Content::Callback(_) | Content::Group(_) => None,
     }
 }

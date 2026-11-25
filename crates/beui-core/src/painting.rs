@@ -8,6 +8,7 @@ pub use beui_paint_format::{
     Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
     ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed,
 };
+use beui_paint_format::{Cap, Join, PathCommand, PathShape, PathStroke, PathStyle};
 
 use crate::context::{FrameOutput, WindowOutput};
 use crate::display::Flat;
@@ -15,7 +16,7 @@ use crate::draw::Quad;
 use crate::font::GlyphImage;
 use beui_types::Color32;
 use beui_types::Image;
-use beui_types::{Rect, Vec2, pos2};
+use beui_types::{PathElement, Rect, Vec2, pos2};
 
 pub trait Paints {
     fn painting(&self, rect: Rect) -> Option<Painting>;
@@ -145,13 +146,12 @@ struct Converting {
 impl Converting {
     fn items(&mut self, items: Vec<Flat>, primitives: &mut Vec<Primitive>) -> Result<(), String> {
         let mut quads = Vec::new();
-        let mut fades = Vec::new();
         let mut run = Vec::new();
         for item in items {
             match item {
                 Flat::Shape(shape, fade) => run.push((shape, fade)),
                 Flat::Group(opacity, inner) => {
-                    self.shapes(std::mem::take(&mut run), &mut quads, &mut fades, primitives)?;
+                    self.shapes(std::mem::take(&mut run), &mut quads, primitives)?;
                     let mut grouped = Vec::new();
                     let punched = self.holes.len();
                     self.items(inner, &mut grouped)?;
@@ -162,14 +162,13 @@ impl Converting {
                 }
             }
         }
-        self.shapes(run, &mut quads, &mut fades, primitives)
+        self.shapes(run, &mut quads, primitives)
     }
 
     fn shapes(
         &mut self,
         shapes: Vec<(crate::painter::Shape, crate::fade::Fade)>,
         quads: &mut Vec<Quad>,
-        fades: &mut Vec<Fade>,
         primitives: &mut Vec<Primitive>,
     ) -> Result<(), String> {
         let (size, pixels_per_point, punches) = (self.size, self.pixels_per_point, self.punches);
@@ -178,52 +177,33 @@ impl Converting {
         let points = |values: [f32; 4]| values.map(|value| value / pixels_per_point);
         let turn_of = |turn: crate::draw::Turn| turned(turn, pixels_per_point);
         quads.clear();
-        fades.clear();
         for (shape, fade) in shapes {
-            crate::draw::push_quads(&shape, pixels_per_point, None, quads);
-            fades.resize(quads.len(), saved(fade));
-        }
-        let mut joined = false;
-        for (quad, fade) in quads.drain(..).zip(fades.drain(..)) {
-            let joining = std::mem::replace(&mut joined, false);
-            if let Quad::Triangle {
-                corners,
-                clip,
+            let fade = saved(fade);
+            if let crate::painter::Shape::Path {
+                path,
+                scale,
+                offset,
                 color,
-                ..
-            } = &quad
+                rotation,
+                clip,
+            } = &shape
             {
-                let clip = points(*clip);
-                if clip[2].min(size.x) <= clip[0].max(0.0)
-                    || clip[3].min(size.y) <= clip[1].max(0.0)
-                {
-                    continue;
-                }
-                let triangle = Triangle {
-                    texture: white(textures)?,
-                    corners: corners.map(|[x, y]| Vertex {
-                        pos: [x / pixels_per_point, y / pixels_per_point],
-                        uv: [0.0, 0.0],
-                        color: color.to_array(),
-                    }),
-                };
-                joined = true;
-                match primitives.last_mut() {
-                    Some(Primitive {
-                        clip: held,
-                        fade: was,
-                        content: Content::Mesh(triangles),
-                        ..
-                    }) if joining && *held == clip && *was == fade => triangles.push(triangle),
-                    _ => primitives.push(Primitive {
+                let clip = [clip.min.x, clip.min.y, clip.max.x, clip.max.y]
+                    .map(|value| (value * pixels_per_point).round() / pixels_per_point);
+                let outside = clip[2].min(size.x) <= clip[0].max(0.0)
+                    || clip[3].min(size.y) <= clip[1].max(0.0);
+                if !outside && !path.path().is_empty() {
+                    primitives.push(Primitive {
                         clip,
                         fade,
                         rounds: Vec::new(),
-                        content: Content::Mesh(vec![triangle]),
-                    }),
+                        content: Content::Path(placed_path(path, *scale, *offset, *rotation, *color)),
+                    });
                 }
                 continue;
             }
+            crate::draw::push_quads(&shape, pixels_per_point, None, quads);
+            for quad in quads.drain(..) {
             if let Quad::Drawing {
                 rect,
                 clip,
@@ -353,7 +333,6 @@ impl Converting {
                 Quad::Punch { rect, clip, .. } | Quad::Drawing { rect, clip, .. } => {
                     (clip, Content::Callback(points(rect)))
                 }
-                Quad::Triangle { .. } => continue,
             };
             let clip = points(clip);
             let outside =
@@ -367,8 +346,76 @@ impl Converting {
                 rounds: Vec::new(),
                 content,
             });
+            }
         }
         Ok(())
+    }
+}
+
+/// `path` placed as `Shape::Path` places it, in points: scaled, moved by `offset` and turned.
+fn placed_path(
+    path: &crate::path::PathPaint,
+    scale: f32,
+    offset: Vec2,
+    rotation: beui_types::Rotation,
+    color: beui_types::Color32,
+) -> PathShape {
+    let (sin, cos) = rotation.angle.sin_cos();
+    let pivot = rotation.pivot;
+    let place = |at: beui_types::Pos2| {
+        let (x, y) = (at.x * scale + offset.x, at.y * scale + offset.y);
+        match rotation.turns() {
+            false => [x, y],
+            true => {
+                let (x, y) = (x - pivot.x, y - pivot.y);
+                [pivot.x + x * cos - y * sin, pivot.y + x * sin + y * cos]
+            }
+        }
+    };
+    let commands = path
+        .path()
+        .elements()
+        .iter()
+        .map(|element| match *element {
+            PathElement::MoveTo(to) => PathCommand::MoveTo(place(to)),
+            PathElement::LineTo(to) => PathCommand::LineTo(place(to)),
+            PathElement::QuadTo(control, to) => PathCommand::QuadTo(place(control), place(to)),
+            PathElement::CubicTo(first, second, to) => {
+                PathCommand::CubicTo(place(first), place(second), place(to))
+            }
+            PathElement::Close => PathCommand::Close,
+        })
+        .collect();
+    let style = match path.style() {
+        beui_types::PathStyle::Fill(rule) => PathStyle::Fill {
+            even_odd: *rule == beui_types::FillRule::EvenOdd,
+        },
+        // As the renderer strokes it (`kurbo_stroke`): dots and odd dash lists made even.
+        beui_types::PathStyle::Stroke(stroke) => {
+            let drawn = crate::path::kurbo_stroke(stroke, scale);
+            PathStyle::Stroke(PathStroke {
+                width: drawn.width as f32,
+                join: match drawn.join {
+                    kurbo::Join::Miter => Join::Miter,
+                    kurbo::Join::Round => Join::Round,
+                    kurbo::Join::Bevel => Join::Bevel,
+                },
+                miter_limit: drawn.miter_limit as f32,
+                cap: match drawn.start_cap {
+                    kurbo::Cap::Butt => Cap::Butt,
+                    kurbo::Cap::Round => Cap::Round,
+                    kurbo::Cap::Square => Cap::Square,
+                },
+                dashes: drawn.dash_pattern.iter().map(|dash| *dash as f32).collect(),
+                dash_offset: drawn.dash_offset as f32,
+            })
+        }
+    };
+    PathShape {
+        commands,
+        style,
+        color: color.to_array(),
+        seamed: path.seamed(),
     }
 }
 

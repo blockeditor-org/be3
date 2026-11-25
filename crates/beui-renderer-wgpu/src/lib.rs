@@ -1616,7 +1616,6 @@ impl Renderer {
                 });
             }
             // Paths are encoded whole (`encode_shape`), never as the triangles of a mesh.
-            Quad::Triangle { .. } => return None,
         }))
     }
 
