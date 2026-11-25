@@ -590,20 +590,8 @@ pub fn room(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Vec2 {
                 _ => area.size(),
             }
         }
-        Placement::InsideTop
-        | Placement::InsideTopStart
-        | Placement::InsideTopEnd
-        | Placement::InsideBottom
-        | Placement::InsideBottomStart
-        | Placement::InsideBottomEnd => anchor_rect.intersect(viewport).size(),
-        Placement::At
-        | Placement::Over(_)
-        | Placement::Around
-        | Placement::Menu
-        | Placement::Center
-        | Placement::Fill
-        | Placement::CenterOn
-        | Placement::Edge(_) => viewport.size(),
+        placement if placement.inside() => anchor_rect.intersect(viewport).size(),
+        _ => viewport.size(),
     };
     room.max(Vec2::ZERO).min(viewport.size().max(Vec2::ZERO))
 }

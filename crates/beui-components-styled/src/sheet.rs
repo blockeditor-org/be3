@@ -31,7 +31,10 @@ pub fn Sheet(
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = SHEET_STOPS[1])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
-    #[prop(default = false)] fit: bool,
+    /// Rests at its own height, never above the middle stop: past that what it holds scrolls.
+    /// It then takes no `rest` or `stops` of its own.
+    #[prop(default = false)]
+    fit: bool,
     on_close: Callback<()>,
     children: NodeId,
 ) -> NodeId {
@@ -67,6 +70,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS[2])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     /// Rests at its own height, never above the middle stop: past that what it holds scrolls.
+    /// It then takes no `rest` or `stops` of its own.
     #[prop(default = false)]
     fit: bool,
     on_close: Callback<()>,

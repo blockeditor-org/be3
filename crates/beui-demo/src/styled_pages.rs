@@ -4172,13 +4172,13 @@ const SPRUNG_DISTANCE: f32 = 200.0;
 fn sprung(movement: Movement) -> Vec<f32> {
     let spring = movement.spring();
     let step = 0.3 / (PLOT_STEPS - 1) as f32;
-    let (mut displacement, mut velocity, mut passed) = (SPRUNG_DISTANCE, 0.0, false);
+    let mut motion = SpringMotion::new(SPRUNG_DISTANCE, 0.0);
     (0..PLOT_STEPS)
         .map(|index| {
             if index > 0 {
-                spring.advance(&mut displacement, &mut velocity, &mut passed, step);
+                motion.advance(spring, step);
             }
-            1.0 - displacement / SPRUNG_DISTANCE
+            1.0 - motion.displacement / SPRUNG_DISTANCE
         })
         .collect()
 }

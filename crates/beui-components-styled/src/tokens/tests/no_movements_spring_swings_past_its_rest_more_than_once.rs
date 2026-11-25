@@ -1,4 +1,5 @@
 use super::*;
+use beui_view::reactive::SpringMotion;
 
 /// No motion rings: let go at rest, moving away from where it rests, or thrown hard towards
 /// it, a movement's spring passes its rest at most once and lands there on the way back.
@@ -16,12 +17,13 @@ fn no_movements_spring_swings_past_its_rest_more_than_once() {
             (300.0, -6000.0),
             (2000.0, 0.0),
         ] {
-            let (mut at, mut velocity, mut passed) = (from, speed, false);
+            let mut motion = SpringMotion::new(from, speed);
             let mut crossings = 0;
             let mut deepest = 0.0_f32;
             for frame in 0..600 {
-                let was = at;
-                spring.advance(&mut at, &mut velocity, &mut passed, 1.0 / 60.0);
+                let was = motion.displacement;
+                motion.advance(spring, 1.0 / 60.0);
+                let at = motion.displacement;
                 if at * was < 0.0 {
                     crossings += 1;
                 }
@@ -34,9 +36,8 @@ fn no_movements_spring_swings_past_its_rest_more_than_once() {
                     movement.name()
                 );
             }
-            assert_eq!(
-                (at, velocity),
-                (0.0, 0.0),
+            assert!(
+                !motion.moving(),
                 "{} from {from} at {speed} comes to rest",
                 movement.name()
             );

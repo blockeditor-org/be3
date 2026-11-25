@@ -1,0 +1,11 @@
+# On a window narrower than a toast, the toast narrows and its text wraps, so
+# its action and its dismiss button stay inside the window and take a press.
+clock stop
+resize 240x400
+pause 500
+wait '#toast.1'
+wait 'value="Toasts 1 chose nothing"'
+click '#toast.1.action.undo'
+pause 500
+wait not '#toast.1'
+wait 'value="Toasts 0 chose undo"'

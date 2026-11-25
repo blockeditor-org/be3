@@ -336,7 +336,7 @@ Each toast slides in from the side of its `edge` on the unstyled `spring`
 (`gestures::scroll_drag` along the horizontal, so a vertical drag still
 scrolls the stack) or the mouse; let go past `TOAST_SWIPE_SHARE` of its width
 or faster than `TOAST_SWIPE_SPEED`, it flies off at the speed it was let go
-at, otherwise it springs back from that speed, stopping at its rest rather than passing it. Its dismiss button and its time running out
+at, otherwise it springs back from that speed, swinging past its rest once and landing there on the way back. Its dismiss button and its time running out
 send it off from rest; while it is held, they send it off once it is let go,
 whichever way. `on_dismiss` hears it once it is off, and one its owner keeps
 after that collapses. A toast its owner takes out of `toasts` (after
