@@ -14,6 +14,7 @@ cargo_package()
 # menu's. An entry that is a package's label stages that package as an app,
 # such as a root a test runs with --root, which no host ships.
 APPS = {
+    "a_web_browser_tab_says_why_it_shows_no_page": ["browser-tab"],
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_block_added_to_my_files_from_a_slow_server_stays_in_it": ["text"],
@@ -96,6 +97,7 @@ APPS = {
     "be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates": ["infinite-canvas", "checklist", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_opens_a_block_its_files_open": ["infinite-canvas", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone": ["infinite-canvas", "checklist", "//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_says_why_a_web_browser_tab_shows_no_page": ["browser-tab", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_an_editor_in_each": ["infinite-canvas", "checklist", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_checklist_in_place_on_a_canvas": ["infinite-canvas", "checklist", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_joined_dock": ["example-beui-gallery", "//crates/be-root"],
