@@ -58,8 +58,8 @@ mod own;
 mod windows;
 
 pub use children::{
-    ALREADY_OPEN_ABOVE, Around, Children, KeyboardMove, NOT_SHOWN_YET, PanelPlace, Spawning, child_screen,
-    framing_screen, main_screen, preview_screen, preview_screen_of,
+    ALREADY_OPEN_ABOVE, Around, Children, KeyboardMove, NOT_SHOWN_YET, PanelPlace, Spawning,
+    child_screen, framing_screen, main_screen, preview_screen, preview_screen_of,
 };
 pub use embedded::{
     AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, tell_editor,

@@ -18,7 +18,11 @@ fn be_root_in_place_of_the_hosts_ui_opens_its_palette_from_a_frame_menu() {
     });
     open_beui_demo(&mut host);
     let centre = |place: (f32, f32, f32, f32)| {
-        format!("{:.0},{:.0}", place.0 + place.2 / 2.0, place.1 + place.3 / 2.0)
+        format!(
+            "{:.0},{:.0}",
+            place.0 + place.2 / 2.0,
+            place.1 + place.3 / 2.0
+        )
     };
     let more = centre(host.place(DOCKING_MORE));
     host.click(DOCKING_MORE);

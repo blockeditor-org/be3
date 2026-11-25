@@ -1002,7 +1002,11 @@ impl Embedded {
         if !shown && !ends(&input) {
             return;
         }
-        let Some(screen) = state.surfaces.get(&surface).map(|placement| placement.screen) else {
+        let Some(screen) = state
+            .surfaces
+            .get(&surface)
+            .map(|placement| placement.screen)
+        else {
             return;
         };
         // Which of its screens has the keyboard, which lets its editor open the palette.
