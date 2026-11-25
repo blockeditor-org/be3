@@ -1579,6 +1579,54 @@ impl Children {
             .unwrap_or(PlacedEditor::Gone)
     }
 
+    /// The editors the root's command palette lists outward from `editor`: it, then the editor
+    /// placing it, and so on to the one these children are placed in, each with the handle of
+    /// the app running it and its name, as its place says it (`ChildContent::Block`'s app) or as
+    /// `outermost` names the last.
+    pub fn editors_around(
+        &self,
+        instance: u64,
+        editor: EditorInstanceId,
+        outermost: &str,
+    ) -> Vec<(u64, EditorInstanceId, String)> {
+        let mut around = vec![(instance, editor)];
+        while let Some((placer_app, placer, _)) = around
+            .last()
+            .and_then(|(_, editor)| self.placer_of(*editor))
+        {
+            if around.iter().any(|(_, held)| *held == placer) {
+                break;
+            }
+            around.push((placer_app, placer));
+        }
+        let last = around.len() - 1;
+        around
+            .into_iter()
+            .enumerate()
+            .map(|(at, (app, editor))| {
+                let name = match at == last {
+                    true => outermost.to_owned(),
+                    false => self.name_of(editor).unwrap_or_default(),
+                };
+                (app, editor, name)
+            })
+            .collect()
+    }
+
+    /// The name of the app running the editor `editor` a place shows, any number of levels
+    /// deep.
+    fn name_of(&self, editor: EditorInstanceId) -> Option<String> {
+        self.shown.iter().find_map(|child| {
+            match &*child.editor.showing.borrow() {
+                Showing::Shown { hosted, .. } if hosted.editor == editor => {
+                    return Some(hosted.name.clone());
+                }
+                _ => {}
+            }
+            child.editor.nested.borrow().name_of(editor)
+        })
+    }
+
     /// The place that shows the editor `editor`, any number of levels deep, as the handle of
     /// its placer's app, its placer and its id there.
     fn placer_of(&self, editor: EditorInstanceId) -> Option<(u64, EditorInstanceId, ChildId)> {

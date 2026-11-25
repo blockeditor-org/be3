@@ -492,6 +492,38 @@ impl Embedding {
     /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
     /// of the layer focused there, in place of those it took before (`Windows::intercept`): the
     /// root's own shortcuts, and Escape while a dialog of its own is open.
+    /// The editor whose view has the keyboard in `window`, with the app running it and the
+    /// screen showing that view: what the root's command palette lists the actions of first.
+    pub fn focused_editor(
+        &self,
+        window: Option<u64>,
+    ) -> Option<(Embedded, EditorInstanceId, be_sdk_api::ScreenId)> {
+        let focused = self.focused(window)?.id;
+        self.apps.iter().find_map(|app| {
+            let (editor, screen) = app.screen_at(focused)?;
+            Some((app.clone(), editor, screen))
+        })
+    }
+
+    /// The app embedded as the sandbox instance `instance`.
+    pub fn app_of(&self, instance: u64) -> Option<Embedded> {
+        self.apps
+            .iter()
+            .find(|app| app.instance() == instance)
+            .cloned()
+    }
+
+    /// The palette an embedded editor asked the root to open (`shell-message.open-palette`),
+    /// with the app running it, once.
+    pub fn take_palette_ask(
+        &self,
+    ) -> Option<(Embedded, EditorInstanceId, be_sdk_api::PaletteMode)> {
+        self.apps.iter().find_map(|app| {
+            let (editor, mode) = app.take_palette_ask()?;
+            Some((app.clone(), editor, mode))
+        })
+    }
+
     pub fn intercept(&mut self, chords: Vec<KeyChord>) {
         self.windows.intercept(chords);
     }

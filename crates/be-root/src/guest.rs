@@ -46,10 +46,10 @@ use crate::{
     ADD_ACCOUNT_TITLE, AGENTS_TITLE, CONTACTS_TITLE, DIALOG_LAYER, DIALOG_SURFACE, DISCARD_TITLE,
     DISCARD_UNSENT_TITLE, FAILURE_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LOCK_LAYER,
     LOCK_SURFACE, MEMBERS_TITLE, MENU_BUTTON, MENU_LAYER, MENU_SURFACE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE,
-    REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SESSION_NOTICE_SURFACE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE,
-    SLOW_SAVE_TOAST, STATISTICS_TITLE, TOAST_LAYER, TOAST_SURFACE, UNSENT_TITLE,
+    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, PALETTE_LAYER, REAUTH_TITLE,
+    RECOVERY_TITLE, REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER,
+    ROOT_SURFACE, SESSION_NOTICE_SURFACE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE,
+    SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_TITLE, TOAST_LAYER, TOAST_SURFACE, UNSENT_TITLE,
 };
 
 mod dialogs;
@@ -57,6 +57,7 @@ mod lock;
 mod menu;
 mod notices;
 mod onboarding;
+mod palette;
 mod panels;
 mod session;
 mod statistics;
@@ -66,6 +67,7 @@ use lock::*;
 use menu::*;
 use notices::*;
 use onboarding::*;
+use palette::*;
 use panels::*;
 use session::*;
 use statistics::*;
@@ -150,6 +152,10 @@ struct Root {
     panels: Rc<RefCell<Vec<PanelSurface>>>,
     /// How many panel surfaces it made: the next is numbered past them.
     panels_made: Rc<Cell<u32>>,
+    /// Its command palette, while it is open.
+    palette: Rc<RefCell<Option<Palette>>>,
+    /// Whether Ctrl+Shift+P asked to open or close its palette, done with the next frame.
+    palette_asked: Rc<Cell<bool>>,
     /// The host panel its menu asked the session's editor to show, done with the next frame.
     panel_asked: Rc<Cell<Option<be_sdk_api::HostPanel>>>,
     /// How many performance panels watch the host's statistics: the host keeps them while any
@@ -385,6 +391,8 @@ impl Root {
             panels: Rc::default(),
             panels_made: Rc::default(),
             panel_asked: Rc::default(),
+            palette: Rc::default(),
+            palette_asked: Rc::default(),
             statistics_watchers: Rc::default(),
             statistics_fed: Rc::default(),
             memory_fed: Rc::default(),
@@ -432,6 +440,7 @@ impl Root {
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.resize(whole, raster);
         }
+        self.palette_resize(whole, raster);
     }
 
     /// Hands beui the host's clocks for the frame, and makes its surfaces the first time: its
@@ -758,6 +767,11 @@ impl Root {
             let asked = match &delivery.input {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(Key::Escape) if open => Some(Asked::Close),
+                    // The root takes no other P than its palette's chord (`chords`).
+                    Some(Key::P) => {
+                        self.palette_asked.set(true);
+                        None
+                    }
                     _ => None,
                 },
                 _ => None,
@@ -779,6 +793,7 @@ impl Root {
             dialog.surface.input(own);
         }
         self.panels_heard(own);
+        self.palette_heard(own);
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.input(own);
         }
@@ -1267,11 +1282,14 @@ const DIALOG_POINTS: f32 = 400.0;
 /// The chords the root takes ahead of the focus, while the session is not locked: Escape while
 /// its dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
 /// document's, which closes it once nothing in it (a popup) took the key first.
+/// The chords the root takes ahead of whatever has the keyboard: its palette's, and Escape
+/// while `escape` (its dialog is open and the keyboard is outside it).
 fn chords(escape: bool) -> Vec<KeyChord> {
-    match escape {
-        true => vec![KeyChord::new(Key::Escape, Modifiers::NONE)],
-        false => Vec::new(),
+    let mut chords = vec![palette_chord()];
+    if escape {
+        chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
     }
+    chords
 }
 
 /// A secret a dialog shows, compared by identity alone: a secret's bytes are never compared.
@@ -1419,6 +1437,12 @@ impl frames::Guest for Root {
             if let Some(panel) = root.panel_asked.take() {
                 root.show_panel(panel);
             }
+            if root.palette_asked.take() {
+                root.toggle_palette();
+            }
+            root.ask_palette();
+            root.settle_palette();
+            root.palette_frame();
             if let Some(toasts) = &mut *root.toasts.borrow_mut() {
                 toasts.frame().expect("the root draws its toasts with beui");
             }
@@ -1491,6 +1515,8 @@ impl frames::Guest for Root {
                 };
                 layers.push(layer);
             }
+            // While its palette is open, over everything else, filling the window.
+            layers.extend(root.palette_layer());
             // While the session is locked, its lock screen over everything, taking every press,
             // with no toast over it: it shows nothing it would not show a stranger.
             let locked = root.lock.borrow().is_some();
@@ -1558,7 +1584,7 @@ impl frames::Guest for Root {
                     accounts.focused = true;
                     embedding.focus(None, Some(ONBOARDING_LAYER))
                 }
-                _ => Vec::new(),
+                _ => root.palette_focus(&mut embedding),
             };
             // While locked, the root takes no key ahead of the lock screen. Otherwise Escape is
             // the root's while its dialog is open and the focus is outside it.
@@ -1600,6 +1626,7 @@ impl frames::Guest for Root {
                 .chain(root.panels_next())
                 .chain(documents)
                 .chain(dialog)
+                .chain(root.palette_next())
                 .chain(lock)
                 .chain(accounts)
                 .min();
@@ -1614,6 +1641,7 @@ impl frames::Guest for Root {
                     DIALOG_LAYER => dialog.as_ref()?.surface.ime(focused),
                     LOCK_LAYER => lock.as_ref()?.surface.ime(focused),
                     ONBOARDING_LAYER => accounts.as_ref()?.surface.ime(focused),
+                    PALETTE_LAYER => root.palette_ime(focused),
                     _ => None,
                 }
             });
@@ -1710,6 +1738,7 @@ impl paintings::Guest for Root {
             .chain(menu)
             .chain(accounts)
             .chain(dialog)
+            .chain(self.palette_painted())
             .chain(toasts)
             .chain(lock)
             .collect();
