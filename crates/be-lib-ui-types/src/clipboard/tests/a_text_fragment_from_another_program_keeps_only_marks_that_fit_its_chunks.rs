@@ -1,6 +1,7 @@
 use super::*;
 
 #[test]
+#[allow(clippy::reversed_empty_ranges)] // a reversed mark, which reading the fragment drops
 fn a_text_fragment_from_another_program_keeps_only_marks_that_fit_its_chunks() {
     let mark = |range: Range<usize>| TextMark {
         range,
