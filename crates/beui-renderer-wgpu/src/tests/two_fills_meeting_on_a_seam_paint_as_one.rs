@@ -9,7 +9,7 @@ use beui_types::{FillRule, Path, PathStyle};
 fn two_fills_meeting_on_a_seam_paint_as_one() {
     let ink = Color32::from_rgba_unmultiplied(20, 40, 200, 160);
     let seam = [pos2(30.0, 8.0), pos2(41.0, 56.0)];
-    let halves = |seams: Vec<[Pos2; 2]>| {
+    let halves = |seamed: bool| {
         [
             Path::polygon([pos2(8.0, 8.0), seam[0], seam[1], pos2(8.0, 56.0)]),
             Path::polygon([seam[0], pos2(56.0, 8.0), pos2(56.0, 56.0), seam[1]]),
@@ -18,7 +18,7 @@ fn two_fills_meeting_on_a_seam_paint_as_one() {
             Rc::new(PathPaint::with_seams(
                 half,
                 PathStyle::Fill(FillRule::NonZero),
-                seams.clone(),
+                seamed,
             ))
         })
     };
@@ -34,9 +34,9 @@ fn two_fills_meeting_on_a_seam_paint_as_one() {
             ink,
         );
     });
-    let painted = |seams: Vec<[Pos2; 2]>| {
+    let painted = |seamed: bool| {
         capture(Color32::WHITE, |painter| {
-            for half in halves(seams) {
+            for half in halves(seamed) {
                 painter.paint_path(&half, ink);
             }
         })
@@ -54,11 +54,11 @@ fn two_fills_meeting_on_a_seam_paint_as_one() {
     };
 
     assert!(
-        differing(&painted(Vec::new())) > 0,
+        differing(&painted(false)) > 0,
         "two fills blended along the edge they share show it"
     );
     assert_eq!(
-        differing(&painted(vec![seam])),
+        differing(&painted(true)),
         0,
         "two fills meeting on a seam paint as one fill"
     );

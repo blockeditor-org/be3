@@ -366,6 +366,9 @@ impl PathShape {
     /// The points it may cover: its points' bounds, grown by as far as its stroke reaches past
     /// them (half its width, more at a miter or a square cap), as `beui_types::Stroke::reach`.
     pub fn bounds(&self) -> [f32; 4] {
+        if self.commands.iter().all(|command| *command == PathCommand::Close) {
+            return [0.0; 4];
+        }
         let mut bounds = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
         for command in &self.commands {
             command.each_point(|[x, y]| {
@@ -399,7 +402,8 @@ impl PathShape {
         ]
     }
 
-    /// It with each point moved by `to`, and its stroke's lengths scaled by `scale`.
+    /// It with each point moved by `to`, and its stroke's lengths scaled by `scale`. Under a map
+    /// that is not uniform the stroke takes `scale`, the map's averaged scale, along both axes.
     pub fn mapped(&self, to: impl Fn([f32; 2]) -> [f32; 2], scale: f32) -> Self {
         Self {
             commands: self.commands.iter().map(|command| command.mapped(&to)).collect(),

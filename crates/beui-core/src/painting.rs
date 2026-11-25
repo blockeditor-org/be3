@@ -8,7 +8,7 @@ pub use beui_paint_format::{
     Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
     ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed,
 };
-use beui_paint_format::{Cap, Join, PathCommand, PathShape, PathStroke, PathStyle};
+pub use beui_paint_format::{Cap, Join, PathCommand, PathShape, PathStroke, PathStyle};
 
 use crate::context::{FrameOutput, WindowOutput};
 use crate::display::Flat;
@@ -16,7 +16,7 @@ use crate::draw::Quad;
 use crate::font::GlyphImage;
 use beui_types::Color32;
 use beui_types::Image;
-use beui_types::{PathElement, Rect, Vec2, pos2};
+use beui_types::{Rect, Vec2, pos2};
 
 pub trait Paints {
     fn painting(&self, rect: Rect) -> Option<Painting>;
@@ -193,7 +193,9 @@ impl Converting {
                     .map(|value| (value * pixels_per_point).round() / pixels_per_point);
                 let outside = clip[2].min(size.x) <= clip[0].max(0.0)
                     || clip[3].min(size.y) <= clip[1].max(0.0);
-                if !outside && !path.path().is_empty() {
+                // As the renderer skips it: nothing to draw, or a scale that is no number.
+                let reach = crate::damage::path_bounds(path, *scale, *offset, *rotation);
+                if !outside && reach.is_positive() {
                     primitives.push(Primitive {
                         clip,
                         fade,
@@ -363,8 +365,11 @@ fn placed_path(
 ) -> PathShape {
     let (sin, cos) = rotation.angle.sin_cos();
     let pivot = rotation.pivot;
-    let place = |at: beui_types::Pos2| {
-        let (x, y) = (at.x * scale + offset.x, at.y * scale + offset.y);
+    let place = |at: kurbo::Point| {
+        let (x, y) = (
+            at.x as f32 * scale + offset.x,
+            at.y as f32 * scale + offset.y,
+        );
         match rotation.turns() {
             false => [x, y],
             true => {
@@ -373,18 +378,19 @@ fn placed_path(
             }
         }
     };
-    let commands = path
-        .path()
+    // As the renderer reads it (`kurbo_path`), which starts a subpath again after a close that a
+    // drawing element follows.
+    let commands = crate::path::kurbo_path(path.path(), 1.0)
         .elements()
         .iter()
         .map(|element| match *element {
-            PathElement::MoveTo(to) => PathCommand::MoveTo(place(to)),
-            PathElement::LineTo(to) => PathCommand::LineTo(place(to)),
-            PathElement::QuadTo(control, to) => PathCommand::QuadTo(place(control), place(to)),
-            PathElement::CubicTo(first, second, to) => {
+            kurbo::PathEl::MoveTo(to) => PathCommand::MoveTo(place(to)),
+            kurbo::PathEl::LineTo(to) => PathCommand::LineTo(place(to)),
+            kurbo::PathEl::QuadTo(control, to) => PathCommand::QuadTo(place(control), place(to)),
+            kurbo::PathEl::CurveTo(first, second, to) => {
                 PathCommand::CubicTo(place(first), place(second), place(to))
             }
-            PathElement::Close => PathCommand::Close,
+            kurbo::PathEl::ClosePath => PathCommand::Close,
         })
         .collect();
     let style = match path.style() {

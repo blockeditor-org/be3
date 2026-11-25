@@ -340,8 +340,8 @@ fn outline(commands: &[PathCommand]) -> BezPath {
     outline
 }
 
-/// Whether `next` is a seamed nonzero fill alike to the seamed fill `first` but for its
-/// outline, which the renderer fills with it as one path.
+/// Whether `next` is a seamed nonzero fill alike to the seamed nonzero fill `first`: the same
+/// clip, fade, rounds and colour. The renderer's `scene::seamed_together` is the same rule.
 fn seamed_together(first: &Primitive, next: &Primitive) -> bool {
     let (Content::Path(one), Content::Path(other)) = (&first.content, &next.content) else {
         return false;
