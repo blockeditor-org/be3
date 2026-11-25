@@ -145,7 +145,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   be-wasm ones), which the root takes in with the frame being drawn (on the page, at
   its next resume), or else ahead of the next frame, so it routes by the
   layers it drew last; the host does not await the answer, which the root
-  gives once it has routed. The stepping is `Core`, shared with the
+  gives once it has routed. `Root::drag_files` (`input.drag-files`) hands it
+  files dragged over the window from outside it, in order with that input. The stepping is `Core`, shared with the
   browser's half (`web`), where the page may never wait: `Root::load` compiles the root with `WebAssembly.compile` and
   instantiates it on the page, answering its transport itself, and
   `Root::frame`, called from `requestAnimationFrame`, steps it as far as it

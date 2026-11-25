@@ -47,7 +47,7 @@ mod windows;
 pub use be_wasm_host::memories as wasm_memories;
 pub use description::describe;
 pub use events::{Heard, InstanceEvent, listen};
-pub use input::BlockDrag;
+pub use input::{BlockDrag, read_dropped};
 pub use instances::{EditorView, Focus, roles_revision, set_hosting};
 pub(crate) use palette::host_draws_palette;
 pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};

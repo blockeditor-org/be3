@@ -1756,6 +1756,14 @@ impl input::Guest for Root {
         }
         Box::pin(async {})
     }
+
+    /// Files dragged over the window from outside it, carried to the view under the pointer
+    /// that takes them (`Embedding::drag_files`).
+    fn drag_files(&self, window: Option<u64>, drag: be_wasm_root_api::input::FileDrag) -> LocalFuture<()> {
+        self.embedding.borrow_mut().drag_files(window, drag);
+        self.waker.wake();
+        Box::pin(async {})
+    }
 }
 
 impl Root {

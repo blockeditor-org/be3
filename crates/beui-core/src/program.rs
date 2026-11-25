@@ -66,6 +66,14 @@ pub trait Program: std::any::Any {
         false
     }
 
+    /// Files dragged over its windows from outside them, as the platform said: a program that
+    /// routes its windows' input itself (be-host's root) takes them, and its document hears
+    /// none (`Event::FileHovered`, `FileHoverCancelled`, `FileDropped`). Answers whether it took
+    /// `drag`.
+    fn file_drag(&mut self, _drag: &beui_types::FileDrag) -> bool {
+        false
+    }
+
     fn lifecycle(&mut self, _change: Lifecycle) {}
 
     fn busy(&self) -> Vec<String> {

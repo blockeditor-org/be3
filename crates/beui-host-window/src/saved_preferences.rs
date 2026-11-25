@@ -64,6 +64,10 @@ impl<A: Program> Program for SavedPreferences<A> {
         self.program.input(window, input, time)
     }
 
+    fn file_drag(&mut self, drag: &beui::FileDrag) -> bool {
+        self.program.file_drag(drag)
+    }
+
     fn lifecycle(&mut self, change: Lifecycle) {
         self.program.lifecycle(change);
     }

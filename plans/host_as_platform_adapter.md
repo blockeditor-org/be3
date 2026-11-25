@@ -1836,9 +1836,20 @@ Each step lands on its own.
                (`take_details`, as `child-details`) reach their editors as under be-host: host
                tests `be_root_in_place_of_the_hosts_ui_picks_from_a_joined_canvas_tab_menu`
                and `be_root_in_place_of_the_hosts_ui_opens_a_joined_blocks_details_from_its_tab`.
-               Left for later: a pick through a child's menu that its placer shows
-               (`child-menu-pick`) has no host test; files dragged in from outside the window are
-               not carried yet.
+               Files dragged in from outside the window: be-host's `RootShell` takes them
+               (beui's `Program::file_drag`) and hands them on in order with the window's input
+               (`input.drag-files`: hovered, cancelled, or dropped with what each file holds, read
+               by the host), and `Embedding::drag_files` carries them to the view under the
+               pointer that takes a drag (`drop_site`) as it carries a block: there with no files
+               while they hover, with the files once dropped (a `Files` clip, as a copy). A view
+               a dock shows an editor's content in (a tab's body) hears them as its main view
+               would, under be-host too (be-sdk's `EditorHost::files`, which looked only in the
+               main view, so a canvas in a workspace never took a dropped image). Host test
+               `be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canvas`.
+               - Left: a pick through a child's menu that its placer shows (`child-menu-pick`)
+                 has no host test, and no editor found shows one: a pan and zoom editor, a text
+                 and a checklist on a canvas each leave the canvas's tab menu as it was when they
+                 take the keyboard.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
              then. A web view stays as under be-host until real web views exist: its editor's

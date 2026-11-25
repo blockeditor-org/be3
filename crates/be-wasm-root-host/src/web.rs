@@ -484,6 +484,15 @@ impl Root {
         self.shared.core.borrow_mut().input(window, events)
     }
 
+    /// Hands the root files dragged over `window` from outside it, in order with `input`.
+    pub fn drag_files(
+        &self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> Result<(), String> {
+        self.shared.core.borrow_mut().drag_files(window, drag)
+    }
+
     /// Starts drawing a frame for `request`, called from `requestAnimationFrame`: steps the root
     /// inline as far as it goes, and resumes it from a task whenever something it waits on
     /// arrives, waiting for its children until `deadline` and for the root itself up to its
