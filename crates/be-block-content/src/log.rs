@@ -1,4 +1,4 @@
-//! A block's signed log as a type sees it (plans/signed_logs.md): content is what anyone with
+//! A block's signed log as a type sees it (decisions/a_blocks_records_that_only_grow_are_a_signed_log.md): content is what anyone with
 //! Edit may rewrite; a log is what its authors add, and only they may take back. A type with a
 //! log folds its entries, in the log's order, into what it shows (`LogFold`).
 

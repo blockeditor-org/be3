@@ -1,6 +1,6 @@
 # Chat: final deletion and a post access level
 
-Depends on: plans/signed_logs.md (built).
+Depends on: none (signed logs are built, guides/blocks/server.md, "Signed logs").
 
 Set aside until the user picks them up.
 
@@ -16,5 +16,5 @@ designed yet.
 ## A "post" access level
 
 A level between View and Edit that may append to a block's log but not change
-its content: one rule on `append` (plans/signed_logs.md, C4). Not designed
+its content: one rule on `append`. Not designed
 yet.

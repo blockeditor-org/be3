@@ -1,4 +1,4 @@
-//! Blocks' signed logs (plans/signed_logs.md; guides/blocks/server.md, "Signed logs"): beside a
+//! Blocks' signed logs (guides/blocks/server.md, "Signed logs"): beside a
 //! block's content, entries the server numbers, stamps and hashes into a Merkle tree
 //! (`be_block_keys::merkle`, RFC 6962) that no commit can change. `block_logs` holds each entry
 //! (its payload sealed, or none once redacted), `block_log_nodes` every perfect subtree of the

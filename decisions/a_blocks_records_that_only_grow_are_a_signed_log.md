@@ -1,6 +1,6 @@
 # A block's records that only grow are a signed log, not content
 
-A block may keep a signed log beside its content (plans/signed_logs.md, option A;
+A block may keep a signed log beside its content (guides/blocks/server.md and
 guides/type_modules.md, "Signed logs"). The two hold different kinds of data, and a type
 puts each record in the one that matches it:
 
@@ -31,15 +31,15 @@ blocks sent messages carry in its content.
 
 ## Rejected
 
-- **Chat's own table beside its block** (option B): the same server pieces under chat's name.
+- **Chat's own table beside its block**: the same server pieces under chat's name.
   Search, export, duplicate, version control and unread counts would each special-case chat,
   and every later record type would build another table.
-- **The server refusing commits that drop signed records** (C1): a commit would list the
+- **The server refusing commits that drop signed records**: a commit would list the
   hashes of the records it holds. Readers must check content against the list, offline
   merges must union lists, and arrival is still content: a log bolted onto whole states.
-- **Version control's history** (C2): commits are sealed by whoever holds the lease, not per
+- **Version control's history**: commits are sealed by whoever holds the lease, not per
   author, retention thins them, and a check would walk history on every open.
-- **Keeping the journal instead of trimming it** (C3): it is tied to a session's build,
+- **Keeping the journal instead of trimming it**: it is tied to a session's build,
   numbered by the device offline, and folded into the next whole state.
 
 ## Consequences

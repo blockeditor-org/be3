@@ -3,7 +3,7 @@
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other (`crates/be-type-chat`, `crates/be-app-chat`). Its messages are
 its signed log's (guides/type_modules.md, "Signed logs";
-plans/signed_logs.md): each is an entry its author appended, which the server
+guides/blocks/server.md, "Signed logs"): each is an entry its author appended, which the server
 ordered and stamped and the host signed as the chat app's, so a chat grows
 without its content growing, and nobody but a message's author edits or
 deletes it (decisions/a_blocks_records_that_only_grow_are_a_signed_log.md).
