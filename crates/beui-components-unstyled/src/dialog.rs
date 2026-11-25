@@ -461,9 +461,6 @@ pub fn dialog_presentation(
     }
 }
 
-const DIALOG_GAP: u16 = 4;
-const DIALOG_MARGIN: u16 = 8;
-
 #[component]
 pub fn Dialog(
     open: Prop<bool>,
@@ -592,9 +589,7 @@ pub fn Dialog(
         let width = viewport.get().x;
         Rect::from_min_max(Pos2::ZERO, Pos2::new(width, 0.0))
     });
-    let popover = Placement::BELOW_CENTER
-        .gap(DIALOG_GAP)
-        .margin(DIALOG_MARGIN);
+    let popover = Placement::CARD;
     let placed = create_memo(move || match presentation.get() {
         DialogPresentation::Anchored(Some(DialogTarget::Node(node))) => {
             if held.try_get() != Some(node) {

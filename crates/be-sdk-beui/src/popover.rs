@@ -7,9 +7,6 @@ use beui::{Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, V
 
 use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
 
-const GAP: u16 = 4;
-const MARGIN: u16 = 8;
-const CARD: Placement = Placement::BELOW_CENTER.gap(GAP).margin(MARGIN);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PopoverWindow(pub(crate) Memo<Option<beui::WindowId>>);
@@ -126,7 +123,7 @@ fn AnchoredPopover(
     let drawn = create_memo(move || carded.get() && ready.get());
     let placed = create_memo(move || {
         let placement = match carded.get() {
-            true => CARD,
+            true => Placement::CARD,
             false => Placement::BELOW_START,
         };
         match anchor {
@@ -156,8 +153,8 @@ fn AnchoredPopover(
         // The card's room whichever face shows, so a child that turns into a card or back
         // keeps the size it was asked to fit.
         match anchored {
-            Some(anchored) => beui::layer::room(area, anchored, CARD),
-            None => area.shrink(f32::from(MARGIN)).size().max(Vec2::ZERO),
+            Some(anchored) => beui::layer::room(area, anchored, Placement::CARD),
+            None => area.shrink(f32::from(Placement::CARD.edge_margin())).size().max(Vec2::ZERO),
         }
     });
     create_effect(move || {
