@@ -305,6 +305,7 @@ impl Host {
         identity: &str,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
     ) -> Result<Arc<(Vec<u8>, engine::Shape)>, String> {
+        #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
         static SOURCES: Mutex<Vec<(String, Arc<(Vec<u8>, engine::Shape)>)>> =
             Mutex::new(Vec::new());
         let mut sources = SOURCES.lock().unwrap_or_else(|held| held.into_inner());
