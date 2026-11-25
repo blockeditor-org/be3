@@ -10,6 +10,7 @@ fn a_window_that_went_routes_by_its_last_layers_until_its_press_lifts() {
         surface: SCREEN_SURFACE,
         input,
         time: None,
+        modifiers: Modifiers::NONE,
     };
     assert_eq!(
         pressed,

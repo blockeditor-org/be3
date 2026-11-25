@@ -13,6 +13,9 @@ pub struct Delivery {
     /// When the input it came of was sampled (`Timed::time`); none for what the router made
     /// itself, such as a focus moving.
     pub time: Option<u64>,
+    /// The modifier keys held as it was routed, which say which of the chords the root
+    /// intercepted a key it hears was (F6 or Shift+F6).
+    pub modifiers: Modifiers,
 }
 
 /// What a carry between surfaces (`Windows::start_drag`) does over one layer: the router's
@@ -313,6 +316,7 @@ impl Windows {
                     surface: layer.surface,
                     input: Input::Focus(false),
                     time: None,
+                    modifiers: routing.router.modifiers(),
                 });
             }
             keep
@@ -340,6 +344,7 @@ fn delivered(
                         surface: layer.surface,
                         input,
                         time,
+                        modifiers,
                     });
                 }
             }

@@ -156,6 +156,9 @@ struct Root {
     palette: Rc<RefCell<Option<Palette>>>,
     /// Whether Ctrl+Shift+P asked to open or close its palette, done with the next frame.
     palette_asked: Rc<Cell<bool>>,
+    /// Whether F6 (`false`) or Shift+F6 (`true`) was pressed since the last frame, which moves
+    /// the keyboard to the next app's view or the previous (`Embedding::cycle_focus`).
+    cycle_asked: Rc<Cell<Option<bool>>>,
     /// The host panel its menu asked the session's editor to show, done with the next frame.
     panel_asked: Rc<Cell<Option<be_sdk_api::HostPanel>>>,
     /// How many performance panels watch the host's statistics: the host keeps them while any
@@ -393,6 +396,7 @@ impl Root {
             panel_asked: Rc::default(),
             palette: Rc::default(),
             palette_asked: Rc::default(),
+            cycle_asked: Rc::default(),
             statistics_watchers: Rc::default(),
             statistics_fed: Rc::default(),
             memory_fed: Rc::default(),
@@ -757,6 +761,20 @@ impl Root {
         Ok(())
     }
 
+    /// Moves the keyboard to the next app's view, or the previous while `back`, as F6 and
+    /// Shift+F6 do under be-host. Not while the root's palette, dialog or onboarding is open:
+    /// each keeps the keyboard until it closes, as a focus-trapping layer keeps it.
+    fn cycle_focus(&self, back: bool) {
+        if self.palette.borrow().is_some()
+            || self.dialog.borrow().is_some()
+            || self.onboarding.borrow().is_some()
+        {
+            return;
+        }
+        let told = self.embedding.borrow_mut().cycle_focus(None, back);
+        self.heard(&told);
+    }
+
     /// Hands its beui documents what landed on their surfaces. What landed on its own layer, the
     /// compositor, closes its dialog with the next frame: Escape, which it intercepts while the
     /// dialog is open and the focus is outside it. A press beside the dialog is the dialog's
@@ -770,6 +788,10 @@ impl Root {
                     // The root takes no other P than its palette's chord (`chords`).
                     Some(Key::P) => {
                         self.palette_asked.set(true);
+                        None
+                    }
+                    Some(Key::F6) => {
+                        self.cycle_asked.set(Some(delivery.modifiers.shift));
                         None
                     }
                     _ => None,
@@ -1279,13 +1301,17 @@ impl Presented {
 /// beui's default dialog width, in points, which be-host's alerts keep.
 const DIALOG_POINTS: f32 = 400.0;
 
-/// The chords the root takes ahead of the focus, while the session is not locked: Escape while
-/// its dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
-/// document's, which closes it once nothing in it (a popup) took the key first.
-/// The chords the root takes ahead of whatever has the keyboard: its palette's, and Escape
-/// while `escape` (its dialog is open and the keyboard is outside it).
+/// The chords the root takes ahead of whatever has the keyboard, while the session is not
+/// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views, and
+/// Escape while `escape` (its dialog is open but the keyboard is outside it). With the keyboard
+/// in the dialog, Escape is its document's, which closes it once nothing in it (a popup) took
+/// the key first.
 fn chords(escape: bool) -> Vec<KeyChord> {
-    let mut chords = vec![palette_chord()];
+    let mut chords = vec![
+        palette_chord(),
+        KeyChord::new(Key::F6, Modifiers::NONE),
+        KeyChord::new(Key::F6, Modifiers::SHIFT),
+    ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
     }
@@ -1442,6 +1468,9 @@ impl frames::Guest for Root {
             }
             root.ask_palette();
             root.settle_palette();
+            if let Some(back) = root.cycle_asked.take() {
+                root.cycle_focus(back);
+            }
             root.palette_frame();
             if let Some(toasts) = &mut *root.toasts.borrow_mut() {
                 toasts.frame().expect("the root draws its toasts with beui");
