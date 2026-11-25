@@ -235,9 +235,14 @@ impl Server {
         self.poll(connection)
     }
 
-    /// Stops every instance the guest spawned, answering each `next` it waits on with `why`, as
-    /// when its host stops serving it the sandbox (an app that stopped).
+    /// Stops every instance the guest spawned, answering each `next` it waits on and each compile
+    /// still under way with `why`, as when its host stops serving it the sandbox (an app that
+    /// stopped).
     pub fn stop(self, why: &str, connection: &mut Connection) {
+        for (_, answer) in self.compiling {
+            let (op, outcome) = answer(&Err(why.to_owned()));
+            connection.complete(op, outcome);
+        }
         for served in self.instances.into_values() {
             if let Some((_, next)) = served.next {
                 let (op, outcome) = next(&Err(why.to_owned()));
