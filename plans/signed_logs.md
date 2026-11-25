@@ -317,7 +317,7 @@ within one page: step 4's fold takes the first occurrence of an id.
    `CLAIMED_ARRIVAL`, the `Trust::Altered` and gap rows, `seen` and
    `own_previous`, and the announcements machinery if chat was its only user.
    Done: `./scripts/verify` passes and a search of the tree finds none of them.
-   Built. Segments, `Close`, chat's `MergeParts`, the `Trust` rows and `seen`
+   Segments, `Close`, chat's `MergeParts`, the `Trust` rows and `seen`
    went with step 5; this step took out the rest: ranks in `Stamp`,
    `LiveEdit::arrival` and the replica's stamping, `WHOLE_BYTES` and the copies
    it refused (`Peer::has_later_parts`), and the announcements of content edits
