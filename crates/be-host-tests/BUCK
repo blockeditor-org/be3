@@ -92,6 +92,7 @@ APPS = {
     "an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it": ["text"],
     "an_outsider_opens_a_share_link_as_a_guest": ["settings"],
     "be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens": ["desktop", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it": ["infinite-canvas", "example-pan-zoom", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_canvas": ["checklist", "infinite-canvas", "//crates/be-root"],

@@ -1072,6 +1072,23 @@ impl Children {
         // children against them, so they lag no layout behind.
         let settled = POOL.with_borrow_mut(|pool| std::mem::take(&mut pool.settled));
         for editor in &settled {
+            // A block's editor placed in a dock tab's body is known to the docks before it is
+            // first asked for its screens, as be-host's are once open, so it is asked for its
+            // frame docked from the first, which a beui editor lays out once and keeps.
+            let in_tab = editor
+                .asks
+                .borrow()
+                .as_ref()
+                .is_some_and(|ask| ask.placement.docks.is_some() && !ask.previewed());
+            if in_tab
+                && let (Some((app, opened)), Shown::Block(shown)) = (editor.hosted(), &editor.shown)
+            {
+                settling.docks.register(
+                    opened,
+                    &app_key(app.instance()),
+                    Some(Uuid::from_bytes(shown.block)),
+                );
+            }
             editor.show(settling.docks);
         }
         self.hear_told(parent, &mut docks);
