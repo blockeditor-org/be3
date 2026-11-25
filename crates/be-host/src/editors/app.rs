@@ -627,13 +627,6 @@ impl AppEditor {
         }
     }
 
-    pub(crate) fn set_artifact_states(&self, states: Vec<be_sdk_api::ArtifactState>) {
-        let Some(app) = self.app() else {
-            return;
-        };
-        be_host_runtime::set_artifact_states(&app.identity.id, self.instance, states);
-    }
-
     pub(crate) fn tab_closed(&mut self) {
         self.sync_active_presence(false);
         self.stop_presenting();

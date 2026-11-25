@@ -1888,8 +1888,26 @@ Each step lands on its own.
                - Left: dismissing a creation dialog (`dismiss-child`, be-host's
                  `dismiss_creations`), which the root does not relay yet.
                - Left: no test makes a block through a creation dialog (an image's import).
-             - Left, in this order: artifact settings (be-host's own settings UI), and host
-               panels. be-host keeps no beui but its platform adapters,
+             - 4g7b3l. Built: artifact settings. The workspace's settings dialog places an
+               artifact settings child (`ChildContent::ArtifactSettings`), a dialog the root
+               opens in the editor that exports the artifact's source, as an artifact
+               (`InstanceRole::Artifact`, `Forwarded::open_artifact` with its exporter and
+               settings, `EditorRegistry::artifact_editor`), asking for its settings view
+               (`ViewId::ARTIFACT_SETTINGS`), whose height its placer hears as be-host's
+               status says it (the room the view used). Apply commits the child; the host
+               takes the editor's draft (`Forwarded::artifact_draft`) and keeps it as the
+               artifact's settings, making it again through its session
+               (`HostCore::apply_root_artifact_settings`). Host test
+               `be_root_in_place_of_the_hosts_ui_shows_an_artifacts_settings`. The artifact
+               states reach the root's editors the way they reach be-host's own: the host keys
+               the watches by app and instance (`InstanceEvent::ArtifactWatch`, heard under the
+               root too) and `poll_artifacts` makes the states once, which root.rs hands the
+               editors it serves (`Forwarded::set_artifact_states`). The apps be-host runs
+               itself (an artifact's exporter) start and get frames under the root as under its
+               own window (`start_frames`, `settle`). The root relays what a settings view
+               edited (`ArtifactEdited`), and a commit its placer sends in the layout that
+               removes the child still reaches that child's editor (`Children::released`).
+             - Left: host panels. be-host keeps no beui but its platform adapters,
                so it draws no panel: be-root draws the block stack, performance, apps and menu
                panels itself, as its own surfaces (the user's decision).
              - One app crashing fails every child it runs: expected, as the pool shares one
