@@ -117,9 +117,16 @@ pub(super) fn HostMenu(
     let warned = create_memo(move || !escrow_warning.with(String::is_empty));
     let hosting = create_memo(move || core.with(|view| view.hosting.clone()));
     let items = view! {
-        <MenuItem label={sync_label} glyph={sync_glyph} detail={sync_detail} disabled=true />
+        <MenuItem
+            @test_id={"host.menu.status".to_owned()}
+            label={sync_label}
+            glyph={sync_glyph}
+            detail={sync_detail}
+            disabled=true
+        />
         <Show value={has_unsent}>
             <MenuItem
+                @test_id={"host.menu.unsent".to_owned()}
                 label="Unsent edits"
                 glyph=ICON_ARCHIVE_RESTORE
                 detail={unsent_detail}
@@ -128,6 +135,7 @@ pub(super) fn HostMenu(
         </Show>
         <Show value={warned}>
             <MenuItem
+                @test_id={"host.menu.escrow-warning".to_owned()}
                 label="Escrow key not verified"
                 glyph=ICON_SHIELD_ALERT
                 detail={escrow_warning}
@@ -139,6 +147,7 @@ pub(super) fn HostMenu(
             key={|kept: &HostedBlock| kept.block}
         >|kept: ReadSignal<HostedBlock>|
             <MenuItem
+                @test_id={kept.with_untracked(|kept| format!("host.menu.hosting.{}", be_lib_ui_types::clipboard::Uuid::from_bytes(kept.block)))}
                 label={move || kept.with(|kept| format!("Stop hosting {}", kept.name))}
                 glyph=ICON_RADIO_TOWER
                 detail={move || kept.with(|kept| match kept.now {
@@ -191,21 +200,25 @@ pub(super) fn HostMenu(
             on_click={move || want.call(Asking::Agents)}
         />
         <MenuItem
+            @test_id={"host.menu.switch-session".to_owned()}
             label="Sessions and profiles"
             glyph=ICON_LAYOUT_PANEL_LEFT
             on_click={|| ask_core(CoreCommand::ChooseSession)}
         />
         <MenuItem
+            @test_id={"host.menu.switch-organization".to_owned()}
             label="Switch organization"
             glyph=ICON_ARROW_LEFT_RIGHT
             on_click={|| ask_core(CoreCommand::SwitchOrganization)}
         />
         <MenuItem
+            @test_id={"host.menu.recovery-phrase".to_owned()}
             label="New recovery phrase"
             glyph=ICON_KEY
             on_click={|| ask_core(CoreCommand::NewRecoveryPhrase)}
         />
         <MenuItem
+            @test_id={"host.menu.accounts".to_owned()}
             label="Manage accounts"
             glyph=ICON_USER_COG
             detail={signed_in_as}
@@ -214,6 +227,7 @@ pub(super) fn HostMenu(
         />
         <ForEach value={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
+                @test_id={format!("host.menu.panel.{shown:?}")}
                 label={shown.title().to_owned()}
                 glyph={panel_glyph(shown)}
                 separated={shown == HostPanel::ALL[0]}

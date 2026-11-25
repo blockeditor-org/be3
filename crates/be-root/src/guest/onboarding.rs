@@ -1041,11 +1041,15 @@ pub(super) fn AddAccountDialog(
         <Frame width=Length::FILL>
             <DialogBody
                 title={title}
+                id="account"
                 actions={vec![
-                    DialogAction::secondary("Back", move || selection.set(None)).shown(editing),
+                    DialogAction::secondary("Back", move || selection.set(None))
+                        .shown(editing)
+                        .named("back"),
                     DialogAction::cancel("Cancel"),
                     DialogAction::secondary("Check now", || ask_core(CoreCommand::CheckSignIn))
-                        .shown(waiting),
+                        .shown(waiting)
+                        .named("check-now"),
                     DialogAction::primary(footer_primary, move || match waiting.get_untracked() {
                         true => ask_core(CoreCommand::OpenSignInPage),
                         false => submit(),
@@ -1074,6 +1078,7 @@ pub(super) fn AddAccountDialog(
                                             label={default_name}
                                             detail={default_url}
                                             glyph=ICON_CLOUD
+                                            @test_id="account.default"
                                             on_click={move || selection.set(Some(Keeping::Default))}
                                         />
                                     </Show>
@@ -1081,12 +1086,14 @@ pub(super) fn AddAccountDialog(
                                         label="On this device"
                                         detail="A local account, stored on this device"
                                         glyph=ICON_MONITOR
+                                        @test_id="account.local"
                                         on_click={move || selection.set(Some(Keeping::Device))}
                                     />
                                     <ActionRow
                                         label="Another server"
                                         detail="Connect using a server address"
                                         glyph=ICON_PLUS
+                                        @test_id="account.custom"
                                         on_click={move || selection.set(Some(Keeping::Server))}
                                     />
                                 </List>
@@ -1107,6 +1114,7 @@ pub(super) fn AddAccountDialog(
                                             label="Display name"
                                             placeholder="Your name"
                                             focused=true
+                                            @test_id="account.name"
                                             on_submit={move |_: String| submit()}
                                         />
                                     </List>
@@ -1126,6 +1134,7 @@ pub(super) fn AddAccountDialog(
                                         label="Server address"
                                         placeholder="https://example.com"
                                         focused=true
+                                        @test_id="account.server"
                                         on_submit={move |_: String| submit()}
                                     />
                                 </List>
@@ -1137,6 +1146,7 @@ pub(super) fn AddAccountDialog(
                                         value={gateway}
                                         label={gateway_label}
                                         kind={InputKind::Password}
+                                        @test_id="account.gateway"
                                         on_submit={move |_: String| submit()}
                                     />
                                 </List>
@@ -1161,13 +1171,16 @@ pub(super) fn AddAccountDialog(
                                             spacing=Space::Lg
                                         >
                                             <ListItem grow=1.0>
-                                                <Text size=TextSize::Xl>{code}</Text>
+                                                <Text size=TextSize::Xl @test_id="account.browser-code">
+                                                    {code}
+                                                </Text>
                                             </ListItem>
                                             <Button
                                                 icon_only=true
                                                 label="Copy code"
                                                 glyph=ICON_COPY
                                                 variant=ButtonVariant::Ghost
+                                                @test_id="account.copy-code"
                                                 on_click={move || copy(code.get_untracked())}
                                             />
                                         </List>
@@ -1181,13 +1194,19 @@ pub(super) fn AddAccountDialog(
                                             spacing=Space::Lg
                                         >
                                             <ListItem grow=1.0>
-                                                <Text style=TextStyle::CAPTION>{link}</Text>
+                                                <Text
+                                                    style=TextStyle::CAPTION
+                                                    @test_id="account.browser-url"
+                                                >
+                                                    {link}
+                                                </Text>
                                             </ListItem>
                                             <Button
                                                 icon_only=true
                                                 label="Copy link"
                                                 glyph=ICON_COPY
                                                 variant=ButtonVariant::Ghost
+                                                @test_id="account.copy-link"
                                                 on_click={move || copy(link.get_untracked())}
                                             />
                                         </List>
@@ -1202,7 +1221,9 @@ pub(super) fn AddAccountDialog(
                     <Show value={connecting}>
                         <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
                     </Show>
-                    <be_root_accounts_ui::ErrorText text={error} />
+                    <Show value={move || error.with(Option::is_some)}>
+                        <be_root_accounts_ui::ErrorText text={error} />
+                    </Show>
                 </List>
             </DialogBody>
         </Frame>
@@ -1222,8 +1243,9 @@ pub(super) fn ForgetAccountDialog(key: String, name: String, done: Callback<Clos
             <DialogBody
                 kind=DialogKind::Alert
                 title={format!("Remove {name}?")}
+                id="host.remove-account"
                 actions={vec![
-                    DialogAction::destructive("Remove", remove),
+                    DialogAction::destructive("Remove", remove).named("remove"),
                     DialogAction::cancel("Keep"),
                 ]}
                 on_dismiss={move || done.call(Closed::Dismissed)}
