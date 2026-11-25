@@ -513,6 +513,11 @@ impl Entities {
         listed.into_iter().map(|(_, id)| id).collect()
     }
 
+    /// Whether the canvas holds anything to show: a frame or another entity.
+    pub(crate) fn shows_anything(&self) -> bool {
+        self.first_frame().is_some() || self.extent.get().is_some()
+    }
+
     pub(crate) fn region(&self) -> WorldRect {
         crate::geometry::embedded_region(
             self.first_frame().as_ref().map(entity_bounds),

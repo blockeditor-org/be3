@@ -277,9 +277,10 @@ pub(super) fn Camera(
     let content_size = create_memo(move || {
         revision.track();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic = be_host_runtime::intrinsic_size(&app_id.value(), instance)
-            .unwrap_or(vec2(420.0, 240.0));
-        vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
+        match crate::editors::app::told_intrinsic_size(&app_id.value(), instance) {
+            Some(intrinsic) => vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y)),
+            None => size,
+        }
     });
     let content_rect = create_memo(move || {
         viewport

@@ -157,6 +157,10 @@ struct Inner {
     /// How many operations each attached editor sent its block's replicas: what a replica
     /// opened again under it holds of them (the replicas' `attach`).
     forwarded: BTreeMap<(Uuid, EditorId), u64>,
+    /// The gestures each editor has open on each block and how each began, which detaching it
+    /// ends as the host does when an instance closes: an undo group is committed, a tentative
+    /// gesture cancelled.
+    gestures: BTreeMap<(Uuid, EditorId), BTreeMap<u64, Gesture>>,
     presence: BTreeMap<Uuid, BTreeMap<(ClientId, Uuid), Vec<u8>>>,
     outbox: Vec<(Uuid, EditorId, Vec<u8>)>,
     replies: BTreeMap<OpId, Outcome>,
@@ -230,6 +234,7 @@ impl Default for Inner {
             blocks: BTreeMap::new(),
             attached: BTreeMap::new(),
             forwarded: BTreeMap::new(),
+            gestures: BTreeMap::new(),
             presence: BTreeMap::new(),
             outbox: Vec::new(),
             replies: BTreeMap::new(),
@@ -1119,6 +1124,13 @@ impl Inner {
     }
 
     fn detach(&mut self, block: Uuid, editor: EditorId) {
+        for (id, begun) in self.gestures.remove(&(block, editor)).unwrap_or_default() {
+            let gesture = match begun {
+                Gesture::BeginTentative => Gesture::Cancel,
+                _ => Gesture::Commit,
+            };
+            self.editor_sent(block, editor, FromEditor::Gesture { id, gesture });
+        }
         self.forwarded.remove(&(block, editor));
         if let Some(held) = self.blocks.get_mut(&block) {
             let took = held.holds.detach(editor);
@@ -1141,6 +1153,17 @@ impl Inner {
     fn editor_sent(&mut self, block: Uuid, editor: EditorId, message: FromEditor) {
         let frame = message.encode();
         let attached = self.attach(block, editor);
+        if let FromEditor::Gesture { id, gesture } = &message {
+            let open = self.gestures.entry((block, editor)).or_default();
+            match gesture {
+                Gesture::Begin | Gesture::BeginTentative => {
+                    open.insert(*id, *gesture);
+                }
+                Gesture::Commit | Gesture::Cancel => {
+                    open.remove(id);
+                }
+            }
+        }
         if attached && message == FromEditor::Resend {
             return;
         }
@@ -1708,6 +1731,22 @@ impl ContentStore {
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused, commits);
             }
+        }
+        inner.run();
+    }
+
+    /// Detaches every editor attached to the block's replica, as the host does when their
+    /// instances close: the gestures they left open are cancelled.
+    pub fn detach_editors(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let editors: Vec<EditorId> = inner
+            .attached
+            .get(&key)
+            .map(|held| held.iter().copied().collect())
+            .unwrap_or_default();
+        for editor in editors {
+            inner.detach(key, editor);
         }
         inner.run();
     }

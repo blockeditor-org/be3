@@ -209,12 +209,20 @@ fn CanvasPreview(editor: Editor) -> NodeId {
     }
 }
 
+/// The size an empty canvas asks for where it is placed: what it holds has no size yet.
+const EMPTY_SIZE: Vec2 = Vec2::new(420.0, 240.0);
+
+/// Tells the size of what the canvas holds, which a placer fits its card to and zooms its
+/// camera over; an empty canvas tells `EMPTY_SIZE` instead.
 fn report_intrinsic_size(editor: Editor, state: CanvasState) {
     create_effect(move || {
-        let region = state.entities.region().size();
-        editor.set_intrinsic_size(Some(Vec2::new(
-            region.x.max(MIN_SIZE),
-            region.y.max(MIN_SIZE),
-        )));
+        let size = match state.entities.shows_anything() {
+            true => {
+                let region = state.entities.region().size();
+                Vec2::new(region.x.max(MIN_SIZE), region.y.max(MIN_SIZE))
+            }
+            false => EMPTY_SIZE,
+        };
+        editor.set_intrinsic_size(Some(size));
     });
 }

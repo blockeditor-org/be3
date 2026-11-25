@@ -47,6 +47,9 @@ pub enum GestureKind {
 pub struct Stepped<Op> {
     pub operations: Vec<Op>,
     pub cancelled: Vec<GestureId>,
+    /// The undo groups the undo or redo committed first, each a step of its own now: their
+    /// editors are told they ended.
+    pub committed: Vec<GestureId>,
 }
 
 impl<Op> Default for Stepped<Op> {
@@ -54,6 +57,7 @@ impl<Op> Default for Stepped<Op> {
         Self {
             operations: Vec::new(),
             cancelled: Vec::new(),
+            committed: Vec::new(),
         }
     }
 }
@@ -219,11 +223,11 @@ impl<C: Undo, T: Moment> History<C, T> {
         if self.holding() {
             self.held.clear();
             return Stepped {
-                operations: Vec::new(),
                 cancelled: std::mem::take(&mut self.tentative),
+                ..Stepped::default()
             };
         }
-        self.close_groups();
+        let committed = self.close_groups();
         let operations = match self.undo.pop() {
             Some((step, _)) => {
                 let operations = content.revert(&step);
@@ -234,6 +238,7 @@ impl<C: Undo, T: Moment> History<C, T> {
         };
         Stepped {
             operations,
+            committed,
             ..Stepped::default()
         }
     }
@@ -241,10 +246,11 @@ impl<C: Undo, T: Moment> History<C, T> {
     /// Makes the last step undone again. Refused, doing nothing, while a tentative layer is
     /// held. Open undo groups commit first.
     pub fn redo(&mut self, content: &C) -> Stepped<C::Op> {
+        let mut committed = Vec::new();
         let operations = match self.holding() {
             true => Vec::new(),
             false => {
-                self.close_groups();
+                committed = self.close_groups();
                 match self.redo.pop() {
                     Some(step) => {
                         let operations = content.reapply(&step);
@@ -257,6 +263,7 @@ impl<C: Undo, T: Moment> History<C, T> {
         };
         Stepped {
             operations,
+            committed,
             ..Stepped::default()
         }
     }
@@ -310,12 +317,16 @@ impl<C: Undo, T: Moment> History<C, T> {
         self.stopped
     }
 
-    fn close_groups(&mut self) {
-        for (_, step) in std::mem::take(&mut self.groups) {
+    /// Commits every open undo group, returning them.
+    fn close_groups(&mut self) -> Vec<GestureId> {
+        let mut closed = Vec::new();
+        for (gesture, step) in std::mem::take(&mut self.groups) {
             if let Some(step) = step {
                 self.push((step, None));
             }
+            closed.push(gesture);
         }
+        closed
     }
 
     /// Once no tentative gesture is open, what the layer kept becomes one step.

@@ -13,7 +13,7 @@ fn counted(block: Uuid, expected: i64) {
 }
 
 #[test]
-fn closing_an_editor_calls_off_the_gesture_it_left_open() {
+fn closing_an_editor_keeps_the_undo_group_it_left_open() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
     let own = Uuid::new_v4();
@@ -60,8 +60,9 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
     ));
     counted(watched, 5);
 
+    // The group's edits were written as they were made: closing commits it as one step.
     assert!(instances.remove(INSTANCE));
     be_host_stack::flush_and_send();
     be_host_stack::open(watched, CounterContent::CONTENT_TYPE);
-    counted(watched, 2);
+    counted(watched, 5);
 }

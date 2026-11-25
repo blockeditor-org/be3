@@ -348,8 +348,8 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.gesture(gesture.0, Gesture::Commit);
     }
 
-    /// Puts back what `gesture` wrote and leaves no history. The host cancels the gestures
-    /// still open when the instance closes.
+    /// Puts back what `gesture` wrote and leaves no history. When the instance closes, the
+    /// host commits the undo groups still open and cancels the tentative gestures.
     pub fn cancel_gesture(&self, gesture: ContentGesture) {
         self.gesture(gesture.0, Gesture::Cancel);
     }

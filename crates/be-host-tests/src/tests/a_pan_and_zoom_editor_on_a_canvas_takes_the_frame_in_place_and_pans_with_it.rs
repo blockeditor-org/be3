@@ -8,11 +8,20 @@ fn a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it()
     host.run(&["resize", "1280x900"]);
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Pan and Zoom");
+    host.wait(ARTWORK);
+    host.run(&["settle"]);
     let card = host.place("GenericContainer #infinite-canvas.entity.");
-    let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
+    // The middle of one of the editor's own cards, which the click selects.
+    let artwork = host.place(ARTWORK);
+    let inside = format!(
+        "{:.0},{:.0}",
+        artwork.0 + artwork.2 / 2.0,
+        artwork.1 + artwork.3 / 2.0
+    );
 
     host.run(&["click", &inside]);
     host.wait("Pane \"Pan and Zoom\"");
+    host.wait("Label value=\"Selected Zoom\"");
     host.gone("#infinite-canvas.dock");
     assert_eq!(
         host.count("Pane \"Pan and Zoom\""),

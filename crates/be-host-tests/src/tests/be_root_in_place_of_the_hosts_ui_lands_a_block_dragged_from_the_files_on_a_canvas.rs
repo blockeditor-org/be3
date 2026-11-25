@@ -9,8 +9,7 @@ fn be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_ca
     // its UI, the checklist's row dragged from the Files onto the canvas lands on it: the files
     // app tells the root it drags the block, which the root lifts at once, and the router carries
     // it over the canvas, which hears it there through its host and takes it when dropped. The
-    // card stays at its placeholder size, where be-host's fits it to the checklist (the
-    // checklist tells the root no intrinsic size there yet).
+    // card is fitted to the size the checklist tells, as under be-host.
     let mut host = HostTest::start(Options {
         previews: true,
         ..Options::default()

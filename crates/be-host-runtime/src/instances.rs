@@ -266,8 +266,9 @@ struct ContentLink {
     /// replica that ended before it heard the resend.
     resuming: bool,
     /// The gestures the editor holds open in the block, undo groups and tentative ones, by id:
-    /// a link that goes cancels each, so a tentative gesture's held edits leave no trace.
-    gestures: std::collections::BTreeSet<u64>,
+    /// a link that goes commits each undo group, kept as one step, and cancels each tentative
+    /// one, whose held edits leave no trace.
+    gestures: std::collections::BTreeMap<u64, Gesture>,
     described: Option<be_block_content::Entries>,
 }
 
@@ -280,7 +281,7 @@ impl ContentLink {
             deliveries: 0,
             awaiting_preview: false,
             resuming: false,
-            gestures: std::collections::BTreeSet::new(),
+            gestures: std::collections::BTreeMap::new(),
             described: None,
         }
     }
@@ -304,10 +305,15 @@ impl ContentLink {
             return;
         }
         let mut goodbyes = Vec::new();
-        for id in std::mem::take(&mut self.gestures) {
+        // An undo group was written as it went, so it is kept as one step; a tentative
+        // gesture's edits were never written, and leave no trace.
+        for (id, begun) in std::mem::take(&mut self.gestures) {
             goodbyes.push(FromEditor::Gesture {
                 id,
-                gesture: Gesture::Cancel,
+                gesture: match begun {
+                    Gesture::BeginTentative => Gesture::Cancel,
+                    _ => Gesture::Commit,
+                },
             });
         }
         for kind in shown {
@@ -1227,9 +1233,9 @@ impl Instances {
         match &message {
             Some(FromEditor::Gesture {
                 id,
-                gesture: Gesture::Begin | Gesture::BeginTentative,
+                gesture: begun @ (Gesture::Begin | Gesture::BeginTentative),
             }) => {
-                link.gestures.insert(*id);
+                link.gestures.insert(*id, *begun);
             }
             Some(FromEditor::Gesture {
                 id,
@@ -3487,6 +3493,15 @@ impl Instances {
 
     pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
         self.entries.get(&instance)?.intrinsic
+    }
+
+    pub(super) fn reported_a_frame(&self, instance: EditorInstanceId) -> bool {
+        self.entries.get(&instance).is_some_and(|entry| {
+            entry
+                .screens
+                .values()
+                .any(|screen| screen.report.is_some())
+        })
     }
 
     pub(super) fn view_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {

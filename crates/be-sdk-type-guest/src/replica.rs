@@ -2003,6 +2003,23 @@ where
         }
     }
 
+    /// Tells the editor of the undo group `gesture` that an undo or redo committed it: its
+    /// edits are a step of their own, and later ones are recorded outside it.
+    fn group_committed(&mut self, gesture: GestureId) {
+        let Some(editor) = gesture.editor else {
+            return;
+        };
+        if self.editors.contains_key(&editor) {
+            self.tell_editor(
+                editor,
+                &ToEditor::GestureEnded {
+                    id: gesture.id,
+                    cancelled: false,
+                },
+            );
+        }
+    }
+
     /// The content without the tentative layer: what is stashed, read or described, and what
     /// an ordinary edit made beneath the layer is recorded against.
     fn unheld(&mut self) -> &C {
@@ -4871,6 +4888,9 @@ where
 
     fn step_history(&mut self, id: RequestId, stepped: Stepped<C::Op>) {
         let changed = stepped.changed();
+        for gesture in stepped.committed {
+            self.group_committed(gesture);
+        }
         for operation in stepped.operations {
             self.edit(operation, None);
         }

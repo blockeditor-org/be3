@@ -38,6 +38,17 @@ style is its own field, so concurrent restyles of different fields merge.
   stroke, which keeps world-unit points with a `points_frame` so `Extend` can
   append without rewriting them (`world_points` reads either).
 - Editors, frames and raster layers are never rotated (`normalized_entity`).
+- A block added or dropped gets a card about the point it went to, a placeholder
+  (`add_direct_editors`, one for each block of a paste or file drop) that
+  `autosize_direct_editors` fits once to its child's intrinsic size, scaled down
+  to fit 640x480 (`fit_to_child`). The host tells no size until the child's
+  editor has drawn a frame (then 420x240 if it told none), so the fit lands on
+  the size it tells. The cards of one add, paste or drop are added in one undo
+  group (`Adding`) that their fits join, committed once every card is fitted or
+  at the canvas's next other write, so the add is one undo step; a size told
+  after the group ended (an undo or redo commits it) leaves the card as it is.
+  An empty canvas tells 420x240 as its own size; one with content, its
+  content's bounds.
 - Edits go through `InfiniteCanvasOperation` and `Canvas::edit_in`. A profile
   write is never undone (`Canvas::undoable`).
 
