@@ -1,8 +1,10 @@
 package be3:gpu@0.1.0;
 
-/// A subset of WebGPU, shaped after wasi:webgpu (the wasi-gfx proposal), for
-/// the one device and queue an app is given, plus the surfaces its host
-/// shows. Usages, shader stages and color writes are WebGPU's bit values.
+/// WebGPU, shaped after wasi:webgpu (the wasi-gfx proposal), for the one
+/// device and queue an app is given, plus the surfaces its host shows: an app
+/// gets what JS WebGPU gives a page (decisions/be3_gpu_matches_webgpu.md;
+/// plans/be3_gpu_matches_webgpu.md lists what it still lacks). Usages, shader
+/// stages and color writes are WebGPU's bit values.
 ///
 /// A create that fails answers `none`; the reason is kept for `take-error`,
 /// as is the first error any other call met.
