@@ -11,9 +11,15 @@ beui-dock-host and be-sdk-beui). The dock beside them already has windows that f
 resize, snap and hang from a tab (`DockDialog`). One concept, the window, can do all of it:
 blocking its owner becomes a property of a window, not another kind of overlay.
 
+The window is beui's own `Window`: anchoring, blocking and sheets are its properties, the dock's
+dialog window (`DockDialog`) builds on it, and a `Dialog` with no dock above it is a plain `Window`
+overlay. A dialog window is not a `DockState` surface (never saved, never docked), and in an app it
+stays an anchored view, so the app protocol does not change
+(decisions/a_dialog_is_a_window_of_its_owner_not_of_the_dock.md).
+
 ## Steps
 
-1. **A dock window can point at its anchor.** A floating `DockWindow` may be anchored to a rect:
+1. **A window can point at its anchor.** A `Window` (and so a `DockDialog`) may be anchored to a rect:
    it opens next to it with a beak, as `Anchored`'s card does, follows the anchor while
    unmoved, and keeps where the person moved it once they move it. With no visible anchor it
    opens at the top centre of its owning frame and draws no beak

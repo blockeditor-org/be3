@@ -1,17 +1,15 @@
 use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
-use beui_view::components::overlay::{Modality, Overlay};
+use beui_view::components::overlay::Modality;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
-use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
-use beui_view::types::Color;
-use beui_view::types::Placement;
 use beui_view::types::PointerPress;
-use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::types::Dismiss;
 use beui_view::types::{Pos2, Rect, Vec2};
-use beui_view::window::opens_windows;
+use beui_view::measure::measure;
+use beui_view::window::{Window, WindowAnchor, WindowHandle, opens_windows};
 
 use super::{DockState, State, TabId};
 use beui_view::types::Extent;
@@ -257,15 +255,18 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let shown = create_memo(move || dock.dialog_shown(tab));
-    let anchor = create_signal(NodeRef::new());
+    // What the dialog belongs to: its parent's panel, or the parent dialog's frame.
+    let owner = NodeRef::new();
     create_effect(move || {
         if !shown.get() {
             return;
         }
         // Again once the parent's panel is built, which can be after the dialog.
         dock.panels.with(|panels| panels.get(&parent).copied());
-        if let Some(node) = untrack(|| dock.anchor_ref(parent)) {
-            anchor.set(node);
+        if let Some(node) = untrack(|| dock.anchor_ref(parent)).and_then(|node| node.try_get())
+            && owner.try_get() != Some(node)
+        {
+            owner.fill(node);
         }
     });
     let pointed = create_memo(move || {
@@ -275,15 +276,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         dock.tab_control(parent).anchor().filter(Rect::is_positive)
     });
     let blocking = create_memo(move || shown.get() && modal.get());
-    let policy = create_memo(move || match blocking.get() {
-        true => LayerPolicy::BlocksParent,
-        false => LayerPolicy::Pass,
-    });
-    let dims = dock.dialog_scrim;
-    let scrim = create_memo(move || match blocking.get() {
-        true => dims.get(),
-        false => Color::TRANSPARENT,
-    });
     let scrim_radius = create_memo(move || match dock.is_dialog(parent) {
         true => dock.dialog_radius,
         false => 0.0,
@@ -331,16 +323,21 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let closable = on_close.is_some();
-    let offset = create_signal(Vec2::ZERO);
-    let detached = create_memo(move || offset.get() != Vec2::ZERO);
-    let grabbed = StoredCell::new(None::<(Vec2, Pos2)>);
+    // Where the person moved it, once they have: it stays there, hung from its owner.
+    let moved = create_signal(None::<Pos2>);
+    let detached = create_memo(move || moved.with(Option::is_some));
+    let grabbed = StoredCell::new(None::<(Pos2, Pos2)>);
     let grab = Callback::new(move |at: Pos2| {
-        grabbed.set(Some((offset.get_untracked(), at)));
+        let from = frame
+            .try_get()
+            .and_then(|frame| measure(frame).get_untracked())
+            .map(|measured| measured.rect.min);
+        grabbed.set(from.map(|from| (from, at)));
         dock.focus_dialog(tab);
     });
     let drag = Callback::new(move |at: Pos2| {
         if let Some((from, start)) = grabbed.get() {
-            offset.set(from + (at - start));
+            moved.set(Some(from + (at - start)));
         }
     });
     let chrome = dock.dialog_chrome;
@@ -384,58 +381,29 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let shown_in = create_memo(move || {
         hosted
             .get()
-            .then(|| anchor.get().try_get().map(window_of))
+            .then(|| owner.try_get().map(window_of))
             .flatten()
     });
-    let placed = create_memo(move || {
-        let node = anchor.get();
-        let moved = offset.get();
-        let popover = Placement::CARD;
-        match pointed.get() {
-            Some(rect) => (
-                OverlayAnchor::Pinned {
-                    node,
-                    rect: rect.translate(moved),
-                },
-                popover,
-            ),
-            None => match node
-                .try_get()
-                .and_then(|blocked| measure(blocked).get())
-                .filter(|_| moved != Vec2::ZERO)
-            {
-                Some(blocked) => (
-                    OverlayAnchor::Pinned {
-                        node,
-                        rect: blocked.rect.translate(moved),
-                    },
-                    Placement::CenterOn,
-                ),
-                None => (OverlayAnchor::Node(node), Placement::CenterOn),
-            },
-        }
+    let anchor = create_memo(move || match (moved.get(), pointed.get()) {
+        (Some(_), _) => None,
+        (None, Some(rect)) => Some(WindowAnchor::Beside(rect)),
+        (None, None) => Some(WindowAnchor::Top),
     });
-    let at = create_memo(move || placed.get().0);
-    let placement = create_memo(move || placed.get().1);
-    let reach = dock.dialog_beak;
-    let beak = create_memo(
-        move || match pointed.with(Option::is_some) && !detached.get() {
-            true => reach,
-            false => 0.0,
-        },
-    );
+    let at = create_memo(move || moved.get().unwrap_or(Pos2::ZERO));
     let view = view! {
-        <Overlay
+        <Window
             @node_ref=&overlay
-            anchor={at}
-            placement={placement}
-            policy
-            scrim={scrim}
+            size=Vec2::ZERO
+            own_window=false
+            owner={owner}
+            anchor={anchor}
+            at={at}
+            blocks={blocking}
+            scrim={dock.dialog_scrim}
             scrim_radius={scrim_radius}
             pointer={card}
-            beak={beak}
+            beak={dock.dialog_beak}
             shown_in={shown_in}
-            traps_focus=false
             open={shown}
             on_dismiss={move |reason: Dismiss| match reason {
                 Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
@@ -443,11 +411,11 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 Dismiss::Escape | Dismiss::Back => close.call(()),
                 Dismiss::OutsidePress | Dismiss::WithParent => {}
             }}
-        >||
+        >|_: WindowHandle|
             <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
                 {face()}
             </Interactive>
-        </Overlay>
+        </Window>
     };
     dock.dialog_layers.value().borrow_mut().insert(tab, overlay);
     on_cleanup(move || {
