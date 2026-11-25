@@ -857,8 +857,11 @@ impl Embedded {
             .map(|placement| (placement.instance, placement.screen))
     }
 
-    /// The actions every screen of its editor `editor` last described, those of `first` first,
-    /// each with the screen that runs it: an id listed once.
+    /// The actions every screen of its editor `editor` its layout has last described, those of
+    /// `first` first, each with the screen that runs it: an id listed once. A screen painted
+    /// nothing counts too, as be-host's `offers_actions` keeps a main view's: an editor whose
+    /// content a joined dock's tab shows may never paint its main view, which describes its
+    /// frame's actions (File details).
     pub fn actions_of(
         &self,
         editor: EditorInstanceId,
@@ -866,11 +869,15 @@ impl Embedded {
     ) -> Vec<(ScreenId, be_sdk_api::DescribedAction)> {
         let state = self.state.borrow();
         let mut screens: Vec<ScreenId> = state
-            .painted
-            .values()
-            .filter(|placement| placement.instance == editor)
-            .map(|placement| placement.screen)
-            .filter(|screen| state.actions.contains_key(screen))
+            .actions
+            .keys()
+            .copied()
+            .filter(|screen| {
+                state
+                    .run
+                    .placement(*screen)
+                    .is_some_and(|placement| placement.instance == editor)
+            })
             .collect();
         screens.sort_by_key(|screen| (Some(*screen) != first, screen.0));
         let mut listed = HashSet::default();

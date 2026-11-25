@@ -1590,9 +1590,9 @@ impl Children {
         outermost: &str,
     ) -> Vec<(u64, EditorInstanceId, String)> {
         let mut around = vec![(instance, editor)];
-        while let Some((placer_app, placer, _)) = around
+        while let Some((placer_app, placer)) = around
             .last()
-            .and_then(|(_, editor)| self.placer_of(*editor))
+            .and_then(|(_, editor)| self.opener_of(*editor))
         {
             if around.iter().any(|(_, held)| *held == placer) {
                 break;
@@ -1611,6 +1611,22 @@ impl Children {
                 (app, editor, name)
             })
             .collect()
+    }
+
+    /// The editor that placed the child showing `editor`, any number of levels deep, with the
+    /// handle of its app: placed now or kept by the dock that hosts it, whose tab shows it (a
+    /// canvas joined to the workspace's dock is the workspace's still).
+    fn opener_of(&self, editor: EditorInstanceId) -> Option<(u64, EditorInstanceId)> {
+        let opened = self
+            .shown
+            .iter()
+            .find(|child| child.hosted().is_some_and(|(_, shown)| shown == editor));
+        if let Some(child) = opened {
+            return Some((self.instance, child.placer));
+        }
+        self.shown
+            .iter()
+            .find_map(|child| child.editor.nested.borrow().opener_of(editor))
     }
 
     /// The name of the app running the editor `editor` a place shows, any number of levels
