@@ -528,7 +528,7 @@ impl ProtocolLink {
 
 #[component]
 fn MeasuredBar(body: NodeId, tab: TabId, sizes: Signal<HashMap<TabId, beui::Vec2>>) -> NodeId {
-    use beui::styled::{Canvas, CanvasItem, Frame, Portal};
+    use beui::styled::{Canvas, CanvasItem, List, Portal, Space};
     let measured = measure(body);
     create_effect(move || {
         let Some(size) = measured.get().map(|measured| measured.size) else {
@@ -543,9 +543,11 @@ fn MeasuredBar(body: NodeId, tab: TabId, sizes: Signal<HashMap<TabId, beui::Vec2
     view! {
         <Canvas>
             <CanvasItem x=0.0 y=0.0 width=BAR_ROOM height=BAR_ROOM clip=false>
-                <Frame align=beui::Align2::START>
-                    <Portal node={Some(body)} />
-                </Frame>
+                <List direction=beui::Direction::Vertical align=beui::Align::Start spacing=Space::None>
+                    <List direction=beui::Direction::Horizontal align=beui::Align::Start spacing=Space::None>
+                        <Portal node={Some(body)} />
+                    </List>
+                </List>
             </CanvasItem>
         </Canvas>
     }
