@@ -64,6 +64,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7b3f`: under a root, editors' drags carried by the input router (`drag-block`, `drag-accepted`, Escape puts a carry down), and their menus, details, child-menu picks and leave-frame routed as be-host does.
 - `host-adapter-4g7b3g` (dialogs): under a root, pickers, rename forms and Export dialogs as dialog children (`shown` = block or dialog, `host.tell-shell`); creations, artifact settings, host panels and web views are left in the plan.
 - `host-adapter-4g7c`: the root shows the views its apps anchor (menus, pickers) outside their groups, stacked by open order; presses dismiss them as in be-host; keys go to a child an anchored view places and back to its owner on close.
+- `flakes-9`: undo steps timed by when an edit was relayed; a stopping stack closes its connection at once and account reads retry on a new one; an offline edit merges with no base when the ancestor is held nowhere; a preview canvas gets no view until its stage is measured (no stray glyph, no pause).
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
