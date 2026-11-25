@@ -49,12 +49,13 @@ pub(super) struct Session {
 
 impl Session {
     /// The editors outward from `editor`, of the app embedded as `instance`: it, the editor
-    /// placing it and so on out to the session's own, each with its app's handle and name.
+    /// placing it and so on out to the session's own, each with its app's handle and name, and
+    /// the view of it placing the one before.
     pub(super) fn editors_around(
         &self,
         instance: u64,
         editor: EditorInstanceId,
-    ) -> Vec<(u64, EditorInstanceId, String)> {
+    ) -> Vec<be_sdk_root::Around> {
         let outermost = match &self.state {
             Showing::Running(hosted) => hosted.name.clone(),
             Showing::Loading | Showing::Failed(_) => String::new(),

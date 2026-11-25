@@ -44,6 +44,10 @@ const HOST_NAME: &str = "be3 root";
 /// memory, which the base library alone fills much of.
 const APP_MEMORY: u64 = 1 << 30;
 
+/// How many of its layout commits a pick from an editor's frame menu lets it open the palette
+/// for, as be-host-runtime's.
+const MENU_PICK_COMMITS: u32 = 2;
+
 /// What `Embedded::spawn` starts: a staged app's entry point, the editor it opens and the
 /// screens it asks of it.
 pub struct Spawn {
@@ -165,6 +169,11 @@ struct State {
     /// The palette an editor of it asked the root to open (`shell-message.open-palette`),
     /// until the root takes it.
     palette_asked: Option<(EditorInstanceId, be_sdk_api::PaletteMode)>,
+    /// The screens whose layer has the keyboard, as the root's router last said.
+    keyboard: HashSet<ScreenId>,
+    /// The editors the person picked from a frame menu of, each with how many of its layout
+    /// commits the pick still lets it open the palette (`MENU_PICK_COMMITS`).
+    menu_picked: HashMap<EditorInstanceId, u32>,
     /// The block one of its editors began to drag out of itself, until its root carries it.
     drag: Option<DragStart>,
     /// The editors that take the block dragged over them, as they last said.
@@ -430,6 +439,8 @@ impl Embedded {
             told: Vec::new(),
             actions: HashMap::default(),
             palette_asked: None,
+            keyboard: HashSet::default(),
+            menu_picked: HashMap::default(),
             drag: None,
             accepting: HashSet::default(),
             restyled: false,
@@ -831,7 +842,7 @@ impl Embedded {
     }
 
     /// The screen showing the view `view` of its editor `editor`, as it painted it last.
-    pub(crate) fn screen_of(
+    pub fn screen_of(
         &self,
         editor: EditorInstanceId,
         view: be_sdk_api::ViewId,
@@ -844,9 +855,6 @@ impl Embedded {
             .map(|placement| placement.screen)
     }
 
-    /// Tells the app that a press outside them closed its anchored views `views`, which all hang
-    /// from its view shown on `screen` (`input-batch.dismissed`), as be-host does: each hears it
-    /// before anything else the app is sent.
     /// The editor and screen the layer `layer` shows, as it painted it last.
     pub fn screen_at(&self, layer: LayerId) -> Option<(EditorInstanceId, ScreenId)> {
         let state = self.state.borrow();
@@ -868,6 +876,10 @@ impl Embedded {
         first: Option<ScreenId>,
     ) -> Vec<(ScreenId, be_sdk_api::DescribedAction)> {
         let state = self.state.borrow();
+        // A failed app runs nothing its screens described.
+        if state.failure.is_some() {
+            return Vec::new();
+        }
         let mut screens: Vec<ScreenId> = state
             .actions
             .keys()
@@ -893,10 +905,19 @@ impl Embedded {
     }
 
     /// Runs the action `id` of the view shown on `screen` (`app.run-action`), as be-host runs
-    /// one its palette lists.
+    /// one its palette lists: only while the screen still describes it (be-host's
+    /// `action_screen`), so a row chosen after its view went or dropped it runs nothing.
     pub fn run_action(&self, screen: ScreenId, id: String) {
         let mut state = self.state.borrow_mut();
         if state.failure.is_some() || !state.run.session.running() {
+            return;
+        }
+        let describes = state.run.placement(screen).is_some()
+            && state
+                .actions
+                .get(&screen)
+                .is_some_and(|actions| actions.iter().any(|action| action.id == id));
+        if !describes {
             return;
         }
         let send = state
@@ -906,11 +927,23 @@ impl Embedded {
         state.flush();
     }
 
+    /// The person picked from a frame menu of its editor `editor` (`editor.menu-pick`), which
+    /// lets it open the palette for its next few layout commits.
+    pub(crate) fn note_menu_pick(&self, editor: EditorInstanceId) {
+        self.state
+            .borrow_mut()
+            .menu_picked
+            .insert(editor, MENU_PICK_COMMITS);
+    }
+
     /// The palette one of its editors asked the root to open, once.
     pub(crate) fn take_palette_ask(&self) -> Option<(EditorInstanceId, be_sdk_api::PaletteMode)> {
         self.state.borrow_mut().palette_asked.take()
     }
 
+    /// Tells the app that a press outside them closed its anchored views `views`, which all hang
+    /// from its view shown on `screen` (`input-batch.dismissed`), as be-host does: each hears it
+    /// before anything else the app is sent.
     pub(crate) fn dismiss(&self, screen: ScreenId, views: Vec<be_sdk_api::ViewId>) {
         let mut state = self.state.borrow_mut();
         if state.failure.is_some() || !state.run.session.running() || views.is_empty() {
@@ -968,6 +1001,16 @@ impl Embedded {
             .any(|placement| placement.surface == surface);
         if !shown && !ends(&input) {
             return;
+        }
+        let Some(screen) = state.surfaces.get(&surface).map(|placement| placement.screen) else {
+            return;
+        };
+        // Which of its screens has the keyboard, which lets its editor open the palette.
+        if let Input::Focus(focused) = input {
+            match focused {
+                true => state.keyboard.insert(screen),
+                false => state.keyboard.remove(&screen),
+            };
         }
         let Some(placement) = state.surfaces.get(&surface) else {
             return;
@@ -1278,6 +1321,11 @@ impl State {
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
+                // A pick from a frame menu lets its editor open the palette for a few commits.
+                self.menu_picked.retain(|_, left| {
+                    *left = left.saturating_sub(1);
+                    *left > 0
+                });
                 // Children that only move are placed at once; any that come or go wait for the
                 // present that follows, which draws the holes they fill.
                 let placed = &self.placed;
@@ -1371,6 +1419,26 @@ impl State {
         }
     }
 
+    /// Whether the editor `instance` may open the root's palette (`shell-message.open-palette`),
+    /// as be-host's `may_open_palette` says: it shows a view, and either one of its screens has
+    /// the keyboard or the person picked from its frame menu within its last
+    /// `MENU_PICK_COMMITS` layout commits (whose "Command palette" asks for it while a menu the
+    /// root draws has the keyboard), so an editor in the background cannot. The root opens no
+    /// revision previews, which be-host also refuses: the block stack's history is the host's.
+    fn may_open_palette(&mut self, instance: EditorInstanceId) -> bool {
+        let picked = self.menu_picked.remove(&instance).is_some();
+        let shown = self
+            .painted
+            .values()
+            .any(|placement| placement.instance == instance);
+        let keyboard = self.keyboard.iter().any(|screen| {
+            self.run
+                .placement(*screen)
+                .is_some_and(|placement| placement.instance == instance)
+        });
+        shown && (keyboard || picked)
+    }
+
     /// Keeps what an editor told the shell that its root reads: the size its content wants,
     /// which a change of owes the root a frame (`placing`), whose settle hands it on.
     fn hear_tell(&mut self, instance: EditorInstanceId, messages: Vec<ShellMessage>) {
@@ -1411,8 +1479,10 @@ impl State {
                 // The root's palette, asked for from the editor's menu or its own chord: the
                 // root opens it with its next frame (`Embedding::take_palette_ask`).
                 ShellMessage::OpenPalette(mode) => {
-                    self.palette_asked = Some((instance, mode));
-                    self.wake();
+                    if self.may_open_palette(instance) {
+                        self.palette_asked = Some((instance, mode));
+                        self.wake();
+                    }
                     continue;
                 }
                 // A drag its root carries once it hears it (`Embedding::input`).
