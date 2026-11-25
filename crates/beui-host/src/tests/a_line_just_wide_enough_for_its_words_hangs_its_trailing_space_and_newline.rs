@@ -98,7 +98,7 @@ fn a_line_just_wide_enough_for_its_words_hangs_its_trailing_space_and_newline() 
     }
 
     // A little narrower, the last word does wrap, and the blank with it.
-    let text = format!("{LINE}");
+    let text = LINE.to_string();
     let narrower = RichLayout::new(
         &[
             Piece::text(&text, style),
