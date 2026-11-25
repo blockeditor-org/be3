@@ -74,7 +74,7 @@ The browser's gpu shim keeps its own `wasm32-bindgen` plan: it is wasm-bindgen c
    about 1% smaller), but be-wasm-gpu-abi's `wgpu` linked wgpu, and with it wasm-bindgen, into
    be-wasm-root-testing, so the conversions moved to `crates/be-wasm-gpu-convert` (traits
    `Convert`/`TryConvert`, since neither side's types are its own). Games take simd128 with the
-   guests, so tabletop-host's wasmi has its `simd` feature, with relaxed SIMD off. Open: release
-   builds compiled os:none crates (the pure guests) at opt-level `s` and WASI ones at 3
-   (decisions/shipped_bundle_size_settings.md); in one plan the pure guests now take 3, which
-   awaits the owner's choice.
+   guests, so tabletop-host's wasmi has its `simd` feature, with relaxed SIMD off. Release builds
+   compiled os:none crates (the pure guests) at opt-level `s` and WASI ones at 3; in one plan
+   the pure guests take 3 (decisions/shipped_bundle_size_settings.md, Since), for now: `s` for
+   the guests' own crates only, or for the apps' too, awaits the owner's choice.

@@ -61,9 +61,11 @@ def dev_only(flags):
 #   than the app profile's 2. A change under beui recompiles each of them for
 #   the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
 #   change to geometry, for modules no slower to test. In a
-#   release build on wasm32-unknown-unknown, which is the type modules (and
-#   the games, input remaps and the browser's gpu shim, whose heavy part is
-#   third-party), `s`: the checklist's module went from 2.29 MB to 1.67 MB
+#   release build on wasm32-unknown-unknown, now only the browser's gpu shim,
+#   whose heavy part is third-party, `s`. The type modules, games and input
+#   remaps were built there too until they joined the apps' wasip1 plan
+#   (plans/pure_guests_in_the_apps_plan.md), where a crate they share with the
+#   apps compiles once at the apps' 3; at `s` the checklist's module went from 2.29 MB to 1.67 MB
 #   (1.64 MB at z), every type module a quarter to a third smaller, and
 #   compiling them took about half the CPU it did at 3. Saving a 50 MB paste
 #   in be-host-bench, which is the text type module's seal and its publish to a

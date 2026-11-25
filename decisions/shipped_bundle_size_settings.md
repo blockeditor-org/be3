@@ -37,5 +37,12 @@ so the bundle ships no `.cwasm` and V8 compiles each module as it loads. Shippin
 is superseded, with the rejection of shipping without it; the mangling, opt-level and
 symbol settings still stand.
 
+November 2026: the pure guests (type modules, games, the input remaps) are built for
+wasm32-wasip1 in the apps' plan (plans/pure_guests_in_the_apps_plan.md), so a crate they share
+with the apps compiles once, at the apps' release opt-level 3. Type modules no longer build at
+`s` and ship about a third bigger again; `s` stays only for the gpu shim, the one crate left on
+wasm32-unknown-unknown. Building only the guests' own crates at `s`, or the apps' too, was left
+to the owner.
+
 November 2026: the deploy's fat LTO over one codegen unit was removed (decisions/no_lto.md), with
 the rejection of thin LTO here.
