@@ -334,6 +334,7 @@ mod bench {
 
     pub fn main() {
         let mode = std::env::args().nth(1);
+        #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
         let modes: &[(&str, fn(&mut Bench))] = &[("cursor", cursor), ("resize", resize)];
         if let Some(mode) = &mode
             && !modes.iter().any(|(name, _)| name == mode)
