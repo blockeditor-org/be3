@@ -1895,6 +1895,13 @@ Each step lands on its own.
              moves or resizes it, nor does a side panel opening, closing or moving around
              it; a panel covering part of it keeps covering it, and the person zooms out to
              see it. Under the root, and in be-host too where it refits.
+             - Built: neither refits. Under the root and under be-host a press on a card
+               leaves it where it was, and its Cards panel opens over it; closing the panel
+               leaves it there too. Host test
+               `be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it`
+               closes the panel now (painting
+               `be_root_keeps_an_editor_in_place_as_its_panel_closes`); the guide states
+               the rule (guides/apps/children.md, A child that takes the frame).
            - A dropped child is not fitted to its content (deferred: the root never hears the
              checklist's intrinsic size, 4g7b3f).
        - 4g7c. Anchored views placed outside groups (`anchored`).

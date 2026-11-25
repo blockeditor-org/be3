@@ -200,7 +200,11 @@ An Active or Live child takes the frame over: it is handed the frame the
 placer had, draws every chrome band, and draws its content at the rect it was
 placed at. The placer draws no chrome while that lasts and its content takes
 the whole frame; its camera is untouched, so the child's rect stays where it
-was on screen. An editor cannot keep a band while a child has the frame.
+was on screen. Clicking or focusing a child never moves or resizes it, even
+one zoomed to fill the view, and neither does a side panel opening, closing or
+moving around it: a panel covering part of it keeps covering it, and the
+person zooms out to see it. An editor cannot keep a band while a child has the
+frame.
 
 Clicks on the child's chrome belong to the child. A click on the rest of the
 frame, or on the child's content outside its placed rect (which is where the
