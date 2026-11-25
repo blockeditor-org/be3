@@ -753,10 +753,7 @@ impl<S: ObjectStore> Peer<S> {
     /// their merge when the server pruned the history between it and the new head, so no common
     /// ancestor can be walked to or the one walked to does not load. With none that loads, the
     /// merge has no base.
-    async fn left_from(
-        &self,
-        waiting: &[(u64, Pending)],
-    ) -> Result<Option<CommitId>, ClientError> {
+    async fn left_from(&self, waiting: &[(u64, Pending)]) -> Result<Option<CommitId>, ClientError> {
         for (_, pending) in waiting.iter().rev() {
             let Some(expected) = pending.expected else {
                 continue;

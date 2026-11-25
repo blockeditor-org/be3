@@ -4327,7 +4327,11 @@ impl<H: Host> Replicas<H> {
             Io::Relayed => self.relaying -= 1,
             Io::SealFetched { block, id, held } => {
                 // One let go of whose block opened again answers nothing of the fetch now.
-                if self.seal_fetches.get(&block).is_none_or(|fetch| fetch.id != id) {
+                if self
+                    .seal_fetches
+                    .get(&block)
+                    .is_none_or(|fetch| fetch.id != id)
+                {
                     return;
                 }
                 let Some(fetch) = self.seal_fetches.remove(&block) else {

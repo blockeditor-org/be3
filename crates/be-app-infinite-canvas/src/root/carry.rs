@@ -146,12 +146,10 @@ pub(crate) fn use_move_site(state: CanvasState, surface: NodeRef) {
             .stepped(state.scale())
         }),
         // Put down where no camera says where it lands, the move goes back.
-        Callback::new(
-            move |(_, at): (CanvasMove, Option<CanvasPoint>)| match at {
-                Some(at) => state.drop_move(at),
-                None => state.carry_over(None),
-            },
-        ),
+        Callback::new(move |(_, at): (CanvasMove, Option<CanvasPoint>)| match at {
+            Some(at) => state.drop_move(at),
+            None => state.carry_over(None),
+        }),
     );
     create_effect_on(
         move || site.over.get().flatten(),

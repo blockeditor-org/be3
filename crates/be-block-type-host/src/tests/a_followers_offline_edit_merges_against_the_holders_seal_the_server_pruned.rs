@@ -38,9 +38,10 @@ async fn sealed_past(
 ) -> CommitId {
     let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
         laptops.pump((laptop, shared)).await;
-        while laptops.submissions_of(block).is_none_or(|(submitting, _, kept)| {
-            submitting > 0 || kept.is_empty()
-        }) {
+        while laptops
+            .submissions_of(block)
+            .is_none_or(|(submitting, _, kept)| submitting > 0 || kept.is_empty())
+        {
             step_laptop(laptop, shared, laptops, heard).await;
         }
         laptops.seal((laptop, shared), block, false).await;
@@ -109,8 +110,22 @@ fn a_followers_offline_edit_merges_against_the_holders_seal_the_server_pruned() 
         let mut mirror =
             attach_mirror::<TextContent>(&peer, &shared, &mut replicas, block, 8).await;
 
-        type_at_start(&mut laptops, block, 7, &mut laptop_mirror, "socks\nshoes\nhat\n");
-        let socks = sealed_past(&laptop, &laptop_shared, &mut laptops, &mut heard, block, None).await;
+        type_at_start(
+            &mut laptops,
+            block,
+            7,
+            &mut laptop_mirror,
+            "socks\nshoes\nhat\n",
+        );
+        let socks = sealed_past(
+            &laptop,
+            &laptop_shared,
+            &mut laptops,
+            &mut heard,
+            block,
+            None,
+        )
+        .await;
         step_until_replicas(
             &peer,
             &shared,
@@ -161,7 +176,15 @@ fn a_followers_offline_edit_merges_against_the_holders_seal_the_server_pruned() 
             .operate(None, deleted)
             .expect("the laptop's editor has content");
         laptops.relay_from_editor(block, 7, message.encode(), std::time::Instant::now());
-        let theirs = sealed_past(&laptop, &laptop_shared, &mut laptops, &mut heard, block, Some(socks)).await;
+        let theirs = sealed_past(
+            &laptop,
+            &laptop_shared,
+            &mut laptops,
+            &mut heard,
+            block,
+            Some(socks),
+        )
+        .await;
         assert_ne!(theirs, socks);
         // The server prunes the seal the new one replaces in its slot: it holds it no more.
         let objects = SERVER_OBJECTS.take().expect("the server started");

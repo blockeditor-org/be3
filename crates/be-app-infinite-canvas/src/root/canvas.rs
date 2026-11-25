@@ -251,7 +251,10 @@ fn CanvasHint(
 }
 
 #[component]
-fn CanvasOverlay(state: CanvasState, camera: Memo<Option<CanvasView>>) -> DynamicSegment<CanvasItem> {
+fn CanvasOverlay(
+    state: CanvasState,
+    camera: Memo<Option<CanvasView>>,
+) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let bounds = create_signal(None::<Rect>);
