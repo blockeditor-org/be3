@@ -146,6 +146,7 @@ pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     /// Each revision preview the editor holds, by its op, with its block and commit.
     revision_previews: BTreeMap<OpId, ([u8; 16], [u8; 32])>,
     /// Each preview's `opened` the test has not answered yet.
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>>)>,
     /// The commits of the previews the editor dropped.
     closed_previews: Vec<[u8; 32]>,
