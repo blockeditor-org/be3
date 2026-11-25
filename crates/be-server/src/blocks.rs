@@ -66,6 +66,8 @@ pub struct Moved {
     pub above: Vec<Uuid>,
     /// The scope above where it was, none from the top or the trash (`keys::Whole::Moved`).
     pub scope_before: Option<Uuid>,
+    /// The tops of the trees of the blocks' agents the move forgot (`store::Removed::trees`).
+    pub forgotten: Vec<Uuid>,
 }
 
 pub(crate) struct Visibility {
@@ -1708,7 +1710,7 @@ impl ServerStore {
                 block,
             )?;
             transaction.commit()?;
-            if !forgotten.is_empty() || trashed {
+            if !forgotten.agents.is_empty() || trashed {
                 store.sessions_changed();
             }
             Ok(Moved {
@@ -1716,6 +1718,7 @@ impl ServerStore {
                 lost,
                 above,
                 scope_before,
+                forgotten: forgotten.trees,
             })
         })
         .await
@@ -1941,7 +1944,7 @@ impl ServerStore {
         account: Uuid,
         access: Access,
         record: Option<Vec<u8>>,
-    ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
+    ) -> Result<Option<(BTreeSet<Uuid>, Vec<Uuid>)>, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
@@ -2095,10 +2098,10 @@ impl ServerStore {
                 identity.organization,
             )?;
             transaction.commit()?;
-            if !forgotten.is_empty() {
+            if !forgotten.agents.is_empty() {
                 store.sessions_changed();
             }
-            Ok(Some(before))
+            Ok(Some((before, forgotten.trees)))
         })
         .await
     }

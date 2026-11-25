@@ -777,20 +777,22 @@ impl ServerStore {
         .await
     }
 
+    /// Sets `account`'s role, answering the tops of the trees of the blocks' agents forgotten
+    /// with it (`Removed::trees`).
     pub async fn set_role(
         &self,
         identity: Identity,
         account: Uuid,
         role: OrganizationRole,
         signed: Option<Vec<u8>>,
-    ) -> Result<(), ServerError> {
+    ) -> Result<Vec<Uuid>, ServerError> {
         require_administrator(identity)?;
         let organization = identity.organization;
         self.with_graph(organization, move |store, graph, database| {
             let current = crate::contacts::role_in(database, account, organization)?
                 .ok_or_else(not_a_member)?;
             if current == role {
-                return Ok(());
+                return Ok(Vec::new());
             }
             if is_agent(database, account)? {
                 return Err(ServerError::Refused(
@@ -844,10 +846,10 @@ impl ServerStore {
             }
             let forgotten = forget_orphaned_block_agents(store, graph, &transaction, organization)?;
             transaction.commit()?;
-            if !forgotten.is_empty() {
+            if !forgotten.agents.is_empty() {
                 store.sessions_changed();
             }
-            Ok(())
+            Ok(forgotten.trees)
         })
         .await
     }
@@ -995,12 +997,13 @@ impl ServerStore {
 
     /// Deletes every agent `creator` made, in every organization, as taking an account back
     /// does (guides/blocks/server.md, "Accounts"): any of them may be an intruder's. Answers their names,
-    /// for the notice. Grants signed to them (guides/blocks/keys.md, "Access logs") are left for a
+    /// for the notice, and per organization the tops of the trees they could view, which changed
+    /// (`Removed::trees`). Grants signed to them (guides/blocks/keys.md, "Access logs") are left for a
     /// device of someone who manages the block to revoke, as for any grantee whose account is gone.
     pub(crate) async fn delete_agents_created_by(
         &self,
         creator: Uuid,
-    ) -> Result<Vec<String>, ServerError> {
+    ) -> Result<(Vec<String>, Vec<(Uuid, Vec<Uuid>)>), ServerError> {
         let made: Vec<(Uuid, Uuid, String)> = self
             .with_database(move |_, database| {
                 let mut statement = database.prepare(
@@ -1023,25 +1026,34 @@ impl ServerStore {
             .iter()
             .map(|(_, organization, _)| *organization)
             .collect();
+        let mut changed = Vec::new();
         for organization in organizations {
             let agents: Vec<Uuid> = made
                 .iter()
                 .filter(|(_, of, _)| *of == organization)
                 .map(|(agent, _, _)| *agent)
                 .collect();
-            self.with_graph(organization, move |store, graph, database| {
-                let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                for agent in agents {
-                    delete_agent(store, graph, &transaction, organization, agent)?;
-                }
-                forget_orphaned_block_agents(store, graph, &transaction, organization)?;
-                transaction.commit()?;
-                store.sessions_changed();
-                Ok(())
-            })
-            .await?;
+            let trees = self
+                .with_graph(organization, move |store, graph, database| {
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                    let mut trees = Vec::new();
+                    for agent in agents {
+                        trees.extend(
+                            delete_agent(store, graph, &transaction, organization, agent)?.trees,
+                        );
+                    }
+                    trees.extend(
+                        forget_orphaned_block_agents(store, graph, &transaction, organization)?
+                            .trees,
+                    );
+                    transaction.commit()?;
+                    store.sessions_changed();
+                    Ok(trees)
+                })
+                .await?;
+            changed.push((organization, trees));
         }
-        Ok(made.into_iter().map(|(_, _, name)| name).collect())
+        Ok((made.into_iter().map(|(_, _, name)| name).collect(), changed))
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
@@ -1916,7 +1928,7 @@ fn remove_account(
         }
         (false, None) => {}
     }
-    let removed = match agent {
+    let mut removed = match agent {
         true => delete_agent(store, graph, &transaction, organization, account)?,
         false => remove_from(store, graph, &transaction, organization, account)?,
     };
@@ -1933,9 +1945,10 @@ fn remove_account(
     }
     let forgotten = forget_orphaned_block_agents(store, graph, &transaction, organization)?;
     transaction.commit()?;
-    if agent || !forgotten.is_empty() {
+    if agent || !forgotten.agents.is_empty() {
         store.sessions_changed();
     }
+    removed.trees.extend(forgotten.trees);
     Ok(removed)
 }
 
@@ -1958,11 +1971,20 @@ fn refuse_last_administrator(
 }
 
 /// What removing an account from an organization changed: the blocks its grants, or others'
-/// grants beside its own, were revoked from, and the tops of what it could view, each of which
-/// changed (`changed`) with everything below it.
+/// grants beside its own, were revoked from, and the tops of the trees it could view, each of
+/// which changed (`changed`) with everything below it, which their followers are told advanced
+/// (with those of the blocks' agents forgotten with it).
 pub struct Removed {
     pub revoked: Vec<crate::contacts::Granted>,
-    pub viewed: Vec<Uuid>,
+    pub trees: Vec<Uuid>,
+}
+
+/// The blocks' agents `forget_orphaned_block_agents` deleted, and the tops of the trees they
+/// could view, which changed (`Removed::trees`).
+#[derive(Default)]
+pub struct Forgotten {
+    pub agents: Vec<Uuid>,
+    pub trees: Vec<Uuid>,
 }
 
 fn remove_from(
@@ -1975,7 +1997,8 @@ fn remove_from(
     let role = crate::contacts::role_in(connection, account, organization)?;
     let mut revoked = Vec::new();
     let mut kinds = std::collections::BTreeSet::new();
-    for block in graph.entry_points(account) {
+    let entries = graph.entry_points(account);
+    for block in entries.iter().copied() {
         kinds.extend(crate::keys::open_kinds_viewed(
             connection,
             graph,
@@ -1988,14 +2011,14 @@ fn remove_from(
     // view it changed: a block it authored, or viewed below one it held a grant on, or an open
     // kind, holds no grant of its own to revoke. Read before its grants go.
     let settings = crate::organization::settings_of(organization);
-    let (viewed, tops) = graph.subtrees(
-        graph
-            .entry_points(account)
-            .into_iter()
+    let (viewed, trees) = graph.subtrees(
+        entries
+            .iter()
+            .copied()
             .chain(kinds.iter().copied())
             .chain([settings]),
     );
-    for block in graph.entry_points(account) {
+    for block in entries {
         let Some(node) = graph.get(block) else {
             continue;
         };
@@ -2045,10 +2068,7 @@ fn remove_from(
     if !viewed.is_empty() {
         crate::changes::touch(connection, graph, organization, &viewed)?;
     }
-    Ok(Removed {
-        revoked,
-        viewed: tops,
-    })
+    Ok(Removed { revoked, trees })
 }
 
 /// Refuses unless `agent` is one `caller` made in `organization` and, for a block's agent, the
@@ -2167,7 +2187,7 @@ pub(crate) fn forget_orphaned_block_agents(
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
-) -> Result<Vec<Uuid>, ServerError> {
+) -> Result<Forgotten, ServerError> {
     let bound: Vec<(Uuid, Uuid, Uuid)> = {
         let mut statement = connection.prepare(
             "SELECT account_id, bound_to, created_by FROM agents
@@ -2191,7 +2211,7 @@ pub(crate) fn forget_orphaned_block_agents(
         }
         bound
     };
-    let mut forgotten = Vec::new();
+    let mut forgotten = Forgotten::default();
     for (agent, block, creator) in bound {
         let granted = graph
             .get(block)
@@ -2202,8 +2222,9 @@ pub(crate) fn forget_orphaned_block_agents(
         let orphaned =
             graph.is_live(block) && !manages(graph, connection, creator, organization, block)?;
         if !granted || orphaned {
-            delete_agent(store, graph, connection, organization, agent)?;
-            forgotten.push(agent);
+            let removed = delete_agent(store, graph, connection, organization, agent)?;
+            forgotten.agents.push(agent);
+            forgotten.trees.extend(removed.trees);
         }
     }
     Ok(forgotten)

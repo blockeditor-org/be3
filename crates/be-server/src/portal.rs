@@ -113,7 +113,19 @@ async fn finish_recovery(
     email: &str,
     removed: &[codes::Identity],
 ) -> Result<(), ServerError> {
-    let agents = services.store.delete_agents_created_by(account).await?;
+    let (agents, forgotten) = services.store.delete_agents_created_by(account).await?;
+    // Whoever follows what the agents could view hears it changed (`store::Removed::trees`).
+    for (organization, trees) in forgotten {
+        crate::client::advance(
+            &services.store,
+            &services.hub,
+            organization,
+            trees,
+            true,
+            Vec::new(),
+        )
+        .await;
+    }
     if removed.is_empty() && agents.is_empty() {
         return Ok(());
     }

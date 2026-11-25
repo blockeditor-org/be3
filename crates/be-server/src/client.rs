@@ -2064,7 +2064,7 @@ impl Client {
                             .store
                             .set_access(identity, block, account, access, signed)
                             .await?;
-                        if let Some(before) = changed {
+                        if let Some((before, forgotten)) = changed {
                             connection
                                 .after(After::Revoked {
                                     revoked: vec![contacts::Granted {
@@ -2073,6 +2073,14 @@ impl Client {
                                         before,
                                     }],
                                     accounts: vec![account],
+                                })
+                                .await;
+                            connection
+                                .after(After::Advance {
+                                    organization: identity.organization,
+                                    blocks: forgotten,
+                                    subtree: true,
+                                    above: Vec::new(),
                                 })
                                 .await;
                         }
@@ -2143,10 +2151,18 @@ impl Client {
                         role,
                         signed,
                     } => {
-                        connection
+                        let forgotten = connection
                             .store
                             .set_role(identity, account, role, signed)
                             .await?;
+                        connection
+                            .after(After::Advance {
+                                organization: identity.organization,
+                                blocks: forgotten,
+                                subtree: true,
+                                above: Vec::new(),
+                            })
+                            .await;
                         connection
                             .after(After::RoleChanged {
                                 organization: identity.organization,
@@ -2502,7 +2518,7 @@ impl Client {
             } => {
                 let caller = admitted.account()?;
                 let current = admitted.identity.map(|identity| identity.organization);
-                let revoked = connection
+                let (revoked, forgotten) = connection
                     .store
                     .remove_contact(caller, account, current, revocations)
                     .await?;
@@ -2512,6 +2528,16 @@ impl Client {
                         accounts: vec![caller, account],
                     })
                     .await;
+                for (organization, trees) in forgotten {
+                    connection
+                        .after(After::Advance {
+                            organization,
+                            blocks: trees,
+                            subtree: true,
+                            above: Vec::new(),
+                        })
+                        .await;
+                }
                 connection
                     .after(After::MailboxChanged(vec![caller, account]))
                     .await;
@@ -2856,7 +2882,7 @@ impl Connection {
         .await;
         self.after(After::Advance {
             organization,
-            blocks: removed.viewed,
+            blocks: removed.trees,
             subtree: true,
             above: Vec::new(),
         })
@@ -2933,6 +2959,7 @@ impl Connection {
                         lost,
                         above,
                         scope_before: _,
+                        forgotten,
                     },
             } => {
                 // Its roots change for whoever could know of it only when it leaves or reaches
@@ -2940,6 +2967,9 @@ impl Connection {
                 let top =
                     above.is_empty() || matches!(parent, BlockParent::Root | BlockParent::Detached);
                 self.advance(organization, vec![block], true, above).await;
+                // The trees of the blocks' agents the move forgot changed too.
+                self.advance(organization, forgotten, true, Vec::new())
+                    .await;
                 if let Ok(after) = self.store.audience(organization, vec![block]).await
                     && (top || after != before)
                 {
@@ -3306,36 +3336,7 @@ impl Connection {
         subtree: bool,
         above: Vec<Uuid>,
     ) {
-        let advanced = self
-            .store
-            .advanced(organization, blocks, subtree, above)
-            .await;
-        let Ok((sequence, path)) = advanced else {
-            return;
-        };
-        let followers = self.hub.followers(organization, &path).await;
-        if followers.is_empty() {
-            return;
-        }
-        let asked = followers
-            .iter()
-            .map(|(_, identity, entry)| (*identity, *entry))
-            .collect();
-        let Ok(viewing) = self.store.viewing(organization, asked).await else {
-            return;
-        };
-        for ((client, _, entry), viewing) in followers.into_iter().zip(viewing) {
-            let place = Place {
-                organization,
-                block: entry,
-            };
-            match viewing {
-                true => self.hub.advance(client, place, sequence).await,
-                // It lost view of what it follows (a grant revoked, a move): told once, it reads
-                // the tree, is refused and lets go of what it showed of it.
-                false => self.hub.left(client, place, sequence).await,
-            }
-        }
+        advance(&self.store, &self.hub, organization, blocks, subtree, above).await;
     }
 
     /// Tells whoever may know of `blocks` now, and `before`, that their roots may have changed
@@ -3353,6 +3354,46 @@ impl Connection {
         self.advance(organization, vec![block], true, Vec::new())
             .await;
         self.roots(organization, vec![block], before).await;
+    }
+}
+
+/// Tells the followers of the trees `blocks` lie in (and with `subtree` of those below them,
+/// and of `above`) that they advanced, or that they left them once they may no longer view
+/// what they follow.
+pub(crate) async fn advance(
+    store: &ServerStore,
+    hub: &WatchHub,
+    organization: Uuid,
+    blocks: Vec<Uuid>,
+    subtree: bool,
+    above: Vec<Uuid>,
+) {
+    let advanced = store.advanced(organization, blocks, subtree, above).await;
+    let Ok((sequence, path)) = advanced else {
+        return;
+    };
+    let followers = hub.followers(organization, &path).await;
+    if followers.is_empty() {
+        return;
+    }
+    let asked = followers
+        .iter()
+        .map(|(_, identity, entry)| (*identity, *entry))
+        .collect();
+    let Ok(viewing) = store.viewing(organization, asked).await else {
+        return;
+    };
+    for ((client, _, entry), viewing) in followers.into_iter().zip(viewing) {
+        let place = Place {
+            organization,
+            block: entry,
+        };
+        match viewing {
+            true => hub.advance(client, place, sequence).await,
+            // It lost view of what it follows (a grant revoked, a move): told once, it reads
+            // the tree, is refused and lets go of what it showed of it.
+            false => hub.left(client, place, sequence).await,
+        }
     }
 }
 
