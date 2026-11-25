@@ -3872,10 +3872,11 @@ impl<S: ObjectStore> Peer<S> {
             .with_references(references.clone())
             .with_metadata(encoded)
             .with_sealed_through(sealed_through)
-            .with_log_through(self.refs.log_head(block).map(|kept| {
+            .with_log_through(self.signed_log_head(block).map(|signed| {
                 be_block_commit::LogThrough {
-                    size: kept.size,
-                    root: kept.root,
+                    size: signed.head.size,
+                    root: *signed.head.root.as_bytes(),
+                    signature: signed.signature,
                 }
             }));
         let id = self.commits.put(key, &commit)?;
@@ -3991,7 +3992,7 @@ impl<S: ObjectStore> Peer<S> {
             None => None,
         };
         let made = self.commits.get(id)?;
-        let log_through = made.log_through.map(|head| be_block_protocol::LogHead {
+        let log_through = made.log_through.as_ref().map(|head| be_block_protocol::LogHead {
             size: head.size,
             root: be_block_store::Hash::from_bytes(head.root),
         });

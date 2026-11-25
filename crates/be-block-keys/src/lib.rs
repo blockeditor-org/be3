@@ -40,6 +40,7 @@ const KEY_CHANGE_INFO: &[u8] = b"be3.key.change.v1";
 const ESCROW_CHAIN_INFO: &[u8] = b"be3.escrow.chain.v4";
 const IDENTITY_SIGNING_INFO: &[u8] = b"be3.identity.signing.v1";
 const AUTHORSHIP_INFO: &[u8] = b"be3.authorship.v1";
+const LOG_HEAD_INFO: &[u8] = b"be3.log.head.v1";
 const INVITE_ENTROPY: usize = 25;
 const INVITE_LEN: usize = INVITE_ENTROPY * 8 / 5;
 const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -286,6 +287,17 @@ impl RecoverySecret {
             .to_vec()
     }
 
+    /// Signs the head of `block`'s signed log (its size and root) a device of the account
+    /// verified, in a domain of its own, so another device that compares it with its own knows
+    /// the account vouched for it, not the server (guides/blocks/keys.md, "Forks").
+    pub fn sign_log_head(&self, block: [u8; 16], size: u64, root: &[u8; 32]) -> Vec<u8> {
+        use ed25519_dalek::Signer;
+        self.signing_key()
+            .sign(&log_head(block, size, root))
+            .to_bytes()
+            .to_vec()
+    }
+
     /// Signs an escrow key its organization's administrator makes (`EscrowKey::chained`), in a
     /// domain of its own.
     pub fn sign_escrow(&self, chained: &[u8]) -> Vec<u8> {
@@ -394,6 +406,18 @@ impl SigningPublic {
     pub fn verifies_authored(&self, block: [u8; 16], bytes: &[u8], signature: &[u8]) -> bool {
         verify_signature(&self.0, &authored(block, bytes), signature)
     }
+
+    /// Whether `signature` is this key's `RecoverySecret::sign_log_head` over the head of
+    /// `block`'s signed log of `size` and `root`.
+    pub fn verifies_log_head(
+        &self,
+        block: [u8; 16],
+        size: u64,
+        root: &[u8; 32],
+        signature: &[u8],
+    ) -> bool {
+        verify_signature(&self.0, &log_head(block, size, root), signature)
+    }
 }
 
 impl SigningPublic {
@@ -401,6 +425,10 @@ impl SigningPublic {
     pub fn verifies_escrow(&self, chained: &[u8], signature: &[u8]) -> bool {
         verify_signature(&self.0, &[ESCROW_CHAIN_INFO, chained].concat(), signature)
     }
+}
+
+fn log_head(block: [u8; 16], size: u64, root: &[u8; 32]) -> Vec<u8> {
+    [LOG_HEAD_INFO, &block, &size.to_be_bytes(), root].concat()
 }
 
 fn authored(block: [u8; 16], bytes: &[u8]) -> Vec<u8> {

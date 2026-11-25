@@ -569,27 +569,36 @@ pub struct KeptLogHead {
     pub frontier: Option<be_block_keys::merkle::Frontier>,
 }
 
-/// A fork of a block's signed log this device found (`Peer::compare_log_head`;
-/// guides/blocks/keys.md, "Forks"): the head it kept, a head another device kept that the server
-/// could not show lies on the same log, where this device heard of that head, and when, by the
-/// server's clock as this device estimates it. Kept across restarts, the first one found.
+/// A fork of a block's signed log this device found (guides/blocks/keys.md, "Forks"): the head
+/// it kept, a head the other side kept that the server could not show lies on the same log,
+/// where that head came from, and when, by the server's clock as this device estimates it.
+/// Kept across restarts, the first one found: one place answers whether a block's log forked,
+/// whether another device's head showed it (`Peer::compare_log_head`) or the server served
+/// this device a head that does not extend its own (`ClientError::LogForked`).
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct LogFork {
     pub block: Uuid,
     pub ours: KeptLogHead,
     pub theirs: KeptLogHead,
+    /// The root the server proved its log held at the size of `theirs`, when it could: the
+    /// evidence, since it differs from `theirs.root`.
+    pub prefix: Option<[u8; 32]>,
     pub from: HeadFrom,
     pub found: Option<i64>,
 }
 
-/// Where a device heard of a head of a block's signed log another device kept.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+/// Where the head a fork's other side kept came from.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum HeadFrom {
-    /// A participant of the block's live session, of `account`.
-    Session { account: Uuid },
-    /// A commit of the block, made by `author`, named it as the head it was made on
+    /// A device of `account` told it in the block's live session, signed with the account's
+    /// key (`SignedLogHead`).
+    Session { account: Uuid, signature: Vec<u8> },
+    /// A commit of the block made by `author` named it, signed with the author's key
     /// (`Commit::log_through`).
-    Commit { author: Uuid },
+    Commit { author: Uuid, signature: Vec<u8> },
+    /// The server served it to this device, though it does not extend the head this device
+    /// kept (`ClientError::LogForked`): the server's own word against itself.
+    Server,
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
@@ -1715,19 +1724,20 @@ impl Refs {
         self.state.lock().unwrap().log_forks.get(&block).cloned()
     }
 
-    /// Keeps `fork` unless a fork of its block is kept already: whether it was kept.
+    /// Keeps `fork` unless a fork of its block is kept already: whether it was kept. Written
+    /// before it is held, so one the database refused is not answered as kept.
     pub fn found_fork(&self, fork: LogFork) -> Result<bool, StoreError> {
+        // Held across the write, so two found at once write and keep the same one.
         let mut state = self.state.lock().unwrap();
         if state.log_forks.contains_key(&fork.block) {
             return Ok(false);
         }
-        state.log_forks.insert(fork.block, fork.clone());
-        drop(state);
         self.write(vec![row(
             Table::LogForks,
             fork.block.as_bytes().to_vec(),
             &fork,
         )])?;
+        state.log_forks.insert(fork.block, fork);
         Ok(true)
     }
 

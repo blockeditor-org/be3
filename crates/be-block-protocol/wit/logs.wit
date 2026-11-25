@@ -65,6 +65,11 @@ interface logs {
         entries: list<log-entry>,
         proof: list<hash>,
         consistency: list<hash>,
+        /// With `known`, the root of the log's first `known` entries, which
+        /// `consistency` proves `head` extends: what a device compares a head
+        /// another device kept of that size with (guides/blocks/keys.md,
+        /// "Forks").
+        known-root: option<hash>,
         /// How many entries of the log were ever redacted, each numbered so.
         redactions: u64,
         /// With `redactions-after`, the places of those redacted after it, in

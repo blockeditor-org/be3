@@ -417,11 +417,12 @@ pub fn page(
     let to = from + entries.len() as u64;
     let mut node = |level, index| node(database, &org, &id, level, index);
     let proof = merkle::range_proof(kept.size, from, to, &mut node)?;
-    let consistency = match known {
-        Some(known) if known <= kept.size => {
-            merkle::consistency_proof(known, kept.size, &mut node)?
-        }
-        _ => Vec::new(),
+    let (consistency, known_root) = match known {
+        Some(known) if known <= kept.size => (
+            merkle::consistency_proof(known, kept.size, &mut node)?,
+            Some(Hash::from_bytes(merkle::root(known, &mut node)?)),
+        ),
+        _ => (Vec::new(), None),
     };
     let redacted = match redactions_after {
         Some(after) => redacted_since(database, organization, block, after)?.1,
@@ -432,6 +433,7 @@ pub fn page(
         entries,
         proof: hashes(proof),
         consistency: hashes(consistency),
+        known_root,
         redactions: kept.redactions,
         redacted,
     })

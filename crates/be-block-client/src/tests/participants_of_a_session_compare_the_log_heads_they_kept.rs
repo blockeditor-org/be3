@@ -61,21 +61,20 @@ async fn participants_of_a_session_compare_the_log_heads_they_kept() {
         .expect("the laptop kept a head of the chat's log")
         .await
         .unwrap();
-    let (account, head) = loop {
+    let signed = loop {
         if let Event::Relayed { block, payload, .. } = on_tablet.recv().await.unwrap()
             && block == chat
         {
             match tablet.unseal(chat, &payload).unwrap() {
-                crate::Relayed::LogHead { account, head } => break (account, head),
+                crate::Relayed::LogHead(signed) => break signed,
                 other => panic!("the laptop's head was read as {other:?}"),
             }
         }
     };
-    assert_eq!((account, head), (laptop.account(), kept));
-    let from = HeadFrom::Session { account };
+    assert_eq!((signed.account, signed.head), (laptop.account(), kept));
     assert!(
         matches!(
-            tablet.compare_log_head(chat, head, from).await.unwrap(),
+            tablet.compare_log_head(chat, signed, HeadVia::Session).await.unwrap(),
             LogAgreement::Forked(fork) if fork.theirs.size == 2 && fork.ours.size == 3
         ),
         "the tablet took a head of another log as agreeing"

@@ -21,7 +21,7 @@ pub use contacts::Contact;
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
 pub use peer::hosted::{Admitted, Admitting, Joining};
-pub use peer::forks::{LogAgreement, Relayed};
+pub use peer::forks::{HeadVia, LogAgreement, Relayed, SignedLogHead};
 pub use peer::log::{Appended, ExportedEntry, LOG_SALT_BYTES, LogRead, LoggedEntry, Said};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
