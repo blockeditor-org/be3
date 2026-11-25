@@ -117,6 +117,10 @@ Landed on 2026-11-24:
 - `backlog-30-31`: the shared WIT's hash and uuid, and be3:ui's block-ref, are list<u8> as on the wire; a move into a block's own descendant is refused on the device; a secret shown once survives a stray press on its scrim.
 - `beui-vello-7`: paintings hold paths (Content::Path), the tessellator and lyon go, one merge rule for seamed fills in raster and renderer; plans/beui_on_vello.md is done and deleted (decisions/beui_draws_with_vello.md).
 - `server-protocol-26`: §26 of the server protocol plan, split; a replica's logged input that arrives while it loads is queued as a job.
+- `flakes-15`: an_editor_hears_the_author_go waits for the restarted stack to connect; five §15 flakes no longer reproduce.
+- `host-stack-shared`: be-host-stack tests start from no notices or account reads.
+- `host-adapter-4g7e3d`: program windows' statuses and closes reach their placer under the root; be-host answers close with windows open.
+- `gpu-webgpu`: surface-configuration takes view-formats as a list again; decisions/be3_gpu_matches_webgpu.md and decisions/be3_gpu_is_wasi_webgpu.md, and plans/be3_gpu_is_wasi_webgpu.md (wasi:webgpu 0.3.0-rc.2, pinned and fetched).
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
