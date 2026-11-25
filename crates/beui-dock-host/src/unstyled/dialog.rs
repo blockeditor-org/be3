@@ -16,6 +16,8 @@ use beui_dock::DockMode;
 use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
+/// Room for a dialog's bar above its body, before a window of its own is measured.
+const DIALOG_CHROME: f32 = 40.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DialogParts {
@@ -370,7 +372,18 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             untrack(|| moved.set(None));
         }
     });
+    // The window it shows in while it is a window of its own, which the host moves.
+    let hosted_window = StoredCell::new(None::<WindowHandle>);
     let grab = Callback::new(move |at: Pos2| {
+        if let Some(window) = hosted_window.get().filter(|window| window.is_window()) {
+            // Moved by its host, it stops following its anchor.
+            if window.begin_move() {
+                moved.set(Some(Pos2::ZERO));
+            }
+            grabbed.set(None);
+            dock.focus_dialog(tab);
+            return;
+        }
         let from = frame
             .try_get()
             .and_then(|frame| measure(frame).get_untracked())
@@ -456,11 +469,16 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         (None, None) => Some(WindowAnchor::Top),
     });
     let at = create_memo(move || moved.get().unwrap_or(Pos2::ZERO));
+    // Where a host opens windows it is a window of its own, sized to what it shows, opened at
+    // the size its body asks for until it is measured; elsewhere an overlay sized to its face.
+    let opened_at = create_memo(move || size.get() + Vec2::new(0.0, DIALOG_CHROME));
+    let fits = create_memo(move || Some(viewport.get().max(size.get())));
     let view = view! {
         <Window
             @node_ref=&overlay
-            size=Vec2::ZERO
-            own_window=false
+            size={opened_at}
+            fit={fits}
+            own_window={hosting}
             owner={owner}
             anchor={anchor}
             at={at}
@@ -476,11 +494,14 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 Dismiss::Escape | Dismiss::Back => close.call(()),
                 Dismiss::WithParent => {}
             }}
-        >|_: WindowHandle|
-            <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
-                {face()}
-            </Interactive>
-        </Window>
+        >|window: WindowHandle| {
+            hosted_window.set(Some(window));
+            view! {
+                <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
+                    {face()}
+                </Interactive>
+            }
+        }</Window>
     };
     // In the stacked and gathered modes the same body shows in a sheet. The window's face and
     // the sheet each portal the one body and bind `frame` to what holds it. Each builds its

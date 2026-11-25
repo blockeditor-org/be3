@@ -12,12 +12,11 @@ decisions/dialogs_are_presented_by_kind.md). What is left:
 
 ## Steps
 
-1. **Dialogs open as windows of their own where windows are hosted.** A `Window` of its own
-   points at its anchor (`WindowPlacement::Over`), blocks its owner across windows (a cover in
-   the owner's window) and closes while locked, but `DockDialog` and `Dialog` still pass
-   `own_window=false`, so on the desktop and in space they stay overlays. Opening them as
-   windows of their own needs a move by the host (`begin_move`) in place of the dragged `at`, the
-   focus trapped across windows, and the dialog's beak drawn inside its own window or dropped.
+1. **A `Dialog` opens as a window of its own where windows are hosted**, as a `DockDialog`
+   does. Tried, it broke be-host's own dialogs under its desktop host (share links, text
+   settings, leaving a workspace) and the desktop's alerts: a dialog's window opened at its
+   starting size, the scrim of its cover painted in the wrong place, and tests read its rects in
+   its own window's points. Those need fixing first.
 2. **A confirmation blocks its frame, not a sibling.** A centred dialog with no owner blocks its
    whole window, which in an app is its own frame, and a modal `DockDialog` blocks only its tab's
    panel. A host test shows a confirmation in one editor's frame leaving a sibling frame live.

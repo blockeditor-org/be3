@@ -333,7 +333,10 @@ alone even inside another dock's tab.
   parent's panel or dialog (`unstyled/dialog.rs`): beside its tab with a beak, or at the top
   centre of that panel when the tab shows no label (a bare pane). Dragged by its bar it stays
   where it is let go, kept a card's margin inside the window it shows in, until it closes.
-  `modal` is the window's `blocks`: it blocks only the parent's panel and traps the focus. In
+  `modal` is the window's `blocks`: it blocks only the parent's panel and traps the focus. Where
+  a host opens windows (the desktop, space) it is a window of its own over its tab's window,
+  sized to its face, with no beak; its bar moves it through the host (`begin_move`), and a
+  modal one still blocks its tab's panel and keeps the focus from it. In
   the stacked and gathered modes it is a sheet instead (the host's `dialog_sheet` face), and a
   sheet blocks the whole window whether or not the dialog is `modal`. Use it
   for content the dock must hold (a program's dialog, be-sdk-shell's `WindowDialog`); a form opened
@@ -435,6 +438,8 @@ opens again once unlocked, at a fresh place from its anchor; a dock's windows ar
 host. Its anchor's rect, in the points of the window it is built in, is moved into its owner's
 window's points through where the host shows both (`window_origin`). With no owner it blocks
 only its own window, never another window of its own.
+A `DockDialog` asks for one (`own_window`) only where a host opens windows, so in an app it
+stays an overlay; a `Dialog` is still an overlay everywhere.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,
 and then the caller moves it itself.
 

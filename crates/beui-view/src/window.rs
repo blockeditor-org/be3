@@ -258,7 +258,8 @@ pub fn Window(
     });
     let anchored = create_memo(move || placed.get().0);
     let placement_of = create_memo(move || placed.get().1);
-    let reach = create_memo(move || match placed.get().2 {
+    // A window of its own draws no beak: what it points at is in another window.
+    let reach = create_memo(move || match placed.get().2 && !hosted.get() {
         true => beak.get(),
         false => 0.0,
     });
