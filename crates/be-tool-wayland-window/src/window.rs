@@ -10,6 +10,9 @@ use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_ba
 /// The size it takes when the compositor lets it choose.
 const CHOSEN: (i32, i32) = (320, 240);
 
+/// The evdev code of M, which asks it to be minimized.
+const KEY_M: u32 = 50;
+
 /// Its app id, which names it in the desktop's windows bar.
 const APP_ID: &str = "be-tool-wayland-window";
 
@@ -22,6 +25,9 @@ const PRESSED_COLOR: [u8; 4] = [0x40, 0xb0, 0x40, 0xff];
 /// Its color once a key was pressed while it had the keyboard: a red.
 const TYPED_COLOR: [u8; 4] = [0x30, 0x40, 0xd0, 0xff];
 
+/// Its color once it lost the keyboard it typed with: a grey.
+const LEFT_COLOR: [u8; 4] = [0x80, 0x80, 0x80, 0xff];
+
 /// What reached it last, which it shows in its color and says in its app id, so a test sees the
 /// window hear its input under the root, which names windows by their app ids.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -30,6 +36,8 @@ enum Heard {
     Nothing,
     Pressed,
     Typed,
+    /// The keyboard left it after it was typed into.
+    Left,
 }
 
 impl Heard {
@@ -38,6 +46,7 @@ impl Heard {
             Self::Nothing => COLOR,
             Self::Pressed => PRESSED_COLOR,
             Self::Typed => TYPED_COLOR,
+            Self::Left => LEFT_COLOR,
         }
     }
 
@@ -46,6 +55,7 @@ impl Heard {
             Self::Nothing => APP_ID.to_owned(),
             Self::Pressed => format!("{APP_ID}.pressed"),
             Self::Typed => format!("{APP_ID}.typed"),
+            Self::Left => format!("{APP_ID}.left"),
         }
     }
 }
@@ -64,6 +74,8 @@ struct State {
     heard: Heard,
     /// What it heard since it last drew.
     changed: bool,
+    /// Whether M asked it to be minimized since it last asked.
+    minimize: bool,
     closed: bool,
 }
 
@@ -103,6 +115,9 @@ pub(super) fn run(title: &str) -> Result<(), String> {
             };
             state.size = Some((width, height));
             draw(&surface, &shm, &handle, (width, height), state.heard.color())?;
+        }
+        if std::mem::take(&mut state.minimize) {
+            toplevel.set_minimized();
         }
         // What it heard says itself in its app id, and in its color unless the configure it
         // took in with it drew that already.
@@ -278,13 +293,25 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for State {
         _: &QueueHandle<Self>,
     ) {
         // The keymap's file closes as the event drops: it types nothing, so it needs none.
-        if let wl_keyboard::Event::Key {
-            state: WEnum::Value(wl_keyboard::KeyState::Pressed),
-            ..
-        } = event
-        {
-            state.heard = Heard::Typed;
-            state.changed = true;
+        match event {
+            // M asks to be minimized, which hides it while it has the keyboard.
+            wl_keyboard::Event::Key {
+                key: KEY_M,
+                state: WEnum::Value(wl_keyboard::KeyState::Pressed),
+                ..
+            } => state.minimize = true,
+            wl_keyboard::Event::Key {
+                state: WEnum::Value(wl_keyboard::KeyState::Pressed),
+                ..
+            } => {
+                state.heard = Heard::Typed;
+                state.changed = true;
+            }
+            wl_keyboard::Event::Leave { .. } if state.heard == Heard::Typed => {
+                state.heard = Heard::Left;
+                state.changed = true;
+            }
+            _ => {}
         }
     }
 }

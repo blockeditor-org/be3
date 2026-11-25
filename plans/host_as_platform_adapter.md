@@ -2153,6 +2153,10 @@ Each step lands on its own.
              its layer's origin, upright and unscaled, which its popups follow: a window
              placed zoomed or turned hears its pointer right (the root's router delivers it in
              the layer's pixels) but opens its popups where it would be unzoomed and upright.
+           - Left: a drag a program starts (a Wayland data-device drag, a window's move) is
+             carried over windows by what the pointer is over (`Over`, from a view's catcher
+             under be-host), which `Catch` leaves empty: under the root it stays over the window
+             it began on.
            - Left: a window's popups (menus) show only within its place, clipped by its layer,
              where under be-host they hang outside the window's view; and the pointer's shape
              a program asks for is not shown under the root, which shows its own

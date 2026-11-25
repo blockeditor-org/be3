@@ -406,6 +406,14 @@ impl HitTest for WindowLayers {
     fn takes_focus(&self, target: LayerId) -> bool {
         self.layer(target).is_some_and(|layer| layer.input.focuses)
     }
+
+    /// The layer's surface's pixels a window point covers: a zoomed screen's or program
+    /// window's are fewer.
+    fn scale(&self, target: LayerId) -> f32 {
+        self.layer(target).map_or(1.0, |layer| {
+            1.0 / layer.transform.across().length().max(f32::EPSILON)
+        })
+    }
 }
 
 /// The layers of every window the root shows, the root's answer each frame.

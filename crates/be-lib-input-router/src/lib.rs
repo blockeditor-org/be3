@@ -16,7 +16,8 @@ use std::fmt::Debug;
 
 use be_lib_geometry::Pos2;
 use be_lib_ui_types::input::{
-    Input, Key, KeyChord, KeyPress, Modifiers, PenPhase, PointerButton, TouchId, TouchPhase,
+    Input, Key, KeyChord, KeyPress, Modifiers, PenPhase, PointerButton, ScrollDelta, TouchId,
+    TouchPhase,
     TouchpadGesture,
 };
 
@@ -55,6 +56,24 @@ pub trait HitTest {
     fn pans(&self, _at: Pos2) -> bool {
         false
     }
+
+    /// How many of `target`'s own units a point of the window is: its deltas (a wheel's or a
+    /// touchpad's pixels, a locked pointer's motion) are scaled by it, as its positions are
+    /// mapped into it (`local`), so a zoomed surface scrolls in its own pixels.
+    fn scale(&self, _target: Self::Target) -> f32 {
+        1.0
+    }
+}
+
+/// `input` with its deltas in units `scale` times the window's points (`HitTest::scale`): a
+/// wheel's or a touchpad's pixels and a locked pointer's motion. Positions are mapped apart.
+fn scaled_deltas(mut input: Input, scale: f32) -> Input {
+    match &mut input {
+        Input::PointerMotion(by) | Input::Scroll(ScrollDelta::Pixels(by)) => *by *= scale,
+        Input::Touchpad(gesture) => *gesture = gesture.scaled(scale),
+        _ => {}
+    }
+    input
 }
 
 /// What the router delivers.
@@ -487,6 +506,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
             Input::PointerMotion(_) | Input::PointerUnlocked => {
                 let unlocked = matches!(input, Input::PointerUnlocked);
                 if let Some(target) = self.locked {
+                    let input = scaled_deltas(input, test.scale(target));
                     out.push(Routed::Input { target, input });
                 }
                 if unlocked {
@@ -555,6 +575,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     },
                 };
                 if let Some(target) = target {
+                    let input = scaled_deltas(input, test.scale(target));
                     out.push(Routed::Input { target, input });
                 }
             }
@@ -572,7 +593,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 if let Some(target) = target {
                     out.push(Routed::Input {
                         target,
-                        input: Input::Touchpad(gesture),
+                        input: scaled_deltas(Input::Touchpad(gesture), test.scale(target)),
                     });
                 }
             }

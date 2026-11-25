@@ -408,6 +408,8 @@ impl Catch {
                 phase,
                 pos,
                 modifiers,
+                // A press counts once: a compositor counts clicks itself, from their times
+                // and places, as be-host-wayland's does.
                 clicks: u32::from(matches!(phase, PointerPhase::Down(_))),
                 force: None,
                 pen: None,
@@ -448,6 +450,23 @@ impl Catch {
             Input::Paste(pasted) => Forwarded::Input(Event::Paste(pasted)),
             Input::Ime(ime) => Forwarded::Input(Event::Ime(ime)),
             Input::PointerMotion(delta) => Forwarded::Input(Event::PointerMotion(delta)),
+            // A key the host took for itself while this had the keyboard: the catcher hears its
+            // press was taken, as beui tells one (`Replay::intercepted` goes the other way).
+            Input::InterceptedKey {
+                pressed: true,
+                repeat: false,
+                ..
+            } => Forwarded::KeyTaken,
+            // Where the pointer will be, on the move it follows, as beui's pointer event
+            // carries it.
+            Input::Predicted(at) => {
+                if let Some(Forwarded::Pointer { event, .. }) = events.last_mut()
+                    && event.phase == PointerPhase::Move
+                {
+                    event.predicted = Some(at);
+                }
+                return;
+            }
             Input::PointerMoved(pos) | Input::PointerRested(pos) => {
                 self.pointer = Some(pos);
                 let mut moved = pointer(PointerId::Mouse, PointerPhase::Move, pos);
@@ -526,9 +545,9 @@ impl Catch {
                 }
                 penned
             }
-            // What a program window has no use for: a predicted point, a back gesture, the
-            // keys and taps a host intercepted for itself, a paste in pieces, the pointer's
-            // lock ending.
+            // What a program window has no use for: a back gesture, an intercepted key's
+            // repeat or release and the taps a host intercepted for itself, a paste in pieces,
+            // the pointer's lock ending.
             _ => return,
         };
         events.push(event);
