@@ -7,7 +7,7 @@ use super::*;
 fn a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

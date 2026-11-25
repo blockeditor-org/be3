@@ -5,7 +5,11 @@ version.workspace = true
 license.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-block-commit = { path = "../be-block-commit" }
+be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 be-server = { path = "../be-server" }
+uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync"] }
 
 [lints]

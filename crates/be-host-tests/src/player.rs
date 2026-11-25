@@ -30,12 +30,12 @@ pub struct Player {
     runtime: tokio::runtime::Runtime,
 }
 
-impl Server {
-    /// Makes an account named `name` and signs a [`Player`] of it in.
-    pub fn player(&self, name: &str) -> Player {
-        let account = self.account(name);
-        let token = self.token(account.id);
-        let relay = self.relay();
+impl Player {
+    /// Makes an account named `name` on `server` and signs a player of it in.
+    pub fn sign_in(server: &Server, name: &str) -> Self {
+        let account = server.account(name);
+        let token = server.token(account.id);
+        let relay = server.relay();
         let url = be_block_client::socket_url(&format!("http://{}", relay.address()));
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn an_outsider_opens_a_share_link_as_a_guest() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let ada = server.account("Ada");
     let mut host = HostTest::device(&dev);

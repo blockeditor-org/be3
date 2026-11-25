@@ -14,7 +14,7 @@ fn pair_in_background(
     let (url, account) = (harness.url.clone(), harness.account);
     let token = runtime()
         .block_on(
-            be_server::ServerStore::open(harness.directory.join("server"))
+            be_server::ServerStore::open(harness.server.directory())
                 .unwrap()
                 .issue_session(account),
         )

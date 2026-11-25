@@ -17,8 +17,12 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -28,8 +32,12 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -39,8 +47,12 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -50,8 +62,12 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -61,8 +77,12 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -72,8 +92,12 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -83,8 +107,12 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-server:be-server",
                 "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

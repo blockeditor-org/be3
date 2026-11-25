@@ -4,7 +4,7 @@ use super::*;
 /// is taking long, and once the device is back it syncs with no error left over.
 #[test]
 fn an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut phone = HostTest::device(&dev);
     add_to_my_files(&mut phone, "Text");

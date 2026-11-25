@@ -9,7 +9,7 @@ use be_type_text::{TextBlock, TextContent};
 fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {
     let harness = Harness::start();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

@@ -4,7 +4,6 @@ use super::*;
 fn a_chat_message_still_sending_shows_as_sending_after_a_restart() {
     let mut harness = Harness::pushing();
     let room = ChatRoom::start(&harness, &[]);
-    let address = harness.address();
 
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
@@ -28,7 +27,7 @@ fn a_chat_message_still_sending_shows_as_sending_after_a_restart() {
     );
 
     // Back online, the outbox drains and the message is sent.
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and drained the outbox", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

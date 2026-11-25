@@ -28,7 +28,6 @@ fn an_unread_count_that_failed_offline_is_tried_again_on_reconnecting() {
         is_known(ChatContent::CONTENT_TYPE)
     });
     flush_and_send();
-    let address = harness.address();
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
 
@@ -68,7 +67,7 @@ fn an_unread_count_that_failed_offline_is_tried_again_on_reconnecting() {
     flush();
     let offline = loads();
 
-    harness.start_server(&address);
+    harness.start_server();
     wait_until("connected", |shared| shared.connected);
     wait_until("tried the chat's head again once connected", |shared| {
         shared.counting.made.0 > offline

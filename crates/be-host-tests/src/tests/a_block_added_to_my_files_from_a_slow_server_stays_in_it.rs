@@ -6,7 +6,7 @@ use super::*;
 /// again without it and the new block reads as deleted.
 #[test]
 fn a_block_added_to_my_files_from_a_slow_server_stays_in_it() {
-    let server = Server::start();
+    let server = server();
     server.slow(std::time::Duration::from_millis(100));
     let dev = server.account("Dev");
     let mut phone = HostTest::device(&dev);

@@ -13,7 +13,6 @@ fn a_branch_moved_elsewhere_while_offline_keeps_both_changes() {
     // device moves the branch first.
     let mut harness = Harness::start().on_manual_clock();
     harness.connect();
-    let address = harness.address();
     let versioned = start_versioning("hello\n");
     show_version(
         versioned.checkout,
@@ -60,7 +59,7 @@ fn a_branch_moved_elsewhere_while_offline_keeps_both_changes() {
             .is_some_and(|status| !status.busy && status.log.len() == 2)
     });
 
-    harness.start_server(&address);
+    harness.start_server();
     other.reconnect(&harness);
     let (held, head) = repository(&peer);
     // Any commit the other device holds stands in for its snapshot: the merge reads only the

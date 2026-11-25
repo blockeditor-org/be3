@@ -346,18 +346,57 @@ impl<C: LiveEdit> Drop for Editor<C> {
     }
 }
 
+/// The stack's harness (`crate::testing::Harness`) on a server of the test's own, with what
+/// this crate's tests add: a relay the stack may reach the server through, and the server.
 pub struct Harness {
-    directory: PathBuf,
-    server: Option<be_host_server::EmbeddedServer>,
-    url: String,
-    account: Uuid,
-    token: String,
-    organization: Uuid,
-    phrase: be_block_keys::RecoveryPhrase,
-    push: be_server::push::PushConfig,
-    relay: Option<be_block_fault_relay::Relay>,
-    clock: be_block_client::Clock,
-    _one_stack: std::sync::MutexGuard<'static, ()>,
+    // Dropped first: the stack stops before its network and its server go.
+    harness: crate::testing::Harness,
+    relay: Option<std::sync::Arc<be_block_fault_relay::Relay>>,
+    server: be_host_server::testing::Server,
+}
+
+impl std::ops::Deref for Harness {
+    type Target = crate::testing::Harness;
+
+    fn deref(&self) -> &Self::Target {
+        &self.harness
+    }
+}
+
+impl std::ops::DerefMut for Harness {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.harness
+    }
+}
+
+/// The test server, as the stack's harness asks it.
+struct Served(be_host_server::testing::Server);
+
+impl crate::testing::TestServer for Served {
+    fn url(&self) -> String {
+        self.0.url()
+    }
+
+    fn directory(&self) -> PathBuf {
+        self.0.directory().to_owned()
+    }
+
+    fn account(&self, name: &str) -> (Uuid, String) {
+        let account = self.0.account(name);
+        (account.id, account.email)
+    }
+
+    fn token(&self, account: Uuid) -> String {
+        self.0.token(account)
+    }
+
+    fn stop(&self) {
+        self.0.stop();
+    }
+
+    fn start_again(&self) {
+        self.0.start_again();
+    }
 }
 
 impl Harness {
@@ -374,25 +413,39 @@ impl Harness {
         })
     }
 
+    /// A harness whose stack reaches the server through a relay (`relay`).
     fn relayed() -> Self {
-        let mut harness = Self::start();
-        let server = harness
-            .address()
-            .parse()
-            .expect("the embedded server listens on an address");
-        harness.relay = Some(be_block_fault_relay::Relay::start(server));
-        harness
+        let Self {
+            harness, server, ..
+        } = Self::start();
+        let relay = server.relay();
+        Self {
+            harness: harness.reached_at(format!("http://{}", relay.address())),
+            relay: Some(relay),
+            server,
+        }
     }
 
     /// A clock the waits move on to the stack's next reconnect, which nobody else would.
-    fn on_driven_clock(mut self) -> Self {
-        self.clock = be_block_client::Clock::driven();
-        self
+    fn on_driven_clock(self) -> Self {
+        self.on_clock(be_block_client::Clock::driven())
     }
 
-    fn on_manual_clock(mut self) -> Self {
-        self.clock = be_block_client::Clock::manual();
-        self
+    fn on_manual_clock(self) -> Self {
+        self.on_clock(be_block_client::Clock::manual())
+    }
+
+    fn on_clock(self, clock: be_block_client::Clock) -> Self {
+        let Self {
+            harness,
+            relay,
+            server,
+        } = self;
+        Self {
+            harness: harness.on_clock(clock),
+            relay,
+            server,
+        }
     }
 
     fn relay(&self) -> &be_block_fault_relay::Relay {
@@ -440,125 +493,15 @@ impl Harness {
     }
 
     fn serving(push: be_server::push::PushConfig) -> Self {
-        static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let one_stack = ONE_STACK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        be_lib_build_id::install("test");
-        // The previous test's stack has stopped (`stop_and_wait`, unless that test failed), so
-        // nothing counts into these from here on but this test's.
-        crate::version::forget_counts();
-        let directory = std::env::temp_dir().join(format!("be-host-be-test-{}", Uuid::new_v4()));
-        let runtime = runtime();
-        let (profile, token) = runtime.block_on(async {
-            be_server::ServerStore::open(directory.join("server"))
-                .unwrap()
-                .register("counter@example.com", "Counter")
-                .await
-                .unwrap()
-        });
-        let session = crate::accounts::Session {
-            account: profile.account,
-            email: profile.email,
-            display_name: profile.display_name,
-            token,
-        };
-        let server = be_host_server::start_embedded_server_at(
-            "127.0.0.1:0",
-            directory.join("server"),
-            push.clone(),
-        )
-        .expect("the embedded block server starts");
-        let url = server.url.clone();
-        let managed = url.clone();
-        let phrase = be_block_keys::RecoveryPhrase::generate();
-        let me = crate::accounts::Me {
-            account: session.account,
-            identity: phrase.secret().to_bytes(),
-            display_name: session.display_name.clone(),
-            email: String::new(),
-        };
-        let (account, token, organization) = runtime.block_on(async {
-            let organization = crate::accounts::create_organization(
-                managed,
-                session.token.clone(),
-                me,
-                "Counters".to_owned(),
-            )
-            .await
-            .expect("the organization is created");
-            (session.account, session.token, organization.id)
+        let server = be_host_server::testing::Server::with(be_host_server::testing::Options {
+            push,
+            ..be_host_server::testing::Options::default()
         });
         Self {
-            directory,
-            server: Some(server),
-            url,
-            account,
-            token,
-            organization,
-            phrase,
-            push,
+            harness: crate::testing::Harness::start(Box::new(Served(server.clone()))),
             relay: None,
-            clock: be_block_client::Clock::real(),
-            _one_stack: one_stack,
+            server,
         }
-    }
-
-    fn address(&self) -> String {
-        self.url
-            .split_once("://")
-            .map(|(_, host)| host.to_owned())
-            .expect("the embedded server url has a scheme")
-    }
-
-    fn stop_server(&mut self) {
-        self.server = None;
-    }
-
-    fn start_server(&mut self, address: &str) {
-        self.server = Some(
-            be_host_server::start_embedded_server_at(
-                address,
-                self.directory.join("server"),
-                self.push.clone(),
-            )
-            .expect("the embedded block server starts again"),
-        );
-    }
-
-    pub fn connect(&self) {
-        start(self.config(self.directory.join("objects")));
-    }
-
-    fn config(&self, data_dir: PathBuf) -> Config {
-        Config {
-            local: false,
-            server_url: match &self.relay {
-                Some(relay) => format!("http://{}", relay.address()),
-                None => self.url.clone(),
-            },
-            token: self.token.clone(),
-            account: self.account,
-            organization: self.organization,
-            identity: self.identity(),
-            display_name: "Counter".to_owned(),
-            email: "counter@example.com".to_owned(),
-            data_dir,
-            clock: self.clock.clone(),
-        }
-    }
-
-    fn identity(&self) -> [u8; 32] {
-        self.phrase.secret().to_bytes()
-    }
-
-    fn outside_config(&self) -> be_block_client::PeerConfig {
-        be_block_client::PeerConfig::new(
-            crate::accounts::socket_url(&self.url),
-            be_block_keys::RecoverySecret::from_bytes(self.identity()),
-            be_block_client::Credentials::Token(self.token.clone()),
-        )
-        .organization(Some(self.organization))
     }
 
     async fn outside_peer(
@@ -575,25 +518,6 @@ async fn outside_peer(
         .await
         .expect("a second peer joins the organization");
     std::sync::Arc::new(peer)
-}
-
-impl Drop for Harness {
-    fn drop(&mut self) {
-        be_block_commit::pin_now(None);
-        // A clock a test held would freeze the module timers of every test after it.
-        *crate::HELD_CLOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-        if std::thread::panicking() {
-            abandon();
-        } else {
-            stop_and_wait();
-        }
-        // The server stops before its files go, or it fails opening them as it winds down.
-        self.relay = None;
-        self.server = None;
-        let _ = std::fs::remove_dir_all(&self.directory);
-    }
 }
 
 struct Outside {
@@ -1659,7 +1583,7 @@ impl Member {
         refs: be_block_client::RefsDb,
     ) -> Self {
         let someone =
-            Someone::register(&harness.directory.join("server"), &harness.url, email, name);
+            Someone::register(harness.server.directory(), &harness.url, email, name);
         let code = made_link(None);
         let runtime = runtime();
         let peer = runtime.block_on(someone.peer_keeping(&harness.url, personal, refs));

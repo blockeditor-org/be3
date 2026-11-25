@@ -25,7 +25,6 @@ fn repositories(shared: &Shared) -> Vec<Uuid> {
 fn a_fork_pulls_and_pushes_offline() {
     let mut harness = Harness::start();
     harness.connect();
-    let address = harness.address();
     let versioned = start_versioning("hello\n");
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
@@ -100,7 +99,7 @@ fn a_fork_pulls_and_pushes_offline() {
     });
     let pushed = with_shared(|shared| head_of(shared, fork)).flatten();
 
-    harness.start_server(&address);
+    harness.start_server();
     wait_until("sent what was made offline", |shared| {
         shared.connected && shared.waiting == 0
     });

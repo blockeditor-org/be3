@@ -11,7 +11,7 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
     // Ada is a contact, whose card says "Ada"; the server now says otherwise, which an editor
     // is not shown.
     let ada = Member::join(&harness, personal, "ada@example.com", "Ada");
-    let server = be_server::ServerStore::open(&harness.directory.join("server")).unwrap();
+    let server = be_server::ServerStore::open(harness.server.directory()).unwrap();
     runtime()
         .block_on(server.update_display_name(ada.account(), "Not Ada"))
         .expect("the server renames her");
@@ -26,7 +26,7 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
 
     // Teo is Ada's contact, not this account's: she shares the block with him.
     let teo = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "teo@example.com",
         "Teo Lind",

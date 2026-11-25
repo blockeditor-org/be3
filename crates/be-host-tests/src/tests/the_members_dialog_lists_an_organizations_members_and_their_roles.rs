@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_members_dialog_lists_an_organizations_members_and_their_roles() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");

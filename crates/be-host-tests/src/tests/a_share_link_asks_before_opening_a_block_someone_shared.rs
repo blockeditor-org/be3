@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_share_link_asks_before_opening_a_block_someone_shared() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let ada = server.account("Ada");
     let mut host = HostTest::device(&dev);

@@ -1312,12 +1312,21 @@ starts one beside the web build.
   so a test shows a client refuses what the server alone could say (a block's
   parent, its current key, a contact's name), including what editing the
   database cannot reach, as summaries come from the in-memory graph.
-- be-host-stack's `Harness` (`src/tests.rs`) starts the embedded server and the
-  host's peer against it; crates above it use `be-host-testing`'s `Harness`,
-  which serves the first-party types in process
-  (`be_host_stack::testing::serve_in_process`), and stops and starts its server
-  on the same address (`stop_server`, `start_server`) for a test of what the
-  host does while it is out of reach, and makes a block from another device
+- One fixture serves every test of the block stack and of what runs on it. Its
+  server, `be_host_server::testing::Server`, is be-server on data of its own
+  with accounts (`account`, `token`), a fault relay per device (`relay`,
+  `offline`, `slow`), push options, and a listener that stops and starts again
+  at its address (`stop`, `start_again`); be-host's host tests sign each host in
+  as a device of one of its accounts. The harness,
+  `be_host_stack::testing::Harness`, signs one account's stack in against it in
+  the organization "Counters", asking the server only what `TestServer` says,
+  so nothing a host ships links be-server
+  (decisions/no_crate_splits_inside_dependency_chains.md). be-host-stack's own
+  tests wrap it with the relay they reach the server through; crates above it
+  use `be-host-testing`'s `Harness`, which serves the first-party types in
+  process (`be_host_stack::testing::serve_in_process`) on a driven clock. Both
+  stop and start the server (`stop_server`, `start_server`) for a test of what
+  the host does while it is out of reach, and make a block from another device
   under a folder the host never lists (`block_out_of_sight`) for a test of a
   create the server refuses.
 - `crates/be-block-fault-relay` sits between a client and a server and can

@@ -8,7 +8,7 @@ use be_type_text::{TextBlock, TextContent};
 fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
     let harness = Harness::start();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

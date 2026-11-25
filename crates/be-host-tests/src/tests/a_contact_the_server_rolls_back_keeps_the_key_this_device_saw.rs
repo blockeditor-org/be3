@@ -5,7 +5,7 @@ use super::*;
 /// in the contacts (guides/blocks/keys.md, "Contacts").
 #[test]
 fn a_contact_the_server_rolls_back_keeps_the_key_this_device_saw() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let ada = server.account("Ada");
     let mut host = HostTest::device(&dev);
@@ -41,7 +41,7 @@ fn a_contact_the_server_rolls_back_keeps_the_key_this_device_saw() {
     host.pause(500);
     host.gone("Dialog \"Contacts\"");
 
-    server.spoil_contact(&ada, &dev);
+    server.spoil_contacts(&ada);
     host.offline();
     host.online();
     host.synced();

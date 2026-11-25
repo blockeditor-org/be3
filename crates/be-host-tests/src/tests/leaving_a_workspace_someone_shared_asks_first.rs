@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn leaving_a_workspace_someone_shared_asks_first() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let ada = server.account("Ada");
     let mut host = HostTest::device(&dev);

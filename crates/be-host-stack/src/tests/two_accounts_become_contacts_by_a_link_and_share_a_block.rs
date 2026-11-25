@@ -4,7 +4,7 @@ use super::*;
 fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     let harness = Harness::start();
     let guest = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "guest@example.com",
         "Guest",

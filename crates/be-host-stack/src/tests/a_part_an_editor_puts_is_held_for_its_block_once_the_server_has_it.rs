@@ -31,7 +31,6 @@ fn put(
 fn a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it() {
     let mut harness = Harness::start();
     harness.connect();
-    let address = harness.address();
     let segment: Vec<u8> = (0..64 * 1024u32)
         .map(|index| (index.wrapping_mul(2_654_435_761) >> 13) as u8)
         .collect();
@@ -70,5 +69,5 @@ fn a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it() {
         "a block the server does not have yet refuses at once: {refused}"
     );
     drop(editor);
-    harness.start_server(&address);
+    harness.start_server();
 }
