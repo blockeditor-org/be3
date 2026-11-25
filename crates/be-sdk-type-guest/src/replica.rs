@@ -2708,8 +2708,6 @@ where
     }
 
     /// What a finished merge goes on to do.
-
-    /// What a finished merge goes on to do.
     fn merged(&mut self, then: MergeThen<C>, result: MergeResult<C>) {
         match then {
             MergeThen::FastForward { to, through } => match result {
@@ -4970,8 +4968,6 @@ where
 
     /// Tells the editors following `ToEditor::Lacking` what changed: edits the order numbered,
     /// or the server holds, since it last told them.
-
-    /// Tells the editors following `ToEditor::Lacking` what changed.
     fn tell_lacking(&mut self) {
         for (editor, message) in self.lacking.messages() {
             self.tell_editor(editor, &message);
