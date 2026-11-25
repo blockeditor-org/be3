@@ -68,7 +68,8 @@ pub(crate) fn KeepChanges(
             let countdown_id = format!("{id}.countdown");
             let body_id = id.clone();
             view! {
-                <DialogCard width=WIDTH>
+                <Frame padding=beui::styled::dialog::MARGIN>
+<Card padding=Space::None max_width=Some(WIDTH)>
                     <DialogBody
                         kind=DialogKind::Alert
                         title
@@ -81,7 +82,8 @@ pub(crate) fn KeepChanges(
                     >
                         <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>{message}</Text>
                     </DialogBody>
-                </DialogCard>
+                </Card>
+</Frame>
             }
         }</Modal>
     }

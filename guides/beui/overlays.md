@@ -297,7 +297,7 @@ finger opened). Which anchor to pass:
   frame (be-host's Members) pass none and stay centred.
 - Alerts and program-level modals pass no anchor.
 
-Code that places its own body uses the parts (`DialogCard`, `DialogBody`, a
+Code that places its own body uses the parts (a `Card`, `DialogBody`, a
 `Modal`), as be-host's keep-changes prompt and an app opened as a dialog do.
 
 A root guest's dialog is a layer of its own over the rest. be-root's is a
