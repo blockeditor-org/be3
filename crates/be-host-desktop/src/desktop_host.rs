@@ -131,6 +131,18 @@ pub trait DesktopHost {
         None
     }
 
+    /// What `window` shows, for a host that composites program windows itself rather than in
+    /// their views (be-host's `RootShell`): none until it drew, and none on a platform whose
+    /// windows are not textures.
+    fn picture(_window: HostWindowId) -> Option<WindowPicture> {
+        None
+    }
+
+    /// The program windows a host that composites them itself shows this frame, each where it
+    /// is in the host window's points: each configured to its size, as a view laid out there
+    /// configures it, and every other one it showed before let go of, as a view's going does.
+    fn place_windows(_placed: &[(HostWindowId, Rect)]) {}
+
     fn close(_window: HostWindowId) {}
 
     fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
@@ -155,6 +167,52 @@ pub trait DesktopHost {
         view! {
             <Frame />
         }
+    }
+}
+
+/// What a program window shows (`DesktopHost::picture`): its surfaces, bottom first, each a
+/// texture on the host's device where it is in the window's logical pixels. The same picture
+/// while the window draws nothing new (`same`).
+#[derive(Clone)]
+pub struct WindowPicture {
+    pub surfaces: Vec<PictureSurface>,
+    source: std::rc::Rc<dyn PictureSource>,
+}
+
+/// One of a window's surfaces in its picture: the part of `texture` that `uv` (from 0 to 1
+/// across and down) names, drawn over `rect`, in the window's logical pixels.
+#[derive(Clone)]
+pub struct PictureSurface {
+    pub texture: wgpu::Texture,
+    pub opaque: bool,
+    pub rect: Rect,
+    pub uv: Rect,
+    pub alpha: f32,
+}
+
+/// Where a picture came from, which hears that it was drawn.
+trait PictureSource {
+    fn painted(&self);
+    fn pixels(&self, texture: &wgpu::Texture) -> Option<beui::native::painting::Pixels>;
+    fn key(&self) -> usize;
+}
+
+impl WindowPicture {
+    /// Whether it is `other`: what the window drew last both times.
+    pub fn same(&self, other: &Self) -> bool {
+        self.source.key() == other.source.key()
+    }
+
+    /// It was drawn, which the program hears with its next frame callbacks, as when its view
+    /// draws it.
+    pub fn painted(&self) {
+        self.source.painted();
+    }
+
+    /// The pixels of one of its surfaces' textures, for a painting: none for one the device
+    /// cannot read back.
+    pub fn pixels(&self, texture: &wgpu::Texture) -> Option<beui::native::painting::Pixels> {
+        self.source.pixels(texture)
     }
 }
 

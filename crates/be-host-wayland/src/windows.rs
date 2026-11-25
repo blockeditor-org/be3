@@ -5,6 +5,7 @@ use std::rc::Rc;
 use beui::reactive::*;
 use beui::{CursorIcon, CursorImage, ForwardedInput, Image, NodeId, Rect, Vec2, native::Drawing};
 
+use crate::render::WindowPicture;
 use crate::state::{Grab, WindowId};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +54,15 @@ pub struct Popups {
     pub drawing: Drawing,
 }
 
+/// What a window's surfaces drew last (`Compositor::drawing`): its view's drawing, its popups',
+/// and the whole of it for a host that composites it itself (`Windows::picture`).
+#[derive(Default)]
+pub(crate) struct Drawn {
+    pub(crate) drawing: Option<Drawing>,
+    pub(crate) popups: Option<Popups>,
+    pub(crate) picture: Option<Rc<WindowPicture>>,
+}
+
 #[derive(Clone)]
 pub struct WindowSignals {
     pub drawing: Signal<Option<Drawing>>,
@@ -63,6 +73,7 @@ pub struct WindowSignals {
     pub(crate) typing: Signal<Option<u32>>,
     pub(crate) answered: Rc<Cell<u64>>,
     pub(crate) painted: Rc<Cell<bool>>,
+    pub(crate) picture: Rc<RefCell<Option<Rc<WindowPicture>>>>,
     pub(crate) owner: Rc<Scope>,
 }
 
@@ -320,6 +331,7 @@ impl Windows {
             typing: create_signal(None),
             answered: Rc::new(Cell::new(0)),
             painted: Rc::new(Cell::new(false)),
+            picture: Rc::default(),
             owner: owner.clone(),
         });
         inner.windows.borrow_mut().insert(id, signals);
@@ -369,10 +381,41 @@ impl Windows {
         })
     }
 
-    pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>, popups: Option<Popups>) {
+    pub(crate) fn draw(&self, id: WindowId, drawn: Drawn) {
         if let Some(signals) = self.signals(id) {
-            signals.drawing.set(drawing);
-            signals.popups.set(popups);
+            signals.drawing.set(drawn.drawing);
+            signals.popups.set(drawn.popups);
+            *signals.picture.borrow_mut() = drawn.picture;
+        }
+    }
+
+    /// What `id` shows, its own surfaces and then its popups', where each is in the window: what
+    /// a host that composites the window itself draws, as its `WindowView` draws it. A new
+    /// picture each time it draws anew.
+    pub fn picture(&self, id: WindowId) -> Option<Rc<WindowPicture>> {
+        self.signals(id)?.picture.borrow().clone()
+    }
+
+    /// Shows `id` at `rect`, in the host window's points, as a host that composites it itself
+    /// places it, with no `WindowView`: configured to its size as a view laid out there would
+    /// be. `None` lets go of it, as a view's going does.
+    pub fn place(&self, id: WindowId, rect: Option<Rect>) {
+        let shown = self
+            .0
+            .value()
+            .views
+            .borrow()
+            .get(&id)
+            .is_some_and(|view| view.mounts > 0);
+        match (rect, shown) {
+            (Some(rect), shown) => {
+                if !shown {
+                    self.mounted(id);
+                }
+                self.placed(id, rect);
+            }
+            (None, true) => self.unplaced(id, [None, None]),
+            (None, false) => {}
         }
     }
 

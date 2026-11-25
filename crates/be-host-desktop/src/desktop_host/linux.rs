@@ -43,6 +43,8 @@ thread_local! {
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
     static KNOWN: RefCell<HashMap<String, Known>> = RefCell::new(HashMap::new());
     static ICONS: RefCell<NamedIcons> = RefCell::new(NamedIcons::default());
+    /// The windows a host that composites them itself showed last (`place_windows`).
+    static PLACED: RefCell<Vec<HostWindowId>> = const { RefCell::new(Vec::new()) };
 }
 
 fn tag(
@@ -76,6 +78,23 @@ fn launched(tag: Option<u64>) -> Launched {
 }
 
 pub struct Linux;
+
+/// A window's picture as the compositor drew it (`Windows::picture`).
+struct Drawn(std::rc::Rc<be_host_wayland::WindowPicture>);
+
+impl super::PictureSource for Drawn {
+    fn painted(&self) {
+        self.0.painted();
+    }
+
+    fn pixels(&self, texture: &wgpu::Texture) -> Option<beui::native::painting::Pixels> {
+        self.0.pixels(texture)
+    }
+
+    fn key(&self) -> usize {
+        std::rc::Rc::as_ptr(&self.0).addr()
+    }
+}
 
 #[component]
 impl DesktopHost for Linux {
@@ -278,6 +297,40 @@ impl DesktopHost for Linux {
             .filter(|info| !opening.contains(&info.id))
             .map(|info| known_window(windows, info, &opening).listed())
             .collect()
+    }
+
+    fn picture(window: HostWindowId) -> Option<super::WindowPicture> {
+        let picture = windows()?.picture(WindowId(window.0))?;
+        let surfaces = picture
+            .surfaces()
+            .map(|surface| super::PictureSurface {
+                texture: surface.texture.clone(),
+                opaque: surface.opaque,
+                rect: surface.rect,
+                uv: surface.uv,
+                alpha: surface.alpha,
+            })
+            .collect();
+        Some(super::WindowPicture {
+            surfaces,
+            source: std::rc::Rc::new(Drawn(picture)),
+        })
+    }
+
+    fn place_windows(placed: &[(HostWindowId, Rect)]) {
+        let Some(windows) = windows() else {
+            return;
+        };
+        let before = PLACED.replace(placed.iter().map(|(window, _)| *window).collect());
+        for gone in before
+            .into_iter()
+            .filter(|window| !placed.iter().any(|(placed, _)| placed == window))
+        {
+            windows.place(WindowId(gone.0), None);
+        }
+        for (window, rect) in placed {
+            windows.place(WindowId(window.0), Some(*rect));
+        }
     }
 
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
