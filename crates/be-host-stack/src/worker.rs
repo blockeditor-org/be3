@@ -2996,6 +2996,22 @@ type DoneReply = Reply<Result<(), String>>;
 /// What a change to who can read a block answers offline: it needs the server.
 pub const OFFLINE_SHARING: &str =
     "You're offline. Sharing changes need a connection; try again once you're back online.";
+/// What accepting ownership of a block answers when the account already holds as many blocks
+/// as one account may make in the organization, which a block it takes counts against.
+pub const TOO_MANY_TO_ACCEPT: &str = "You already have as many blocks as one account can hold \
+     here, so you can't take this one yet. The offer stands until you make room.";
+
+/// What accepting ownership of a block answers when `error` refused it, in the host's words.
+pub(crate) fn acceptance_failed(error: &ClientError) -> String {
+    match error {
+        error if error.is_unreachable() => OFFLINE_SHARING.to_owned(),
+        ClientError::Refused(be_block_protocol::ErrorCode::OverQuota, _) => {
+            TOO_MANY_TO_ACCEPT.to_owned()
+        }
+        error => error.to_string(),
+    }
+}
+
 /// What leaving a block answers offline.
 pub const OFFLINE_LEAVING: &str =
     "You're offline. Leaving needs a connection; try again once you're back online.";
@@ -3980,12 +3996,11 @@ async fn serve_command(
             crate::changes::wake();
         }
         Command::AcceptOwnership { block, reply } => {
-            let failed = peer.accept_ownership(block).await.err().map(|error| {
-                match error.is_unreachable() {
-                    true => OFFLINE_SHARING.to_owned(),
-                    false => error.to_string(),
-                }
-            });
+            let failed = peer
+                .accept_ownership(block)
+                .await
+                .err()
+                .map(|error| acceptance_failed(&error));
             tend(peer, shared).await;
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();
