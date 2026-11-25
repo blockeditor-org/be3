@@ -32,6 +32,7 @@ fn a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh() {
 
     let mut old = before;
     let mut new = fresh;
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     let pending: [&dyn Fn(&Document<Caption>) -> Edit; 4] = [
         &|_| text_edit(undelete.clone()),
         &|old| {
