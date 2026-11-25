@@ -96,6 +96,7 @@ Landed on 2026-11-24:
 - `android-link`: be-host links for Android again (Oboe on the NDK's shared libc++ beside V8's; decisions/one_cpp_runtime_beside_v8_on_android.md); the broad check links be-host's Android library and leaves out wasm test modules
 - `demo-top-bar`: beui-demo's top bar fits a phone-wide window (actions as icons, theme under More); the styled ActionBar takes `labels` as a Prop.
 - `beui-vello-1b`: wgpu 30, the renderer benchmark in the suite, and overlays that keep wasm-bindgen 0.2.130 binding the browser's WASI modules.
+- `authorship-1`: steps 1–3 of the authorship plan: signed log heads compared across devices through sessions, relays and commits; forks and misbehaviour kept as verdicts.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
