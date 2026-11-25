@@ -278,7 +278,10 @@ impl HostTest {
         device: Option<Device>,
     ) -> Self {
         let started = Instant::now();
-        let desktop = start.arguments.iter().any(|argument| argument == "--desktop");
+        let desktop = start
+            .arguments
+            .iter()
+            .any(|argument| argument == "--desktop");
         let host = Driven::start(start)
             .unwrap_or_else(|error| panic!("be-host did not start: {error}{}", log_named(&error)));
         let mut test = Self {
