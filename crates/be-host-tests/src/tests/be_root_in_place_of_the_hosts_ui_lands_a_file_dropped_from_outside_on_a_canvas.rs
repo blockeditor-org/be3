@@ -47,7 +47,10 @@ fn be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canva
     // under be-host's UI and, started again, under the root alike: the root takes files dragged
     // over its host's window (`input.drag-files`) to the view under the pointer that takes a
     // drag, as it carries a block, and the canvas, shown in a tab's body, hears them there.
-    let file = std::env::temp_dir().join(format!("be3-dropped-{}.png", std::process::id()));
+    // Named the same every run, as the card the canvas makes of it shows its name.
+    let folder = std::env::temp_dir().join(format!("be3-dropped-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).expect("the test makes a folder for the image it drops");
+    let file = folder.join("Red.png");
     std::fs::write(&file, PNG).expect("the test writes the image it drops");
     let path = file.to_string_lossy().into_owned();
     let mut host = HostTest::start(Options {
@@ -64,5 +67,5 @@ fn be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canva
     drop_on_canvas(&mut host, &path);
     host.snapshot("be_root_lands_a_file_dropped_from_outside_on_a_canvas");
     host.close();
-    let _ = std::fs::remove_file(&file);
+    let _ = std::fs::remove_dir_all(&folder);
 }
