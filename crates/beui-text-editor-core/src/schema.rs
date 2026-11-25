@@ -201,7 +201,7 @@ pub trait SchemaHtml {
 
     /// A fragment of this schema read from `text/html`, which may be anything:
     /// what the schema has no mark for is kept as text.
-    fn from_html(&self, html: &str) -> TextFragment;
+    fn read_html(&self, html: &str) -> TextFragment;
 }
 
 pub struct Plain;
