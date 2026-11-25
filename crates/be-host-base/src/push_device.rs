@@ -22,7 +22,6 @@ pub type Handler = Rc<dyn Fn(bool, Box<dyn FnOnce(Result<(), String>)>)>;
 thread_local! {
     static HANDLER: RefCell<Option<Handler>> = const { RefCell::new(None) };
     static STATE: Cell<PushDevice> = const { Cell::new(PushDevice::Unsupported) };
-    static REVISION: Cell<u64> = const { Cell::new(0) };
 }
 
 pub fn install(handler: Handler) {
@@ -33,14 +32,20 @@ pub fn state() -> PushDevice {
     STATE.with(Cell::get)
 }
 
-/// How often the state changed, so a host publishes it only when it did.
-pub fn revision() -> u64 {
-    REVISION.with(Cell::get)
+/// Publishes the state to the apps that watch it (`PushDeviceWatch`): once as the host starts,
+/// and again whenever `set_state` changes it.
+pub fn publish() {
+    crate::watches::publish::<be_sdk_api::PushDeviceWatch>(&match state() {
+        PushDevice::Unsupported => None,
+        PushDevice::Off => Some(be_sdk_api::PushDevice::Off),
+        PushDevice::On => Some(be_sdk_api::PushDevice::On),
+        PushDevice::Denied => Some(be_sdk_api::PushDevice::Denied),
+    });
 }
 
 pub fn set_state(state: PushDevice) {
     if STATE.with(|held| held.replace(state)) != state {
-        REVISION.with(|revision| revision.set(revision.get() + 1));
+        publish();
         crate::host::wake();
     }
 }
@@ -52,3 +57,6 @@ pub fn set(on: bool, reply: Box<dyn FnOnce(Result<(), String>)>) {
         None => reply(Err("This device cannot show notifications.".to_owned())),
     }
 }
+
+#[cfg(test)]
+mod tests;
