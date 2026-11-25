@@ -127,6 +127,7 @@ impl<K, V, KS: Encode<K>, VS: Encode<V>> Encode<BTreeMap<K, V>> for Map<KS, VS> 
 
 impl<K: Ord, V, KS: Decode<K>, VS: Decode<V>> Decode<BTreeMap<K, V>> for Map<KS, VS> {
     fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<K, V>, D::Error> {
+        #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
         struct Entries<K, V, KS, VS>(PhantomData<fn() -> (K, V, KS, VS)>);
 
         impl<'de, K: Ord, V, KS: Decode<K>, VS: Decode<V>> Visitor<'de> for Entries<K, V, KS, VS> {
