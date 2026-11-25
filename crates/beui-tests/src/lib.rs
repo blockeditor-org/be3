@@ -933,7 +933,7 @@ fn OffsetFixture() -> NodeId {
                         <ForEach value={keys}>|row: u32|
                             <Frame
                                 height=30.0
-                                fill={if row % 2 == 0 { BLUE } else { GREEN }}
+                                fill={if row.is_multiple_of(2) { BLUE } else { GREEN }}
                                 @test_id={format!("offset.row{row}")}
                             />
                         </ForEach>
@@ -1080,7 +1080,7 @@ fn OverlayFixture() -> NodeId {
         <List spacing=60.0>
             {trigger}
             <Overlay
-                anchor={&anchor}
+                anchor={anchor}
                 placement={Placement::BELOW_START}
                 open={open}
                 on_dismiss={move |reason: Dismiss| {
@@ -1147,7 +1147,7 @@ fn CoveringFixture() -> NodeId {
         view! {
             <List spacing=4.0>
                 <Overlay
-                    anchor={&anchor}
+                    anchor={anchor}
                     placement={placement}
                     open={open}
                     on_dismiss={move |_: Dismiss| open.set(false)}
