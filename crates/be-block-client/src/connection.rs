@@ -569,8 +569,8 @@ impl Connection {
                 };
                 joining.out.remove(&join);
                 // A newer join of the block answers for it, or answered already.
-                let newest = join > joining.applied
-                    && joining.out.last().is_none_or(|newer| *newer < join);
+                let newest =
+                    join > joining.applied && joining.out.last().is_none_or(|newer| *newer < join);
                 if !newest {
                     if joining.out.is_empty() && joining.held.is_empty() {
                         registry.joining.remove(&block);
