@@ -279,13 +279,11 @@ impl Resource {
         Closed { resource: self }
     }
 
-    pub fn close(mut self) -> impl Future<Output = Result<(), OpError>> + Send {
-        async move {
-            if self.ended.is_none() {
-                self.caller.request_cancel(self.op);
-            }
-            self.closed().await
+    pub async fn close(mut self) -> Result<(), OpError> {
+        if self.ended.is_none() {
+            self.caller.request_cancel(self.op);
         }
+        self.closed().await
     }
 }
 
