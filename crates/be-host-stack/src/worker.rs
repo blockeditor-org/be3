@@ -5452,29 +5452,33 @@ impl Tasks {
                     Either::Left((next, _)) => next,
                     Either::Right(_) => return,
                 };
-                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                match next {
-                    Ok(Ok(next)) => {
-                        if held.storage.as_ref() != Some(&next) {
-                            held.storage = Some(next);
-                            crate::changes::post(crate::Changes {
-                                storage: true,
-                                ..crate::Changes::default()
-                            });
-                            held.progressed += 1;
+                // The lock goes before anything is awaited again.
+                let failed = {
+                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                    match next {
+                        Ok(Ok(next)) => {
+                            if held.storage.as_ref() != Some(&next) {
+                                held.storage = Some(next);
+                                crate::changes::post(crate::Changes {
+                                    storage: true,
+                                    ..crate::Changes::default()
+                                });
+                                held.progressed += 1;
+                            }
+                            false
+                        }
+                        Ok(Err(_)) | Err(_) => {
+                            if peer.is_attached() {
+                                held.error = Some(STORAGE_FAILED.to_owned());
+                            }
+                            true
                         }
                     }
-                    Ok(Err(_)) | Err(_) => {
-                        if peer.is_attached() {
-                            held.error = Some(STORAGE_FAILED.to_owned());
-                        }
-                        drop(held);
-                        crate::changes::wake();
-                        return;
-                    }
-                }
-                drop(held);
+                };
                 crate::changes::wake();
+                if failed {
+                    return;
+                }
                 // Read again once the server tells it changed (`Peer::follow_topics` follows it).
                 loop {
                     let heard = match select(std::pin::pin!(told.recv()), stopped.as_mut()).await {

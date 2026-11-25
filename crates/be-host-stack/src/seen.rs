@@ -1030,7 +1030,8 @@ fn stop_comparing(seen: &mut Seen) {
 /// What the worker hands over: its whole `Seen` first, then what changed since the one before.
 #[derive(serde::Deserialize, serde::Serialize)]
 pub(crate) enum Update {
-    Whole(Seen),
+    // Boxed: a whole `Seen` is far larger than what changed, and is handed over seldom.
+    Whole(Box<Seen>),
     Changed(SeenDelta),
 }
 
@@ -1465,8 +1466,8 @@ pub(crate) fn publish(shared: &mut Shared, handover: &Handover) -> bool {
     // its place.
     let crowded = handover.crowded();
     let update = match &shared.handed {
-        None => Some(Update::Whole(shared.seen.clone())),
-        Some(_) if crowded => Some(Update::Whole(shared.seen.clone())),
+        None => Some(Update::Whole(Box::new(shared.seen.clone()))),
+        Some(_) if crowded => Some(Update::Whole(Box::new(shared.seen.clone()))),
         Some(last) => crate::diff::Diff::diff(last, &shared.seen).map(Update::Changed),
     };
     if update.is_none() && told.is_empty() {

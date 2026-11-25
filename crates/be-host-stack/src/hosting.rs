@@ -348,6 +348,7 @@ pub fn heard(
     }
 }
 
+#[allow(clippy::single_match)] // the arm left out says, in a comment, why nothing is done
 fn hosted(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
@@ -428,35 +429,42 @@ fn answer(
     let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
     tasks.clone().spawn(async move {
         let admitted = peer.admit(block, &payload).await;
-        let mut held = lock(&shared);
-        let missed = held.hosting.snapshots != snapshot;
-        // Gone with the lease, or answering another handshake by now: nothing to do.
-        let Some(channels) = held.hosting.channels.get_mut(&block) else {
-            return;
+        // What follows, decided under the lock, which goes before anything is awaited.
+        let after = {
+            let mut held = lock(&shared);
+            let missed = held.hosting.snapshots != snapshot;
+            // Gone with the lease, or answering another handshake by now: nothing to do.
+            let Some(channels) = held.hosting.channels.get_mut(&block) else {
+                return;
+            };
+            let next = match channels.get_mut(&from) {
+                Some(Member::Answering {
+                    admit: current,
+                    next,
+                }) if *current == admit => next.take(),
+                _ => return,
+            };
+            match (next, admitted) {
+                (Some(next), _) => Ok(next),
+                (None, Ok((admitting, reply))) => {
+                    channels.insert(from, Member::Admitting(Box::new(admitting)));
+                    Err((reply, missed))
+                }
+                (None, Err(_)) => {
+                    channels.remove(&from);
+                    return;
+                }
+            }
         };
-        let next = match channels.get_mut(&from) {
-            Some(Member::Answering {
-                admit: current,
-                next,
-            }) if *current == admit => next.take(),
-            _ => return,
-        };
-        if let Some(next) = next {
-            drop(held);
-            return answer(&peer, &shared, &tasks, block, from, next);
-        }
-        match admitted {
-            Ok((admitting, answer)) => {
-                channels.insert(from, Member::Admitting(Box::new(admitting)));
-                drop(held);
+        match after {
+            // A later handshake from the member came in meanwhile: it is answered in place of this.
+            Ok(next) => answer(&peer, &shared, &tasks, block, from, next),
+            Err((reply, missed)) => {
                 // A check that ran while this one did skipped the member: it is checked again.
                 if missed {
                     recheck(&peer, &shared, &tasks);
                 }
-                let _ = peer.connection().send_host(block, Some(from), answer).await;
-            }
-            Err(_) => {
-                channels.remove(&from);
+                let _ = peer.connection().send_host(block, Some(from), reply).await;
             }
         }
     });
