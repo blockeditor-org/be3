@@ -6,32 +6,25 @@ decisions/be3_gpu_is_wasi_webgpu.md: an app's gpu becomes wasi:webgpu 0.3.0-rc.2
 and fetched, never copied into the repository), beside a small `be3:gpu/host` interface for surfaces and shared images, replacing
 `be3:gpu/device` (`crates/be-wasm-gpu-abi/wit/device.wit`). Each step lands on its own.
 
-## 1. The local generator handles what wasi:webgpu uses
+## 1. The local generator handles what wasi:webgpu uses (landed)
 
-`crates/be-wasm-ops-bindgen/src/local.rs` refuses async funcs, futures and streams, and
-encodes (postcard) any parameter that is not flat values. wasi:webgpu needs:
+be-wasm-ops-bindgen's local interfaces take async funcs, futures and streams (`u32` tickets
+settled through the generated `[poll]` import, `settle(wait)` on the guest), options of lists
+and strings flat, fallible returns, calls past 16 arguments and another package's resources
+(guides/type_modules.md, "Local interfaces"; crates/be-wasm-ops-local-test). Left for later
+steps:
 
-- **Async funcs, `future` and `stream` results.** Lower an async func to a call that answers
-  a ticket; a `future<T>` result or a `stream<T>` to a handle. The generator makes one poll
-  import per local interface, `poll(wait: bool)`, which answers every ticket settled and
-  every stream item since the last poll, encoded once per poll rather than per call. Waiting
-  blocks where the host can block (natively) until everything asked for has settled; in a
-  browser it is the same as not waiting. The host wakes the app when anything settles. On the
-  guest these are Rust futures and streams that the poll wakes. This replaces
-  `be3:gpu/device`'s hand-written `poll` and `settled` record.
-- **Options of lists and strings flat**, as the canonical ABI flattens them (a tag, a pointer,
-  a length), so `set-bind-group`'s `option<list<u32>>` and `option<string>` labels cost no
-  encoding.
-- **`result` returns** answering a scalar on success and an error encoded only when there is
-  one (`set-bind-group`, `unmap`, `write-buffer-with-copy`).
-- **A `use` of another package's resources** (`be3:gpu/host` uses wasi:webgpu's
-  `gpu-canvas-context` and `gpu-texture`), with one handle table for both.
-- **Records holding owned resources** (`gpu-canvas-configuration-owned` holds a
-  `gpu-device`), **variants of error records** (`create-pipeline-error` and the like), and
-  resources built by calls (`record-gpu-pipeline-constant-value`,
-  `record-option-gpu-size64`, `gpu-supported-limits`), whichever local.rs lacks.
-
-Test each in be-wasm-ops-bindgen with a small interface, run natively and on the web.
+- **The guest half on a real host.** be-wasm-ops-local-test drives the host glue natively and
+  the guest's `Settling` directly; a wasm guest calling a ticket func, a fallible func and an
+  option-of-list func and polling, run by be-wasm-host on V8, needs an interface the host binds
+  with tickets, which only wasi:webgpu is: it is a test of step 2. The web leg comes with step
+  3a, when the shim's tests run apps on wasi:webgpu.
+- **One poll per app.** Each ticketed interface has its own `[poll]`; an app's executor would
+  rather make one call per wake for all of them. wasi:webgpu is the only ticketed interface,
+  so this waits until there is a second, and the shared handle table step 2 gives them.
+- **Cancelling.** A dropped `Ticket` or `Items` stops waiting on the guest, but the host keeps
+  its `Promise` or `Sender` until it settles; listing dropped tickets in the next poll would let
+  it let them go.
 
 ## 2. The host implements wasi:webgpu
 

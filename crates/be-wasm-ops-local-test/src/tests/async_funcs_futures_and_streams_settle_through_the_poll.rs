@@ -26,11 +26,11 @@ fn async_funcs_futures_and_streams_settle_through_the_poll() {
     let tickets = [ready_ticket, grow_ticket, lost_ticket, errors_ticket];
     assert_eq!(tickets, [1, 2, 3, 4], "each call answers a ticket of its own");
 
-    let mut ready_value = settling.ticket::<(), be_wasm_ops::wire::Plain>(ready_ticket);
-    let mut grown = settling.ticket::<u32, be_wasm_ops::wire::Plain>(grow_ticket);
-    let mut lost = settling.ticket::<String, be_wasm_ops::wire::Plain>(lost_ticket);
+    let mut ready_value = settling.ticket::<(), be_wasm_ops::wire::Plain>("ready", ready_ticket);
+    let mut grown = settling.ticket::<u32, be_wasm_ops::wire::Plain>("grow", grow_ticket);
+    let mut lost = settling.ticket::<String, be_wasm_ops::wire::Plain>("lost", lost_ticket);
     let mut errors =
-        settling.items::<shapes::shapes::Failed, be_wasm_ops::wire::Plain>(errors_ticket);
+        settling.items::<shapes::shapes::Failed, be_wasm_ops::wire::Plain>("errors", errors_ticket);
     settle(&mut caller, &settling);
     assert_eq!(ready(&mut grown), None, "nothing has settled yet");
     assert!(settling.waiting());
