@@ -15,11 +15,8 @@ fn markdown_code_blocks_are_highlighted_by_their_language() {
 
     let rust = at(b"fn", 0);
     let rust_expected = decorations(Language::Rust, b"fn main() {}\n");
-    for offset in 0..12 {
-        assert_eq!(
-            highlight.style_at(rust + offset).color,
-            rust_expected[offset].color
-        );
+    for (offset, expected) in rust_expected.iter().enumerate().take(12) {
+        assert_eq!(highlight.style_at(rust + offset).color, expected.color);
         assert_eq!(
             highlight.style_at(rust + offset).family,
             SynHlFontFamily::Monospace
