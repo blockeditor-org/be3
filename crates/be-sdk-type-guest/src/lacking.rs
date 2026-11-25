@@ -1,8 +1,8 @@
 //! What the server lacks of the edits made on this device, for editors that show what is still
-//! sending (`ToEditor::Lacking`). The replica adds each edit as it makes it and drops it once the server holds it: a submission the server
-//! numbered, or a commit published to it. Entries outlive
-//! the replica: a replica reopened, or opened again after its editors closed, carries on with what
-//! the last one lacked.
+//! sending (`ToEditor::Lacking`). The replica adds each edit as it makes it and drops it once
+//! the server holds it: a submission the server numbered, or a commit published to it. Entries
+//! outlive the replica: a replica reopened, or opened again after its editors closed, carries on
+//! with what the last one lacked.
 
 use std::collections::{BTreeMap, BTreeSet};
 

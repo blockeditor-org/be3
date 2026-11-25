@@ -674,7 +674,7 @@ appended again, and `several`, the text for several sent together with
   the server takes the entry, the host keeps it durably, the text sealed under
   the block's key, in the refs database
   (`be-block-client/src/refs/announcements.rs`), whether a replica is open then
-  or not. An entry the server refuses tells nobody. Forgetting a block, or
+  or not. An entry the server refuses tells nobody: its announcement never reaches the refs. Forgetting a block, or
   losing access to it, forgets its announcements.
 - `Peer::send_announcements` sends what is held, after an append the server
   took and at the end of each outbox drain; it sends nothing while one drains,

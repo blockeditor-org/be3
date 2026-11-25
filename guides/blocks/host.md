@@ -864,7 +864,7 @@ last saved, as readers outside its session see it, not its unsaved state. A type
 log carries it too, opened with each entry's signature (`Peer::export_log`;
 guides/type_modules.md, "Signed logs"), which verifies against the original
 block wherever the file is imported; an import keeps them as the new block's
-read-only history (guides/type_modules.md, "Imports").
+read-only history (guides/blocks/client.md, "Imports").
 
 `import-blocks(parent)` takes any file: non-`.block` files go to
 `be_host_stack::import_file`, which picks a type the way `be sync` does
