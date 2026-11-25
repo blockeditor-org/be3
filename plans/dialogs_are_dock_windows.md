@@ -24,9 +24,7 @@ stays an anchored view, so the app protocol does not change
    and `blocks`, so `DockDialog` stays an overlay there (`own_window=false`). Place it beside its
    anchor through `WindowPlacement::Over`, and block its owner across windows, before a dialog
    may be one.
-2. **Phones show windows as sheets.** In the stacked and gathered modes the dock shows a window
-   as a sheet (a `ModalSheet`, one `Scroll`), full height for a large form.
-3. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
+2. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
    - Small forms (1): an anchored window with a beak.
    - Confirmations (2): a window centred on its frame that blocks it.
    - Large forms and embedded editors (3): a window attached to its frame, blocking it.
@@ -37,11 +35,11 @@ stays an anchored view, so the app protocol does not change
    decisions/app_dialogs_are_drawn_by_the_app_with_dialog_body.md holds for an app's.
    decisions/beui_modal_asks_before_it_slides_away.md holds for a blocking window: dismissal is
    reported at once and the window goes only when its owner closes it.
-4. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
+3. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
    4) are not windows: the lock screen is a security boundary and must never move, dock or be
    covered. They keep the host's lock layer and a plain full-window overlay; that is `Modal`'s
    only remaining use, and it shrinks to it.
-5. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
+4. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
    for windows; guides/beui/overlays.md and guides/beui/docking.md describe one way.
 
 ## The test
