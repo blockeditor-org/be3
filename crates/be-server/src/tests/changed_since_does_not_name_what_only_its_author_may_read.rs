@@ -15,7 +15,7 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: root,
-                        after: after,
+                        after,
                         limit: 100,
                     },
                     false,
