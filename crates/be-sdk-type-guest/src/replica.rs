@@ -332,6 +332,7 @@ impl<C> Job<C> {
                         ..
                     } | Input::Attach { .. }
                         | Input::Resent { .. }
+                        | Input::Logged(_)
                         | Input::Detach { .. }
                         | Input::Content { .. }
                         | Input::Lease { .. }
@@ -935,6 +936,11 @@ where
                 }
             }
             Input::LogRead { token, result } => self.answer_log_read(token, result),
+            // While the replica loads, or jobs wait, what is logged waits behind them: the
+            // editors attached meanwhile are attached by a job, and would not hear it.
+            Input::Logged(items) if !self.loaded || !self.jobs.is_empty() => {
+                self.jobs.push_back(Job::Input(Input::Logged(items)));
+            }
             Input::Logged(items) => self.logged(items),
             Input::Refused(entries) => {
                 let editors: Vec<EditorId> = self.editors.keys().copied().collect();
@@ -2217,6 +2223,7 @@ where
                 self.lacking.unfollow(editor);
             }
             Input::Head(HeadEvent::Moved { head }) => self.moved(head),
+            Input::Logged(items) => self.logged(items),
             Input::Head(_)
             | Input::Read { .. }
             | Input::PartRead { .. }
@@ -2224,7 +2231,6 @@ where
             | Input::Appended { .. }
             | Input::LogRead { .. }
             | Input::Refused(_)
-            | Input::Logged(_)
             | Input::Resumed { .. }
             | Input::Submitted { .. }
             | Input::Sequenced(_)
