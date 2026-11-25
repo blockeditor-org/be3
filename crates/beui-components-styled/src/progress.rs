@@ -38,7 +38,7 @@ pub fn Progress(
             let share = move |span: fn(Spans) -> f32| {
                 create_memo(move || span(spans.get()) + SLIVER)
             };
-            let (width, fill, track) = (width.clone(), fill.clone(), track.clone());
+            let (width, fill, track) = (width, fill, track);
             view! {
                 <Frame width height=HEIGHT fill=track radius=Radius::Full>
                     <List direction=Direction::Horizontal spacing=Space::None>
