@@ -202,6 +202,7 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
 thread_local! {
     static BODIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static CLOSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     static DOCK_TABS: std::cell::RefCell<Vec<(Option<Uuid>, beui::reactive::Memo<Vec<beui::reactive::MenuNode>>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
     static LAYOUT: std::cell::Cell<Option<beui::dock::DockingLayout<u64>>> =
