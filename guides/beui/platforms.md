@@ -263,6 +263,16 @@ anchored view), with surfaces
 drawings show in place, and the window is drawn from its layer list (guides/apps/runtime.md,
 The layer list); `Renderer::scissors` is then where that pass drew.
 
+A lost GPU: whoever opens a device takes its one lost callback with `Lost::watch`, and hands the
+`Lost` to `Resources::new` and to layers through `GpuSetup::lost`; install no second callback,
+and ignore uncaptured errors once it is set (a lost device's calls all fail). While it is set a
+renderer skips Vello, whose buffer uploads panic on a lost device. Then a window, Android and
+headless reopen the device (`Renderer::recover`) and set every layer up again on it; the DRM
+session ends; the web canvas and apps stop drawing (an app's lost device stays lost). wgpu
+reports a destroyed device only at its next poll, so a frame can still meet buffers with no
+mapped range: overlays in `third-party/rust/fixups.bzl` make wgpu's `create_buffer_init` and
+vello_gpu's staging writes skip rather than panic.
+
 ## Per platform
 
 **Desktop (winit).** Retitles the window, shows custom cursor images, reads

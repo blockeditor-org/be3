@@ -220,8 +220,9 @@ impl State {
         self.touch();
     }
 
-    fn set_blur(&self, radius: f32) {
-        self.blur.set(radius);
+    /// The blur's standard deviation σ, in points (`Filter::blur`).
+    fn set_blur(&self, sigma: f32) {
+        self.blur.set(sigma);
         self.touch();
     }
 

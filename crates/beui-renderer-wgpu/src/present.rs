@@ -170,12 +170,7 @@ async fn open(
         None => adapter.request_device(&descriptor).await?,
     };
     let lost = crate::Lost::watch(&device);
-    let flag = lost.clone();
-    device.on_uncaptured_error(Arc::new(move |error| {
-        if !flag.is_lost() {
-            panic!("wgpu error: {error}");
-        }
-    }));
+    lost.panic_on_errors(&device);
     Ok(Opened {
         adapter,
         device,
