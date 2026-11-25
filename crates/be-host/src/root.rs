@@ -61,13 +61,14 @@ use std::{
 use std::collections::HashMap;
 
 use be_host_base::notices;
-use be_host_desktop::desktop_host::{DesktopHost, Host};
+use be_host_desktop::desktop_host::{DesktopHost, Host, PictureSurface, WindowPicture};
 use be_host_runtime::{EditorBlock, Forwarded, HostChildStatus, InstanceRole};
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
-    ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
+    ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, HostWindowId,
+    InteractionMode,
     ParentView, ResizeMode, ViewId, app::EditorEvent, shell_types::ShellMessage,
 };
 use be_sdk_app_host::pacing::FrameClock;
@@ -75,7 +76,7 @@ use be_wasm_root_api::{EditorApp, OpenedEditor, ShownPreview};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
 use be_wasm_root_host::EditorOpening;
 use be_wasm_root_host::Root;
-use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
+use beui::native::painting::{Painting, Paints, Pixels, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
 use beui::reactive::*;
@@ -130,7 +131,7 @@ struct RootShell {
     /// Why the root stopped, once it did, for `run` to exit with.
     stopped: Rc<RefCell<Option<String>>>,
     /// What the last frame showed, so an unchanged frame keeps its drawing.
-    drawn: Vec<(Layer, u64)>,
+    drawn: Vec<(Layer, Shown)>,
     /// What the root's last frame asked of the window beside its input method's area, which
     /// the window is asked again every frame.
     requests: Requests,
@@ -423,6 +424,7 @@ impl RootShell {
         };
         // The host has one window, which the list names as none.
         let mut layers = Vec::new();
+        let mut placed = Vec::new();
         for layer in list
             .windows
             .into_iter()
@@ -432,30 +434,43 @@ impl RootShell {
         {
             let shown = match layer.surface {
                 Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
-                    root.surface(instance, surface).cloned()
+                    root.surface(instance, surface)
+                        .map(|shown| Shown::Texture(shown.generation, shown.texture.clone()))
                 }
-                Surface::Root(surface) => root.own_surface(surface).cloned(),
-                // The host owns no surfaces of its own here.
+                Surface::Root(surface) => root
+                    .own_surface(surface)
+                    .map(|shown| Shown::Texture(shown.generation, shown.texture.clone())),
+                // A program window the root placed, which the desktop host configures to its
+                // layer's size (its pixels are the window's logical pixels) and draws once it
+                // drew something (`DesktopHost::picture`).
+                Surface::Host(window) if self.core.desktop => {
+                    let window = HostWindowId(window);
+                    let origin = layer.transform.apply(beui::pos2(0.0, 0.0));
+                    let size = beui::vec2(layer.size.0 as f32, layer.size.1 as f32);
+                    placed.push((window, beui::Rect::from_min_size(origin, size)));
+                    Host::picture(window).map(Shown::Window)
+                }
                 Surface::Host(_) => None,
             };
             if let Some(shown) = shown {
-                layers.push((layer, shown.generation, shown.texture));
+                layers.push((layer, shown));
             }
         }
-        let drawn: Vec<(Layer, u64)> = layers
-            .iter()
-            .map(|(layer, generation, _)| (layer.clone(), *generation))
-            .collect();
-        if drawn == self.drawn {
+        if self.core.desktop {
+            Host::place_windows(&placed);
+        }
+        let unchanged = layers.len() == self.drawn.len()
+            && layers
+                .iter()
+                .zip(&self.drawn)
+                .all(|((layer, shown), (was, drawn))| layer == was && shown.same(drawn));
+        if unchanged {
             return;
         }
-        self.drawn = drawn;
+        self.drawn = layers.clone();
         let drawing = (!layers.is_empty()).then(|| {
             beui::native::painted_drawing(ShownLayers {
-                layers: layers
-                    .into_iter()
-                    .map(|(layer, _, texture)| (layer, texture))
-                    .collect(),
+                layers,
                 quads: Quads::default(),
                 paintings: Rc::clone(&self.paintings),
             })
@@ -1722,10 +1737,67 @@ fn nanos(time: Duration) -> u64 {
     u64::try_from(time.as_nanos()).unwrap_or(u64::MAX)
 }
 
-/// The surfaces of the root's frame the window shows, bottom first, each with the texture it
-/// names.
+/// What a layer of the root's frame shows: a texture the root or an app drew, with its
+/// generation, or a program window's picture.
+#[derive(Clone)]
+enum Shown {
+    Texture(u64, wgpu::Texture),
+    Window(WindowPicture),
+}
+
+impl Shown {
+    /// Whether it shows what `other` showed: the same generation of a texture, or the same
+    /// picture of a window.
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Texture(generation, _), Self::Texture(was, _)) => generation == was,
+            (Self::Window(picture), Self::Window(was)) => picture.same(was),
+            _ => false,
+        }
+    }
+}
+
+/// The layer showing `surface`, one of a program window's surfaces, where the window's layer
+/// shows the window: its texture's pixels mapped onto its rect in the window's logical pixels,
+/// which are the window's layer's pixels, and clipped to what the window's layer shows. None
+/// for a surface that shows nothing.
+fn surface_layer(window: &Layer, surface: &PictureSurface) -> Option<Layer> {
+    let size = surface.texture.size();
+    let (width, height) = (size.width as f32, size.height as f32);
+    let source = beui::Rect::from_min_max(
+        beui::pos2(surface.uv.min.x * width, surface.uv.min.y * height),
+        beui::pos2(surface.uv.max.x * width, surface.uv.max.y * height),
+    );
+    if source.width() <= 0.0 || source.height() <= 0.0 {
+        return None;
+    }
+    let (across, down) = (
+        surface.rect.width() / source.width(),
+        surface.rect.height() / source.height(),
+    );
+    let into_window = be_lib_layers::Affine {
+        xx: across,
+        xy: 0.0,
+        yx: 0.0,
+        yy: down,
+        x: surface.rect.min.x - source.min.x * across,
+        y: surface.rect.min.y - source.min.y * down,
+    };
+    let transform = into_window.then(&window.transform);
+    let shows = transform.inverse()?.bounds(window.bounds());
+    Some(Layer {
+        size: (size.width, size.height),
+        transform,
+        clip: source.intersect(shows),
+        corner_radius: 0.0,
+        opacity: window.opacity * surface.alpha.clamp(0.0, 1.0),
+        ..window.clone()
+    })
+}
+
+/// The surfaces of the root's frame the window shows, bottom first, each with what it shows.
 struct ShownLayers {
-    layers: Vec<(Layer, wgpu::Texture)>,
+    layers: Vec<(Layer, Shown)>,
     quads: Quads,
     /// What the root's own surfaces painted when drive last asked, by their ids.
     paintings: Rc<RefCell<BTreeMap<u64, Painting>>>,
@@ -1740,15 +1812,39 @@ impl Paints for ShownLayers {
         let paintings = self.paintings.borrow();
         let mut primitives = Vec::new();
         let mut textures = BTreeMap::new();
-        for (layer, _) in &self.layers {
-            let key = match layer.surface {
-                Surface::Root(surface) => u64::from(surface),
-                Surface::Screen { .. } | Surface::Anchored { .. } => layer.id.0,
-                Surface::Host(_) => continue,
+        // Each layer with what it painted: the root's and its apps' surfaces as they painted
+        // when drive asked, and each of a program window's surfaces as its texture holds it.
+        let mut painted: Vec<(Layer, std::borrow::Cow<'_, Painting>)> = Vec::new();
+        for (layer, shown) in &self.layers {
+            let key = match (layer.surface, shown) {
+                (_, Shown::Window(picture)) => {
+                    for (index, surface) in picture.surfaces.iter().enumerate() {
+                        let (Some(placed), Some(pixels)) = (
+                            surface_layer(layer, surface),
+                            picture.pixels(&surface.texture),
+                        ) else {
+                            continue;
+                        };
+                        let key = std::hash::BuildHasher::hash_one(
+                            &std::hash::BuildHasherDefault::<std::hash::DefaultHasher>::default(),
+                            (layer.id.0, index),
+                        );
+                        painted.push((
+                            placed,
+                            std::borrow::Cow::Owned(texture_painting(key, pixels)),
+                        ));
+                    }
+                    continue;
+                }
+                (Surface::Root(surface), _) => u64::from(surface),
+                (Surface::Screen { .. } | Surface::Anchored { .. }, _) => layer.id.0,
+                (Surface::Host(_), _) => continue,
             };
-            let Some(painting) = paintings.get(&key) else {
-                continue;
-            };
+            if let Some(painting) = paintings.get(&key) {
+                painted.push((layer.clone(), std::borrow::Cow::Borrowed(painting)));
+            }
+        }
+        for (layer, painting) in &painted {
             // The painting's own pixels, which are its surface's: a screen asked to fit its
             // content paints the room it used, at the top left of its surface.
             let (width, height) = (painting.frame.size[0] as f32, painting.frame.size[1] as f32);
@@ -1782,6 +1878,46 @@ impl Paints for ShownLayers {
     }
 }
 
+/// A painting of `pixels` filling its frame, one pixel a pixel, as the texture `key` names.
+fn texture_painting(key: u64, pixels: Pixels) -> Painting {
+    use beui::native::painting::{Content, Fade, Primitive, Triangle, Vertex};
+    let [width, height] = pixels.size.map(|side| side as f32);
+    let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
+        pos: [x, y],
+        uv: [u, v],
+        color: [255; 4],
+    };
+    let (a, b, c, d) = (
+        corner(0.0, 0.0, 0.0, 0.0),
+        corner(width, 0.0, 1.0, 0.0),
+        corner(width, height, 1.0, 1.0),
+        corner(0.0, height, 0.0, 1.0),
+    );
+    Painting {
+        frame: beui::native::painting::Frame {
+            size: pixels.size,
+            pixels_per_point: 1.0,
+            background: [0; 4],
+            primitives: vec![Primitive {
+                clip: [0.0, 0.0, width, height],
+                fade: Fade::NONE,
+                rounds: Vec::new(),
+                content: Content::Mesh(vec![
+                    Triangle {
+                        texture: key,
+                        corners: [a, b, c],
+                    },
+                    Triangle {
+                        texture: key,
+                        corners: [a, c, d],
+                    },
+                ]),
+            }],
+        },
+        textures: BTreeMap::from([(key, pixels)]),
+    }
+}
+
 impl Draw for ShownLayers {
     fn prepare(
         &self,
@@ -1791,19 +1927,35 @@ impl Draw for ShownLayers {
         at: DrawAt,
     ) {
         let pipelines = Pipelines::of(device, &at);
-        let bound: Vec<_> = self
-            .layers
-            .iter()
-            .map(|(layer, texture)| {
-                let quad = Quad {
-                    clip: at.clip,
-                    // An app presents sRGB-encoded values, as it does to the host's own UI.
-                    srgb_encoded: true,
-                    ..compose::quad(layer, at.pixels_per_point, [0.0; 2])
-                };
-                (pipelines.bind(texture), quad)
-            })
-            .collect();
+        let mut bound = Vec::new();
+        for (layer, shown) in &self.layers {
+            match shown {
+                Shown::Texture(_, texture) => {
+                    let quad = Quad {
+                        clip: at.clip,
+                        // An app presents sRGB-encoded values, as it does to the host's own UI.
+                        srgb_encoded: true,
+                        ..compose::quad(layer, at.pixels_per_point, [0.0; 2])
+                    };
+                    bound.push((pipelines.bind(texture), quad));
+                }
+                // Each of a program window's surfaces, as its view's drawing draws them
+                // (be-host-wayland's `WindowDraw`).
+                Shown::Window(picture) => {
+                    for surface in &picture.surfaces {
+                        let Some(placed) = surface_layer(layer, surface) else {
+                            continue;
+                        };
+                        let quad = Quad {
+                            clip: at.clip,
+                            opaque: surface.opaque,
+                            ..compose::quad(&placed, at.pixels_per_point, [0.0; 2])
+                        };
+                        bound.push((pipelines.bind(&surface.texture), quad));
+                    }
+                }
+            }
+        }
         self.quads.prepare(
             &pipelines,
             queue,
@@ -1815,5 +1967,11 @@ impl Draw for ShownLayers {
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
         self.quads.paint(pass);
+        // Each program window shown hears so, as when its view draws it.
+        for (_, shown) in &self.layers {
+            if let Shown::Window(picture) = shown {
+                picture.painted();
+            }
+        }
     }
 }

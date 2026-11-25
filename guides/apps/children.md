@@ -171,9 +171,16 @@ others are not drawn yet. Its menu lists every panel and asks the session's
 editor to show one (`host.show-panel`), as be-host asks its shell; it has no
 statistics overlay of its own. Its menu and a Menu panel are built one way
 (`MenuParts`) and follow the host's views as they change; the Performance
-panels share one feed of the host's statistics, watched while any shows. Web views and program windows
-(plans/host_as_platform_adapter.md, 4g7b3g) are not there yet: a child of
-another kind the placer hears is unavailable.
+panels share one feed of the host's statistics, watched while any shows.
+
+Program windows are the host's to draw: be-sdk-root shows each placed
+(`child-content.window`) as a `Surface::Host` layer of its window at its place,
+framed and cut out like a panel, whose pixels are the window's logical pixels,
+so its size is the size the host configures the window to (be-host's
+`RootShell`, guides/desktop.md). Its placer hears it unavailable until the root
+relays the window's status (plans/host_as_platform_adapter.md, 4g7e3d). Web
+views (4g7b3g) are not there yet: a child of another kind the placer hears is
+unavailable.
 
 ## Drawing order
 
