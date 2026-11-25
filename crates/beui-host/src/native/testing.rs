@@ -28,9 +28,20 @@ pub fn build_node(view: impl FnOnce() -> NodeId) -> Document {
 /// ("Tab 3" and "Tab 4"), and the dock host's node.
 pub fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
     let dock = NodeRef::new();
-    let document = build_node(move || {
-        let layout = dock::DockingLayout::<u64>::new();
+    let document = build(move || {
         view! {
+            <beui::primitives::Root clear_color={Color32::BLACK}>
+                <WindowedDock drag_modifier dock />
+            </beui::primitives::Root>
+        }
+    });
+    (document, dock.get())
+}
+
+#[component]
+fn WindowedDock(drag_modifier: Option<Modifiers>, dock: NodeRef) -> NodeId {
+    let layout = dock::DockingLayout::<u64>::new();
+    view! {
             <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
                 <dock::Docking layout>
                     <dock::DockSplit id="split">
@@ -67,9 +78,7 @@ pub fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
                     </dock::DockWindow>
                 </dock::Docking>
             </dock_host::styled::DockHost>
-        }
-    });
-    (document, dock.get())
+    }
 }
 
 /// The shown title of a dock's tab.
