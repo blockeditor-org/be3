@@ -326,11 +326,11 @@ impl Root {
         self.palette.borrow().as_ref()?.surface.next()
     }
 
-    /// What the palette describes of itself, while it is open.
-    pub(super) fn palette_described(&self) -> Option<(u32, be_sdk_api::accesskit::TreeUpdate)> {
-        let palette = self.palette.borrow();
-        let surface = &palette.as_ref()?.surface;
-        Some((surface.id(), surface.describe()?))
+    /// Runs `each` on the palette's surface, while it is open.
+    pub(super) fn palette_surface(&self, each: &mut dyn FnMut(&mut BeuiSurface)) {
+        if let Some(palette) = &mut *self.palette.borrow_mut() {
+            each(&mut palette.surface);
+        }
     }
 
     /// What the palette painted last, while it is open.

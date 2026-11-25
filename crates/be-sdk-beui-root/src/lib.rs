@@ -142,6 +142,18 @@ pub struct BeuiSurface {
     due: Option<Duration>,
     /// Where its overlays took the pointer in its last frame, in its points.
     overlays: Rc<RefCell<Vec<Rect>>>,
+    /// Whether the root asks it for its accessibility tree (`set_describing`).
+    describing: bool,
+    /// What its frames changed of its tree since the root last took it (`take_description`).
+    described: Option<beui_core::accesskit::TreeUpdate>,
+    /// Which surface this is among every one made on its thread: a surface made in place of
+    /// another keeps its id (`id`) but not this.
+    serial: u64,
+}
+
+thread_local! {
+    /// The serial the next surface made is given.
+    static NEXT_SERIAL: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// What the renderer and the surface share.
@@ -232,11 +244,7 @@ impl BeuiSurface {
         let document = beui_host::native::build(build);
         let overlays = Rc::<RefCell<Vec<Rect>>>::default();
         let mut runner = Runner::new(Launch {
-            // Its tree is kept, for the root to hand its host (`BeuiSurface::describe`).
-            options: RunOptions {
-                accessibility_tree: true,
-                ..RunOptions::default()
-            },
+            options: RunOptions::default(),
             context,
             program: Box::new(Showing {
                 document,
@@ -277,16 +285,47 @@ impl BeuiSurface {
             wake,
             due: Some(Duration::ZERO),
             overlays,
+            describing: false,
+            described: None,
+            serial: NEXT_SERIAL.replace(NEXT_SERIAL.get() + 1),
         })
     }
 
-    /// The document's accessibility tree as its last frame laid it out, in the surface's pixels
-    /// (its root scaled from its points by its raster), with beui's ids: what the root grafts
-    /// into the tree it hands its host (`Embedding::describe`). None before its first frame.
-    pub fn describe(&self) -> Option<beui_core::accesskit::TreeUpdate> {
-        let (width, height) = self.drawn.surface.borrow().size();
-        let points = beui_types::Vec2::new(width as f32, height as f32) / self.raster;
-        Some(self.runner.output()?.accessibility_tree("", points))
+    /// Has its document describe itself, or stop: while it describes, each frame it runs keeps
+    /// what changed of its accessibility tree for the root to take (`take_description`), the
+    /// first after it starts the whole tree, which is due at once. While it does not, its
+    /// document builds no tree at all, as an app's does while its host asks none of it.
+    pub fn set_describing(&mut self, describing: bool) {
+        if self.describing == describing {
+            return;
+        }
+        self.describing = describing;
+        self.runner.context().set_accessibility_active(describing);
+        match describing {
+            true => {
+                self.runner.accessibility_requested();
+                self.due = Some(Duration::ZERO);
+                (self.wake)();
+            }
+            false => {
+                self.runner.accessibility_deactivated();
+                self.described = None;
+            }
+        }
+    }
+
+    /// What its frames changed of its accessibility tree since this was last asked, while it
+    /// describes itself (`set_describing`): an AccessKit update in the surface's pixels (its
+    /// root scaled from its points by its raster), with beui's ids, which the root grafts into
+    /// the tree it hands its host (`Embedding::describe`). None while nothing changed.
+    pub fn take_description(&mut self) -> Option<beui_core::accesskit::TreeUpdate> {
+        self.described.take()
+    }
+
+    /// Which surface this is: a surface made in place of another, under the same id, is
+    /// another serial, and another tree.
+    pub fn serial(&self) -> u64 {
+        self.serial
     }
 
     /// The surface's id, which its layers name as `Surface::Root`.
@@ -348,6 +387,9 @@ impl BeuiSurface {
         };
         let frame = self.runner.frame(&mut window, SafeArea::default());
         self.runner.present();
+        if self.describing {
+            self.keep_description();
+        }
         if let Some(failure) = self.runner.failure() {
             return Err(failure.to_owned());
         }
@@ -356,6 +398,27 @@ impl BeuiSurface {
         match self.drawn.failure.borrow_mut().take() {
             Some(failure) => Err(failure),
             None => Ok(()),
+        }
+    }
+
+    /// Keeps what the frame just run changed of the document's tree, after what earlier frames
+    /// changed that the root has yet to take: a node changed again replaces its earlier change.
+    fn keep_description(&mut self) {
+        let (width, height) = self.drawn.surface.borrow().size();
+        let points = beui_types::Vec2::new(width as f32, height as f32) / self.raster;
+        let Some(output) = self.runner.output() else {
+            return;
+        };
+        let update = output.accessibility_tree("", points);
+        match &mut self.described {
+            Some(kept) => {
+                kept.nodes.extend(update.nodes);
+                kept.focus = update.focus;
+                if update.tree.is_some() {
+                    kept.tree = update.tree;
+                }
+            }
+            None => self.described = Some(update),
         }
     }
 

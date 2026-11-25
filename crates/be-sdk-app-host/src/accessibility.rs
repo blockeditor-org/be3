@@ -181,6 +181,12 @@ impl Graft {
         }
     }
 
+    /// Whether it was grafted yet (`grafted`): until it is, the tree it is grafted into has
+    /// none of its nodes, so its first grafting sends them all.
+    pub fn grafted_yet(&self) -> bool {
+        self.placed.is_some()
+    }
+
     /// The app's id for a node of the host's, if it is one of this graft's: the pane stands
     /// for the app's root.
     pub fn app_node(&self, id: NodeId) -> Option<NodeId> {

@@ -943,8 +943,9 @@ impl Embedded {
         state.flush();
     }
 
-    /// The tree its screen showing on `surface` last described, placed at `placing`, in the
-    /// root's ids: every node of it, its focus only while that screen has the keyboard. None
+    /// What changed of the tree its screen showing on `surface` described, placed at `placing`,
+    /// in the root's ids, the whole of it the first time: its focus only while that screen has
+    /// the keyboard. None
     /// while it described nothing, or the surface shows no screen. `placing.scale` is how many
     /// window points a pixel of the surface is drawn at, which the screen's raster turns into
     /// its points'.
@@ -958,13 +959,14 @@ impl Embedded {
         let (screen, raster) = (placement.screen, raster(placement));
         let focused = state.keyboard.contains(&screen);
         let graft = state.described.get_mut(&screen)?;
+        let full = !graft.grafted_yet();
         Some(graft.grafted(
             Placing {
                 scale: placing.scale * raster,
                 ..placing
             },
             focused,
-            true,
+            full,
         ))
     }
 
