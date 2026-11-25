@@ -18,7 +18,7 @@ Development resumed on 2026-11-24, with eight builders. Nothing below is on this
 - `flakes-server-runtime` rebased for review, then plans/one_way_in_the_block_stack.md.
 - Host adapter 4g7a2, then 4g7b and on.
 - The member list leak through the organization's log, then the owner transfer's accept step.
-- plans/kept_content_and_one_scroller.md, then plans/dialogs_are_dock_windows.md.
+- plans/dialogs_are_dock_windows.md.
 
 Landed on 2026-11-24:
 - `chat-stall-3`: an editor's log read in flight when its replica reopens is answered; before, a fresh chat editor could wait forever.
