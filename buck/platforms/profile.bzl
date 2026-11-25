@@ -47,7 +47,8 @@ def dev_only(flags):
 
 # Every opt level the build sets, by what is compiled: (cargo's dev profile on
 # the host, the dev profile on wasm, the release profile, the release profile on
-# wasm32-unknown-unknown), None where the kind keeps the toolchain's. The
+# wasm32-unknown-unknown, which is only the browser's gpu shim), None where the
+# kind keeps the toolchain's. The
 # toolchain's applies to every crate, third-party ones included; the rest are
 # added to a first-party crate's own flags, after the toolchain's, which they
 # override.
@@ -61,11 +62,16 @@ def dev_only(flags):
 #   than the app profile's 2. A change under beui recompiles each of them for
 #   the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
 #   change to geometry, for modules no slower to test. In a
-#   release build on wasm32-unknown-unknown, now only the browser's gpu shim,
-#   whose heavy part is third-party, `s`. The type modules, games and input
-#   remaps were built there too until they joined the apps' wasip1 plan
-#   (plans/pure_guests_in_the_apps_plan.md), where a crate they share with the
-#   apps compiles once at the apps' 3; at `s` the checklist's module went from 2.29 MB to 1.67 MB
+#   release build on wasm32-unknown-unknown, which is only the browser's gpu
+#   shim (whose heavy part is third-party), `s`. Every guest, the type modules,
+#   games and input remaps too, is built for wasm32-wasip1 in one plan
+#   (plans/pure_guests_in_the_apps_plan.md), where a crate a pure guest shares
+#   with the apps compiles once, at the apps' release 3: the release checklist
+#   module grew from 1,895,013 bytes at `s` to 2,497,166, and text's from
+#   1,957,971 to 2,566,523, a third (November 2026). The owner may still choose
+#   `s` for the pure guests' own crates, or for every guest
+#   (decisions/shipped_bundle_size_settings.md). When the type modules were at
+#   `s`, the checklist's module went from 2.29 MB to 1.67 MB
 #   (1.64 MB at z), every type module a quarter to a third smaller, and
 #   compiling them took about half the CPU it did at 3. Saving a 50 MB paste
 #   in be-host-bench, which is the text type module's seal and its publish to a
@@ -103,8 +109,8 @@ def _opt_flag(level):
 
 # A kind's opt level other than the toolchain's, as flags.
 def opt_flags(kind):
-    host, wasm, release, release_wasm32 = OPT_LEVELS[kind]
-    if host == wasm and wasm == release and release == release_wasm32:
+    host, wasm, release, release_bindgen = OPT_LEVELS[kind]
+    if host == wasm and wasm == release and release == release_bindgen:
         return _opt_flag(host)
     return select({
         "DEFAULT": select({
@@ -113,7 +119,8 @@ def opt_flags(kind):
         }),
         "root//buck/constraints:release": select({
             "DEFAULT": _opt_flag(release),
-            "prelude//os:none": _opt_flag(release_wasm32),
+            # wasm32-unknown-unknown: only the gpu shim (wasm32_bindgen).
+            "prelude//os:none": _opt_flag(release_bindgen),
         }),
     })
 
