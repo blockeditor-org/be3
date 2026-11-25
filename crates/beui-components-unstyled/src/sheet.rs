@@ -322,7 +322,7 @@ pub fn Sheet(
             });
         }
     });
-    let shown = open.clone();
+    let shown = open;
     create_effect_on(
         move || shown.get(),
         move |&now_open, was| {
@@ -402,7 +402,7 @@ pub fn Sheet(
                 .map_or(0.0, |tracked| tracked.get().y)
         })
     };
-    on_back(open.clone(), move |gesture: BackGesture| match gesture {
+    on_back(open, move |gesture: BackGesture| match gesture {
         BackGesture::Started { .. } => {
             let from = raised.get_untracked();
             backed.set(Some(from));
@@ -598,7 +598,7 @@ pub fn ModalSheet(
     on_outside: Option<Callback<()>>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
-    let shown = open.clone();
+    let shown = open;
     let outside = on_outside.unwrap_or(on_close);
     // How far the sheet is up, from 0 to 1 at its lowest stop: the scrim fades with it.
     let presence = create_signal(0.0_f32);
@@ -612,7 +612,7 @@ pub fn ModalSheet(
             on_dismiss={move |_: Dismiss| on_close.call(())}
         >||
             <ModalSheetBody
-                open={shown.clone()}
+                open={shown}
                 rest
                 stops={stops.clone()}
                 fit
@@ -648,7 +648,7 @@ fn ModalSheetBody(
     children: NodeId,
 ) -> NodeId {
     let gone = create_signal(false);
-    let reopened = open.clone();
+    let reopened = open;
     create_effect(move || {
         if reopened.get() {
             gone.set(false);

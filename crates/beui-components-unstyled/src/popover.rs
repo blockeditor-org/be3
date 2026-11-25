@@ -72,7 +72,7 @@ pub fn Popover(
     });
 
     let close = Callback::new(move |()| open.set(false));
-    let anchor = anchor.unwrap_or_else(|| Prop::Static(OverlayAnchor::Node(trigger_ref)));
+    let anchor = anchor.unwrap_or(Prop::Static(OverlayAnchor::Node(trigger_ref)));
     // A press on the button, or on the node it hangs from, is left to that to toggle it.
     let has_button = trigger.is_some();
     let held = anchor.clone();

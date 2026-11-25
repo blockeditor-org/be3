@@ -180,7 +180,7 @@ where
         let Some(item) = item else {
             return Vec::new();
         };
-        return visiting(&keys, &rect_of, origin, direction, item)
+        return visiting(&keys, rect_of, origin, direction, item)
             .into_iter()
             .map(|(after, window)| Candidate::new(After(after), in_list(window), list))
             .collect();

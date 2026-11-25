@@ -102,7 +102,7 @@ pub fn Anchored(
     #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
     let never_sheet = matches!(sheet, Prop::Static(SheetWhen::Never));
-    let inert = policy.clone();
+    let inert = policy;
     let dismissable = create_memo(move || inert.get() != LayerPolicy::Inert);
     let mut was_open = false;
     let mut touched = false;

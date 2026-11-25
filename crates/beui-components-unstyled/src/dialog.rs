@@ -484,7 +484,7 @@ pub fn Dialog(
     });
     let touched = create_signal(false);
     let opener = create_signal(None::<NodeId>);
-    let asked = anchor.clone();
+    let asked = anchor;
     create_effect(move || {
         if open.get() {
             let touched_now = untrack(touched_by_finger);
