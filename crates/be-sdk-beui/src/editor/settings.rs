@@ -199,8 +199,8 @@ impl Editor {
             let state = self.state();
             let mut cache = state.settings.borrow_mut();
             cache.held.entry(block).or_insert_with(|| {
-                let list = state._scope.run(|| blocks.watch(BlockQuery::Block(block)));
-                list
+                
+                state._scope.run(|| blocks.watch(BlockQuery::Block(block)))
             });
         }
         blocks.info(block).is_some_and(|info| {
