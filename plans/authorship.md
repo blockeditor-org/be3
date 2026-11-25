@@ -14,14 +14,12 @@ arrival are all caught or impossible there.
 
 ## What is left open
 
-- **Forks across devices.** Each device keeps the log head it verified and takes
-  a new one only with a proof that it extends it, so a server that cuts or
-  rewrites a log is caught by every device that saw the head. A server that
-  shows two devices two different logs from the start is not: each sees a log
-  that is consistent with itself. Catching it needs devices to compare heads,
-  carried in what they already exchange (peer messages in a session, a
-  commit's `log-through`, contact letters), and a verdict when two heads
-  diverge (guides/blocks/keys.md, "Forks").
+- **Forks across devices.** Comparing a head another device kept, and the
+  verdict a fork leaves, are built (`Peer::compare_log_head`,
+  guides/blocks/client.md, "Signed logs"). Left: carrying heads in what devices
+  already exchange (peer messages in a session, a commit's `log-through`,
+  contact letters) so they meet and compare, and showing the verdict to the
+  person (guides/blocks/keys.md, "Forks").
 - **First use of a member's key** is trusted: set aside by the owner
   (plans/deferred/authorship.md).
 - **A replaced key and someone holding the old phrase** look alike: an entry

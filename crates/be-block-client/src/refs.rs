@@ -71,10 +71,12 @@ pub(crate) enum Table {
     /// How many of each block's log redactions this device caught up with
     /// (`Refs::log_redactions`).
     LogRedactions,
+    /// The first fork of each block's signed log this device found (`Refs::log_fork`).
+    LogForks,
 }
 
 impl Table {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -104,6 +106,7 @@ impl Table {
         Self::NotAppended,
         Self::NameCards,
         Self::LogRedactions,
+        Self::LogForks,
     ];
 
     pub fn code(self) -> u8 {
@@ -137,6 +140,7 @@ impl Table {
             Self::NotAppended => 27,
             Self::NameCards => 28,
             Self::LogRedactions => 29,
+            Self::LogForks => 30,
         }
     }
 
@@ -526,6 +530,8 @@ struct State {
     not_appended: HashMap<Uuid, BTreeMap<u64, RefusedEntry>>,
     /// How many of each block's log redactions this device caught up with.
     log_redactions: HashMap<Uuid, u64>,
+    /// The first fork of each block's signed log this device found.
+    log_forks: HashMap<Uuid, LogFork>,
     next: u64,
 }
 
@@ -561,6 +567,28 @@ pub struct KeptLogHead {
     pub size: u64,
     pub root: [u8; 32],
     pub frontier: Option<be_block_keys::merkle::Frontier>,
+}
+
+/// A fork of a block's signed log this device found (`Peer::compare_log_head`;
+/// guides/blocks/keys.md, "Forks"): the head it kept, a head another device kept that the server
+/// could not show lies on the same log, where this device heard of that head, and when, by the
+/// server's clock as this device estimates it. Kept across restarts, the first one found.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct LogFork {
+    pub block: Uuid,
+    pub ours: KeptLogHead,
+    pub theirs: KeptLogHead,
+    pub from: HeadFrom,
+    pub found: Option<i64>,
+}
+
+/// Where a device heard of a head of a block's signed log another device kept.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum HeadFrom {
+    /// A participant of the block's live session, of this account.
+    Session { account: Uuid },
+    /// A commit of the block, made by this account, named it as the head it was made on.
+    Commit { author: Uuid },
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
@@ -795,6 +823,9 @@ impl State {
             Table::LogRedactions => {
                 self.log_redactions
                     .insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::LogForks => {
+                self.log_forks.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::NotAppended => {
                 let (block, order) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
@@ -1676,6 +1707,27 @@ impl Refs {
             block.as_bytes().to_vec(),
             &redactions,
         )])
+    }
+
+    /// The first fork of `block`'s signed log this device found, if any.
+    pub fn log_fork(&self, block: Uuid) -> Option<LogFork> {
+        self.state.lock().unwrap().log_forks.get(&block).cloned()
+    }
+
+    /// Keeps `fork` unless a fork of its block is kept already: whether it was kept.
+    pub fn found_fork(&self, fork: LogFork) -> Result<bool, StoreError> {
+        let mut state = self.state.lock().unwrap();
+        if state.log_forks.contains_key(&fork.block) {
+            return Ok(false);
+        }
+        state.log_forks.insert(fork.block, fork.clone());
+        drop(state);
+        self.write(vec![row(
+            Table::LogForks,
+            fork.block.as_bytes().to_vec(),
+            &fork,
+        )])?;
+        Ok(true)
     }
 
     /// The blocks whose signed log this device verified a head of.

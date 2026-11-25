@@ -143,6 +143,10 @@ pub enum Event {
     KeyWorkChanged,
     /// What the account's storage holds changed (`topic.storage`).
     StorageChanged,
+    /// This device found a fork of a block's signed log (`Peer::compare_log_head`): the server
+    /// showed another device a log this one's is not part of, nor it part of. Told once per
+    /// block, as it is first found; the verdict is kept (`Peer::log_fork`).
+    LogForked(crate::refs::LogFork),
 }
 
 #[derive(Default)]
@@ -397,6 +401,11 @@ impl Connection {
     /// missed would have (`Peer::read_log`).
     pub(crate) fn redaction_read(&self, redacted: be_block_protocol::Redacted) {
         let _ = self.events.send(Event::Redacted(redacted));
+    }
+
+    /// Tells this connection's subscribers of a fork this device found (`Peer::compare_log_head`).
+    pub(crate) fn fork_found(&self, fork: crate::refs::LogFork) {
+        let _ = self.events.send(Event::LogForked(fork));
     }
 
     /// Hears what the server tells this connection (`server.events`) from now on: the trees,

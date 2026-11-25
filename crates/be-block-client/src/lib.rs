@@ -21,6 +21,7 @@ pub use contacts::Contact;
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
 pub use peer::hosted::{Admitted, Admitting, Joining};
+pub use peer::forks::LogAgreement;
 pub use peer::log::{Appended, ExportedEntry, LOG_SALT_BYTES, LogRead, LoggedEntry, Said};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
@@ -28,7 +29,7 @@ pub use peer::{
     Resolver, Saved, Sealed, SealsJournal, UPDATE_ATTEMPTS, Write, by_app,
 };
 pub use refs::{
-    Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits,
+    Aside, HeadFrom, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, LogFork, ListedBlock, OpenEdits,
     PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
 pub use share_links::ScopeOffer;
