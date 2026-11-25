@@ -296,6 +296,11 @@ the account offered it read the block's log to accept only while it may read
 the block, which also covers access taken away on a block above, and refuses the acceptance of an account already at
 `MAX_BLOCKS_PER_ACCOUNT`, which the giver never learns of. The former owner, the creator included, is then
 a member like any other, whom the new owner may revoke.
+An offer made or withdrawn tells the block's audience its roots may have
+changed (`topic.roots`), so the host reads `query.owner-offers` again then, as
+it connects and after it accepts one, and lists each standing offer in the
+files pane's "Offered to you" (`block-query.owner-offers`), whose rows open the
+block's share dialog.
 
 **Parent records** place the block (`Placement`:
 the top, Recently Deleted, or under a block with the hash of that block's log

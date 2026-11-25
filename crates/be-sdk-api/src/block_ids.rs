@@ -160,7 +160,7 @@ impl BlockQuery {
             | Self::Parents(block_id)
             | Self::Block(block_id)
             | Self::OpenSettings(block_id) => visit(BlockIdRole::Existing, block_id),
-            Self::Roots | Self::Detached | Self::Shared | Self::Unfiled => {}
+            Self::Roots | Self::Detached | Self::Shared | Self::Unfiled | Self::OwnerOffers => {}
         }
     }
 }
@@ -380,7 +380,8 @@ impl crate::embed::blocks::Call {
                     BlockQuery::Roots
                     | BlockQuery::Detached
                     | BlockQuery::Shared
-                    | BlockQuery::Unfiled => false,
+                    | BlockQuery::Unfiled
+                    | BlockQuery::OwnerOffers => false,
                 },
                 crate::blocks::BlockSubject::History(_)
                 | crate::blocks::BlockSubject::Head(_)

@@ -219,6 +219,9 @@ history, the content at its head, an artifact's state, or its own block's
 version status or members (guides/apps/host_services.md, "Naming a block's
 members"). `next` answers the `block-value` of the same name once it
 changes; listings come from the host's mirror (`be-host-stack/src/app_graph.rs`).
+`owner-offers` lists the blocks offered to the account to own: the host keeps
+the ids `query.owner-offers` answers on the mirror (`Graph::set_owner_offers`),
+which fetches each one's summary while the query is watched.
 On the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
 anything holds the `BlockList`; be-sdk's `link.rs` keeps one watch per subject
 the editor asks for and drops a value that is not of its subject.

@@ -79,6 +79,11 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         let Some(row) = rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()) else {
             return;
         };
+        // An offer of ownership is accepted in the block's share dialog.
+        if let RowKey::Offer(id) = key {
+            editor.host().share_block(id);
+            return;
+        }
         if zooms(&row) {
             zoom.enter(key);
             return;
@@ -95,7 +100,9 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let expand = move |(key, expanded): (RowKey, bool)| {
         let id = match &key {
             RowKey::Block(path) => path.last().copied(),
-            RowKey::Shared
+            RowKey::Offered
+            | RowKey::Offer(_)
+            | RowKey::Shared
             | RowKey::Orphans
             | RowKey::System
             | RowKey::Unfiled
@@ -365,7 +372,9 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
         RowKey::Block(path) => (1..path.len())
             .map(|length| RowKey::Block(path[..length].to_vec()))
             .collect(),
-        RowKey::Shared
+        RowKey::Offered
+        | RowKey::Offer(_)
+        | RowKey::Shared
         | RowKey::Orphans
         | RowKey::System
         | RowKey::Unfiled
@@ -383,6 +392,8 @@ pub(crate) fn row_test_id(key: &RowKey) -> String {
         RowKey::Block(path) => path
             .last()
             .map_or_else(|| "block".to_owned(), Uuid::to_string),
+        RowKey::Offered => "offered".to_owned(),
+        RowKey::Offer(id) => format!("offer.{id}"),
         RowKey::Shared => "shared".to_owned(),
         RowKey::Orphans => "orphans".to_owned(),
         RowKey::System => "system".to_owned(),
@@ -833,7 +844,9 @@ fn holds(key: &RowKey, id: Uuid) -> bool {
     match key {
         RowKey::Block(path) => path.contains(&id),
         RowKey::Pinned(path) => path.last() == Some(&id),
-        RowKey::Shared
+        RowKey::Offer(offered) => *offered == id,
+        RowKey::Offered
+        | RowKey::Shared
         | RowKey::Orphans
         | RowKey::System
         | RowKey::Unfiled
