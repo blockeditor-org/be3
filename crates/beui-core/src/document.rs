@@ -131,6 +131,7 @@ pub struct Document {
     attached: ::beui_reactive::OwnedTrigger,
     focus_visible: ::beui_reactive::OwnedSignal<bool>,
     focus_watched: ::beui_reactive::OwnedSignal<Option<NodeId>>,
+    locked_watched: ::beui_reactive::OwnedSignal<bool>,
     fullscreen: ::beui_reactive::OwnedSignal<bool>,
     share_sheet: ::beui_reactive::OwnedSignal<bool>,
     viewport_size: ::beui_reactive::OwnedSignal<Vec2>,
@@ -395,6 +396,7 @@ impl Document {
             attached: ::beui_reactive::OwnedTrigger::new(),
             focus_visible: ::beui_reactive::OwnedSignal::new(false),
             focus_watched: ::beui_reactive::OwnedSignal::new(None),
+            locked_watched: ::beui_reactive::OwnedSignal::new(false),
             fullscreen: ::beui_reactive::OwnedSignal::new(false),
             share_sheet: ::beui_reactive::OwnedSignal::new(false),
             viewport_size: ::beui_reactive::OwnedSignal::new(Vec2::ZERO),
@@ -631,6 +633,12 @@ impl Document {
     /// Whether the platform has a share sheet for `share`.
     pub fn watch_share_sheet(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.share_sheet.read_only()
+    }
+
+    /// Whether a lock layer is open, as `locked`, published each frame once laid out: a window
+    /// of its own, which the lock layer does not paint over, closes while it is.
+    pub fn watch_locked(&self) -> ::beui_reactive::ReadSignal<bool> {
+        self.locked_watched.read_only()
     }
 
     pub fn watch_focused(&self) -> ::beui_reactive::ReadSignal<Option<NodeId>> {
@@ -1659,6 +1667,10 @@ impl Document {
         crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
         let layers = self.layers();
+        let locked = layers.locked();
+        if self.locked_watched.get_untracked() != locked {
+            self.locked_watched.set(locked);
+        }
         let keyboard_window = match self.focused {
             Some(focused) => self.window_of(focused),
             None if layers.takes_keyboard() => layers[layers.keyboard()].window,

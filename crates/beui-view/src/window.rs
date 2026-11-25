@@ -7,6 +7,7 @@ use crate::types::window::{
 use crate::types::{Color, Dismiss, Extent, LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
 
 use crate::components::frame::Frame;
+use crate::components::layers::Layers;
 use crate::components::overlay::Overlay;
 use crate::measure::measure;
 use crate::reactive::{
@@ -250,17 +251,80 @@ pub fn Window(
     });
     let blocking = blocks.clone();
     // With no owner, its whole window is what it blocks.
-    let policy = create_memo(move || match (blocking.get(), owner.get().is_some()) {
+    let policy = create_memo(move || match (blocking.get() && !hosted.get(), owner.get().is_some()) {
         (true, true) => LayerPolicy::BlocksParent,
         (true, false) => LayerPolicy::BlocksAll,
         (false, _) => LayerPolicy::Pass,
     });
     let blocking = blocks.clone();
-    let dims = create_memo(move || match blocking.get() {
-        true => scrim.get(),
+    let dimming = scrim.clone();
+    let dims = create_memo(move || match blocking.get() && !hosted.get() {
+        true => dimming.get(),
         false => Color::TRANSPARENT,
     });
-    let traps = create_memo(move || blocks.get());
+    let blocking = blocks.clone();
+    let traps = create_memo(move || blocking.get());
+    // A window of its own opens over the window its owner is in (else the one it is built in),
+    // at the point its anchor gives in that window's points.
+    let built_in = create_memo(move || outer.and_then(|outer| outer.real.get()).unwrap_or(WindowId::MAIN));
+    let parent = create_memo(move || owner.get().map(crate::reactive::window_of).unwrap_or_else(|| built_in.get()));
+    let anchored_at = create_memo(move || {
+        let anchor = anchor.get()?;
+        let area = match parent.get() == built_in.get() {
+            true => Rect::from_min_size(Pos2::ZERO, viewport.get()),
+            false => Rect::from_min_max(Pos2::new(-FAR, -FAR), Pos2::new(FAR, FAR)),
+        };
+        let frame = owned.get().unwrap_or(area);
+        let (target, placement) = match anchor {
+            WindowAnchor::Beside(rect) => (rect, Placement::CARD),
+            WindowAnchor::Node(node) => (measure(node.try_get()?).get()?.rect, Placement::CARD),
+            WindowAnchor::Top => (
+                Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y)),
+                Placement::CARD,
+            ),
+            WindowAnchor::Centre => (frame, Placement::CenterOn),
+        };
+        Some(crate::types::layer::resolve_rect(area, target, placement, shown.get()).min)
+    });
+    let asked = placement.clone();
+    let placement = create_memo(move || match anchored_at.get() {
+        Some(at) => WindowPlacement::Over {
+            window: parent.get(),
+            at,
+        },
+        None => asked.get(),
+    });
+    // Placed again as its anchor moves once it is open.
+    crate::reactive::create_effect_on(
+        move || placement.get(),
+        move |placement, was| {
+            if was.is_some() && hosted.get_untracked() && anchored_at.get_untracked().is_some() {
+                handle.place(placement.clone());
+            }
+        },
+    );
+    // A dialog's window of its own (one that points at an anchor or blocks its owner) is not
+    // under the lock layer of its owner's window, so it closes while the document is locked.
+    // Other windows of their own (a dock's) are the host's to keep under its lock.
+    let locked = crate::core::window::locked();
+    let opened = open.clone();
+    let blocking = blocks.clone();
+    let shows = create_memo(move || {
+        let dialog = anchor.get().is_some() || blocking.get();
+        opened.get() && !(hosted.get() && dialog && locked.get())
+    });
+    // A window of its own that blocks covers its owner (its parent window, with no owner) in
+    // the owner's window, as an overlay that takes the presses there and draws the scrim.
+    let covering = create_memo(move || shows.get() && hosted.get() && blocks.get());
+    let cover_anchor = create_memo(move || match owner.get() {
+        Some(_) => OverlayAnchor::Node(hangs_from),
+        None => OverlayAnchor::Point(Pos2::ZERO),
+    });
+    let cover_policy = create_memo(move || match owner.get() {
+        Some(_) => LayerPolicy::BlocksParent,
+        None => LayerPolicy::BlocksAll,
+    });
+    let cover_shown_in = create_memo(move || Some(parent.get()));
     let dismiss = on_dismiss.unwrap_or_default();
     let leveled = level.clone();
     let separate = own_window.clone();
@@ -286,26 +350,56 @@ pub fn Window(
             on_report: heard,
         })
     });
+    // The cover is built in the window's content, a layer beneath it moved into the owner's
+    // window (`shown_in`), so the window's overlay stays the root its callers name.
+    let cover = move || {
+        view! {
+            // Its content is empty and takes no room, so a press there reaches the owner beneath,
+            // which it shuts out and asks the window to close.
+            <Overlay
+                anchor={cover_anchor}
+                placement=Placement::At
+                policy={cover_policy}
+                scrim={scrim.clone()}
+                scrim_radius={scrim_radius.clone()}
+                shown_in={cover_shown_in}
+                traps_focus=false
+                open={covering}
+                on_dismiss={dismiss}
+            >
+                <Frame />
+            </Overlay>
+        }
+    };
     view! {
         <Overlay
             anchor={anchored}
             placement={placement_of}
             policy={policy}
             scrim={dims}
-            scrim_radius={scrim_radius}
+            scrim_radius={scrim_radius.clone()}
             pointer={pointer}
             beak={reach}
             level={level}
             shown_in={shown_in}
             window={spec}
             traps_focus={traps}
-            open={open}
+            open={shows}
             on_dismiss={dismiss}
         >
-            <Frame width=width height=height>{provided(handle, content)}</Frame>
+            <Frame width=width height=height>
+                <Layers>
+                    {provided(handle, content)}
+                    {cover()}
+                </Layers>
+            </Frame>
         </Overlay>
     }
 }
+
+/// Where a window of its own may go relative to a window this document does not know the size
+/// of: anywhere.
+const FAR: f32 = 1.0e6;
 
 pub fn opens_windows() -> crate::reactive::ReadSignal<bool> {
     crate::core::window::opens_windows()

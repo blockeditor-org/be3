@@ -424,8 +424,13 @@ on its window when it has none. With no anchor it sits at `at`, pinned to its ow
 with it: a window the person moved keeps that `at`. `blocks` blocks its owner (no presses,
 `scrim`, focus trapped); with no owner it blocks its whole window (`LayerPolicy::BlocksAll`).
 `own_window=false`
-keeps it an overlay, sized to its content, even where windows are hosted; a window the host opens
-as its own opens at its `placement` and ignores `anchor`, `beak` and `blocks`.
+keeps it an overlay, sized to its content, even where windows are hosted. A window the host opens
+as its own and that has an `anchor` opens `WindowPlacement::Over` the window its owner is in, where
+the anchor puts it (as `layer::resolve_rect` would place the overlay), and is placed again as the
+anchor moves; it draws no beak. One that `blocks` covers its owner, in the owner's window, with an
+empty overlay that shuts out presses there, asks it to close and draws the scrim. Either closes
+while the document is locked (`Document::watch_locked`), since the lock layer of a display's
+window does not paint over a window of its own; a dock's windows are left to the host.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,
 and then the caller moves it itself.
 

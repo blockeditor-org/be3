@@ -16,6 +16,10 @@ pub(crate) fn placed_windows() -> ReadSignal<bool> {
     with_document(|document| document.watch_placed_windows())
 }
 
+pub(crate) fn locked() -> ReadSignal<bool> {
+    with_document(|document| document.watch_locked())
+}
+
 pub(crate) fn window_origin(window: WindowId) -> Option<Pos2> {
     with_document(|document| document.context()?.window_origin(window))
 }
