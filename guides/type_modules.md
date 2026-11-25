@@ -132,14 +132,27 @@ arguments has its widest flat records encoded instead. A `list<u8>` result is
 copied once, straight into a vector of the right length; a `result` with
 nothing on success answers 0, or its error's encoded length plus one.
 
-Async funcs, and funcs answering a `future` or a `stream`, answer a ticket at
-once (the host's `Caller::ticket`), and the host is handed a
-`be_wasm_ops::local::Promise` or `Sender` to settle it with later. Every
-local interface with one gets a `[poll]` import taking `wait`: the host's
-`Host::settle` answers what settled since the last poll (`Settled`, each value
-encoded), waiting where it can block, and the guest's generated `settle(wait)`
-hands it to the futures and streams waiting (`Ticket`, `Items`), whose
-wakers it wakes. The host wakes the app when anything settles.
+Async funcs, and funcs answering a `future` or a `stream`, answer a `u32`
+ticket at once (the host's `Caller::ticket`, unique within the interface), and
+the host is handed a `be_wasm_ops::local::Promise` or `Sender` to settle it
+with later; it settles every promise it holds, failing them when their device
+is lost. Ticket 0 (`REFUSED`) is what a call answers when the host refused it
+or had nothing to answer with (no gpu): the guest panics there, since nothing
+would ever settle it. Every local interface with tickets gets a `[poll]`
+import taking `wait`: the host's `Host::settle` answers what settled since the
+last poll (`Settled`, each value encoded), and the guest's generated
+`settle(wait)` hands it to the futures and streams waiting (`Ticket`, `Items`)
+and wakes them; `waiting()` says whether any still waits, and a dropped one
+stops waiting. With `wait`, a host that can block blocks until at least one
+thing settles, or until nothing pending could (no async func or future is
+unsettled: a stream alone never holds it). A poll the host cannot answer
+answers nothing. So `settle` and `waiting` are names an interface's own free
+funcs may not take. Waking the app when anything settles is the host's part,
+not the generated glue's. A `result` with nothing on success is called with
+no room, answering 0, or its error's length plus one, the error fetched
+through `[returned]`; a call the host refused, or whose answer it could not
+write, answers 0 (success), and the refusal reaches the app's host through
+its own report (`Gpu::report`, which stops the app).
 crates/be-wasm-ops-local-test holds the tests of the generated glue.
 
 ### Network worlds

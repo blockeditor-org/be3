@@ -3,6 +3,9 @@ use be_wasm_ops::local::{Promise, Sender, Settled, Settling};
 use super::*;
 
 mod a_call_too_wide_to_pass_flat_is_encoded;
+mod a_dropped_ticket_no_longer_waits;
+mod a_refused_ticket_stops_the_guest;
+mod a_settled_value_that_does_not_decode_stops_the_guest;
 mod a_fallible_call_answers_its_error_only_when_it_fails;
 mod a_resource_of_another_package_is_one_handle;
 mod async_funcs_futures_and_streams_settle_through_the_poll;
@@ -13,7 +16,7 @@ struct Caller {
     memory: Vec<u8>,
     host: Host,
     returned: Vec<u8>,
-    tickets: u64,
+    tickets: u32,
     refused: Vec<String>,
 }
 
@@ -129,6 +132,11 @@ impl embed::frames::Host for Host {
         shape.0
     }
 
+    fn framed(&mut self, framing: frames::Framing, extra: (u32, u32, u32, u32, u32, u32, u32, u32)) -> u32 {
+        self.shown.push(framing.shape.0);
+        framing.sizes.8 + extra.7
+    }
+
     fn wide(&mut self, first: (u32, u32, u32, u32, u32, u32, u32, u32, u32, u32), second: (u32, u32, u32, u32, u32, u32, u32, u32), last: u32) -> u32 {
         let (a, b, c, d, e, f, g, h, i, j) = first;
         let (k, l, m, n, o, p, q, r) = second;
@@ -139,7 +147,7 @@ impl embed::frames::Host for Host {
 }
 
 macro_rules! caller {
-    ($($interface:ident),*) => {$(
+    ($($interface:ident $(with $ticket:ident)?),*) => {$(
         impl embed::$interface::Caller for Caller {
             type Host = Host;
 
@@ -168,46 +176,16 @@ macro_rules! caller {
             fn returned(&mut self) -> &mut Vec<u8> {
                 &mut self.returned
             }
+
+            $(fn $ticket(&mut self) -> u32 {
+                self.tickets += 1;
+                self.tickets
+            })?
         }
     )*};
 }
 
-caller!(frames);
-
-impl embed::shapes::Caller for Caller {
-    type Host = Host;
-
-    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        read(&self.memory, pointer, length)
-    }
-
-    fn write(&mut self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
-        let start = pointer as usize;
-        let room = self
-            .memory
-            .get_mut(start..start + bytes.len())
-            .ok_or_else(|| "out of bounds".to_owned())?;
-        room.copy_from_slice(bytes);
-        Ok(())
-    }
-
-    fn host<R>(&mut self, _function: &'static str, call: impl FnOnce(&mut Host) -> R) -> Option<R> {
-        Some(call(&mut self.host))
-    }
-
-    fn refuse(&mut self, message: String) {
-        self.refused.push(message);
-    }
-
-    fn returned(&mut self) -> &mut Vec<u8> {
-        &mut self.returned
-    }
-
-    fn ticket(&mut self) -> u64 {
-        self.tickets += 1;
-        self.tickets
-    }
-}
+caller!(frames, shapes with ticket);
 
 /// Hands what the host settled to a guest's tickets, as the generated `settle` does.
 fn settle(caller: &mut Caller, settling: &Settling) {

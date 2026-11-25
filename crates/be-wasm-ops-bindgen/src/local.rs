@@ -1,5 +1,8 @@
 use super::*;
 
+/// The free funcs a local interface with tickets is given, which its WIT may not name.
+const RESERVED: [&str; 2] = ["settle", "waiting"];
+
 pub(crate) struct Local {
     pub(crate) guest: TokenStream,
     pub(crate) embed: TokenStream,
@@ -366,7 +369,9 @@ impl Generator {
 
     /// How each parameter of a call is passed: as `param` says, except that while the call
     /// would take more than the 16 wasm arguments a call may, its widest flat parameters are
-    /// encoded instead (as the canonical ABI passes such a call's parameters in memory).
+    /// encoded instead (as the canonical ABI passes such a call's parameters in memory). A
+    /// handle, an optional handle and an option of a list or string are never encoded this way,
+    /// nor is anything already as narrow as an encoding's pointer and length.
     fn kinds(&self, call: &Call, returns: &Returns) -> Vec<Param> {
         let mut kinds: Vec<Param> = call.params.iter().map(|(_, ty)| self.param(ty)).collect();
         let fixed = call.receiver as usize
@@ -510,9 +515,9 @@ impl Generator {
                     return Err(format!("{key}: a local func takes no stream or future"));
                 }
             }
-            if item == "settle" && matches!(function.kind, FunctionKind::Freestanding) {
+            if RESERVED.contains(&item) && matches!(function.kind, FunctionKind::Freestanding) {
                 return Err(format!(
-                    "{key}: `settle` is the name of the poll every local interface is given"
+                    "{key}: `{item}` is reserved for the poll a local interface with tickets is given"
                 ));
             }
             calls.push(Call {
@@ -623,7 +628,7 @@ impl Generator {
                     | Returns::Fallible,
                     _,
                 ) => Some(Flat::U32),
-                (Returns::Ticket { .. }, _) => Some(Flat::U64),
+                (Returns::Ticket { .. }, _) => Some(Flat::U32),
             };
             let abi_names: Vec<Ident> = (0..abi_types.len())
                 .map(|index| format_ident!("a{index}"))
@@ -865,14 +870,14 @@ impl Generator {
                             quote!(-> ::be_wasm_ops::local::Items<#rust>),
                             quote! {
                                 let ticket = #invoke;
-                                SETTLING.with(|settling| settling.items::<#rust, #encoding>(ticket))
+                                SETTLING.with(|settling| settling.items::<#rust, #encoding>(#key, ticket))
                             },
                         ),
                         false => (
                             quote!(-> ::be_wasm_ops::local::Ticket<#rust>),
                             quote! {
                                 let ticket = #invoke;
-                                SETTLING.with(|settling| settling.ticket::<#rust, #encoding>(ticket))
+                                SETTLING.with(|settling| settling.ticket::<#rust, #encoding>(#key, ticket))
                             },
                         ),
                     }
@@ -1222,13 +1227,15 @@ impl Generator {
             });
             host_settle = quote! {
                 /// What settled since the last call: the values of async funcs and futures,
-                /// and the items and ends of streams. Waiting blocks, where the host can,
-                /// until every ticket asked for so far has settled.
+                /// and the items and ends of streams. With `wait`, where the host can block, it
+                /// blocks until at least one thing has settled, or nothing pending could settle
+                /// (no async func or future is unsettled; streams alone never hold it).
                 fn settle(&mut self, wait: bool) -> ::std::vec::Vec<::be_wasm_ops::local::Settled>;
             };
             caller_ticket = quote! {
-                /// A ticket no earlier call of the interface was answered with.
-                fn ticket(&mut self) -> u64;
+                /// A ticket no earlier call of the interface was answered with, never
+                /// `be_wasm_ops::local::REFUSED`.
+                fn ticket(&mut self) -> u32;
             };
             settling = quote! {
                 ::std::thread_local! {
@@ -1237,10 +1244,13 @@ impl Generator {
                 }
 
                 /// Takes what settled since the last call and wakes the futures and streams
-                /// waiting for it. Waiting blocks, where the host can, until all of it has.
+                /// waiting for it. With `wait`, where the host can block, it blocks until at
+                /// least one thing has settled, or nothing pending could. A host with nothing
+                /// to answer with (no gpu) answers nothing.
                 pub fn settle(wait: bool) {
-                    let settled = returned::<::be_wasm_ops::wire::Plain, ::std::vec::Vec<::be_wasm_ops::local::Settled>>(
+                    let settled = returned_or::<::be_wasm_ops::wire::Plain, ::std::vec::Vec<::be_wasm_ops::local::Settled>>(
                         "[poll]",
+                        ::std::vec::Vec::new(),
                         |pointer, capacity| unsafe { imports::settle(wait as u32, pointer, capacity) },
                     );
                     SETTLING.with(|settling| settling.settle(settled));
@@ -1284,9 +1294,30 @@ impl Generator {
                         const { ::core::cell::RefCell::new(::std::vec::Vec::new()) };
                 }
 
+                /// What a call answered encoded, or `empty` when it answered nothing (length 0,
+                    /// which no encoded list is): a host that could not answer it.
+                #[allow(dead_code)]
+                fn returned_or<E: ::be_wasm_ops::wire::Decode<T>, T>(
+                    name: &str,
+                    empty: T,
+                    call: impl FnOnce(u32, u32) -> u32,
+                ) -> T {
+                    let mut empty = ::core::option::Option::Some(empty);
+                    returned_with::<E, T>(name, call, &mut empty)
+                }
+
+                #[allow(dead_code)]
                 fn returned<E: ::be_wasm_ops::wire::Decode<T>, T>(
                     name: &str,
                     call: impl FnOnce(u32, u32) -> u32,
+                ) -> T {
+                    returned_with::<E, T>(name, call, &mut ::core::option::Option::None)
+                }
+
+                fn returned_with<E: ::be_wasm_ops::wire::Decode<T>, T>(
+                    name: &str,
+                    call: impl FnOnce(u32, u32) -> u32,
+                    empty: &mut ::core::option::Option<T>,
                 ) -> T {
                     RETURNED.with(|room| {
                         let mut room = room.borrow_mut();
@@ -1294,6 +1325,11 @@ impl Generator {
                             room.resize(256, 0);
                         }
                         let length = call(room.as_mut_ptr() as u32, room.len() as u32) as usize;
+                        if length == 0
+                            && let ::core::option::Option::Some(empty) = empty.take()
+                        {
+                            return empty;
+                        }
                         if length > room.len() {
                             room.resize(length, 0);
                             unsafe { imports::returned(room.as_mut_ptr() as u32) };
@@ -1307,31 +1343,28 @@ impl Generator {
                     })
                 }
 
+                /// A `result` with nothing on success: the call is given no room, so success
+                /// costs nothing more, and an error (its length plus one) is fetched through
+                /// `[returned]`.
                 #[allow(dead_code)]
                 fn returned_error<E: ::be_wasm_ops::wire::Decode<T>, T>(
                     name: &str,
                     call: impl FnOnce(u32, u32) -> u32,
                 ) -> ::core::result::Result<(), T> {
-                    RETURNED.with(|room| {
-                        let mut room = room.borrow_mut();
-                        if room.len() < 256 {
-                            room.resize(256, 0);
+                    let length = match call(0, 0) {
+                        0 => return ::core::result::Result::Ok(()),
+                        length => length as usize - 1,
+                    };
+                    let mut bytes = ::std::vec![0u8; length];
+                    if length > 0 {
+                        unsafe { imports::returned(bytes.as_mut_ptr() as u32) };
+                    }
+                    match ::be_wasm_ops::wire::decode::<E, T>(&bytes) {
+                        ::core::option::Option::Some(error) => ::core::result::Result::Err(error),
+                        ::core::option::Option::None => {
+                            ::core::panic!("{name} returned an error that does not decode")
                         }
-                        let length = match call(room.as_mut_ptr() as u32, room.len() as u32) {
-                            0 => return ::core::result::Result::Ok(()),
-                            length => length as usize - 1,
-                        };
-                        if length > room.len() {
-                            room.resize(length, 0);
-                            unsafe { imports::returned(room.as_mut_ptr() as u32) };
-                        }
-                        match ::be_wasm_ops::wire::decode::<E, T>(&room[..length]) {
-                            ::core::option::Option::Some(error) => ::core::result::Result::Err(error),
-                            ::core::option::Option::None => {
-                                ::core::panic!("{name} returned an error that does not decode")
-                            }
-                        }
-                    })
+                    }
                 }
 
                 #[allow(dead_code)]

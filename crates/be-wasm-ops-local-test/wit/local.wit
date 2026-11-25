@@ -4,7 +4,17 @@ package be3:local-test@0.1.0;
 interface frames {
     use be3:shapes/shapes@0.1.0.{shape};
 
+    record framing {
+        shape: borrow<shape>,
+        sizes: tuple<u32, u32, u32, u32, u32, u32, u32, u32, u32>,
+    }
+
     show: func(shape: borrow<shape>) -> u32;
+    /// More than 16 wasm arguments flat, so the record holding a handle is encoded.
+    framed: func(
+        framing: framing,
+        extra: tuple<u32, u32, u32, u32, u32, u32, u32, u32>,
+    ) -> u32;
     /// More than 16 wasm arguments flat, so its widest is encoded.
     wide: func(
         first: tuple<u32, u32, u32, u32, u32, u32, u32, u32, u32, u32>,
