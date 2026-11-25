@@ -489,9 +489,6 @@ impl Embedding {
         over.app.end_drag(over.editor);
     }
 
-    /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
-    /// of the layer focused there, in place of those it took before (`Windows::intercept`): the
-    /// root's own shortcuts, and Escape while a dialog of its own is open.
     /// The editor whose view has the keyboard in `window`, with the app running it and the
     /// screen showing that view: what the root's command palette lists the actions of first.
     pub fn focused_editor(
@@ -524,6 +521,9 @@ impl Embedding {
         })
     }
 
+    /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
+    /// of the layer focused there, in place of those it took before (`Windows::intercept`): the
+    /// root's own shortcuts, and Escape while a dialog of its own is open.
     pub fn intercept(&mut self, chords: Vec<KeyChord>) {
         self.windows.intercept(chords);
     }
