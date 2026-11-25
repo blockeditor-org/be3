@@ -376,6 +376,26 @@ fn slice(buffer: &wgpu::Buffer, offset: u64, size: Option<u64>) -> Outcome<wgpu:
     }
 }
 
+/// The slice a vertex buffer slot is set to, or `None` to unbind it, which takes no offset or
+/// size, as WebGPU's `setVertexBuffer(slot, null)` and wgpu-core say.
+fn vertex_slice(
+    buffer: Option<&wgpu::Buffer>,
+    slot: u32,
+    offset: u64,
+    size: Option<u64>,
+) -> Outcome<Option<wgpu::BufferSlice<'_>>> {
+    match (buffer, size) {
+        (Some(buffer), _) => slice(buffer, offset, size).map(Some),
+        (None, _) if offset != 0 => Err(format!(
+            "unbinding the vertex buffer at slot {slot} takes an offset of 0, not {offset}"
+        )),
+        (None, Some(size)) if size != 0 => Err(format!(
+            "unbinding the vertex buffer at slot {slot} takes no size, not {size}"
+        )),
+        (None, _) => Ok(None),
+    }
+}
+
 fn caught(popped: impl Future<Output = Option<wgpu::Error>>) -> Option<String> {
     match pin!(popped).poll(&mut Context::from_waker(Waker::noop())) {
         Poll::Ready(error) => error.map(|error| error.to_string()),
