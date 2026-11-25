@@ -31,7 +31,7 @@ impl be_sdk_beui::BeuiRoot for CounterRoot {
 
 /// The counter's host component (guides/apps/host_services.md, "Host components"): once its
 /// block's content arrives it adds one, which is all a headless host of it does
-/// (plans/headless_apps.md).
+/// (guides/apps/runtime.md, "Headless").
 pub struct CounterHost;
 
 #[component]

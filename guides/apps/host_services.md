@@ -382,7 +382,7 @@ app asks (`Instances::hosting`):
 - no shell message but a failure report, no web view, no `open-url`, and no
   gpu. A fetch is the manifest's `network` as for any instance. It is how a
 hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
-`be` (plans/headless_apps.md).
+`be` (guides/apps/runtime.md, "Headless").
 
 be-host runs a block's host component while it hosts the block
 (`crates/be-host/src/hosting.rs`, every frame): an editor of the block is open

@@ -3,7 +3,7 @@ use super::*;
 use std::{cell::RefCell, rc::Rc};
 
 /// With no display asking for frames, the runtime sleeps until something wakes it, and a step
-/// delivers what did (plans/headless_apps.md).
+/// delivers what did (guides/apps/runtime.md, "Headless").
 #[test]
 fn a_headless_runtime_steps_when_woken_and_delivers_what_woke_it() {
     let mut headless = Headless::start();

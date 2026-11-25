@@ -1467,7 +1467,7 @@ pub fn install(setup: &beui::native::Setup) {
 }
 
 /// Installs the runtime with no beui setup: no presenter and no gpu, so an app that asks for
-/// the device is told there is none (plans/headless_apps.md; `Headless`).
+/// the device is told there is none (guides/apps/runtime.md, "Headless"; `Headless`).
 pub fn install_headless() {
     install_with(Availability(Ok(())));
 }

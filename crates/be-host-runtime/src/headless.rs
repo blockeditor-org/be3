@@ -1,5 +1,5 @@
-//! Runs the runtime with no beui: no window, no presenter and no gpu, stepping the apps when
-//! they wake rather than when a display asks for a frame (plans/headless_apps.md). `be` runs
+//! Runs the runtime with no beui: no window, no presenter and no gpu, stepping the apps when they
+//! wake rather than when a display asks for a frame (guides/apps/runtime.md, "Headless"). `be` runs
 //! host components this way; be-host, driven by beui, starts each frame the same way
 //! (`begin_host_frame`).
 

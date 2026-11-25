@@ -52,7 +52,7 @@ pub struct AppManifest {
 /// A host component: a component of the app's wasm with no frame, which the host opens on a
 /// block of the type it `edits`, attached to the replica as an editor with Edit is, with no
 /// view and no input. It is how a hosted block's host runs (plans/hosted_blocks.md), in
-/// be-host or headless in `be` (plans/headless_apps.md).
+/// be-host or headless in `be` (guides/apps/runtime.md, "Headless").
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostManifest {
     pub id: [u8; 16],

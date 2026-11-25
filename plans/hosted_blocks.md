@@ -1,7 +1,7 @@
 # Hosted blocks
 
-Depends on: plans/headless_apps.md for step 4's headless host only. Join links are built
-(guides/blocks/keys.md, "Share links").
+Depends on: none. Join links are built (guides/blocks/keys.md, "Share links") and `be`
+runs host components headless (guides/apps/runtime.md, "Headless").
 
 A hosted block is run by a host: one member with Edit, online, holding the
 block's live session, that others talk to instead of reading the block. A game
@@ -128,7 +128,7 @@ a role inside the app, since the share dialog grants no roles. A game:
   list is kept in memory only, not in settings or view state: quitting
   be-host stops every host, and starting it again restarts none. On a
   server, `be BLOCK host` runs the same component headless
-  (plans/headless_apps.md).
+  (guides/apps/runtime.md, "Headless").
 
 ## Accepted limits
 
@@ -267,7 +267,7 @@ a role inside the app, since the share dialog grants no roles. A game:
      that device goes included. Left: a claim the server refuses leaves the
      component running unhosted, with no Keep hosting offered, until the block
      stops being one this device should host.
-   - e. `be BLOCK host` (done; plans/headless_apps.md, step 2): the type's host
+   - e. `be BLOCK host` (done; guides/apps/runtime.md, "Headless"): the type's host
      component headless, while no other device hosts the block;
      `be_hosts_a_block_while_no_other_device_does`.
    Done: a be-host-tests test with two editor devices and two players as raw

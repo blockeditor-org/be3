@@ -20,7 +20,7 @@ be-block-store = { path = "../be-block-store" }
 be-block-sync = { path = "../be-block-sync" }
 be-block-type-host = { path = "../be-block-type-host" }
 be-host-base = { path = "../be-host-base" }
-# Runs apps' host components headless (plans/headless_apps.md).
+# Runs apps' host components headless (guides/apps/runtime.md, "Headless").
 be-host-runtime = { path = "../be-host-runtime" }
 be-host-stack = { path = "../be-host-stack" }
 be-sdk-api = { path = "../be-sdk-api" }

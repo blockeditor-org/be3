@@ -1,8 +1,8 @@
-//! Runs an app's host component headless (plans/headless_apps.md): the component of the app
-//! whose manifest's `hosts` names the block's type, through be-host-runtime with no window,
-//! presenter or gpu (`be_host_runtime::Headless`), on a block stack the caller started. The
-//! app is staged beside `be`, or downloaded from a deployed `be`'s release as the runtime reads
-//! it (`crate::release`).
+//! Runs an app's host component headless (guides/apps/runtime.md, "Headless"): the component of the
+//! app whose manifest's `hosts` names the block's type, through be-host-runtime with no window,
+//! presenter or gpu (`be_host_runtime::Headless`), on a block stack the caller started. The app is
+//! staged beside `be`, or downloaded from a deployed `be`'s release as the runtime reads it
+//! (`crate::release`).
 
 use std::{sync::Arc, time::Duration};
 
@@ -63,8 +63,8 @@ pub fn wake() {
     be_host_base::host::wake();
 }
 
-/// Hosts `block`, of `block_type`, as the device `client` (`be BLOCK host`, plans/headless_apps.md,
-/// step 2), on a block stack the caller started, until `stop` answers true: holds the block's
+/// Hosts `block`, of `block_type`, as the device `client` (`be BLOCK host`, guides/apps/runtime.md,
+/// "Headless"), on a block stack the caller started, until `stop` answers true: holds the block's
 /// replica open, so this device is in its session, starts the type's host component whenever
 /// no one hosts it (starting claims the lease, plans/hosted_blocks.md, step 4d2), and stops it,
 /// standing by, while another device does. It refuses a block this account may not edit, as a
