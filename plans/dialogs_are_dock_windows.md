@@ -17,9 +17,6 @@ decisions/dialogs_are_presented_by_kind.md). What is left:
    settings, leaving a workspace) and the desktop's alerts: a dialog's window opened at its
    starting size, the scrim of its cover painted in the wrong place, and tests read its rects in
    its own window's points. Those need fixing first.
-2. **A confirmation blocks its frame, not a sibling.** A centred dialog with no owner blocks its
-   whole window, which in an app is its own frame, and a modal `DockDialog` blocks only its tab's
-   panel. A host test shows a confirmation in one editor's frame leaving a sibling frame live.
 
 ## The test
 
