@@ -2,6 +2,8 @@ use crate::{HostTest, Options, Server};
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
+mod a_deleted_block_dragged_onto_my_files_moves_into_it;
+mod a_block_added_while_zoomed_into_my_files_is_made_in_it;
 mod a_block_added_to_my_files_from_a_slow_server_stays_in_it;
 mod a_block_dragged_from_the_files_onto_a_canvas_lands_on_it;
 mod a_canvas_exported_from_the_files_with_its_editor_closed_becomes_an_image_that_follows_it;
