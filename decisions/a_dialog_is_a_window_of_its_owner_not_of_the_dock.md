@@ -1,9 +1,9 @@
 # A dialog is a window of its owner, not a surface of the dock
 
 Dialogs become windows (plans/dialogs_are_dock_windows.md), and what makes one a dialog is a
-property of beui's own `Window` (`beui-view/src/window.rs`), not of the dock. Pointing and
-blocking are built; sheets and the `Dialog` with no dock above it arrive with that plan's
-later steps:
+property of beui's own `Window` (`beui-view/src/window.rs`), not of the dock. Pointing,
+blocking and the dock's sheets are built; the `Dialog` with no dock above it arrives with that
+plan's next step:
 
 - **The base `Window` carries it**: pointing at an anchor with a beak, blocking its owner (no
   presses, a scrim, focus trapped and given back), and showing as a sheet. The dock's floating

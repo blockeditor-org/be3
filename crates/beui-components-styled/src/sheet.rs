@@ -73,7 +73,13 @@ pub fn ModalSheet(
     /// It then takes no `rest` or `stops` of its own.
     #[prop(default = false)]
     fit: bool,
+    /// A `fit` sheet holding more than the middle stop rises to the top stop before what it
+    /// holds scrolls: a large form.
+    #[prop(default = false)]
+    grows: bool,
     on_close: Callback<()>,
+    /// A press on the scrim, in place of `on_close` (see `unstyled::ModalSheet`).
+    on_outside: Option<Callback<()>>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
@@ -88,6 +94,7 @@ pub fn ModalSheet(
             rest
             stops
             fit
+            grows
             fade={crate::theme::SCROLL_FADE}
             style={crate::scroll::scroll_style()}
             scrim={scrim}
@@ -98,6 +105,7 @@ pub fn ModalSheet(
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
+            on_outside={on_outside}
         >|| {
             content.call()
         }</unstyled::ModalSheet>

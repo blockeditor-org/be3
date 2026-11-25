@@ -111,17 +111,22 @@ struct Stops {
 impl Stops {
     /// A sheet of `height` (its grip and what it holds) on a screen `extent` tall, with stops
     /// at `shares` of it, never taller than it holds; or, `fit`, one stop at its height, never
-    /// above `rest`, past which what it holds scrolls.
-    fn of(height: f32, extent: f32, shares: &[f32], rest: f32, fit: bool) -> Self {
+    /// above `rest` (unless it `grows` and is taller, when it rises to its highest share), past
+    /// which what it holds scrolls.
+    fn of(height: f32, extent: f32, shares: &[f32], rest: f32, fit: bool, grows: bool) -> Self {
+        let highest = shares.iter().copied().fold(0.0, f32::max);
         if fit {
-            let top = height.min(rest * extent).max(0.0);
+            let limit = match grows && height > rest * extent {
+                true => highest.max(rest) * extent,
+                false => rest * extent,
+            };
+            let top = height.min(limit).max(0.0);
             return Self {
                 top,
                 stops: vec![top],
                 rest: top,
             };
         }
-        let highest = shares.iter().copied().fold(0.0, f32::max);
         let top = height.min(highest * extent).max(0.0);
         let mut stops: Vec<f32> = shares
             .iter()
@@ -177,7 +182,8 @@ impl Stops {
 /// A panel rising from the bottom of a narrow screen: a vertical `Scroll` whose one offset
 /// raises it and, past its highest stop, scrolls what it holds (the module's doc). It rests on
 /// `stops` (shares of `extent`), never taller than it holds, and opens at `rest`; or, `fit`,
-/// at its own height up to `rest`, never higher: past that what it holds scrolls. A release that settles below its lowest stop, a tap above it, Escape and a
+/// at its own height up to `rest` (or, `grows`, up to its highest stop when it is taller): past
+/// that what it holds scrolls. A release that settles below its lowest stop, a tap above it, Escape and a
 /// back gesture ask `on_close`; it goes only when `open` turns false, sliding down out of sight,
 /// and then `on_gone`. `on_presence` hears how far it is up, from 0 to 1 at its lowest stop. A
 /// sheet opening just as another closes in the same document starts at the other's height, so
@@ -189,6 +195,7 @@ pub fn Sheet(
     rest: f32,
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = false)] grows: bool,
     #[prop(default = 0.0)] fade: f32,
     style: ScrollStyle,
     #[prop(default = ComponentRef::new())] scroll: ComponentRef<ScrollApi>,
@@ -204,7 +211,7 @@ pub fn Sheet(
     let height = create_signal(0.0_f32);
     let placed = {
         let shares = Rc::clone(&shares);
-        create_memo(move || Stops::of(height.get(), extent.get(), &shares, rest, fit))
+        create_memo(move || Stops::of(height.get(), extent.get(), &shares, rest, fit, grows))
     };
     let snaps = create_memo(move || {
         let mut snaps = vec![0.0];
@@ -576,15 +583,21 @@ pub fn ModalSheet(
     rest: f32,
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = false)] grows: bool,
     #[prop(default = 0.0)] fade: f32,
     style: ScrollStyle,
     scrim: Prop<Color>,
     grip: RenderFn<SheetGripHandle, NodeId>,
     panel: RenderFn<NodeId, NodeId>,
+    /// A swipe away, Escape and back, and a press outside unless `on_outside` takes it.
     on_close: Callback<()>,
+    /// A press outside the sheet, on its scrim, in place of `on_close`: a blocking dialog
+    /// calls attention to itself there rather than closing.
+    on_outside: Option<Callback<()>>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let shown = open.clone();
+    let outside = on_outside.unwrap_or(on_close);
     view! {
         <Modal
             open
@@ -598,12 +611,14 @@ pub fn ModalSheet(
                 rest
                 stops={stops.clone()}
                 fit
+                grows
                 fade
                 style
                 grip={move |handle: SheetGripHandle| grip.call(handle)}
                 panel
                 on_presence={modal.presence}
                 on_close={on_close}
+                on_outside={outside}
             >
                 {content.call()}
             </ModalSheetBody>
@@ -617,12 +632,14 @@ fn ModalSheetBody(
     rest: f32,
     stops: Vec<f32>,
     fit: bool,
+    grows: bool,
     fade: f32,
     style: ScrollStyle,
     grip: Render<SheetGripHandle, NodeId>,
     panel: RenderFn<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_close: Callback<()>,
+    on_outside: Callback<()>,
     children: NodeId,
 ) -> NodeId {
     let gone = create_signal(false);
@@ -637,16 +654,16 @@ fn ModalSheetBody(
     }
     let scroll = ComponentRef::<ScrollApi>::new();
     let extent = create_signal(0.0);
-    let highest = match fit {
+    let highest = match fit && !grows {
         true => rest,
-        false => stops.iter().copied().fold(0.0, f32::max),
+        false => stops.iter().copied().fold(rest, f32::max),
     };
     let built = view! {
         <List spacing=0.0>
             <ListItem grow=1.0 min={move || extent.get() * (1.0 - highest)}>
                 <Interactive
                     @test_id={"sheet.outside"}
-                    on_click={on_close}
+                    on_click={on_outside}
                     on_pointer={gestures::scroll_drag(Some(Direction::Vertical), move |gesture: DragGesture| {
                         if let Some(scroll) = scroll.try_get() { scroll.drag(gesture); }
                     })}
@@ -661,6 +678,7 @@ fn ModalSheetBody(
                     rest
                     stops
                     fit
+                    grows
                     fade
                     style
                     scroll
