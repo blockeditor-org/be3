@@ -3,7 +3,8 @@ load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
 # What ./scripts/verify leaves out (decisions/verify_compiles_one_configuration_per_target.md),
 # in one buck2 command, for the manual broad check (.github/workflows/broad.yml):
 # rustc's check pass over every first-party Rust library and binary in each
-# configuration verify does not compile, and clippy over the two it does, which
+# configuration verify does not compile, a link of what it names in _LINKED,
+# and clippy over the two it does, which
 # fails through one lint-gate action (crates/be-tool-buck) since the prelude's
 # clippy actions always succeed. Prints "kind<TAB>path": the clippy summary.
 #
@@ -26,6 +27,12 @@ _SHIPPED = {name: _DESKTOP for name in CROSS_PLATFORMS} | {
     "android_arm64": ["//crates/be-host:be-host"],
     "linux_arm64": _DESKTOP + ["//crates/be-tool-cli:bin"],
 }
+
+# What it links beyond checking, per platform: be-host's library on Android
+# (libbe_host.so), which only the APK targets link otherwise, so a link that
+# fails there (two C++ runtimes, decisions/one_cpp_runtime_beside_v8_on_android.md,
+# or a missing native library) shows before a deploy. A check pass never links.
+_LINKED = {"android_arm64": [("//crates/be-host:be-host", "cdylib")]}
 
 # (platform, release, check, clippy). verify checks linux_x86_64 and
 # wasi_guest in dev builds already.
@@ -102,13 +109,18 @@ def _impl(ctx: bxl.Context):
                 checks[key] = _subtarget(ctx, target, "check")
             if clippy and key not in diagnostics:
                 diagnostics[key] = _subtarget(ctx, target, "clippy.json")
+    linked = []
+    for platform, roots in _LINKED.items():
+        for root, sub_target in roots:
+            target = ctx.configured_targets("root" + root, target_platform = "root//buck/platforms:" + platform)
+            linked.append(_subtarget(ctx, target, sub_target))
     summary = actions.declare_output("clippy.txt")
     tools = ctx.analysis(ctx.configured_targets("root//crates/be-tool-buck:bin")).providers()[DefaultInfo].default_outputs[0]
     actions.run(
         cmd_args(tools, "lint-gate", summary.as_output(), [path for path in diagnostics.values() if path != None]),
         category = "lint_gate",
     )
-    ctx.output.ensure_multiple([path for path in checks.values() if path != None])
+    ctx.output.ensure_multiple([path for path in list(checks.values()) + linked if path != None])
     ctx.output.print("clippy", ctx.output.ensure(summary).abs_path(), sep = "\t")
 
 main = bxl_main(
