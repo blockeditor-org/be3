@@ -58,7 +58,7 @@ async fn a_download_that_cannot_check_the_blocks_above_is_refused() {
     .unwrap();
     let summary = device.summary(database).await.unwrap();
     device.children(BlockParent::Block(database)).await.unwrap();
-    device.learn(&[summary.clone()]).await.unwrap();
+    device.learn(std::slice::from_ref(&summary)).await.unwrap();
     device
         .read_contents(&[(database, summary.head)])
         .await

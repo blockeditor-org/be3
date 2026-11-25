@@ -32,7 +32,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         &owner.peer().connection(),
         Some(organization),
         be_block_protocol::Op::CreateAgent {
-            account: account,
+            account,
             name: "Claude".into(),
             recovery: public.0,
             signing: phrase.secret().signing().0,
