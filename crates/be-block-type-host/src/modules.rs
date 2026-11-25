@@ -175,7 +175,6 @@ pub fn wasm(
                 move |host| load(host),
                 wake,
                 waiting,
-                be_wasm_guest_host::thread::catch,
             )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),

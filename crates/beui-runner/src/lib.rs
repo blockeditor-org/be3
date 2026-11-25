@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::Ref;
 use std::error::Error;
 use std::future::Future;
@@ -440,7 +439,7 @@ impl Runner {
             let program = &mut self.program;
             if let Err(payload) = catch_unwind(AssertUnwindSafe(|| program.exiting())) {
                 self.failure
-                    .get_or_insert_with(|| format!("while exiting: {}", panic_message(&*payload)));
+                    .get_or_insert_with(|| format!("while exiting: {}", be_wasm_panic::message(&*payload)));
             }
             self.program = Box::new(Exited);
         }
@@ -482,7 +481,7 @@ impl Runner {
         match catch_unwind(AssertUnwindSafe(|| act(self))) {
             Ok(done) => Some(done),
             Err(payload) => {
-                self.failure.get_or_insert_with(|| panic_message(&*payload));
+                self.failure.get_or_insert_with(|| be_wasm_panic::message(&*payload));
                 self.exit();
                 None
             }
@@ -923,13 +922,3 @@ impl Visit<'_> {
     }
 }
 
-pub fn panic_message(payload: &(dyn Any + Send)) -> String {
-    match (
-        payload.downcast_ref::<&str>(),
-        payload.downcast_ref::<String>(),
-    ) {
-        (Some(message), _) => (*message).to_owned(),
-        (None, Some(message)) => message.clone(),
-        (None, None) => "a panic without a message".to_owned(),
-    }
-}

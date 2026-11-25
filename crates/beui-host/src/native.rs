@@ -23,7 +23,7 @@ pub use beui_renderer_wgpu::{Renderer, Repaint, Repainting, Resources, renderer_
 pub use beui_runner::environment;
 pub use beui_runner::{
     Incoming, Launch, Layer, LayerFrame, LayerView, Platform, PlatformServices, RunOptions,
-    Running, Shown, Units, panic_message,
+    Running, Shown, Units,
 };
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]

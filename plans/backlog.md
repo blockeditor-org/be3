@@ -397,7 +397,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
   alone. One cause is fixed: with `RUST_BACKTRACE` set, each test's contained
   panic symbolized a backtrace of the whole debug harness (0.7 s, 300 MB), and
   96 at once failed 201 of 400 locally; a contained panic outside be-host now
-  prints one line (`panic_guard::contain`), 0 of 1000 after. The build server
+  prints one line (`be_wasm_panic::contain`), 0 of 1000 after. The build server
   does not set `RUST_BACKTRACE`, so a failure there again has another cause.
   Done: if it recurs on the build server, what each waits on found from that
   run's output and made an explicit signal.

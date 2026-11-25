@@ -44,8 +44,8 @@ that could not run), all through `notices::report`; `notices::report_with` adds 
 
 ## Panics
 
-be-host-base's `panic_guard` sorts panics by where they happen. Inside `panic_guard::contain` a
-panic stops only that app, the shell included (guides/desktop.md, A shell that stops), while the
+be-host-base's `panic_guard` sorts panics by where they happen. Inside `be_wasm_panic::contain` a
+panic stops only that app or guest, the shell included (guides/desktop.md, A shell that stops), while the
 compositor and its clients keep running; a D-Bus task ends alone with a toast; a password check
 that panics fails. Any other panic is be-host's own: in a window it shows its error screen, and in a
 login session it ends the session through `Session::end`, so the console and display manager come

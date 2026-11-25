@@ -180,6 +180,7 @@ members = [
     "crates/be-wasm-link",
     "crates/be-wasm-ops",
     "crates/be-wasm-ops-bindgen",
+    "crates/be-wasm-panic",
     "crates/be-wasm-password",
     "crates/be-wasm-root-api",
     "crates/be-wasm-root-host",

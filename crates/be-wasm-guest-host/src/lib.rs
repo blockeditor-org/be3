@@ -18,13 +18,3 @@ pub use worker::{
 };
 
 pub type Wake = Arc<dyn Fn() + Send + Sync>;
-
-pub fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
-    if let Some(message) = payload.downcast_ref::<&str>() {
-        return (*message).to_owned();
-    }
-    if let Some(message) = payload.downcast_ref::<String>() {
-        return message.clone();
-    }
-    "a panic without a message".to_owned()
-}

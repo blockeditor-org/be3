@@ -150,7 +150,7 @@ impl Authenticate for Pam {
         let spawned = std::thread::Builder::new()
             .name("authenticate".to_owned())
             .spawn(move || {
-                let checked = be_host_base::panic_guard::contain(|| {
+                let checked = be_wasm_panic::contain(|| {
                     match password.as_str() {
                         Some(typed) => pam::authenticate(service, &user, typed),
                         // PAM checks text: a password that is not is no one's.
