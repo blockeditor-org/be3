@@ -3,7 +3,8 @@ struct Combine {
     row0: vec4<f32>,
     row1: vec4<f32>,
     row2: vec4<f32>,
-    params: vec4<f32>,
+    // The contrast, and whether the target stores linear values.
+    params: vec2<f32>,
 };
 
 @group(0) @binding(0) var<uniform> combine: Combine;

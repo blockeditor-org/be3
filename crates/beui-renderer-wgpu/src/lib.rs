@@ -2020,9 +2020,10 @@ impl Renderer {
         if let Some(vello) = &mut self.vello {
             vello.rendered = 0;
         }
-        self.views.0.clear();
         let Some(mut composition) = self.composition.take() else {
             self.render_into(device, queue, encoder, target, load, 0..self.steps.len());
+            // No view outlives the frame: a presented swapchain texture, a layer replaced.
+            self.views.0.clear();
             return;
         };
         // A composited window: its UI into the roots, one below its first anchored view and one
@@ -2046,6 +2047,7 @@ impl Renderer {
         }
         composition.compose(queue, encoder, target, load);
         self.composition = Some(composition);
+        self.views.0.clear();
     }
 
     /// Renders `steps` of the frame into `target`: what lies between the drawings and filters,

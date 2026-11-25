@@ -13,7 +13,9 @@ use beui_types::Vec2;
 struct CombineUniforms {
     region: [f32; 4],
     rows: [[f32; 4]; 3],
-    params: [f32; 4],
+    /// The contrast, and whether the target stores linear values.
+    params: [f32; 2],
+    pad: [f32; 2],
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -213,12 +215,8 @@ impl Effects {
             bytemuck::bytes_of(&CombineUniforms {
                 region,
                 rows: rows(prepared.matrix),
-                params: [
-                    prepared.contrast,
-                    if stored_linear { 1.0 } else { 0.0 },
-                    0.0,
-                    0.0,
-                ],
+                params: [prepared.contrast, if stored_linear { 1.0 } else { 0.0 }],
+                pad: [0.0; 2],
             }),
         );
         let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {

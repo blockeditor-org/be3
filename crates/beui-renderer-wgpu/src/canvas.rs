@@ -76,6 +76,7 @@ impl CanvasSurface {
         };
         let info = renderer_info(&adapter.get_info(), format);
         let lost = crate::Lost::watch(&device);
+        lost.panic_on_errors(&device);
         let renderer = Renderer::new(&crate::Resources::new(&device, format, &lost));
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,

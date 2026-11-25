@@ -51,6 +51,8 @@ impl ColorVision {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Filter {
     pub region: Rect,
+    /// The Gaussian blur's standard deviation σ, in points, as CSS `blur()` takes it: light
+    /// spreads about 3σ (decisions/beui_filter_blur_is_vellos_gaussian.md).
     pub blur: f32,
     pub contrast: f32,
     pub vision: ColorVision,

@@ -31,6 +31,17 @@ impl Lost {
         lost
     }
 
+    /// Makes `device`'s uncaptured errors panic, as wgpu's default does, until this is set:
+    /// after a loss every call fails, and the platform recovers rather than panicking.
+    pub fn panic_on_errors(&self, device: &wgpu::Device) {
+        let lost = self.clone();
+        device.on_uncaptured_error(Arc::new(move |error| {
+            if !lost.is_lost() {
+                panic!("wgpu error: {error}");
+            }
+        }));
+    }
+
     pub fn set(&self) {
         self.0.store(true, Ordering::SeqCst);
     }
