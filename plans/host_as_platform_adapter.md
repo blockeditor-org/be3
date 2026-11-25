@@ -1831,11 +1831,14 @@ Each step lands on its own.
                the root paintings with a tab now show the tab's child's menu in its bar.
                A card dropped under the root is fitted to its child's intrinsic size as under
                be-host (the checklist declares one, and be-host tells no default size before
-               the child's editor has drawn). Left for later: a pick from a
-               joined dock's tab menu (the docks' `take_picks`, now sent as `menu-pick`), a
-               docked child's details (`take_details`, as `child-details`) and a pick through a
-               child's menu have no host test; files dragged in from outside the window are not
-               carried yet.
+               the child's editor has drawn). A pick from a joined dock's tab
+               menu (the docks' `take_picks`, sent as `menu-pick`) and a docked child's details
+               (`take_details`, as `child-details`) reach their editors as under be-host: host
+               tests `be_root_in_place_of_the_hosts_ui_picks_from_a_joined_canvas_tab_menu`
+               and `be_root_in_place_of_the_hosts_ui_opens_a_joined_blocks_details_from_its_tab`.
+               Left for later: a pick through a child's menu that its placer shows
+               (`child-menu-pick`) has no host test; files dragged in from outside the window are
+               not carried yet.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
              then. A web view stays as under be-host until real web views exist: its editor's
