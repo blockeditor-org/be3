@@ -909,6 +909,15 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
             forwarded.tell(EditorInstanceId(editor), event);
         }
     }
+    for (instance, editor, panel) in root.take_panel_shows() {
+        let Some(forwarded) = served.get_mut(&instance) else {
+            continue;
+        };
+        // A root that encodes what no editor can read asks for nothing.
+        if let Some(panel) = be_sdk_api::ops::decode::<be_sdk_api::HostPanel>(&panel) {
+            forwarded.show_panel(EditorInstanceId(editor), panel);
+        }
+    }
     for (instance, editor, updates) in root.take_dock_updates() {
         let Some(forwarded) = served.get_mut(&instance) else {
             continue;
@@ -1419,21 +1428,22 @@ fn open_editor(
         ));
     }
     let instance = crate::editors::app::next_instance();
-    let creation = match &shows {
-        Shows::Creation(target) => Some(RootCreation {
-            target: *target,
-            commit: None,
-            committed: false,
-            progress: None,
-            created: crate::editors::app::Inbox::new(&app.identity.id, instance, |event| {
-                match event {
-                    be_host_runtime::InstanceEvent::Created(created) => Some(created),
-                    _ => None,
-                }
+    let creation =
+        match &shows {
+            Shows::Creation(target) => Some(RootCreation {
+                target: *target,
+                commit: None,
+                committed: false,
+                progress: None,
+                created: crate::editors::app::Inbox::new(&app.identity.id, instance, |event| {
+                    match event {
+                        be_host_runtime::InstanceEvent::Created(created) => Some(created),
+                        _ => None,
+                    }
+                }),
             }),
-        }),
-        _ => None,
-    };
+            _ => None,
+        };
     let mut artifact = None;
     let (role, block) = match shows {
         Shows::Block(opened) => (
