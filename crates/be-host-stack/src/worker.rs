@@ -1694,6 +1694,9 @@ impl Session<'_> {
             let handled = self.replicas.handled;
             step(shared, Some(woken.name()));
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
+            for stopped in self.replicas.take_stopped_modules() {
+                be_host_base::notices::report(stopped);
+            }
             if !matches!(woken, Woken::Module | Woken::Finished) || self.replicas.handled != handled
             {
                 shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;

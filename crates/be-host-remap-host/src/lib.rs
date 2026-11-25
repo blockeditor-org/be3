@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use be_lib_failure_budget::{Failed, FailureBudget};
 use be_lib_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
 use be_lib_remap::protocol::{decode, encode};
 use be_lib_remap::{Input, Output, Reply, Request, Source, Window};
@@ -34,7 +35,7 @@ impl Default for Limits {
 }
 pub const MEMORY_BYTES: usize = 16 << 20;
 pub const FAILURES_BEFORE_STOPPING: usize = 3;
-pub const FAILURE_WINDOW: u64 = 60_000_000;
+pub const FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const SOONEST: u64 = 1000;
 const MOST_REPLY_BYTES: usize = 1 << 20;
 const MOST_OUTPUTS: usize = 1024;
@@ -60,7 +61,7 @@ pub struct Remapper {
     bypassed_starting: BTreeSet<Source>,
     forced: BTreeSet<Source>,
     locked: bool,
-    failures: Vec<u64>,
+    failures: FailureBudget,
     stopped: bool,
     deadline: Option<u64>,
     problems: Vec<String>,
@@ -109,7 +110,7 @@ impl Remapper {
             bypassed_starting: BTreeSet::new(),
             forced: BTreeSet::new(),
             locked: false,
-            failures: Vec::new(),
+            failures: FailureBudget::new(FAILURES_BEFORE_STOPPING, FAILURE_WINDOW),
             stopped: false,
             deadline: None,
             problems: Vec::new(),
@@ -128,7 +129,7 @@ impl Remapper {
         let out = self.release_held();
         self.config = config;
         self.stopped = false;
-        self.failures.clear();
+        self.failures.reset();
         out
     }
 
@@ -442,10 +443,7 @@ impl Remapper {
 
     fn fail(&mut self, error: &str, now: u64) -> Vec<Output> {
         let out = self.release_held();
-        self.failures
-            .retain(|at| now.saturating_sub(*at) < FAILURE_WINDOW);
-        self.failures.push(now);
-        if self.failures.len() >= FAILURES_BEFORE_STOPPING {
+        if self.failures.fail(Duration::from_micros(now)) == Failed::Stop {
             self.stopped = true;
             self.problems.push(format!(
                 "The input remaps stopped after failing {FAILURES_BEFORE_STOPPING} times in a minute ({error}). Keys and buttons reach the windows unchanged until the remaps change."

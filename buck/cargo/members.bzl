@@ -72,6 +72,7 @@ members = [
     "crates/be-lib-cbor",
     "crates/be-lib-crate-pins",
     "crates/be-lib-dmabuf",
+    "crates/be-lib-failure-budget",
     "crates/be-lib-geometry",
     "crates/be-lib-ghostty-vt",
     "crates/be-lib-git",

@@ -1513,6 +1513,12 @@ impl<H: Host> Replicas<H> {
         std::mem::take(&mut self.changed)
     }
 
+    /// Why each type module that stopped for good since this was last asked stopped, for the
+    /// host to tell the person.
+    pub fn take_stopped_modules(&mut self) -> Vec<String> {
+        self.modules.take_stopped()
+    }
+
     async fn drain(&mut self, ctx: Ctx<'_, H>) {
         loop {
             while let Ok(io) = self.answers.try_recv() {

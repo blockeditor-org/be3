@@ -76,6 +76,12 @@ disagree. Each step below removes one of the pair.
    after `MAX_RESTARTS` (3). One `FailureBudget` (failures within a window, then stop) used by
    all three, and every stop posts a notice, so a type module that stops for good is no longer
    silent to the person.
+   Done: be-lib-failure-budget's `FailureBudget` (failures within a window, then `Stop`, until
+   `reset`), with each its own count and a minute's window: type modules 8
+   (`Replicas::take_stopped_modules`, which be-host-stack shows as a notice), the remaps 3, and
+   Xwayland 3 (`ServerEvent::Failed`, through the compositor's `on_failure`). Type modules and
+   Xwayland counted over their lifetime before; now a failure more than a minute after the
+   others no longer adds to them.
 
 ## The test
 

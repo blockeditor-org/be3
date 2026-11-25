@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-lib-failure-budget = { path = "../be-lib-failure-budget" }
 be-host-programs = { path = "../be-host-programs" }
 be-lib-dmabuf = { path = "../be-lib-dmabuf" }
 be-lib-layers = { path = "../be-lib-layers" }

@@ -208,7 +208,10 @@ swapchain never stalls behind a hidden window.
 `Server::start_xwayland` starts `Xwayland` on the first free display with smithay's `X11Wm`
 (`xwayland.rs`; decisions/xwayland_starts_with_the_compositor.md). It needs `Xwayland` on `PATH`
 (`apt-get install xwayland`) and a writable `/tmp/.X11-unix`; failures are logged as `be-wayland:
-Xwayland did not start ...`. Each X11 window is configured at its place on the desktop
+Xwayland did not start ...`. Xwayland that stops is started again until it stopped three times
+within a minute (a `be_lib_failure_budget::FailureBudget`); then X11 programs cannot run until
+be-host restarts, which the compositor says through `on_failure` (`ServerEvent::Failed`), a
+notice in be-host. Each X11 window is configured at its place on the desktop
 (`State::place`), so X coordinates are the desktop's. X11 `WM_STATE` stays `NormalState`, since
 smithay writes `IconicState` only by unmapping the frame. To try it, the log names the display:
 

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
+use be_lib_failure_budget::{Failed, FailureBudget};
 use smithay::delegate_xwayland_shell;
 use smithay::desktop::Window;
 use smithay::desktop::utils::{send_frames_surface_tree, with_surfaces_surface_tree};
@@ -21,7 +22,9 @@ use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler};
 
 use crate::state::{ClientWindow, Grab, Layer, ServerEvent, State, WindowId, collect_layers};
 
-const MAX_RESTARTS: u32 = 3;
+/// Xwayland stopping this many times within the window is not started again.
+const RESTARTS: usize = 3;
+const RESTART_WINDOW: Duration = Duration::from_secs(60);
 const PROGRAM: &str = "Xwayland";
 const SOCKET_DIR: &str = "/tmp/.X11-unix";
 
@@ -123,7 +126,7 @@ pub(crate) struct XWaylandState {
     source: Option<RegistrationToken>,
     display: Option<u32>,
     stopped: bool,
-    restarts: u32,
+    failures: FailureBudget,
     gave_up: bool,
     failure: Option<String>,
     overlays: Vec<Overlay>,
@@ -142,7 +145,7 @@ impl XWaylandState {
             source: None,
             display: None,
             stopped: false,
-            restarts: 0,
+            failures: FailureBudget::new(RESTARTS, RESTART_WINDOW),
             gave_up: false,
             failure: None,
             overlays: Vec::new(),
@@ -277,13 +280,14 @@ impl State {
         for id in closed {
             self.remove_window(id);
         }
-        if self.xwayland.restarts >= MAX_RESTARTS {
-            eprintln!("be-wayland: Xwayland stopped too often, so X11 programs cannot run");
+        if self.xwayland.failures.fail(self.start.elapsed()) == Failed::Stop {
             self.xwayland.display = None;
             self.xwayland.gave_up = true;
+            self.events.push(ServerEvent::Failed(format!(
+                "Xwayland stopped {RESTARTS} times in a minute, so X11 programs cannot run until be-host restarts."
+            )));
             return;
         }
-        self.xwayland.restarts += 1;
         if let Err(error) = self.spawn_xwayland() {
             eprintln!("be-wayland: Xwayland did not start again: {error}");
             self.xwayland.display = None;

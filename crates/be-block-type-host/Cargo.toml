@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-lib-failure-budget = { path = "../be-lib-failure-budget" }
 serde = { version = "1", features = ["derive"] }
 be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
