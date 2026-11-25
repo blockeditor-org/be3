@@ -15,7 +15,7 @@ use views::{Change, Notify};
 struct Inner<K: 'static, V: 'static> {
     keys: OwnedSignal<Vec<K>>,
     entries: RefCell<HashMap<K, OwnedSignal<V>>>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    #[allow(clippy::type_complexity)] // each view watching the list, with the id that removes it
     views: RefCell<Vec<(u64, Rc<dyn Notify<K, V>>)>>,
     next_view: Cell<u64>,
 }

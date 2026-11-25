@@ -6,7 +6,8 @@ const BELOW: &str = "every line below it wraps from the same paragraph, and none
 of their words move when the first line grows by a letter or two.";
 
 /// Each line after the first, as its text and its glyphs' ids and places.
-#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+// Each line's text and glyphs, compared whole between two layouts below.
+#[allow(clippy::type_complexity)]
 fn below(galley: &Galley) -> Vec<(String, Vec<(GlyphId, u32, u32)>)> {
     let lines = galley.lines();
     lines[1..]

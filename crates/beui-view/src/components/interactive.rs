@@ -239,7 +239,8 @@ struct Carrying {
     active: Callback<bool>,
     cancelled: Callback<()>,
     face: Face,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // Wraps the key handler once the node exists, called once, hence a boxed `FnOnce`.
+    #[allow(clippy::type_complexity)]
     finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
 }
 

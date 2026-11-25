@@ -26,7 +26,8 @@ type Probe = Rc<dyn Fn() -> Ready<()>>;
 /// long as a scope that read it lives.
 #[derive(Default)]
 struct Waits {
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // Each wait's id, the probe it reads and the scope keeping it; `by_node` indexes into it.
+    #[allow(clippy::type_complexity)]
     probes: RefCell<Vec<(u64, Probe, Rc<dyn Tracked>)>>,
     by_node: RefCell<HashMap<usize, (u64, usize)>>,
     next: Cell<u64>,
@@ -219,7 +220,8 @@ fn retry_failed(node: &Node, seen: &mut Vec<usize>) {
 pub struct ErrorBoundary {
     changed: Trigger,
     waits: Stored<Waits>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // The boundary's refresh callbacks, stored so the `Copy` boundary can share them.
+    #[allow(clippy::type_complexity)]
     refreshes: Stored<RefCell<Vec<Rc<dyn Fn()>>>>,
     state: Memo<Option<String>>,
 }

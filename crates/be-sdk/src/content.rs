@@ -203,7 +203,9 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         length: u64,
     ) -> impl std::future::Future<Output = Result<Vec<u8>, String>> + use<C> {
         let (token, message) = self.0.mirror.borrow_mut().read_range(offset, length);
-        #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+        // One read's answer and waker, shared only between this future and the reply handler just
+        // below.
+        #[allow(clippy::type_complexity)]
         let answer: Rc<RefCell<(Option<Result<Vec<u8>, String>>, Option<std::task::Waker>)>> =
             Rc::default();
         let answered = Rc::clone(&answer);

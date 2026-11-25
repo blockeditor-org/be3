@@ -615,7 +615,8 @@ pub struct EditorHost {
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // The block's members or why the host could not list them, absent until it answers.
+    #[allow(clippy::type_complexity)]
     members: Rc<RefCell<Option<Result<Vec<BlockMember>, Failure>>>>,
     members_watched: Rc<Cell<bool>>,
     shows_watched: Rc<Cell<bool>>,

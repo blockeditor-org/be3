@@ -338,8 +338,9 @@ fn failed(error: ServerError) -> Response {
 
 /// A body read whole, within `within` if given; its route's layers cap its size and how long
 /// it may stall.
-// The refusal is the response the route answers with, at once: boxing it would add an
-// allocation to every refused request and nothing else.
+// Refusals are cheap for any client to cause (a body too large, or one that stalls), so they are
+// not rare, and each is the response the route answers with at once: boxing it would add an
+// allocation to every one, while the large `Err` costs only room in a future awaited once.
 #[allow(clippy::result_large_err)]
 async fn read(body: Body, within: Option<Duration>) -> Result<Bytes, Response> {
     let read = axum::body::to_bytes(body, usize::MAX);
