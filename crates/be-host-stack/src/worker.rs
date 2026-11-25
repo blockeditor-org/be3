@@ -977,6 +977,8 @@ pub struct Shared {
     pub(crate) searched_at: Option<u64>,
     /// The `be_block_type_host::known_revision` that `Seen::kinds` was made at.
     pub(crate) kinds_at: Option<u64>,
+    /// The reads of the account's mutes, the offers to it and its notices (`Numbered`).
+    pub(crate) reads: Reads,
 }
 
 impl std::ops::Deref for Shared {
@@ -2349,7 +2351,7 @@ impl Session<'_> {
         self.tasks.0.contacts(peer, shared);
         self.tasks.0.mutes(peer, shared);
         self.tasks.0.owner_offers(peer, shared);
-        self.tasks.0.account_notices(peer);
+        self.tasks.0.account_notices(peer, shared);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
         self.in_arrive = true;
@@ -4905,7 +4907,7 @@ async fn heard(
         // or an accepted link's card to take; or another device took one into the account's
         // block.
         Some(Event::MailboxChanged) => {
-            tasks.account_notices(peer);
+            tasks.account_notices(peer, shared);
             tasks.contacts(peer, shared);
         }
         Some(Event::KeyWorkChanged) => {
@@ -5212,49 +5214,44 @@ async fn read_trees(
 
 /// Numbers the reads of one thing a task reads whole and stores (the account's mutes, the offers
 /// to it, its notices): two reads in flight answer in either order, so an answer is stored only
-/// when none asked after it was stored first, and the older never overwrites the newer.
-#[derive(Clone, Default)]
-pub(super) struct Reads(std::rc::Rc<std::cell::Cell<(u64, u64)>>);
-
-/// One read `Reads::ask` numbered.
-pub(super) struct Read {
-    reads: Reads,
-    number: u64,
+/// when none asked after it was stored first, and the older never overwrites the newer. Kept in
+/// `Shared` (`Shared::reads`), so an answer is checked and stored under the one lock.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Numbered {
+    pub(crate) asked: u64,
+    pub(crate) stored: u64,
 }
 
-impl Reads {
+impl Numbered {
     /// Numbers a read asked now, after every one asked before.
-    pub(super) fn ask(&self) -> Read {
-        let (asked, stored) = self.0.get();
-        self.0.set((asked + 1, stored));
-        Read {
-            reads: self.clone(),
-            number: asked + 1,
-        }
+    pub(crate) fn ask(&mut self) -> u64 {
+        self.asked += 1;
+        self.asked
     }
-}
 
-impl Read {
-    /// Whether its answer is to be stored: no read asked after it has been. Once it says so, an
-    /// older read's no longer is.
-    pub(super) fn stores(&self) -> bool {
-        let (asked, stored) = self.reads.0.get();
-        if self.number <= stored {
+    /// Whether the answer to read `number` is to be stored: no read asked after it has been.
+    /// Once it says so, an older read's no longer is.
+    pub(crate) fn stores(&mut self, number: u64) -> bool {
+        if number <= self.stored {
             return false;
         }
-        self.reads.0.set((asked, self.number));
+        self.stored = number;
         true
     }
+}
+
+/// The reads `Numbered` numbers, one count each.
+#[derive(Debug, Default)]
+pub(crate) struct Reads {
+    pub(crate) mutes: Numbered,
+    pub(crate) owner_offers: Numbered,
+    pub(crate) notices: Numbered,
 }
 
 #[derive(Clone)]
 pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
     contacts: Arc<tokio::sync::Mutex<()>>,
-    /// The reads of the account's mutes, the offers to it and its notices (`Reads`).
-    mutes_read: Reads,
-    offers_read: Reads,
-    notices_read: Reads,
     outbox: std::rc::Rc<std::cell::RefCell<Outbox>>,
     /// Counts the drains of the outbox that ended, for what waits on one (`sent`).
     drained: std::rc::Rc<tokio::sync::watch::Sender<u64>>,
@@ -5288,9 +5285,6 @@ impl Tasks {
             Self {
                 finished,
                 contacts,
-                mutes_read: Reads::default(),
-                offers_read: Reads::default(),
-                notices_read: Reads::default(),
                 outbox,
                 drained: std::rc::Rc::new(tokio::sync::watch::Sender::new(0)),
                 storage: Default::default(),
@@ -5477,12 +5471,12 @@ impl Tasks {
 
     /// Reads every block the account muted into `Shared::mutes`.
     fn mutes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-        let (peer, shared, asked) = (Arc::clone(peer), Arc::clone(shared), self.mutes_read.ask());
-        self.spawn(async move {
-            if let Ok(read) = peer.mutes().await
-                && asked.stores()
-            {
-                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let peer = Arc::clone(peer);
+        self.read_whole(
+            shared,
+            |reads| &mut reads.mutes,
+            async move { peer.mutes().await.ok() },
+            |held, read| {
                 held.mutes =
                     crate::Part::new(Some(read.iter().map(|row| (row.block, row.mode)).collect()));
                 crate::changes::post(crate::Changes {
@@ -5490,10 +5484,9 @@ impl Tasks {
                     ..crate::Changes::default()
                 });
                 held.progressed += 1;
-                drop(held);
-                crate::changes::wake();
-            }
-        });
+            },
+            || {},
+        );
     }
 
     /// Reads the blocks offered to this account to own (`query.owner-offers`) into the mirror
@@ -5501,35 +5494,71 @@ impl Tasks {
     /// for them. Read as the connection comes up, when the server says the roots may have
     /// changed (which an offer made or withdrawn tells), and after this host accepts one.
     fn owner_offers(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-        let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), self.clone());
-        let asked = self.offers_read.ask();
-        self.spawn(async move {
-            if let Ok(offers) = peer.owner_offers().await
-                && asked.stores()
-            {
-                shared
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .graph
+        let (reader, listed, lister, tasks) = (
+            Arc::clone(peer),
+            Arc::clone(peer),
+            Arc::clone(shared),
+            self.clone(),
+        );
+        self.read_whole(
+            shared,
+            |reads| &mut reads.owner_offers,
+            async move { reader.owner_offers().await.ok() },
+            |held, offers| {
+                held.graph
                     .set_owner_offers(offers.iter().map(|offer| offer.block));
-                spawn_listings(&peer, &shared, &tasks);
-                crate::changes::wake();
-            }
-        });
+            },
+            move || spawn_listings(&listed, &lister, &tasks),
+        );
     }
 
     /// Reads the account's notices and shows them (`be_host_base::notices::account_notices`):
     /// for an account with no email, what it would otherwise be mailed.
-    fn account_notices(&self, peer: &Arc<Peer<Store>>) {
-        let (peer, asked) = (Arc::clone(peer), self.notices_read.ask());
-        self.spawn(async move {
-            if let Ok(mailbox) = be_block_client::contacts::mailbox(&peer.connection()).await
-                && asked.stores()
-            {
+    fn account_notices(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let peer = Arc::clone(peer);
+        self.read_whole(
+            shared,
+            |reads| &mut reads.notices,
+            async move {
+                be_block_client::contacts::mailbox(&peer.connection())
+                    .await
+                    .ok()
+            },
+            |_, mailbox| {
                 crate::seen::notice(crate::seen::Notice::Account(crate::accounts::notices(
                     mailbox,
                 )));
+            },
+            || {},
+        );
+    }
+
+    /// Reads something whole (`read`, none when the read failed) and stores it (`store`, under
+    /// the lock, then `after` once it goes) unless a read of it asked later was stored first
+    /// (`Numbered`, which `count` picks out of `Shared::reads`).
+    fn read_whole<T: 'static>(
+        &self,
+        shared: &Arc<Mutex<Shared>>,
+        count: fn(&mut Reads) -> &mut Numbered,
+        read: impl Future<Output = Option<T>> + 'static,
+        store: impl FnOnce(&mut Shared, T) + 'static,
+        after: impl FnOnce() + 'static,
+    ) {
+        let asked = count(&mut shared.lock().unwrap_or_else(PoisonError::into_inner).reads).ask();
+        let shared = Arc::clone(shared);
+        self.spawn(async move {
+            let Some(answer) = read.await else {
+                return;
+            };
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                if !count(&mut held.reads).stores(asked) {
+                    return;
+                }
+                store(&mut held, answer);
             }
+            after();
+            crate::changes::wake();
         });
     }
 
