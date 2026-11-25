@@ -344,6 +344,7 @@ impl Harness {
             device,
             queue,
             format: wgpu::TextureFormat::Bgra8Unorm,
+            lost: Default::default(),
         });
         let space = Box::new(beui_layer_space::Space::new());
         Self {
@@ -561,7 +562,9 @@ impl Painter {
             device: device.clone(),
             queue: queue.clone(),
             renderer: beui_host::native::Renderer::new(&beui_host::native::Resources::new(
-                device, format,
+                device,
+                format,
+                &Default::default(),
             )),
             view: target.create_view(&wgpu::TextureViewDescriptor::default()),
         }

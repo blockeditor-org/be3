@@ -29,6 +29,7 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
         device,
         queue,
         format: wgpu::TextureFormat::Rgba8Unorm,
+        lost: Default::default(),
     });
     Linux::start(&setup);
     assert!(

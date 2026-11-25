@@ -17,6 +17,27 @@ use beui_renderer_wgpu::Repaint;
 #[cfg(target_arch = "wasm32")]
 use beui_types::Pos2;
 
+/// The loss of `device`, the app's: watched once, by the device's one lost callback, which the
+/// guest calls when the host reports the device lost.
+#[cfg(target_arch = "wasm32")]
+fn watched(device: &wgpu::Device) -> beui_renderer_wgpu::Lost {
+    thread_local! {
+        static WATCHED: std::cell::RefCell<Option<(wgpu::Device, beui_renderer_wgpu::Lost)>> =
+            const { std::cell::RefCell::new(None) };
+    }
+    WATCHED.with(|watched| {
+        let mut watched = watched.borrow_mut();
+        match &*watched {
+            Some((on, lost)) if on == device => lost.clone(),
+            _ => {
+                let lost = beui_renderer_wgpu::Lost::watch(device);
+                *watched = Some((device.clone(), lost.clone()));
+                lost
+            }
+        }
+    })
+}
+
 #[derive(Default)]
 pub(crate) struct Painter {
     look: Option<(f32, Vec2, Color32)>,
@@ -91,7 +112,8 @@ pub(crate) fn paint(
     {
         return None;
     }
-    let resources = beui_renderer_wgpu::Resources::shared(&gpu.device, gpu.format);
+    let resources =
+        beui_renderer_wgpu::Resources::shared(&gpu.device, gpu.format, &watched(&gpu.device));
     if painter
         .renderer
         .as_ref()
@@ -188,6 +210,7 @@ impl Renderer for ModuleRenderer {
         #[cfg(target_arch = "wasm32")]
         if let Some(gpu) = be_sdk::surface_gpu() {
             _setup.provide(beui_renderer_wgpu::present::GpuSetup {
+                lost: watched(&gpu.device),
                 device: gpu.device,
                 queue: gpu.queue,
                 format: gpu.format,

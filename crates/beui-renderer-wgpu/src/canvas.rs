@@ -29,6 +29,7 @@ pub struct CanvasSurface {
     config: wgpu::SurfaceConfiguration,
     renderer: Renderer,
     prepared: Option<(Vec2, f32, Color32)>,
+    lost: crate::Lost,
 }
 
 impl CanvasSurface {
@@ -74,7 +75,8 @@ impl CanvasSurface {
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
         };
         let info = renderer_info(&adapter.get_info(), format);
-        let renderer = Renderer::new(&crate::Resources::new(&device, format));
+        let lost = crate::Lost::watch(&device);
+        let renderer = Renderer::new(&crate::Resources::new(&device, format, &lost));
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
@@ -97,6 +99,7 @@ impl CanvasSurface {
             config,
             renderer,
             prepared: None,
+            lost,
         })
     }
 
@@ -105,6 +108,7 @@ impl CanvasSurface {
             device: self.device.clone(),
             queue: self.queue.clone(),
             format: self.config.format,
+            lost: self.lost.clone(),
         }
     }
 

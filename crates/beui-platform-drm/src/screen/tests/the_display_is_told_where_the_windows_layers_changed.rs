@@ -70,7 +70,7 @@ impl Draw for Shows {
 fn the_display_is_told_where_the_windows_layers_changed() {
     beui::native::compose::composite_windows();
     let (device, queue) = vulkan_device();
-    let gpu = Gpu::new(device, queue, FORMAT);
+    let gpu = Gpu::new(device, queue, FORMAT, &Default::default());
     let texture = gpu.device().create_texture(&wgpu::TextureDescriptor {
         label: Some("screen test surface"),
         size: wgpu::Extent3d {

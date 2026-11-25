@@ -273,6 +273,7 @@ impl Renderer for DisplayRenderer {
             device: outputs.gpu.device().clone(),
             queue: outputs.gpu.queue().clone(),
             format: FORMAT,
+            lost: outputs.gpu.lost().clone(),
         });
         if !outputs.hosted {
             setup.provide(outputs.cursor.clone());

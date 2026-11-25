@@ -135,11 +135,24 @@ FIXUPS = {
     # bundle that fails validation, where the host must report an app's
     # mistake as WebGPU does: the overlay sends it to the device's error sink.
     # And wgpu's WebGPU backend leaves a render pass's occlusion query set out
-    # of the pass it begins in a browser. Drop each change once wgpu has it.
+    # of the pass it begins in a browser. And `create_buffer_init` panics on a
+    # lost device, whose buffers have no mapped range: the overlay returns the
+    # buffer unfilled. Drop each change once wgpu has it.
     "wgpu": {
         "overlay": {
             "src/backend/webgpu.rs": "overlays/wgpu/webgpu.rs",
             "src/backend/wgpu_core.rs": "overlays/wgpu/wgpu_core.rs",
+            "src/util/device.rs": "overlays/wgpu/util/device.rs",
+        }
+    },
+    # vello_gpu 0.4 panics when a staging buffer has no mapped range, as on a
+    # device lost in the middle of a frame (before wgpu reports it at the next
+    # poll): the overlays skip the write instead, so the frame draws nothing.
+    # Drop them once vello_gpu has it.
+    "vello_gpu": {
+        "overlay": {
+            "src/render/wgpu/resources.rs": "overlays/vello_gpu/render/wgpu/resources.rs",
+            "src/render/wgpu/passes/strip.rs": "overlays/vello_gpu/render/wgpu/passes/strip.rs",
         }
     },
     # Windows API imports as raw-dylib, which rustc turns into import stubs
