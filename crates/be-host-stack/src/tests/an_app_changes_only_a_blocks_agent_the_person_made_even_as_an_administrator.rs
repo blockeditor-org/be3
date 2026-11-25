@@ -55,7 +55,7 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
             &peer.connection(),
             Some(harness.organization),
             be_block_protocol::Op::CreateAgent {
-                account: account,
+                account,
                 name: "Theirs".into(),
                 recovery: identity.public.0,
                 signing: identity.signing.0,
