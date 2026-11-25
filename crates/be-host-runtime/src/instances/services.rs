@@ -121,7 +121,7 @@ impl<T, E: wire::Encode<Result<T, Failure>>> Answering<Result<T, Failure>, E> {
 #[derive(Default)]
 pub(super) struct RevisionPreview {
     opened: Option<Result<Uuid, Failure>>,
-    asked: Option<Reply<Result<[u8; 16], Failure>, be_sdk_api::ops::wire::Fallible<be_sdk_api::ops::wire::Bytes, be_sdk_api::ops::wire::Plain>>>,
+    asked: Option<Reply<Result<[u8; 16], Failure>, be_sdk_api::ops::wire::FallibleBytes>>,
 }
 
 impl RevisionPreview {

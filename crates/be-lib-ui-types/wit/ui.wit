@@ -32,8 +32,8 @@ interface types {
         end: size,
     }
 
-    /// A block's uuid, as its 16 bytes.
-    type block-ref = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+    /// A block's uuid: a list of exactly its 16 bytes, as be3:shared's uuid.
+    type block-ref = list<u8>;
 
     /// One representation of content on the clipboard or dragged: a format
     /// id (`clipboard::formats`), the data in that format and the blocks it
