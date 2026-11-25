@@ -17,8 +17,7 @@ use std::fmt::Debug;
 use be_lib_geometry::Pos2;
 use be_lib_ui_types::input::{
     Input, Key, KeyChord, KeyPress, Modifiers, PenPhase, PointerButton, ScrollDelta, TouchId,
-    TouchPhase,
-    TouchpadGesture,
+    TouchPhase, TouchpadGesture,
 };
 
 /// How far, in points, the pointer may move while a wheel or held gesture stays latched to

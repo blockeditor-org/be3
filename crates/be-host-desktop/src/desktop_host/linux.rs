@@ -344,7 +344,9 @@ impl DesktopHost for Linux {
             return;
         };
         let id = WindowId(window.0);
-        let size = windows.rect(id).map_or(beui::Vec2::ZERO, |rect| rect.size());
+        let size = windows
+            .rect(id)
+            .map_or(beui::Vec2::ZERO, |rect| rect.size());
         let caught = CATCHES.with_borrow_mut(|catches| {
             catches
                 .entry(window)

@@ -114,7 +114,13 @@ pub(super) fn run(title: &str) -> Result<(), String> {
                 _ => state.size.unwrap_or(CHOSEN),
             };
             state.size = Some((width, height));
-            draw(&surface, &shm, &handle, (width, height), state.heard.color())?;
+            draw(
+                &surface,
+                &shm,
+                &handle,
+                (width, height),
+                state.heard.color(),
+            )?;
         }
         if std::mem::take(&mut state.minimize) {
             toplevel.set_minimized();

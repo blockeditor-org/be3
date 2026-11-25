@@ -368,7 +368,8 @@ impl RootShell {
                 let events = match be_lib_ui_types::input::decode(&delivered.events) {
                     Ok(events) => events,
                     Err(why) => {
-                        return self.stopped(&format!("its input for a window cannot be read: {why}"));
+                        return self
+                            .stopped(&format!("its input for a window cannot be read: {why}"));
                     }
                 };
                 let input = events

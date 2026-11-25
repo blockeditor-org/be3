@@ -48,7 +48,10 @@ fn a_catch_turns_what_a_router_delivered_into_what_a_catcher_catches() {
     );
     assert!(caught.events.contains(&Forwarded::Focus(true)));
     // Its points are the surface's: the catcher is the surface, from its origin.
-    assert_eq!(caught.rect, Rect::from_min_size(Pos2::ZERO, vec2(320.0, 240.0)));
+    assert_eq!(
+        caught.rect,
+        Rect::from_min_size(Pos2::ZERO, vec2(320.0, 240.0))
+    );
     assert!(caught.focused && caught.hovered);
     assert_eq!(caught.pointer, Some(pos2(10.0, 20.0)));
 

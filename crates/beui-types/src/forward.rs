@@ -501,7 +501,11 @@ impl Catch {
                     _ => None,
                 };
                 let delta = crate::input::scrolled(delta, 1.0);
-                pointer(PointerId::Mouse, PointerPhase::Scroll { delta, notches }, at)
+                pointer(
+                    PointerId::Mouse,
+                    PointerPhase::Scroll { delta, notches },
+                    at,
+                )
             }
             Input::ScrollEnded => pointer(
                 PointerId::Mouse,
