@@ -23,8 +23,12 @@ a block. A desktop refuses to start on a data directory another be-host already 
 
 Under `--root` (guides/apps/runtime.md, The root guest), `--desktop` makes the desktop app the
 session's editor the root shows (`run_desktop_shell`) but starts none of the desktop's OS services
-yet (the screen lock and its power actions, notifications, the tray, screenshots), and the root
-shows no app or program windows yet (plans/host_as_platform_adapter.md, 4g7e).
+yet (the screen lock and its power actions, notifications, the tray, screenshots). Its compositor
+runs as under be-host's UI (`RootShell` drives `DesktopHost`), and a program window the desktop
+places is a `Surface::Host` layer of the root's, which `RootShell` configures to its place's size
+and draws from the compositor's picture of it (`DesktopHost::place_windows`, `picture`); it routes
+them no input yet, and the root shows no app windows yet (plans/host_as_platform_adapter.md,
+4g7e).
 
 To run it headless: `./scripts/buck run //crates/be-host:dev -- --desktop`, then drive it
 (guides/running/drive.md). The host test `the_desktop_shell_opens_and_closes_cleanly`
