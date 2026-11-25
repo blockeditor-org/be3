@@ -97,6 +97,8 @@ Landed on 2026-11-24:
 - `demo-top-bar`: beui-demo's top bar fits a phone-wide window (actions as icons, theme under More); the styled ActionBar takes `labels` as a Prop.
 - `beui-vello-1b`: wgpu 30, the renderer benchmark in the suite, and overlays that keep wasm-bindgen 0.2.130 binding the browser's WASI modules.
 - `authorship-1`: steps 1–3 of the authorship plan: signed log heads compared across devices through sessions, relays and commits; forks and misbehaviour kept as verdicts.
+- `dialogs-dock-5`: dialog plan steps 4c–5b: dialogs as hosted windows anchored in the dock, hidden under the lock, with the review fixes.
+- `clippy-mechanical`: clippy's mechanical fixes across the workspace's crates.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
