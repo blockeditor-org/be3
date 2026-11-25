@@ -181,6 +181,12 @@ impl Graft {
         }
     }
 
+    /// Whether the app described the screen yet (`update`): until it does, there is nothing
+    /// to graft but an empty pane.
+    pub fn described(&self) -> bool {
+        !self.nodes.is_empty()
+    }
+
     /// Whether it was grafted yet (`grafted`): until it is, the tree it is grafted into has
     /// none of its nodes, so its first grafting sends them all.
     pub fn grafted_yet(&self) -> bool {
