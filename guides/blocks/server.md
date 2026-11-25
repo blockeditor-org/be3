@@ -727,8 +727,11 @@ stopped referencing, whose `KnowExists` moved; a grant, for everything below the
 block, whose access moved; a member removed from the organization, for everything
 they could view (`remove_from`: the subtrees of their entry points, the open kinds
 they viewed and the organization's settings, walked once with `BlockGraph::subtrees`,
-whose tops then advance), since an author or a viewer through an open block holds no
-grant to revoke; a block given a new key) and `touch_moved` (a new
+whose tops, `Removed::trees`, then advance, as do those of the blocks' agents
+`forget_orphaned_block_agents` deletes after any change), since an author or a viewer
+through an open block holds no grant to revoke; removing a member who viewed an open
+kind high in the tree touches and advances most of the organization, which is linear in
+it and correct; a block given a new key) and `touch_moved` (a new
 parent, for the block and everything below it). A block that leaves an entry
 point's tree leaves a row in `block_departures` for that entry, kept a day:
 `entries_above` (the top of its tree, and each block above it that carries a

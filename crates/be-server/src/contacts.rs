@@ -852,14 +852,16 @@ impl ServerStore {
     /// manages, in every organization they share. In `current`, the organization the caller has
     /// open, `revocations` are the signed revocations of those its logs name, each needed and
     /// checked before anything changes; in any other the server's revocations wait for a device
-    /// to sign them (`KeyWork::unsigned_revocations`).
+    /// to sign them (`KeyWork::unsigned_revocations`). Answers what was revoked, and per
+    /// organization the tops of the trees of the blocks' agents forgotten with it
+    /// (`store::Removed::trees`).
     pub async fn remove_contact(
         &self,
         caller: Uuid,
         other: Uuid,
         current: Option<Uuid>,
         revocations: Vec<Vec<u8>>,
-    ) -> Result<Vec<Granted>, ServerError> {
+    ) -> Result<(Vec<Granted>, Vec<(Uuid, Vec<Uuid>)>), ServerError> {
         let signed = match current {
             Some(organization) => {
                 let named = self
@@ -920,12 +922,13 @@ impl ServerStore {
             .await?
         };
         let mut revoked = Vec::new();
+        let mut forgotten_trees = Vec::new();
         for (organization, mine, theirs) in shared {
             let signed = match current == Some(organization) {
                 true => signed.clone(),
                 false => std::collections::HashMap::new(),
             };
-            let found = self
+            let (found, trees) = self
                 .with_graph(organization, move |store, graph, database| {
                     let grants = contact_grants(graph, organization, caller, mine, other, theirs);
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -965,15 +968,16 @@ impl ServerStore {
                         organization,
                     )?;
                     transaction.commit()?;
-                    if !forgotten.is_empty() {
+                    if !forgotten.agents.is_empty() {
                         store.sessions_changed();
                     }
-                    Ok(revoked)
+                    Ok((revoked, forgotten.trees))
                 })
                 .await?;
             revoked.extend(found);
+            forgotten_trees.push((organization, trees));
         }
-        Ok(revoked)
+        Ok((revoked, forgotten_trees))
     }
 }
 
