@@ -813,6 +813,7 @@ impl<G: Inline> Core<G> {
 
     /// Whether what its apps or its host sent waits for the root to be stepped with it: the
     /// frame that just ended stepped it before the last of that arrived.
+    #[cfg(not(target_arch = "wasm32"))]
     fn owes_step(&self) -> bool {
         self.unstepped || !self.relaying.is_empty()
     }
