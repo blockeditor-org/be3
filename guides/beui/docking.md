@@ -333,7 +333,10 @@ alone even inside another dock's tab.
   parent's panel or dialog (`unstyled/dialog.rs`): beside its tab with a beak, or at the top
   centre of that panel when the tab shows no label (a bare pane). Dragged by its bar it stays
   where it is let go, kept a card's margin inside the window it shows in, until it closes.
-  `modal` is the window's `blocks`: it blocks only the parent's panel and traps the focus. In
+  `modal` is the window's `blocks`: it blocks only the parent's panel and traps the focus. Where
+  a host opens windows (the desktop, space) it is a window of its own over its tab's window,
+  sized to its face, with no beak; its bar moves it through the host (`begin_move`), and a
+  modal one still blocks its tab's panel and keeps the focus from it. In
   the stacked and gathered modes it is a sheet instead (the host's `dialog_sheet` face), and a
   sheet blocks the whole window whether or not the dialog is `modal`. Use it
   for content the dock must hold (a program's dialog, be-sdk-shell's `WindowDialog`); a form opened
@@ -430,7 +433,9 @@ the anchor puts it (as `layer::resolve_rect` would place the overlay), and is pl
 anchor moves; it draws no beak. One that `blocks` covers its owner, in the owner's window, with an
 empty overlay that shuts out presses there, asks it to close and draws the scrim. Either closes
 while the document is locked (`Document::watch_locked`), since the lock layer of a display's
-window does not paint over a window of its own; a dock's windows are left to the host.
+window does not paint over a window of its own; a dock's windows are left to the host. A
+`DockDialog` asks for one (`own_window`) only where a host opens windows, so in an app it stays
+an overlay; a `Dialog` is still an overlay everywhere.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,
 and then the caller moves it itself.
 

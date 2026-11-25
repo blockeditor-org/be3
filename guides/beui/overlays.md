@@ -265,7 +265,8 @@ lock and the password check are its host's (`be3:root`'s `host.lock` and
 ## Modals and dialogs
 
 A dialog is a `Window` (guides/beui/docking.md, Windows and window hosts) that
-points at its anchor or is centred on its frame and blocks it, or a
+points at its anchor or is centred on its frame and blocks it (a dock dialog is a
+window of its own where a host opens windows, with no beak), or a
 `ModalSheet` on a phone, an overlay on the bottom edge whose scrim fades as it
 rises. `unstyled::Modal` is only what is not a window and must never move or be
 covered: an overlay over its whole window on a scrim, which be-host's lock

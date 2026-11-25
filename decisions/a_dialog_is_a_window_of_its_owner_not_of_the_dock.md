@@ -12,6 +12,11 @@ plan's next step:
   (decisions/dialogs_are_presented_by_kind.md) over `Window`, rather than each caller composing
   a `Window` and a `DialogBody` and repeating which kind goes where. So be-host's own UI, a root guest, the desktop's bar and every test that opens
   a dialog with no dock keep one API.
+- **Where a host opens windows** (the desktop, space) a dock dialog is a window of its own (a
+  `Dialog` is not yet: plans/dialogs_are_dock_windows.md): it opens
+  where its anchor places it, with no beak (what it points at is in another window), its bar
+  moves it through the host, it blocks its owner with a cover in the owner's window and keeps
+  the focus from it, and it closes while the document is locked.
 - **A dialog window is not a `DockState` surface.** It is not saved with the layout and its body
   never becomes a tab: it cannot be docked into a pane. It moves (and later snaps) as a window
   does, and keeps where it was moved until it closes.
