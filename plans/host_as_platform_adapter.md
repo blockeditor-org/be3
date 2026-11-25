@@ -2082,9 +2082,9 @@ Each step lands on its own.
          - 4g7e2. App windows (`HostView::Window` views: a session the Apps panel opens, a
            window an app opens): floated by the root as be-host's `compositor/desktop.rs`
            floats them (be-sdk-window-stack), moved and resized by their grips and
-           Super+drag, kept on the displays' work areas. Today be-sdk-root drops a layout
-           commit's `window-requests`, so no window an app opens shows under the root. In
-           parts:
+           Super+drag, kept on the displays' work areas. Only the desktop session's windows
+           float (4g7e2a): the root asks children without windows, so the windows a child's
+           app opens are drawn in its own views. In parts:
            - Built first: a session the desktop's Apps panel opens is a tab of the desktop's
              own dock window, drawn in its main view, and its workspace's dock joins that
              window's as under be-host. A block's editor placed in a dock tab's body is known

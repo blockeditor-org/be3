@@ -214,6 +214,9 @@ struct State {
     /// The move or resize of one of them under way, which follows the main window's pointer
     /// until it is released (`Embedded::follow_held`).
     held: Option<floating::Held>,
+    /// Where the pointer last was in the root's main window, in its points
+    /// (`Embedded::note_pointer`): where one of them opened at the pointer opens.
+    pointer: Pos2,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -381,6 +384,11 @@ impl Embedded {
         state.ask_screens();
     }
 
+    /// Notes where the pointer is in the root's main window, in its points.
+    pub(crate) fn note_pointer(&self, at: Pos2) {
+        self.state.borrow_mut().pointer = at;
+    }
+
     /// Whether one of the windows it opened that the root floats is being moved or resized.
     pub(crate) fn holds(&self) -> bool {
         self.state.borrow().held.is_some()
@@ -520,6 +528,7 @@ impl Embedded {
             floating: Vec::new(),
             pressed: None,
             held: None,
+            pointer: Pos2::ZERO,
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -1129,7 +1138,8 @@ impl Embedded {
                     phase: PenPhase::Down(_),
                     ..
                 }
-        ) && let Some(pressed) = floating::press(&mut state.floating, screen)
+        ) && let pointer = state.pointer
+            && let Some(pressed) = floating::press(&mut state.floating, screen, pointer)
         {
             state.pressed = Some(pressed);
         }
@@ -1308,6 +1318,8 @@ impl State {
     /// Asks the app for the screens the root asks for and the windows it floats, unless it was
     /// asked for those already.
     fn ask_screens(&mut self) {
+        // Each window at its opener's pixels per point and within its bounds, as asked now.
+        floating::follow_openers(&mut self.floating, &self.asked);
         let mut screens: Vec<ScreenRequest> = self
             .asked
             .iter()
@@ -1483,8 +1495,13 @@ impl State {
                 // windows, which it is asked for (or no longer) at once.
                 let requests = std::mem::take(&mut commit.window_requests);
                 let screens = self.run.screens.clone();
-                let (changed, held) =
-                    floating::hear(&mut self.floating, &screens, requests, self.pressed);
+                let (changed, held) = floating::hear(
+                    &mut self.floating,
+                    &screens,
+                    requests,
+                    self.pressed,
+                    self.pointer,
+                );
                 if held.is_some() {
                     self.held = held;
                 }

@@ -225,7 +225,9 @@ impl Embedding {
                 if let input::Input::PointerMoved(at) | input::Input::PointerButton { pos: at, .. } =
                     &event.input
                 {
-                    floating::note_pointer(*at);
+                    for app in &self.apps {
+                        app.note_pointer(*at);
+                    }
                 }
                 !holding.iter().any(|app| app.follow_held(&event.input))
             });

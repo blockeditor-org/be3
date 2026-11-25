@@ -8,6 +8,7 @@ fn a_window_opens_over_its_opener_and_is_asked_for_at_its_size_until_it_closes()
         &[main_screen(true)],
         vec![open(7, 1, pos2(40.0, 30.0))],
         None,
+        Pos2::ZERO,
     )
     .0);
     let [window] = windows.as_slice() else {
@@ -41,6 +42,7 @@ fn a_window_opens_over_its_opener_and_is_asked_for_at_its_size_until_it_closes()
         &[main_screen(true)],
         vec![WindowRequest::Close(ViewId(7))],
         None,
+        Pos2::ZERO,
     )
     .0);
     assert!(windows.is_empty());
