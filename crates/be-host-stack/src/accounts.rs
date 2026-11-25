@@ -498,11 +498,13 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
             logs,
         },
     ) = read_signed_in(&server_url, &token, |link| async move {
-        let key = ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &link.connection,
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ))
+        let key = ask(
+            be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+                &link.connection,
+                None,
+                be_block_protocol::Query::RecoveryKey,
+            ),
+        )
         .await?;
         Ok((link.account, key))
     })

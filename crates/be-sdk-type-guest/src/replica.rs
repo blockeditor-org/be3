@@ -1934,13 +1934,8 @@ where
             return false;
         }
         if record {
-            self.history.record(
-                &self.visible,
-                &operation,
-                origin,
-                Some(gesture.id),
-                at,
-            );
+            self.history
+                .record(&self.visible, &operation, origin, Some(gesture.id), at);
         }
         if self.tentative.is_empty() {
             self.beneath = Some(self.visible.clone());

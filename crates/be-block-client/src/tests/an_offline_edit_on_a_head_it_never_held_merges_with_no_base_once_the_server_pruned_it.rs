@@ -41,7 +41,11 @@ async fn an_offline_edit_on_a_head_it_never_held_merges_with_no_base_once_the_se
         panic!("the edit is sealed offline: {sealed:?}");
     };
     let theirs = owner
-        .save(note, &TextBlock::of("zero, from the phone\none"), Some(heard))
+        .save(
+            note,
+            &TextBlock::of("zero, from the phone\none"),
+            Some(heard),
+        )
         .await
         .unwrap()
         .published()
