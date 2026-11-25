@@ -121,6 +121,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7e3d`: program windows' statuses and closes reach their placer under the root; be-host answers close with windows open.
 - `gpu-webgpu`: surface-configuration takes view-formats as a list again; decisions/be3_gpu_matches_webgpu.md and decisions/be3_gpu_is_wasi_webgpu.md, and plans/be3_gpu_is_wasi_webgpu.md (wasi:webgpu 0.3.0-rc.2, pinned and fetched).
 - `host-adapter-4g7e3d-sugg`: 4g7e3d review suggestions: a close answered once the session ended, only the shell's windows worded; under the root the core's repaints stay the root's to ask.
+- `dialogs-10`: a Dialog opens as a window of its own where windows are hosted, at its level (session notices Raised, above the programs' windows); the desk harness lifts no scrim.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
