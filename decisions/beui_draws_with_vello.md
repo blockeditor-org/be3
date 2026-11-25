@@ -11,8 +11,10 @@ draw with it too. The HTML core is unaffected.
 ## How beui's drawing maps onto it
 
 - Rects, glyphs (an alpha-mask tint of the RGBA8 atlas), images, lines and paths are Vello fills and
-  strokes; paintings hold paths as `Content::Path`. Seamed fills that follow each other alike are
-  filled as one nonzero path, so their shared edges cancel.
+  strokes; paintings hold paths as `Content::Path`. Seamed nonzero fills that follow each other
+  alike (the same clip, fade, rounds and colour) are filled as one path, each placed by its own
+  transform, so their shared edges cancel; `Frame::tidy` keeps what lies between two of them, and
+  their clips.
 - Opacity groups are Vello opacity layers. A group holding a `draw_gpu` drawing or a filter keeps an
   offscreen layer of its own (`group.rs`), since the scene is split at each drawing; it is composed
   through non-sRGB views, so it blends as a Vello layer does.

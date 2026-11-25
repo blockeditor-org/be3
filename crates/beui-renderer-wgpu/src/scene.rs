@@ -293,23 +293,20 @@ pub(crate) fn run(
         match joined {
             0 => draw(canvas, item, base, space.opacity, textures),
             _ => {
+                // Joined in the space's pixels: each piece placed by its own transform.
                 let mut path = BezPath::new();
                 for joining in &items[at..=at + joined] {
-                    if let Item::Path { path: piece, .. } = joining {
-                        path.extend(piece.iter());
+                    if let Item::Path {
+                        path: piece,
+                        transform,
+                        ..
+                    } = joining
+                    {
+                        path.extend(piece.iter().map(|element| *transform * element));
                     }
                 }
-                if let Item::Path {
-                    transform, color, ..
-                } = item
-                {
-                    beui_vello::filled_path(
-                        canvas,
-                        &path,
-                        Fill::NonZero,
-                        *color,
-                        base * *transform,
-                    );
+                if let Item::Path { color, .. } = item {
+                    beui_vello::filled_path(canvas, &path, Fill::NonZero, *color, base);
                 }
             }
         }
@@ -324,13 +321,14 @@ pub(crate) fn run(
     canvas.pop_clip();
 }
 
-/// Whether `next` is a seamed fill alike to the seamed fill `first` but for its path.
+/// Whether `next` is a seamed nonzero fill alike to the seamed nonzero fill `first`: in the same
+/// space (so the same fade and rounds), with the same clip and colour. beui-paint-raster's
+/// `seamed_together` is the same rule.
 fn seamed_together(first: &Item, next: &Item) -> bool {
     match (first, next) {
         (
             Item::Path {
                 style,
-                transform,
                 clip,
                 color,
                 seamed: true,
@@ -338,7 +336,6 @@ fn seamed_together(first: &Item, next: &Item) -> bool {
             },
             Item::Path {
                 style: next_style,
-                transform: next_transform,
                 clip: next_clip,
                 color: next_color,
                 seamed: true,
@@ -347,7 +344,6 @@ fn seamed_together(first: &Item, next: &Item) -> bool {
         ) => {
             *style == Painted::Fill(Fill::NonZero)
                 && style == next_style
-                && transform == next_transform
                 && clip == next_clip
                 && color == next_color
         }

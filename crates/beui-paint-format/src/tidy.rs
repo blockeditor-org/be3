@@ -67,13 +67,36 @@ fn tidy(primitives: &mut Vec<Primitive>, background: [u8; 4], scale: f32, size: 
         }
     }
 
+    // Seamed fills that follow each other alike are filled as one path, so dropping what lies
+    // between two of them would join them: the first of what lies between stays.
+    let mut index = 0;
+    while index < primitives.len() {
+        if !kept[index] || !seamed(&primitives[index]) {
+            index += 1;
+            continue;
+        }
+        let next = (index + 1..primitives.len()).find(|&next| kept[next]);
+        if let Some(next) = next
+            && next > index + 1
+            && seamed(&primitives[next])
+        {
+            kept[index + 1] = true;
+        }
+        index = next.unwrap_or(primitives.len());
+    }
+
     let mut kept = kept.into_iter();
     primitives.retain(|_| kept.next() == Some(true));
     for primitive in primitives.iter_mut() {
-        if !clips(primitive, scale, size) {
+        // A seamed fill keeps its clip, which decides what it is filled with.
+        if !seamed(primitive) && !clips(primitive, scale, size) {
             primitive.clip = whole;
         }
     }
+}
+
+fn seamed(primitive: &Primitive) -> bool {
+    matches!(&primitive.content, Content::Path(path) if path.seamed)
 }
 
 /// Whether the primitive at `index` paints only over pixels already its colour: the

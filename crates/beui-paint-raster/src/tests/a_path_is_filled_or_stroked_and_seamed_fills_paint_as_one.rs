@@ -62,6 +62,36 @@ fn a_path_is_filled_or_stroked_and_seamed_fills_paint_as_one() {
     assert_eq!(line.get_pixel(7, 8).0, [0, 0, 0, 255], "a gap");
     assert_eq!(line.get_pixel(3, 5).0, [0, 0, 0, 255], "off the line");
 
+    // An even-odd ring leaves its inner square empty, where a nonzero one fills it.
+    let ring = |even_odd: bool| {
+        let mut commands = polygon(&[[2.0, 2.0], [14.0, 2.0], [14.0, 14.0], [2.0, 14.0]]);
+        commands.extend(polygon(&[[5.0, 5.0], [11.0, 5.0], [11.0, 11.0], [5.0, 11.0]]));
+        drawn(vec![PathShape {
+            commands,
+            style: PathStyle::Fill { even_odd },
+            color: [255, 255, 255, 255],
+            seamed: false,
+        }])
+    };
+    assert_eq!(ring(true).get_pixel(8, 8).0, [0, 0, 0, 255], "even-odd leaves a hole");
+    assert_eq!(ring(true).get_pixel(3, 8).0, [255, 255, 255, 255]);
+    assert_eq!(ring(false).get_pixel(8, 8).0, [255, 255, 255, 255]);
+
+    // A quadratic curve bulges past the chord between its ends, toward its control point.
+    let bulge = drawn(vec![PathShape {
+        commands: vec![
+            PathCommand::MoveTo([2.0, 14.0]),
+            PathCommand::QuadTo([8.0, -6.0], [14.0, 14.0]),
+            PathCommand::Close,
+        ],
+        style: PathStyle::Fill { even_odd: false },
+        color: [255, 255, 255, 255],
+        seamed: false,
+    }]);
+    assert_eq!(bulge.get_pixel(8, 6).0, [255, 255, 255, 255], "inside the curve");
+    assert_eq!(bulge.get_pixel(8, 2).0, [0, 0, 0, 255], "past its peak");
+    assert_eq!(bulge.get_pixel(2, 4).0, [0, 0, 0, 255], "outside it");
+
     // Two halves meeting on a slanted seam: apart, each antialiases the edge they share and
     // the seam shows; seamed, they fill as one, as the renderer fills them.
     let halves = |seamed: bool| {
