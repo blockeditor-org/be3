@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_password_that_cannot_be_checked_leaves_the_screen_locked;
+mod a_root_is_shown_why_a_password_was_refused_and_when_to_retry;
 mod a_wrong_password_leaves_the_screen_locked_and_says_so;
 mod an_answer_to_an_earlier_attempt_unlocks_nothing;
 mod each_trigger_locks_the_screen;
