@@ -1281,7 +1281,7 @@ impl Root {
                         <DialogFrame
                             open=true
                             kind={presented.kind}
-                            width={Size::Custom(presented.width)}
+                            width={presented.width}
                             size={presented.size}
                             dismiss_on_outside_press={move || !shows_secret.get()}
                             on_dismiss={move || dismissed.call(())}
@@ -1318,7 +1318,7 @@ impl Root {
 #[derive(Clone, Copy)]
 struct Presented {
     kind: DialogKind,
-    width: f32,
+    width: Size,
     size: DialogSize,
 }
 
@@ -1334,25 +1334,24 @@ impl Presented {
             width,
             size,
         };
+        let points = Size::Custom;
         match opening {
-            Asking::KeepDisplay(_) => alert(400.0),
-            Asking::Unsent => dialog(460.0, DialogSize::Large),
-            Asking::AddAccount { .. } => dialog(460.0, DialogSize::Small),
-            Asking::ForgetAccount { .. } => alert(DIALOG_POINTS),
-            Asking::Host(HostAsks::Reauth) => alert(460.0),
-            Asking::Host(HostAsks::Pairing(_)) => alert(340.0),
-            Asking::Host(HostAsks::Leave(_) | HostAsks::Discard(_)) => alert(DIALOG_POINTS),
-            Asking::Invitations => dialog(520.0, DialogSize::Large),
-            Asking::Invite => dialog(400.0, DialogSize::Small),
-            Asking::Members => dialog(480.0, DialogSize::Large),
-            Asking::Agents | Asking::Contacts => dialog(460.0, DialogSize::Large),
-            Asking::ShareLinks => dialog(460.0, DialogSize::Small),
+            Asking::KeepDisplay(_) => alert(points(400.0)),
+            Asking::Unsent => dialog(points(460.0), DialogSize::Large),
+            Asking::AddAccount { .. } => dialog(points(460.0), DialogSize::Small),
+            // beui's default width, which be-host's alerts keep.
+            Asking::ForgetAccount { .. } => alert(DIALOG_WIDTH),
+            Asking::Host(HostAsks::Reauth) => alert(points(460.0)),
+            Asking::Host(HostAsks::Pairing(_)) => alert(points(340.0)),
+            Asking::Host(HostAsks::Leave(_) | HostAsks::Discard(_)) => alert(DIALOG_WIDTH),
+            Asking::Invitations => dialog(points(520.0), DialogSize::Large),
+            Asking::Invite => dialog(points(400.0), DialogSize::Small),
+            Asking::Members => dialog(points(480.0), DialogSize::Large),
+            Asking::Agents | Asking::Contacts => dialog(points(460.0), DialogSize::Large),
+            Asking::ShareLinks => dialog(points(460.0), DialogSize::Small),
         }
     }
 }
-
-/// beui's default dialog width, in points, which be-host's alerts keep.
-const DIALOG_POINTS: f32 = 400.0;
 
 /// The chords the root takes ahead of whatever has the keyboard, while the session is not
 /// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views,

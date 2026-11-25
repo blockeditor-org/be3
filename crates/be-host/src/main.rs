@@ -2163,6 +2163,9 @@ impl HostCore {
         if let Some(organization) = last {
             self.open_organization(organization);
             self.resumed = true;
+            // The dev workspace asked for an organization to open, and one has: an account
+            // added later opens on its organizations, as on a host started without it.
+            self.dev_workspace = false;
         }
     }
 
