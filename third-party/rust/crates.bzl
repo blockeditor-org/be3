@@ -9375,6 +9375,9 @@ third_party = {
                     ":ndk-context-0.1.1",
                     ":oboe-0.6.1",
                 ],
+                "features": [
+                    "oboe-shared-stdcxx",
+                ],
             },
             "linux-arm64": {
                 "deps": [
@@ -34329,6 +34332,7 @@ third_party = {
                     "jni",
                     "ndk",
                     "ndk-context",
+                    "shared-stdcxx",
                 ],
             },
         },
@@ -34361,7 +34365,11 @@ third_party = {
         },
         "name": "oboe-sys",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "shared-stdcxx",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",

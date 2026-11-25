@@ -46,6 +46,12 @@ be-wasm-host = { path = "../be-wasm-host" }
 # not this project's wasm32-wasip1.
 rodio = "0.20"
 
+# Oboe links the NDK's shared libc++, which the APK ships (buck/android/defs.bzl), rather than
+# its static one: V8 brings its own libc++, whose std:: exception classes the static one would
+# define again, so be-host would not link (decisions/one_cpp_runtime_beside_v8_on_android.md).
+[target.'cfg(target_os = "android")'.dependencies]
+cpal = { version = "0.15", features = ["oboe-shared-stdcxx"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
 wasm-bindgen = "0.2"
