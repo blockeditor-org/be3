@@ -70,7 +70,7 @@ pub use be_sdk_api::{
     RemapState, RemapsWatch, ResizeMode, Revision, RoleWatch, Rotation, ScreenInput,
     ScreenInputState, ScreenInputWatch, ScreenLockedWatch, ScreenPlacement, ScreenRegion,
     ScreenRegionState, ScreenSide, ScreenWall, ScreenWallState, ScrollDelta, SessionEnd, ShareLink,
-    ShellDialog, Signer, Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory,
+    ShellDialog, Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory,
     TemplateDescriptor, TerminalHostBe, TerminalHostDownload, TerminalHostFile, TerminalHostSource,
     TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest,
     TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind,

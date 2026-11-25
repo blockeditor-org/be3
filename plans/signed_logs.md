@@ -322,7 +322,9 @@ within one page: step 4's fold takes the first occurrence of an id.
    `LiveEdit::arrival` and the replica's stamping, `WHOLE_BYTES` and the copies
    it refused (`Peer::has_later_parts`), and the announcements of content edits
    (`LiveEdit::announcements`, `submit`'s announcements, the refs' journal and
-   commit states, `rebase_journal`'s `own`). Announcements stay for log
+   commit states, `rebase_journal`'s `own`), and apps' `sign`, `verify` and
+   `signing-block` host services, which lost their only user (be-host-stack's
+   `authorship.rs`, `BeuiTest`'s signatures). Announcements stay for log
    entries (`Along::announcement`), held from when the server takes the entry.
    A journal entry keeps `received`, which tells what the server numbered from
    what a device numbered offline.

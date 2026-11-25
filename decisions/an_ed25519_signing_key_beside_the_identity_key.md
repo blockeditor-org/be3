@@ -1,6 +1,6 @@
 # What a person writes is signed with an Ed25519 key derived beside the identity key
 
-An account signs what it authors (plans/authorship.md) with an Ed25519 key derived from
+An account signs what it authors (each entry of a block's signed log) with an Ed25519 key derived from
 its identity secret through HKDF (`RecoverySecret::signing`, info `be3.identity.signing.v1`),
 as `EscrowSecret` derives its signing key. The public half travels wherever the identity key
 does and is verified the same way: on the `ContactCard` a contact link carries, and in the key
@@ -9,9 +9,9 @@ the identity key (`recovery_keys.signing`) and names it to members who are not c
 (`get-signing-keys`), who pin it on first use.
 
 A signature covers a domain of its own and the block it was made in
-(`RecoverySecret::sign_authored`), and apps only ask the host to sign (`sign`, `verify` in
-host-services): an app never holds the key, and one block's editor cannot make a signature that
-verifies in another.
+(`RecoverySecret::sign_authored`), and the host signs what an app appends to a log as that
+app: an app never holds the key, and one block's editor cannot make a signature that verifies
+in another.
 
 ## Why
 

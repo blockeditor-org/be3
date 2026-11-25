@@ -714,7 +714,7 @@ impl Inner {
         Some((seq, arrival))
     }
 
-    /// Who signed what `author` appended, as the host's verdict: a test's `set_signer`, or a
+    /// Who signed what `author` appended, as the host's verdict: a test's `set_log_signer`, or a
     /// contact's key.
     fn signer_of(&self, author: Uuid) -> be_sdk_beui::be_block_content::Signer {
         match self.signers.get(&author) {

@@ -884,9 +884,9 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
 
 ### Signing what a person writes
 
-What a member authors is signed (plans/authorship.md, chat first;
-decisions/an_ed25519_signing_key_beside_the_identity_key.md), so nobody with
-Edit can write as someone else.
+What a member authors is signed: each entry of a block's signed log
+(guides/type_modules.md, "Signed logs"; decisions/an_ed25519_signing_key_beside_the_identity_key.md),
+so nobody with Edit can write as someone else.
 
 - **The key**: `RecoverySecret::signing`, Ed25519 derived from the identity
   secret, so every device of the account has it. `sign_authored(block, bytes)`
@@ -896,19 +896,16 @@ Edit can write as someone else.
   block id, then the bytes, so the prefix is fixed width and the host, not the
   app, chooses it; a signature never verifies in another block than the one the
   editor shows, nor as anything else this key or another key signs (escrow, key
-  changes and invitations use other keys or domains). The host also puts the
-  asking app's manifest id, framed, ahead of the app's bytes (`sign` and
-  `verify`, at most 64 KiB), so an app cannot make a signature that another
-  app's `verify` accepts, even in a block both are shown. Apps put their own
-  domain first in their bytes (chat's `be3.chat.message`) so their records can't
-  be mistaken for each other. A block's signed log is signed the same way: the host signs what a type module
-  appends as the module's app (guides/type_modules.md, "Signed logs"), and only that
-  app's editors may append. What it signs commits to a random salt sealed with the
-  payload (`Said::hash`), so neither the server nor anyone else without the block's
-  key can confirm a guessed entry against its signature, before or after a redaction. `signing-block` names the block signatures bind to, which a record that names its chat or block inside its bytes uses (the block the revision is of, in a revision preview, where `editor.block_id()` is the preview's own). Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict.
-- **Apps** never hold it: host-services' `sign` and `verify`
-  (guides/apps/host_services.md) answer from the worker (`be-host-stack`
-  `authorship.rs`), in the block the editor shows.
+  changes and invitations use other keys or domains). The host signs what a
+  type module appends as the module's app, its manifest id framed ahead of the
+  app's bytes (`by_app`), and only that app's editors may append, so an entry
+  one app wrote never verifies as another's. What it signs commits to a random
+  salt sealed with the payload (`Said::hash`), so neither the server nor anyone
+  else without the block's key can confirm a guessed entry against its
+  signature, before or after a redaction.
+- **Apps** never hold it, nor sign or verify anything themselves: the host
+  signs each entry as it goes and hands every entry on with its verdict
+  (`LogItem::signer`).
 - **Verifying** (`Peer::verify_authored`, answering `Signer`): the refs
   database keeps the signing keys known per account (`RefsDb` table `Signers`,
   never forgotten, so what was signed before a new phrase still verifies). A
@@ -917,13 +914,13 @@ Edit can write as someone else.
   since someone holding the old phrase can sign with it. A newer verified key
   marks the older ones replaced as of the server's clock as the device estimates
   it (`KnownSigner::replaced`, `Peer::server_now`); a record that keeps when the
-  server took it (`verify`'s `arrived`, chat's `Message::arrival`, every entry
-  of a signed log, `Peer::verify_entry`) and arrived
+  server took it (every entry of a signed log, `Peer::verify_entry`) and arrived
   more than a minute after that answers `Replaced`: louder than `Changed`, but
   not `Bad`, since the account's own devices not yet told of the new phrase and
   sends held offline sign with the old key too, as does someone holding the old
-  phrase. A record with no stamp, or arriving between the new phrase and this
-  device learning of it, stays `Changed`. An account with one is checked only against verified keys, after
+  phrase. One verified with no arrival (an imported entry, `verify_exported`),
+  or arriving between the new phrase and this device learning of it, stays
+  `Changed`. An account with one is checked only against verified keys, after
   rereading the contacts once, so the server cannot sign as a contact. Any other
   member's key comes from the server (`query.signing-keys`: the caller, its
   contacts and the members of the organization it names, which in the personal
