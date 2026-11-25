@@ -237,6 +237,7 @@ members = [
     "crates/be-lib-ui-preferences",
     "crates/be-lib-ui-types",
     "crates/be-tool-verify",
+    "crates/be-tool-wayland-window",
     "crates/be-wasm-threads",
     "crates/be-wasm-dylink",
     "crates/be-wasm-link",
