@@ -30,13 +30,19 @@ async fn a_commit_names_the_log_head_it_was_made_on_and_a_reader_compares_it() {
         panic!("the server refused a commit naming a head its log had");
     };
     let made = laptop.commits().get(head).unwrap();
-    assert_eq!(
-        made.log_through,
-        Some(be_block_commit::LogThrough {
-            size: kept.size,
-            root: *kept.root.as_bytes(),
-        }),
-        "the commit names the head it was made on"
+    let named = made
+        .log_through
+        .clone()
+        .expect("the commit names the head it was made on");
+    assert_eq!((named.size, named.root), (kept.size, *kept.root.as_bytes()));
+    assert!(
+        laptop.keys().identity().signing().verifies_log_head(
+            block.into_bytes(),
+            named.size,
+            &named.root,
+            &named.signature
+        ),
+        "the head a commit names is signed by its author"
     );
 
     // A device on the same log loads it and finds nothing amiss.
@@ -77,7 +83,8 @@ async fn a_commit_names_the_log_head_it_was_made_on_and_a_reader_compares_it() {
             3,
             2,
             HeadFrom::Commit {
-                author: laptop.account()
+                author: laptop.account(),
+                signature: named.signature.clone(),
             }
         )
     );

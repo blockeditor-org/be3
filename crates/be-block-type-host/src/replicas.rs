@@ -1391,18 +1391,18 @@ impl<H: Host> Replicas<H> {
         });
     }
 
-    /// Compares a head of `block`'s signed log a device of `account` told this one with the head
-    /// it kept (`Peer::compare_log_head`), which keeps a fork it finds as the block's verdict.
+    /// Compares a head of `block`'s signed log a participant told this device, signed, with
+    /// the head it kept (`Peer::compare_log_head`), which keeps a fork it finds as the block's
+    /// verdict.
     fn compare_log_head(
         (peer, shared): Ctx<'_, H>,
         block: Uuid,
-        account: Uuid,
-        head: be_block_protocol::LogHead,
+        signed: be_block_client::SignedLogHead,
     ) {
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         H::spawn(async move {
-            let from = be_block_client::HeadFrom::Session { account };
-            if let Err(error) = peer.compare_log_head(block, head, from).await
+            let via = be_block_client::HeadVia::Session;
+            if let Err(error) = peer.compare_log_head(block, signed, via).await
                 && !unreachable(&error)
             {
                 H::record(&shared, error);
@@ -4012,8 +4012,8 @@ impl<H: Host> Replicas<H> {
                 };
                 let bytes = match peer.unseal(*block, payload) {
                     Ok(be_block_client::Relayed::Module(bytes)) => bytes,
-                    Ok(be_block_client::Relayed::LogHead { account, head }) => {
-                        return Self::compare_log_head((peer, shared), *block, account, head);
+                    Ok(be_block_client::Relayed::LogHead(signed)) => {
+                        return Self::compare_log_head((peer, shared), *block, signed);
                     }
                     Ok(be_block_client::Relayed::Unreadable) => return,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {

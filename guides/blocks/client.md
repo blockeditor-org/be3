@@ -341,23 +341,33 @@ taken unproven.
   but keeps its head.
 - **Comparing heads across devices** (`peer/forks.rs`; guides/blocks/keys.md,
   "Forks"). A server can show two devices two logs, each consistent with itself;
-  only comparing their heads catches it. `Peer::compare_log_head(block, theirs,
-  from)` first reads the log's head as served now (proved against the kept
-  one), then takes a head of the same size only if it is that head, a shorter
-  one only with the server's consistency proof from its size to the head just
-  read (`query.block-log` with `known`), and no longer one, since the server's
-  logs only grow and this device read after the other kept its head. A pair
-  that does not prove is a fork (`LogAgreement::Forked`): the first per block
-  is kept in the refs database (`LogFork`: both heads, where the other came
-  from as a `HeadFrom`, when; `Peer::log_fork`) and told once as
-  `Event::LogForked`. It needs the server; offline it answers
-  `Disconnected`. Heads reach a device two ways: in the block's live session
-  (`Peer::tell_log_head`, "Live sessions"), and in commits: each seal names
-  the head its device kept (`Commit::log_through`, sealed with it, and sent
-  as `new-commit.log-through`), and `load_head` compares the one a commit
-  names (`compare_commit_head`): only for a log this device reads, a head that
-  is not its own, and each such head once a run; what goes wrong asking is
-  let go, since it is no reason to refuse the commit.
+  only comparing their heads catches it. A device hands out the head it kept
+  signed with its account's key in a domain of its own (`signed_log_head`,
+  `RecoverySecret::sign_log_head`; the account's devices share the key, so it
+  names the account, not the device). `Peer::compare_log_head(block, theirs,
+  via)` takes nothing on the server's word: `theirs` must verify under a key this
+  device verified for its account (its own, or a contact's), else `Forged`, and
+  an empty head with a root is `Tampered`, so the server can plant no fork. It
+  then reads the log's head as served now (proved against the kept one), and
+  takes a head of the same size only if it is that head, a shorter one only if
+  the root the server proves its log had at that size (`log-page.known-root`,
+  with `known`; a proof that does not check is `Tampered`, not a fork) is
+  theirs, and no longer one. That last assumes one linearizable server per log,
+  which only grows: this device read after the other kept its head. A pair that
+  does not prove is a fork (`LogAgreement::Forked`, the server's root at their
+  size kept as evidence, `LogFork::prefix`); so is a head the server serves this
+  device that does not extend the kept one (`ClientError::LogForked`,
+  `HeadFrom::Server`), so one place answers whether a block forked. The first
+  per block is kept in the refs database (`LogFork`, `Peer::log_fork`), written
+  before it is held, and told once as `Event::LogForked`; one found later
+  answers it, and a later `Agrees` leaves it. It needs the server; offline it
+  answers `Disconnected`. Heads reach a device two ways: in the block's live
+  session (`Peer::tell_log_head`, "Live sessions"), and in commits: each seal
+  names the head its device kept, signed (`Commit::log_through`, sealed with
+  it, and sent as `new-commit.log-through`), and `load_head` compares the one a
+  commit names (`compare_commit_head`): only for a log this device reads, a
+  head that is not its own, and each such head once a run; what goes wrong
+  asking is let go, since it is no reason to refuse the commit.
 - **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
   export carries it (`ExportedEntry`, `transfer::SavedBlock::log`), each entry
   naming the block it was written in, and `Peer::verify_exported` checks an

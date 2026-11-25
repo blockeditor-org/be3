@@ -48,10 +48,10 @@ fn a_replica_joining_its_session_trades_log_heads_with_the_participants() {
                     ..
                 } = on_phone.recv().await.expect("the phone hears the session")
                     && relayed == block
-                    && let Ok(be_block_client::Relayed::LogHead { account, head }) =
+                    && let Ok(be_block_client::Relayed::LogHead(signed)) =
                         phone.unseal(block, &payload)
                 {
-                    break (account, head);
+                    break (signed.account, signed.head);
                 }
             }
         })
@@ -81,16 +81,11 @@ fn a_replica_joining_its_session_trades_log_heads_with_the_participants() {
         })
         .await
         .expect("the laptop compares the head it heard");
-        assert_eq!(
-            (found.ours.size, found.theirs.size, found.from),
-            (
-                3,
-                2,
-                be_block_client::HeadFrom::Session {
-                    account: phone.account()
-                }
-            )
-        );
+        assert_eq!((found.ours.size, found.theirs.size), (3, 2));
+        assert!(matches!(
+            found.from,
+            be_block_client::HeadFrom::Session { account, .. } if account == phone.account()
+        ));
     });
 }
 

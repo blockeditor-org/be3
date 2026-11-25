@@ -101,5 +101,9 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
         Some(kept.head),
         "the head kept moved to one that does not extend it"
     );
+    assert!(
+        matches!(owner.log_fork(chat), Some(fork) if fork.from == crate::HeadFrom::Server),
+        "a log the server forked is kept as the block's verdict"
+    );
     harness.stop().await;
 }

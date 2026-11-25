@@ -532,7 +532,10 @@ impl<S: ObjectStore> Peer<S> {
                     .is_some_and(|held| held.leaf() != entry.leaf())
             });
             if forked {
-                return Err(ClientError::LogForked(block));
+                return Err(match &kept {
+                    Some(kept) => self.own_fork(block, &forks_head(kept), &appended.head),
+                    None => ClientError::LogForked(block),
+                });
             }
             // A read since may have taken the head past these without their entries (a page
             // from the log's start, an export), so they are handed on all the same, but only
@@ -599,7 +602,7 @@ impl<S: ObjectStore> Peer<S> {
                 &tree_hashes(consistency),
             )
         {
-            return Err(ClientError::LogForked(block));
+            return Err(self.own_fork(block, &forks_head(kept), &head));
         }
         let mut ids = std::collections::HashSet::with_capacity(entries.len());
         let distinct = entries.iter().all(|entry| ids.insert(entry.id));
@@ -972,5 +975,13 @@ impl<S: ObjectStore> Peer<S> {
             Call::Redact { block, seq },
         ))
         .await
+    }
+}
+
+/// A kept head as the wire names it.
+fn forks_head(kept: &KeptLogHead) -> LogHead {
+    LogHead {
+        size: kept.size,
+        root: Hash::from_bytes(kept.root),
     }
 }
