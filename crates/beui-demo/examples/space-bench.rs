@@ -207,13 +207,13 @@ mod bench {
             let sky = Pos2::new(PLATFORM.x / 2.0, 30.0);
             self.drag_to(tab, sky);
             let space = self.space.borrow();
-            let window = space
+            
+            space
                 .panels
                 .iter()
                 .map(|panel| panel.window)
                 .find(|window| !window.is_main())
-                .expect("the tab floated into a window of its own");
-            window
+                .expect("the tab floated into a window of its own")
         }
 
         fn drag_to(&mut self, from: Pos2, to: Pos2) {

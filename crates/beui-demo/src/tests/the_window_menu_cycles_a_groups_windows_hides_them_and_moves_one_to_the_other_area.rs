@@ -3,7 +3,7 @@ use super::*;
 fn act(test: &mut DocumentTest, action: &str) {
     test.click("wm.menu");
     test.settle();
-    test.click(&format!("wm.menu.dock.window.{action}"));
+    test.click(format!("wm.menu.dock.window.{action}"));
     test.settle();
 }
 
