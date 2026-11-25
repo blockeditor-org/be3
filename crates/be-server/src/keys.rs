@@ -1766,6 +1766,13 @@ impl ServerStore {
                 let Some(key) = resealed.get(&(held.organization, held.key)) else {
                     continue;
                 };
+                // A contact's key sealed again stays the contact's, as the device sealed it
+                // (`RecoverySecret::seal_as_from`), so its devices still check who sent it;
+                // anything else is the account's own.
+                let sender = match key.sender == held.sender {
+                    true => held.sender,
+                    false => account,
+                };
                 transaction.execute(
                     "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
                      VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -1773,7 +1780,7 @@ impl ServerStore {
                         key.organization.to_string(),
                         key.key.to_string(),
                         by,
-                        account.to_string(),
+                        sender.to_string(),
                         key.sealed
                     ],
                 )?;
@@ -1793,20 +1800,35 @@ impl ServerStore {
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             for key in &keys {
+                // Sealed again as from its sender, a contact's stays the contact's
+                // (`RecoverySecret::seal_as_from`); as from the account, it is its own.
                 let updated = transaction.execute(
                     "UPDATE wrapped_keys SET sealed = ?4, sender = ?5
-                     WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
+                     WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3
+                        AND (sender = ?5 OR ?5 = ?6)",
                     params![
                         key.organization.to_string(),
                         key.key.to_string(),
                         by,
                         key.sealed,
+                        key.sender.to_string(),
                         account.to_string()
                     ],
                 )?;
-                if updated == 0 {
+                if updated > 0 {
+                    continue;
+                }
+                // One gone since the device read it (rotated away, revoked) needs no other.
+                let held: bool = transaction.query_row(
+                    "SELECT EXISTS (SELECT 1 FROM wrapped_keys
+                     WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3)",
+                    params![key.organization.to_string(), key.key.to_string(), by],
+                    |row| row.get(0),
+                )?;
+                if held {
                     return Err(refused(format!(
-                        "{} is not sealed to you, so you cannot seal it again",
+                        "{} was sealed to you by another account, so you seal it again only as \
+                         from that one or yourself",
                         key.key
                     )));
                 }

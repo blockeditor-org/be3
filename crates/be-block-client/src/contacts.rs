@@ -857,7 +857,7 @@ async fn pass(
         let stale = behind(record.holds, identity);
         let (changed, followed) = follow(account, &secrets, stale, &record.card, &sealed);
         let broken = readable && followed < letters.len();
-        if let Some((changed, holds)) = changed {
+        if let Some(changed) = changed {
             if held_keys.is_none() {
                 held_keys = Some(sealed_to_me(connection).await?);
             }
@@ -866,16 +866,18 @@ async fn pass(
                 account,
                 &secrets,
                 stale,
-                &record.card,
+                contact,
+                &changed.through,
+                changed.to.public,
                 held_keys.as_deref().unwrap_or_default(),
             )
             .await?;
             let mut card = record.card.clone();
-            card.public = changed.public;
-            card.signing = changed.signing;
+            card.public = changed.to.public;
+            card.signing = changed.to.signing;
             *record = OwnContact {
                 through: letters[followed - 1].0,
-                holds: Some(holds),
+                holds: Some(changed.holds),
                 ..OwnContact::new(card, record.verified)
             };
         }
@@ -956,16 +958,15 @@ async fn pass(
 
 /// Follows `changes` in order from `card`'s key, with a retired secret only while the contact
 /// may still hold a replaced key of this account (`stale`, then by what each change was sealed
-/// to): the key they lead to, if another, with this account's key the last was sealed to
-/// (`OwnContact::holds`), and how many of them lie up to the last that opened, which the device
-/// may delete.
+/// to): where they lead, if to another key, and how many of them lie up to the last that
+/// opened, which the device may delete.
 fn follow(
     account: Uuid,
     secrets: &Secrets,
     stale: bool,
     card: &ContactCard,
     changes: &[Vec<u8>],
-) -> (Option<(PublicIdentity, RecoveryPublic)>, usize) {
+) -> (Option<Followed>, usize) {
     let held = PublicIdentity {
         public: card.public,
         signing: card.signing,
@@ -974,6 +975,7 @@ fn follow(
     let mut holds = None;
     let mut stale = stale;
     let mut followed = 0;
+    let mut through = vec![card.public];
     for (index, sealed) in changes.iter().enumerate() {
         let from = Party {
             account: card.account,
@@ -983,13 +985,24 @@ fn follow(
             secret.open_key_change(&from, account.into_bytes(), sealed)
         }) {
             current = next;
+            through.push(next.public);
             holds = Some(secret.public());
             stale = behind(holds, secrets.current);
             followed = index + 1;
         }
     }
     let changed = (current != held).then_some(current);
-    (changed.zip(holds), followed)
+    let followed_to = changed.zip(holds).map(|(to, holds)| Followed { to, holds, through });
+    (followed_to, followed)
+}
+
+/// Where `follow` led.
+struct Followed {
+    to: PublicIdentity,
+    /// This account's key the last change was sealed to (`OwnContact::holds`).
+    holds: RecoveryPublic,
+    /// Every key of the contact's the changes passed through, from the record's to `to`'s.
+    through: Vec<RecoveryPublic>,
 }
 
 /// Deletes of the key changes `card`'s account left in the mailbox that a record made from
@@ -1041,45 +1054,78 @@ async fn sealed_to_me(connection: &Arc<Connection>) -> Result<Vec<SealedKey>, Cl
     )
 }
 
-/// Seals again to this account, from itself, each key in `held` that `card`'s account sealed by
-/// the key on `card`, which it just replaced: once this device follows the change, that key no
-/// longer opens what was sealed from it. With a retired secret too while the contact may hold a
-/// replaced key of this account (`stale`).
+/// Seals again to this account's current key, as from `now`, the contact's key this device now
+/// holds, each key in `held` that `contact` sealed from one of `from` (keys it replaced on the
+/// way to `now`, or `now` itself) and that opens only so or only with a retired secret: once the
+/// device follows the contact's change, or the contact follows this account's, nothing else
+/// opens it. It stays the contact's (`RecoverySecret::seal_as_from`, sender `contact`), so the
+/// `KeyBook` checks the contact may hand it over (`KeyBook::sender_may`) as for any key the
+/// contact seals, never trusting it as this account's own. With a retired secret only while the
+/// contact may hold a replaced key of this account (`stale`).
 async fn reseal_from(
     connection: &Arc<Connection>,
     account: Uuid,
     secrets: &Secrets<'_>,
     stale: bool,
-    card: &ContactCard,
+    contact: Uuid,
+    from: &[RecoveryPublic],
+    now: RecoveryPublic,
     held: &[SealedKey],
 ) -> Result<(), ClientError> {
+    let keys = resealed_from(account, secrets, stale, contact, from, now, held);
+    write_resealed(connection, keys).await
+}
+
+/// What `reseal_from` writes.
+fn resealed_from(
+    account: Uuid,
+    secrets: &Secrets<'_>,
+    stale: bool,
+    contact: Uuid,
+    from: &[RecoveryPublic],
+    now: RecoveryPublic,
+    held: &[SealedKey],
+) -> Vec<SealedKey> {
     let identity = secrets.current;
-    let from = Party {
-        account: card.account,
-        public: card.public,
+    let now = Party {
+        account: contact.into_bytes(),
+        public: now,
     };
-    let mine = Party {
-        account: account.into_bytes(),
-        public: identity.public(),
-    };
-    let keys: Vec<SealedKey> = held
-        .iter()
-        .filter(|key| key.sender.into_bytes() == card.account)
+    held.iter()
+        .filter(|key| key.sender == contact)
         .filter_map(|key| {
-            let (plain, _) = secrets
-                .open(stale, |secret| {
-                    secret.open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
-                })
-                .ok()?;
+            let (plain, by_current) = from.iter().find_map(|public| {
+                let from = Party {
+                    account: contact.into_bytes(),
+                    public: *public,
+                };
+                let (plain, secret) = secrets
+                    .open(stale, |secret| {
+                        secret.open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+                    })
+                    .ok()?;
+                let current = secret.public() == identity.public() && *public == now.public;
+                Some((plain, current))
+            })?;
+            // Already sealed as from `now` to the current key.
+            if by_current {
+                return None;
+            }
             Some(SealedKey {
                 sealed: identity
-                    .seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain)
+                    .seal_as_from(&now, account.into_bytes(), key.key.as_bytes(), &plain)
                     .ok()?,
-                sender: account,
+                sender: contact,
                 ..key.clone()
             })
         })
-        .collect();
+        .collect()
+}
+
+async fn write_resealed(
+    connection: &Arc<Connection>,
+    keys: Vec<SealedKey>,
+) -> Result<(), ClientError> {
     if !keys.is_empty() {
         be_block_protocol::write::<(), _>(
             connection,
@@ -1101,11 +1147,14 @@ pub struct NewIdentity {
 
 /// What moving the account from `old` to `fresh` sends: every key in `held` sealed to it by
 /// itself or a contact it holds a record of (`records`, from the account's block) sealed again,
-/// a key change for each contact, and a retirement in each of `logs`. None when a log's head is
-/// malformed.
+/// a key change for each contact, and a retirement in each of `logs`. A contact's key opens with
+/// `old`, or one of `retired` while the contact may hold a key it replaced (`behind`), and is
+/// sealed again as still the contact's (`RecoverySecret::seal_as_from`), so the `KeyBook` checks
+/// the contact may hand it over. None when a log's head is malformed.
 pub fn new_identity(
     account: Uuid,
     old: &RecoverySecret,
+    retired: &[RecoverySecret],
     fresh: &RecoverySecret,
     held: Vec<SealedKey>,
     records: &HashMap<Uuid, OwnContact>,
@@ -1134,23 +1183,27 @@ pub fn new_identity(
     let sealed = held
         .into_iter()
         .filter_map(|key| {
-            let sender = match key.sender == account {
-                true => &me,
-                false => contacts.get(&key.sender)?,
-            };
-            let plain = old
-                .open_from(
-                    sender,
-                    account.into_bytes(),
-                    key.key.as_bytes(),
-                    &key.sealed,
-                )
-                .ok()?;
+            if key.sender == account {
+                let plain = old
+                    .open_from(&me, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+                    .ok()?;
+                return Some(SealedKey {
+                    sealed: fresh
+                        .seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain)
+                        .ok()?,
+                    ..key
+                });
+            }
+            let sender = contacts.get(&key.sender)?;
+            let stale = behind(records[&key.sender].holds, old);
+            let (plain, _) = open_by_any(old, retired, stale, |secret| {
+                secret.open_from(sender, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+            })
+            .ok()?;
             Some(SealedKey {
                 sealed: fresh
-                    .seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain)
+                    .seal_as_from(sender, account.into_bytes(), key.key.as_bytes(), &plain)
                     .ok()?,
-                sender: account,
                 ..key
             })
         })
@@ -1271,15 +1324,19 @@ pub(crate) async fn set_recovery_key_in(
         return Ok(Ok(()));
     };
     let block = AccountRecords::open(connection, account, old).await?;
-    let records = match &block {
+    let (records, retired) = match &block {
         Some(block) => match block.read().await {
-            Ok(content) => records_of(&content.root()),
+            Ok(content) => {
+                let root = content.root();
+                (records_of(&root), Secrets::new(old, Some(&root)).retired)
+            }
             Err(ClientError::Locked(_)) => return Ok(Err(CannotReseal::Unreadable)),
             Err(error) => return Err(error),
         },
-        None => HashMap::new(),
+        None => (HashMap::new(), Vec::new()),
     };
-    let Some(resealed) = new_identity(account, old, fresh, sealed, &records, logs) else {
+    let Some(resealed) = new_identity(account, old, &retired, fresh, sealed, &records, logs)
+    else {
         return Ok(Err(CannotReseal::Unreadable));
     };
     // The old secret, kept where only the new phrase reads it once the block's keys are sealed
@@ -1482,22 +1539,53 @@ pub async fn open_link(
 /// does not open here. A record a link makes follows it, so a contact verified again by a new
 /// link outranks every record of it any device of this account pinned, whatever the devices'
 /// clocks say: each pinned one was read from the block or written back there (`contacts`).
-async fn held_verified(
+async fn held_contact(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     contact: Uuid,
-) -> Result<u64, ClientError> {
+) -> Result<Option<KeptContact>, ClientError> {
     let Some(block) = AccountRecords::open(connection, account, identity).await? else {
-        return Ok(0);
+        return Ok(None);
     };
     Ok(match block.read().await {
-        Ok(content) => kept_of(&content.root())
-            .get(&contact)
-            .map_or(0, KeptContact::verified),
-        Err(ClientError::Locked(_)) => 0,
+        Ok(content) => kept_of(&content.root()).remove(&contact),
+        Err(ClientError::Locked(_)) => None,
         Err(error) => return Err(error),
     })
+}
+
+/// After a link makes a record of a contact this account held one of (`previous`), seals again
+/// what the contact sealed while it may have held a key this account replaced (`reseal_from`):
+/// the new record holds the current key, so nothing it sealed opens with a retired secret after.
+/// Only what it sealed from the key it still has: one a link replaced is a chain that broke,
+/// whose seals stay unread.
+async fn reseal_relinked(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+    previous: Option<&OwnContact>,
+    card: &ContactCard,
+) -> Result<(), ClientError> {
+    let Some(previous) = previous else {
+        return Ok(());
+    };
+    if previous.card.public != card.public || !behind(previous.holds, identity) {
+        return Ok(());
+    }
+    let secrets = Secrets::held(connection, account, identity).await;
+    let held = sealed_to_me(connection).await?;
+    reseal_from(
+        connection,
+        account,
+        &secrets,
+        true,
+        Uuid::from_bytes(card.account),
+        &[card.public],
+        card.public,
+        &held,
+    )
+    .await
 }
 
 /// Accepts a link of the kind `expected`: an invitation's escrow key is sealed to `identity` as
@@ -1519,17 +1607,24 @@ pub async fn accept_link(
     // signs naming them (a member signed in) checks.
     register_identity(connection, identity).await?;
     let (mut link, card) = open_link(connection, code, expected).await?;
-    let after = held_verified(
+    let held = held_contact(
         connection,
         Uuid::from_bytes(me.account),
         identity,
         Uuid::from_bytes(card.account),
     )
-    .await?
-    .max(
-        pins.get(&Uuid::from_bytes(card.account))
-            .map_or(0, |pin| pin.verified),
-    );
+    .await?;
+    let pin = pins.get(&Uuid::from_bytes(card.account));
+    let after = held
+        .as_ref()
+        .map_or(0, KeptContact::verified)
+        .max(pin.map_or(0, |pin| pin.verified));
+    // The record the link replaces, if any: the newer of the block's and the pin.
+    let previous = match (held.and_then(KeptContact::record), pin) {
+        (Some(held), Some(pin)) if pin.verified > held.verified => Some(pin.clone()),
+        (Some(held), _) => Some(held),
+        (None, pin) => pin.cloned(),
+    };
     let key = match &link.kind {
         LinkKind::Contact => Vec::new(),
         LinkKind::Invitation(invitation) if invitation.escrow.is_empty() => Vec::new(),
@@ -1591,6 +1686,15 @@ pub async fn accept_link(
         ops.extend(changes.iter().cloned());
         let written = be_block_protocol::write_all::<(), _>(connection, None, ops).await?;
         let Err(error) = written else {
+            // Best-effort: the link is accepted whatever it does.
+            let _ = reseal_relinked(
+                connection,
+                Uuid::from_bytes(me.account),
+                identity,
+                previous.as_ref(),
+                &card,
+            )
+            .await;
             return Ok((link, card));
         };
         tries += 1;
@@ -1638,17 +1742,22 @@ pub(crate) async fn finish_links(
     let Some(block) = AccountRecords::open(connection, account, identity).await? else {
         return Ok(Vec::new());
     };
-    let kept: HashMap<Uuid, KeptLink> = match block.read().await {
-        Ok(content) => content
-            .root()
-            .links
-            .iter()
-            .filter_map(|(link, bytes)| Some((*link, KeptLink::decode(bytes)?)))
-            .collect(),
-        // A block sealed to a phrase this device lacks: another device finishes them.
-        Err(ClientError::Locked(_)) => return Ok(Vec::new()),
-        Err(error) => return Err(error),
-    };
+    // The links the block keeps, and the records a link may replace (`reseal_relinked`).
+    let (kept, records): (HashMap<Uuid, KeptLink>, HashMap<Uuid, OwnContact>) =
+        match block.read().await {
+            Ok(content) => {
+                let root = content.root();
+                let links = root
+                    .links
+                    .iter()
+                    .filter_map(|(link, bytes)| Some((*link, KeptLink::decode(bytes)?)))
+                    .collect();
+                (links, records_of(&root))
+            }
+            // A block sealed to a phrase this device lacks: another device finishes them.
+            Err(ClientError::Locked(_)) => return Ok(Vec::new()),
+            Err(error) => return Err(error),
+        };
     let mut finished = Vec::new();
     for (letter, accepter, link, card) in accepted {
         let Some(own) = kept.get(&link) else {
@@ -1726,6 +1835,12 @@ pub(crate) async fn finish_links(
         if !ops.is_empty() {
             be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
         }
+        let previous = match (records.get(&accepter), pins.get(&accepter)) {
+            (Some(held), Some(pin)) if pin.verified > held.verified => Some(pin),
+            (Some(held), _) => Some(held),
+            (None, pin) => pin,
+        };
+        reseal_relinked(connection, account, identity, previous, &card).await?;
         let invited = match &own.kind {
             LinkKind::Contact => None,
             LinkKind::Invitation(invitation) => Some(invitation.organization),

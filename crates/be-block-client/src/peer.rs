@@ -806,9 +806,16 @@ impl<S: ObjectStore> Peer<S> {
             .set_server(server.account, RecoveryPublic(server.public));
         self.follow_topics().await;
         let pins = self.contact_pins();
-        let verified =
-            crate::contacts::contacts(&connection, self.account, self.keys.identity(), &pins)
-                .await?;
+        let (verified, retired) = crate::contacts::contacts_and_retired(
+            &connection,
+            self.account,
+            self.keys.identity(),
+            &pins,
+        )
+        .await?;
+        // Before any key is read: one a contact sealed to a key this account replaced opens
+        // with the secret the account's block keeps of it.
+        self.retire(retired, &verified);
         crate::contacts::register_identity(&connection, self.keys.identity()).await?;
         // What this account pinned for the organization, from its block in the personal
         // organization (an agent's from the letter its maker left).

@@ -679,8 +679,11 @@ interface server {
         rotate(rotation),
         /// Adds the next epoch of the escrow chain, by an administrator.
         escrow(new-escrow),
-        /// Seals keys the account holds to its own new recovery key again. The
-        /// account's own: each key names its organization.
+        /// Seals keys sealed to the account again, to its current recovery
+        /// key: each names its organization, and as its sender either the
+        /// account the row already names (a contact's key stays the
+        /// contact's) or the account itself. One the server no longer holds
+        /// is skipped.
         reseal(list<sealed-key>),
     }
 

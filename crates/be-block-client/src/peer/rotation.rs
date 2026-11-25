@@ -511,13 +511,7 @@ impl<S: ObjectStore> Peer<S> {
             &pinned,
         )
         .await?;
-        let current = self.keys.identity();
-        let behind = contacts
-            .iter()
-            .filter(|contact| crate::contacts::behind(contact.holds, current))
-            .map(|contact| contact.account)
-            .collect();
-        self.keys.retire(retired, behind);
+        self.retire(retired, &contacts);
         let contacts = self.named(contacts).await;
         self.adopt_contacts(&contacts);
         // Keys a contact sealed before this device verified it open now, and arrive as any key
@@ -525,6 +519,18 @@ impl<S: ObjectStore> Peer<S> {
         self.keys.absorb(KeySet::default());
         self.reseal_retired().await;
         Ok(contacts)
+    }
+
+    /// Gives the `KeyBook` the secrets the account retired, `retired`, and which of `contacts`
+    /// may still seal to them (`crate::contacts::behind`).
+    pub(crate) fn retire(&self, retired: Vec<be_block_keys::RecoverySecret>, contacts: &[crate::Contact]) {
+        let current = self.keys.identity();
+        let behind = contacts
+            .iter()
+            .filter(|contact| crate::contacts::behind(contact.holds, current))
+            .map(|contact| contact.account)
+            .collect();
+        self.keys.retire(retired, behind);
     }
 
     /// Writes the keys `KeyBook` opened with a retired secret, sealed again to the current one
