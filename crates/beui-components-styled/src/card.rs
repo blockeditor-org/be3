@@ -8,6 +8,15 @@ use crate::tokens::{Length, Padding, Size, Space};
 
 pub(crate) const PADDING: Space = Space::Xl;
 
+/// A card's corners.
+pub const RADIUS: Radius = Radius::Lg;
+/// A card's border.
+pub const BORDER: Border = Border::DEFAULT;
+/// What keeps a child filling a card (a child frame a dialog holds) inside the card's border.
+pub const INSIDE_BORDER: Padding = Padding::all(Space::Custom(BORDER.width.px()));
+/// The corners inside a card's border, which such a child is rounded by.
+pub const INNER_RADIUS: Radius = Radius::Custom(RADIUS.px() - BORDER.width.px());
+
 /// The raised surface every card, popover and dialog sits on: the surface fill, the default
 /// border and a large radius. `padding` is a page's card's by default (a popover's is
 /// `PANEL_PADDING`, a dialog's body pads itself), `max_width` caps it and otherwise it is as
@@ -24,8 +33,8 @@ pub fn Card(
         <Frame
             @node_ref=&pointer
             fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
+            border={BORDER}
+            radius=RADIUS
             padding
             width={max_width.map(|max| max.map_or(Length::INTRINSIC, at_most))}
         >
