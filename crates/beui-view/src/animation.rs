@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use crate::core::reactive::{Timer, create_timer, now};
 use crate::reactive::{Get, Stored, create_effect, on_cleanup, store};
 
-pub use crate::types::{Easing, Fling, Motion, Spring, Velocity, tween};
+pub use crate::types::{Easing, Fling, Motion, Spring, SpringMotion, Velocity, tween};
 
 /// The motion preference. `Motion::Instant` finishes running animations and completes
 /// new ones without scheduling frames, and turns off inertia and rubber-banding; timers

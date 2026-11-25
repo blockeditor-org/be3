@@ -35,7 +35,7 @@ pub use be_lib_ui_types::{CanvasTouch, Motion, PreferenceLayer, Preferences, The
 pub use clip::Clip;
 
 pub use action::{ActionGroup, ActionInfo};
-pub use animation::{Easing, Fling, Spring, Velocity, tween};
+pub use animation::{Easing, Fling, Spring, SpringMotion, Velocity, tween};
 pub use color::{
     Color, Color32, ColorDefinitions, ColorScheme, ColorSource, ColorVar, Hsva, Oklch,
     SchemeColors, format_hex, parse_hex,

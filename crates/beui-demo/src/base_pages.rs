@@ -1597,8 +1597,7 @@ fn AnimationSample() -> NodeId {
     let spring_position = create_signal(0.0_f32);
     let target = StoredCell::new(0.0_f32);
     let from = StoredCell::new(0.0_f32);
-    let velocity = StoredCell::new(0.0_f32);
-    let passed = StoredCell::new(false);
+    let motion = StoredCell::new(SpringMotion::default());
     let transition = create_animation(
         move |frame| {
             let progress = tween(frame.elapsed.as_secs_f32(), 0.5, Easing::OutCubic);
@@ -1609,22 +1608,21 @@ fn AnimationSample() -> NodeId {
     );
     let spring = create_animation(
         move |frame| {
-            let mut offset = spring_position.get_untracked() - target.get();
-            let mut speed = velocity.get();
-            let mut past = passed.get();
-            Spring {
-                stiffness: 180.0,
-                damping: 20.124_61,
-            }
-            .advance(&mut offset, &mut speed, &mut past, frame.delta.as_secs_f32());
-            velocity.set(speed);
-            passed.set(past);
-            spring_position.set(target.get() + offset);
-            offset != 0.0 || speed != 0.0
+            let mut moving = motion.get();
+            moving.displacement = spring_position.get_untracked() - target.get();
+            let still_moving = moving.advance(
+                Spring {
+                    stiffness: 180.0,
+                    damping: 20.124_61,
+                },
+                frame.delta.as_secs_f32(),
+            );
+            motion.set(moving);
+            spring_position.set(target.get() + moving.displacement);
+            still_moving
         },
         move || {
-            velocity.set(0.0);
-            passed.set(false);
+            motion.set(SpringMotion::default());
             spring_position.set(target.get());
         },
     );
@@ -1649,7 +1647,10 @@ fn AnimationSample() -> NodeId {
                     target.set(if target.get() == 0.0 { 220.0 } else { 0.0 });
                     transition.stop();
                     transition.start();
-                    passed.set(false);
+                    motion.update(|mut motion| {
+                        motion.retarget(motion.displacement);
+                        motion
+                    });
                     spring.start();
                 }}
             />

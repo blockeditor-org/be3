@@ -99,6 +99,7 @@ mod text_input;
 mod text_item;
 mod text_rule;
 mod time_list;
+mod narrow_toast;
 mod toasts;
 mod toggles;
 mod tree;

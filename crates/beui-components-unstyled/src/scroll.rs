@@ -31,7 +31,7 @@ use beui_view::types::{
     AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture, Vec2,
     WHEEL_LATCH_TIMEOUT, WheelInput,
 };
-use beui_view::types::{Color, Direction, Justify, ScrollPosition};
+use beui_view::types::{Color, Direction, Justify, ScrollPosition, TouchDrags};
 use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
@@ -1227,6 +1227,12 @@ fn Scrolling(
         false => Vec::new(),
     });
     let (grow, shrink) = content_grow_and_shrink(fit);
+    // On the HTML core (a scroll with stops) its fingers are its own: the browser pans nothing
+    // under it (`touch-action: none`).
+    let browser_touch = match CORE {
+        Core::Html => TouchDrags::All,
+        Core::Native => TouchDrags::None,
+    };
     view! {
         <Frame padding={move || -bleed.get()}>
             <Layers>
@@ -1254,6 +1260,7 @@ fn Scrolling(
                     }}
                     on_pointer={pointer}
                     on_wheel={wheel}
+                    touch_drags={browser_touch}
                 >
                     <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
@@ -1307,10 +1314,11 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     /// Offsets along `direction` that a fling and a release settle on, the nearest to where
-    /// they would have come to rest; none lets them rest anywhere. Past the last stop it moves
+    /// they would have come to rest; a static empty list lets them rest anywhere. Past the last stop it moves
     /// freely, but a coast from short of it stops there. A wheel or a key steps between stops,
     /// scrolls freely past the last one and, coming back, stops at it before stepping on. A
-    /// scroll with stops runs beui's own motion on the HTML core too, not the browser's.
+    /// scroll given stops (anything but a static empty list) runs beui's own motion on the HTML
+    /// core too, not the browser's.
     #[prop(default = Vec::new())]
     snaps: Prop<Vec<f32>>,
     /// Once at or past the last stop, a wheel or a key never takes it back below it, and short

@@ -30,33 +30,45 @@ pub fn tween(elapsed: f32, duration: f32, easing: Easing) -> f32 {
     })
 }
 
-/// A spring pulling a displacement back to 0. It swings past 0 at most once: the first time it
-/// passes 0 it may overshoot (an underdamped spring, `damping` below `2 * sqrt(stiffness)`),
-/// and from then on, `passed`, it moves as a critically damped spring at least, landing on 0 on
-/// its way back without passing it again. It never rings.
+/// A spring pulling a displacement back to 0. A `SpringMotion` moves on it, swinging past 0 at
+/// most once: underdamped (a `damping` below `2 * sqrt(stiffness)`) it overshoots, and from the
+/// moment it passes 0 it moves critically damped at least, landing there on the way back. It
+/// never rings.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Spring {
     pub stiffness: f32,
     pub damping: f32,
 }
 
+/// How near 0, and how slow, a motion is taken to be at rest.
+const REST_DISTANCE: f32 = 0.25;
+const REST_SPEED: f32 = 5.0;
+
 impl Spring {
-    /// Moves `displacement` and `velocity` on by `seconds`. `passed` says it has passed 0
-    /// already; it starts false for each new motion (a release, a new target), the spring sets
-    /// it as it passes 0, and clears it at rest.
-    pub fn advance(self, displacement: &mut f32, velocity: &mut f32, passed: &mut bool, seconds: f32) {
+    /// Moves `displacement` and `velocity` on by `seconds` with no memory of passing 0, for a
+    /// motion that stops the moment it reaches its target (a page sliding off, content against
+    /// its edge). Anything that may pass its target is a `SpringMotion`.
+    pub fn step(self, displacement: &mut f32, velocity: &mut f32, seconds: f32) {
         if seconds <= 0.0 {
             return;
         }
-        let x = *displacement;
-        let v = *velocity;
+        let (x, v) = self.evolve(*displacement, *velocity, self.decay(false), seconds);
+        (*displacement, *velocity) = at_rest(x, v);
+    }
+
+    fn decay(self, passed: bool) -> f32 {
+        let decay = self.damping.max(0.0) * 0.5;
+        match passed {
+            true => decay.max(self.stiffness.max(0.0).sqrt()),
+            false => decay,
+        }
+    }
+
+    /// Where a motion from `x` at `v` is after `seconds`, damped by `decay`.
+    fn evolve(self, x: f32, v: f32, decay: f32, seconds: f32) -> (f32, f32) {
         let stiffness = self.stiffness.max(0.0);
-        let decay = match *passed {
-            true => (self.damping * 0.5).max(stiffness.sqrt()),
-            false => self.damping * 0.5,
-        };
         let discriminant = stiffness - decay * decay;
-        let (mut next, mut speed) = if discriminant.abs() < 1e-4 {
+        if discriminant.abs() < 1e-4 {
             let b = v + decay * x;
             let envelope = (-decay * seconds).exp();
             (
@@ -75,29 +87,112 @@ impl Spring {
             )
         } else {
             let root = (-discriminant).sqrt();
-            let first = -decay + root;
-            let second = -decay - root;
+            let (first, second) = (-decay + root, -decay - root);
             let a = (v - second * x) / (first - second);
             let b = x - a;
             let one = a * (first * seconds).exp();
             let two = b * (second * seconds).exp();
             (one + two, first * one + second * two)
+        }
+    }
+
+    /// How long a motion from `x` at `v`, damped by `decay`, takes to first reach 0 after
+    /// now, if it ever does.
+    fn first_zero(self, x: f32, v: f32, decay: f32) -> Option<f32> {
+        let stiffness = self.stiffness.max(0.0);
+        let discriminant = stiffness - decay * decay;
+        let time = if discriminant.abs() < 1e-4 {
+            // e^(-decay t) (x + (v + decay x) t)
+            let slope = v + decay * x;
+            (slope != 0.0).then(|| -x / slope)?
+        } else if discriminant > 0.0 {
+            // e^(-decay t) R cos(frequency t - phase)
+            let frequency = discriminant.sqrt();
+            let b = (v + decay * x) / frequency;
+            let angle = (b.atan2(x) + std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::PI);
+            let angle = match angle <= 1e-6 {
+                true => std::f32::consts::PI,
+                false => angle,
+            };
+            angle / frequency
+        } else {
+            let root = (-discriminant).sqrt();
+            let (first, second) = (-decay + root, -decay - root);
+            let a = (v - second * x) / (first - second);
+            let b = x - a;
+            let ratio = -b / a;
+            (a != 0.0 && ratio > 0.0).then(|| ratio.ln() / (first - second))?
         };
-        if next * x < 0.0 || (x != 0.0 && next == 0.0) {
-            match *passed {
-                // Passing 0 a second time, it lands there instead.
-                true => (next, speed) = (0.0, 0.0),
-                false => *passed = true,
+        (time.is_finite() && time > 0.0).then_some(time)
+    }
+}
+
+fn at_rest(x: f32, v: f32) -> (f32, f32) {
+    match x.abs() < REST_DISTANCE && v.abs() < REST_SPEED {
+        true => (0.0, 0.0),
+        false => (x, v),
+    }
+}
+
+/// A motion on a `Spring`: how far it is from where it rests and how fast it moves, and whether
+/// it has passed its rest since it set out, so it swings past at most once.
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub struct SpringMotion {
+    pub displacement: f32,
+    pub velocity: f32,
+    passed: bool,
+}
+
+impl SpringMotion {
+    pub const fn new(displacement: f32, velocity: f32) -> Self {
+        Self {
+            displacement,
+            velocity,
+            passed: false,
+        }
+    }
+
+    pub fn moving(&self) -> bool {
+        self.displacement != 0.0 || self.velocity != 0.0
+    }
+
+    /// Sets out for a new rest `displacement` away, keeping its speed: it may pass this one
+    /// once.
+    pub fn retarget(&mut self, displacement: f32) {
+        self.displacement = displacement;
+        self.passed = false;
+    }
+
+    /// Let go at `velocity` (a gesture's release): it may pass its rest once.
+    pub fn release(&mut self, velocity: f32) {
+        self.velocity = velocity;
+        self.passed = false;
+    }
+
+    /// Moves on by `seconds` on `spring`; whether it still moves. The moment it passes its
+    /// rest, within the step, it goes on critically damped at least, and one that would pass
+    /// it again lands there instead, so the motion is the same at any frame rate.
+    pub fn advance(&mut self, spring: Spring, seconds: f32) -> bool {
+        if seconds <= 0.0 {
+            return self.moving();
+        }
+        let (mut x, mut v) = (self.displacement, self.velocity);
+        let decay = spring.decay(self.passed);
+        match spring.first_zero(x, v, decay).filter(|at| *at <= seconds) {
+            Some(_) if self.passed => (x, v) = (0.0, 0.0),
+            Some(at) => {
+                let (_, speed) = spring.evolve(x, v, decay, at);
+                self.passed = true;
+                (x, v) = spring.evolve(0.0, speed, spring.decay(true), seconds - at);
             }
+            None => (x, v) = spring.evolve(x, v, decay, seconds),
         }
-        if next.abs() < 0.25 && speed.abs() < 5.0 {
-            next = 0.0;
-            speed = 0.0;
+        (x, v) = at_rest(x, v);
+        if (x, v) == (0.0, 0.0) {
+            self.passed = false;
         }
-        if next == 0.0 && speed == 0.0 {
-            *passed = false;
-        }
-        *displacement = next;
-        *velocity = speed;
+        self.displacement = x;
+        self.velocity = v;
+        self.moving()
     }
 }

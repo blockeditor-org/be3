@@ -270,9 +270,8 @@ enum Heading {
 
 struct Held {
     heading: Heading,
-    velocity: f32,
-    /// Whether it has passed where it is heading since it set out.
-    passed: bool,
+    /// Its motion towards where it is heading; its displacement follows the offset.
+    motion: SpringMotion,
     /// The mouse holding it.
     mouse: Option<Grip>,
     /// A finger carrying it.
@@ -321,8 +320,7 @@ impl Motion {
                 return;
             }
             held.heading = heading;
-            held.velocity = velocity;
-            held.passed = false;
+            held.motion.release(velocity);
             if held.mouse.is_some() || held.finger {
                 return;
             }
@@ -350,7 +348,7 @@ impl Motion {
         let velocity = {
             let mut held = self.held.borrow_mut();
             held.dismissed = false;
-            held.velocity
+            held.motion.velocity
         };
         self.head(Heading::Rest, velocity);
     }
@@ -459,29 +457,22 @@ impl Motion {
     }
 
     fn step(&self, frame: AnimationFrame) -> bool {
-        let (heading, mut velocity) = {
+        let (heading, mut motion) = {
             let held = self.held.borrow();
-            (held.heading, held.velocity)
+            (held.heading, held.motion)
         };
         let target = self.target(heading);
-        let mut displacement = self.offset.get_untracked() - target;
-        let mut passed = self.held.borrow().passed;
-        self.swipe.spring.advance(
-            &mut displacement,
-            &mut velocity,
-            &mut passed,
-            frame.delta.as_secs_f32(),
-        );
-        self.held.borrow_mut().passed = passed;
-        let offset = target + displacement;
+        motion.displacement = self.offset.get_untracked() - target;
+        let moving = motion.advance(self.swipe.spring, frame.delta.as_secs_f32());
+        self.held.borrow_mut().motion = motion;
+        let offset = target + motion.displacement;
         let off = match heading {
             Heading::Off(side) => offset * side >= self.travel(),
             Heading::Rest => false,
         };
-        if off || (displacement == 0.0 && velocity == 0.0) {
+        if off || !moving {
             return false;
         }
-        self.held.borrow_mut().velocity = velocity;
         self.offset.set(offset);
         true
     }
@@ -489,7 +480,7 @@ impl Motion {
     fn finish(&self) {
         let heading = self.held.borrow().heading;
         self.offset.set(self.target(heading));
-        self.held.borrow_mut().velocity = 0.0;
+        self.held.borrow_mut().motion = SpringMotion::default();
         if let Heading::Off(_) = heading {
             let gone = std::mem::replace(&mut self.held.borrow_mut().gone, true);
             if !gone {
@@ -521,8 +512,7 @@ fn ToastItem(
         offset,
         held: RefCell::new(Held {
             heading: Heading::Rest,
-            velocity: 0.0,
-            passed: false,
+            motion: SpringMotion::default(),
             mouse: None,
             finger: false,
             dismissed: false,

@@ -3,7 +3,7 @@ use std::cell::Cell;
 use beui_view::measure::{measure, scrolled_by};
 use beui_view::primitives::Frame;
 use beui_view::reactive::*;
-use beui_view::types::{Direction, Measured, Pos2, Spring, Vec2};
+use beui_view::types::{Direction, Measured, Pos2, Spring, SpringMotion, Vec2};
 
 /// Where a held glide is drawn: its resting top-left corner at `at`, in window
 /// coordinates, moved along one axis only if `along` is given.
@@ -15,41 +15,40 @@ pub struct GlideHold {
 
 #[derive(Clone, Copy, PartialEq, Default, Debug)]
 struct GlideMotion {
-    displacement: Vec2,
-    velocity: Vec2,
-    /// Whether each axis has passed its rest since its move began.
-    passed: (bool, bool),
+    x: SpringMotion,
+    y: SpringMotion,
 }
 
 impl GlideMotion {
+    fn displacement(self) -> Vec2 {
+        Vec2::new(self.x.displacement, self.y.displacement)
+    }
+
     fn moving(self) -> bool {
-        self.displacement != Vec2::ZERO || self.velocity != Vec2::ZERO
+        self.x.moving() || self.y.moving()
     }
 
     fn step(&mut self, spring: Spring, seconds: f32) -> bool {
-        spring.advance(
-            &mut self.displacement.x,
-            &mut self.velocity.x,
-            &mut self.passed.0,
-            seconds,
-        );
-        spring.advance(
-            &mut self.displacement.y,
-            &mut self.velocity.y,
-            &mut self.passed.1,
-            seconds,
-        );
+        self.x.advance(spring, seconds);
+        self.y.advance(spring, seconds);
         self.moving()
     }
 
+    /// Its rest moved by `by` (a move between layouts, or a start from elsewhere): it sets out
+    /// for it from where it is drawn, keeping its speed.
+    fn moved(&mut self, by: Vec2) {
+        self.x.retarget(self.x.displacement + by.x);
+        self.y.retarget(self.y.displacement + by.y);
+    }
+
     fn hold(&mut self, along: Option<Direction>, moved: Vec2) {
-        self.displacement = match along {
+        let moved = match along {
             Some(Direction::Horizontal) => Vec2::new(moved.x, 0.0),
             Some(Direction::Vertical) => Vec2::new(0.0, moved.y),
             None => moved,
         };
-        self.velocity = Vec2::ZERO;
-        self.passed = (false, false);
+        self.x = SpringMotion::new(moved.x, 0.0);
+        self.y = SpringMotion::new(moved.y, 0.0);
     }
 }
 
@@ -75,7 +74,7 @@ pub struct GlideApi {
 
 impl GlideApi {
     fn show(self) {
-        let Some(displacement) = self.state.try_with(|state| state.motion.get().displacement)
+        let Some(displacement) = self.state.try_with(|state| state.motion.get().displacement())
         else {
             return;
         };
@@ -110,7 +109,7 @@ impl GlideApi {
         let released = state.hold.get().is_some() && hold.is_none();
         state.hold.set(hold);
         match released {
-            true if state.motion.get().displacement != Vec2::ZERO => self.start(),
+            true if state.motion.get().displacement() != Vec2::ZERO => self.start(),
             true => {}
             false => self.take_hold(),
         }
@@ -119,7 +118,7 @@ impl GlideApi {
     /// How far the child is drawn from where layout put the glide.
     pub fn displacement(self) -> Vec2 {
         self.state
-            .try_with(|state| state.motion.get().displacement)
+            .try_with(|state| state.motion.get().displacement())
             .unwrap_or(Vec2::ZERO)
     }
 }
@@ -155,7 +154,7 @@ pub fn Glide(
             let mut motion = state.motion.get();
             let moving = motion.step(spring, frame.delta.as_secs_f32());
             state.motion.set(motion);
-            shown.set(motion.displacement);
+            shown.set(motion.displacement());
             moving
         },
         move || {
@@ -207,7 +206,7 @@ pub fn Glide(
             glide.take_hold();
         } else if moved != Vec2::ZERO {
             let mut motion = state.motion.get();
-            motion.displacement += moved;
+            motion.moved(moved);
             state.motion.set(motion);
             glide.start();
         }
@@ -250,7 +249,7 @@ pub fn Glide(
             Some(resting) => {
                 arm_now();
                 let mut motion = state.motion.get();
-                motion.displacement += from - resting;
+                motion.moved(from - resting);
                 state.motion.set(motion);
                 glide.start();
             }

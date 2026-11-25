@@ -83,9 +83,8 @@ struct State<K: 'static, P: 'static> {
     folded_length: Cell<f32>,
     gap: Signal<Option<ReorderGap<K>>>,
     aim: Cell<f32>,
-    speed: Cell<f32>,
-    /// Whether the gap has passed its aim since it last set out for it.
-    passed: Cell<bool>,
+    /// The gap's size against its aim, moving on the spring.
+    motion: Cell<SpringMotion>,
     frames: Cell<Option<Animation>>,
     visited: Signal<bool>,
     raised: Signal<Option<K>>,
@@ -337,7 +336,9 @@ where
             _ => {}
         }
         if state.aim.replace(aim) != aim {
-            state.passed.set(false);
+            let mut motion = state.motion.get();
+            motion.retarget(motion.displacement);
+            state.motion.set(motion);
         }
         let shown = state
             .gap
@@ -351,7 +352,7 @@ where
 
 fn shut<K: Clone + PartialEq, P>(state: &State<K, P>) {
     state.aim.set(0.0);
-    state.speed.set(0.0);
+    state.motion.set(SpringMotion::default());
     if state.gap.with_untracked(Option::is_some) {
         state.gap.set(None);
     }
@@ -368,14 +369,12 @@ where
                 return false;
             };
             let aim = state.aim.get();
-            let mut offset = shown.size - aim;
-            let mut speed = state.speed.get();
-            let mut passed = state.passed.get();
-            state.spring.advance(&mut offset, &mut speed, &mut passed, seconds);
-            state.speed.set(speed);
-            state.passed.set(passed);
-            shown.size = (aim + offset).max(0.0);
-            let moving = offset != 0.0 || speed != 0.0;
+            let mut motion = state.motion.get();
+            // What the gap is drawn at may have changed since (a carry from elsewhere).
+            motion.displacement = shown.size - aim;
+            let moving = motion.advance(state.spring, seconds);
+            state.motion.set(motion);
+            shown.size = (aim + motion.displacement).max(0.0);
             state.gap.set((moving || aim > 0.0).then_some(shown));
             moving
         })
@@ -388,7 +387,7 @@ where
     P: 'static,
 {
     stored.try_with(|state| {
-        state.speed.set(0.0);
+        state.motion.set(SpringMotion::default());
         let aim = state.aim.get();
         if let Some(mut shown) = state.gap.get_untracked()
             && shown.size != aim
@@ -454,7 +453,7 @@ where
                 return None;
             }
         }
-        state.speed.set(0.0);
+        state.motion.set(SpringMotion::default());
         state.frames.get()
     });
     if let Some(frames) = frames {
@@ -700,8 +699,7 @@ where
         folded_length: Cell::new(0.0),
         gap,
         aim: Cell::new(0.0),
-        speed: Cell::new(0.0),
-        passed: Cell::new(false),
+        motion: Cell::new(SpringMotion::default()),
         frames: Cell::new(None),
         visited,
         raised: create_signal(None),

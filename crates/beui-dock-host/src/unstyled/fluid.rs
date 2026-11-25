@@ -15,7 +15,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::window::WindowId;
 use beui_view::types::{
-    CanvasArrangement, Direction, Measured, Modifiers, Pos2, Rect, Spring, Vec2,
+    CanvasArrangement, Direction, Measured, Modifiers, Pos2, Rect, Spring, SpringMotion, Vec2,
 };
 
 use beui_dock_state::*;
@@ -526,26 +526,40 @@ fn band(rect: Rect, side: Side, reach: f32) -> Rect {
 /// that changes, as a spring pulls it home.
 #[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub(super) struct Moving {
-    min: Vec2,
-    max: Vec2,
-    min_speed: Vec2,
-    max_speed: Vec2,
-    /// Whether each of the four has passed its rest since it set out.
-    passed: [bool; 4],
+    /// Its left, top, right and bottom sides.
+    sides: [SpringMotion; 4],
 }
 
 impl Moving {
+    /// Drawn `min` and `max` from where its layout puts its corners, at rest.
+    fn from(min: Vec2, max: Vec2) -> Self {
+        Self {
+            sides: [min.x, min.y, max.x, max.y].map(|side| SpringMotion::new(side, 0.0)),
+        }
+    }
+
+    /// Set out for a new place, drawn `min` and `max` from it, keeping the speed it had.
+    fn retarget(mut self, min: Vec2, max: Vec2) -> Self {
+        for (side, displacement) in self.sides.iter_mut().zip([min.x, min.y, max.x, max.y]) {
+            side.retarget(displacement);
+        }
+        self
+    }
+
     fn step(&mut self, spring: Spring, seconds: f32) -> bool {
-        let [left, top, right, bottom] = &mut self.passed;
-        spring.advance(&mut self.min.x, &mut self.min_speed.x, left, seconds);
-        spring.advance(&mut self.min.y, &mut self.min_speed.y, top, seconds);
-        spring.advance(&mut self.max.x, &mut self.max_speed.x, right, seconds);
-        spring.advance(&mut self.max.y, &mut self.max_speed.y, bottom, seconds);
-        *self != Moving::default()
+        let mut moving = false;
+        for side in &mut self.sides {
+            moving |= side.advance(spring, seconds);
+        }
+        moving
     }
 
     fn apply(&self, rect: Rect) -> Rect {
-        Rect::from_min_max(rect.min + self.min, rect.max + self.max)
+        let [left, top, right, bottom] = self.sides.map(|side| side.displacement);
+        Rect::from_min_max(
+            rect.min + Vec2::new(left, top),
+            rect.max + Vec2::new(right, bottom),
+        )
     }
 }
 
@@ -629,15 +643,7 @@ impl Parting {
             if min == Vec2::ZERO && max == Vec2::ZERO {
                 continue;
             }
-            next.insert(
-                key,
-                Moving {
-                    min,
-                    max,
-                    passed: [false; 4],
-                    ..speed
-                },
-            );
+            next.insert(key, speed.retarget(min, max));
         }
         self.moving.set(Rc::new(next));
         self.frames.start();
@@ -858,11 +864,10 @@ pub(super) fn DockGhost(
             return;
         };
         untrack(|| {
-            glide.set(Moving {
-                min: landing.from.min - landing.to.min,
-                max: landing.from.max - landing.to.max,
-                ..Moving::default()
-            });
+            glide.set(Moving::from(
+                landing.from.min - landing.to.min,
+                landing.from.max - landing.to.max,
+            ));
             frames.stop();
             frames.start();
         });

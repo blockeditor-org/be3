@@ -30,7 +30,7 @@ pub fn unband(overscroll: f32, dimension: f32) -> f32 {
 
 pub fn spring_back(overscroll: &mut f32, velocity: &mut f32, elapsed: f32, spring: Spring) {
     let from = *overscroll;
-    spring.advance(overscroll, velocity, &mut false, elapsed);
+    spring.step(overscroll, velocity, elapsed);
     if *overscroll * from < 0.0 {
         *overscroll = 0.0;
         *velocity = 0.0;
@@ -59,7 +59,7 @@ pub fn bounce(stretch: &mut f32, velocity: &mut f32, elapsed: f32, spring: Sprin
         elapsed -= peak;
     }
     let from = *stretch;
-    spring.advance(stretch, velocity, &mut false, elapsed);
+    spring.step(stretch, velocity, elapsed);
     if *stretch * from < 0.0 {
         *stretch = 0.0;
         return std::mem::take(velocity);

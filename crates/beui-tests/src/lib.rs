@@ -168,6 +168,9 @@ pub fn Fixture(name: String) -> Root {
         "toasts" => view! {
             <layers::ToastsFixture />
         },
+        "narrow_toast" => view! {
+            <layers::NarrowToastFixture />
+        },
         "palette" => view! {
             <layers::PaletteFixture />
         },

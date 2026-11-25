@@ -229,20 +229,14 @@ pub fn Sheet(
     let moving_aside = StoredCell::new(false);
     let api = move || scroll.try_get();
     let laid_out = move || position.with_untracked(Option::is_some) && top.get_untracked() > 0.0;
-    // The speed a gesture let it go at, which the next settle starts from.
-    let thrown = StoredCell::new(0.0_f32);
-    let settle_on = move |to: Aim| {
+    // Settles on `to` from `thrown`, the speed a gesture let it go at, or else from the speed
+    // it is moving at, so a new aim bends its path rather than stopping it.
+    let settle_on = move |to: Aim, thrown: Option<f32>| {
         let offset = placed.with_untracked(|placed| placed.offset(to));
         aim.set(Some(to));
         aimed.set(offset);
         if let Some(api) = api() {
-            // From the speed a gesture let it go at, or else the speed it is moving at, so
-            // a new aim bends its path rather than stopping it.
-            let velocity = match thrown.replace(0.0) {
-                0.0 => api.velocity(),
-                thrown => thrown,
-            };
-            api.settle_to(offset, velocity);
+            api.settle_to(offset, thrown.unwrap_or_else(|| api.velocity()));
         }
     };
     // Its stops moved (what it holds measured anew) while it rests on, or heads for, a place:
@@ -289,7 +283,7 @@ pub fn Sheet(
         {
             api.scroll_to(from);
             entering.set(false);
-            settle_on(Aim::Rest);
+            settle_on(Aim::Rest, Some(0.0));
         }
     });
     let enter = move || {
@@ -304,7 +298,7 @@ pub fn Sheet(
             _ => offer(Offer::Entering { at: now(), take }),
         }
         match laid_out() {
-            true => settle_on(Aim::Rest),
+            true => settle_on(Aim::Rest, Some(0.0)),
             false => entering.set(true),
         }
     };
@@ -315,7 +309,7 @@ pub fn Sheet(
         if entering.get() && top.get() > 0.0 && position.with(Option::is_some) {
             untrack(|| {
                 entering.set(false);
-                settle_on(Aim::Rest);
+                settle_on(Aim::Rest, Some(0.0));
             });
         }
     });
@@ -348,7 +342,7 @@ pub fn Sheet(
                         vanish,
                     });
                     match from > SETTLED && laid_out() {
-                        true => settle_on(Aim::Away),
+                        true => settle_on(Aim::Away, None),
                         false => vanish.call(()),
                     }
                 }
@@ -382,10 +376,9 @@ pub fn Sheet(
             return;
         }
         // Kept open, it rises back from the speed it was going.
-        thrown.set(api().map_or(0.0, |api| api.velocity()));
         close.call(());
         if !leaving.get_untracked() {
-            settle_on(Aim::Rest);
+            settle_on(Aim::Rest, None);
         }
     });
     // Where a back gesture took it from, and how fast it lowers it, on the frame clock, so
@@ -421,13 +414,13 @@ pub fn Sheet(
         }
         BackGesture::Cancelled => {
             if let Some(from) = backed.take() {
-                thrown.set(released());
+                let thrown = released();
                 match placed.with_untracked(|placed| placed.aim_at(from)) {
-                    Some(to) => settle_on(to),
+                    Some(to) => settle_on(to, Some(thrown)),
                     None => {
                         aimed.set(from);
                         if let Some(api) = api() {
-                            api.settle_to(from, thrown.replace(0.0));
+                            api.settle_to(from, thrown);
                         }
                     }
                 }
@@ -435,13 +428,11 @@ pub fn Sheet(
         }
         BackGesture::Invoked => {
             backed.set(None);
-            // Its owner closing it slides it away from the speed the gesture let it go at;
-            // kept open, it rises back from that speed.
-            thrown.set(released());
+            // It sets out back to its rest at the speed the gesture let it go at, and its
+            // owner closing it, now or once this handler is done, turns it away from that
+            // speed.
+            settle_on(Aim::Rest, Some(released()));
             close.call(());
-            if !leaving.get_untracked() {
-                settle_on(Aim::Rest);
-            }
         }
     });
 
@@ -459,7 +450,7 @@ pub fn Sheet(
             placed.aim_at(stop)
         });
         if let Some(to) = next {
-            settle_on(to);
+            settle_on(to, None);
         }
     });
     // Taking the grip moves the scroll past its top into `kept`, so the grip lowers the sheet
