@@ -3,6 +3,7 @@ use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, Search, SearchHit, SearchR
 use super::*;
 
 #[test]
+#[allow(clippy::single_range_in_vec_init)] // a list of ranges, which here holds one
 fn a_phrase_hit_marks_and_opens_at_its_words_in_a_row() {
     let mut fixture = editor();
     containers_hold_blocks(&mut fixture);
