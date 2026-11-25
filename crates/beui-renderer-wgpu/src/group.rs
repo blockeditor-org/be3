@@ -1,8 +1,10 @@
-//! Groups painted at an opacity: what a group holds is drawn onto a transparent layer
-//! at least the size of the target, and the layer is then painted over the target at
-//! the group's opacity, so shapes inside it do not show through each other. Only the
-//! pixels within the group's bounds and the damage are cleared, drawn and painted. A
-//! group inside a group draws onto the layer one deeper.
+//! Groups painted at an opacity that hold what a Vello layer cannot (a drawing, which paints
+//! in a pass of its own, or a filter): what the group holds is drawn onto a transparent layer
+//! at least the size of the target, and the layer is then painted over the target at the
+//! group's opacity, so shapes inside it do not show through each other. Only the pixels within
+//! the group's bounds and the damage are cleared (by Vello, which draws the layer first), drawn
+//! and painted. A group inside a group draws onto the layer one deeper. Any other group is a
+//! Vello opacity layer.
 
 use bytemuck::{Pod, Zeroable};
 
@@ -25,7 +27,6 @@ pub(super) struct Groups {
     format: wgpu::TextureFormat,
     layout: wgpu::BindGroupLayout,
     compose: wgpu::RenderPipeline,
-    clear: wgpu::RenderPipeline,
     stride: u64,
     uniforms: wgpu::Buffer,
     capacity: usize,
@@ -84,39 +85,11 @@ impl Groups {
                 module: &shader,
                 entry_point: Some("compose"),
                 compilation_options: Default::default(),
+                // Composed through the layer's and the target's linear views, so the group
+                // blends in sRGB as a Vello opacity layer does.
                 targets: &[Some(wgpu::ColorTargetState {
-                    format,
+                    format: format.remove_srgb_suffix(),
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        let empty = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("beui group clear"),
-            bind_group_layouts: &[],
-            immediate_size: 0,
-        });
-        let clear = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("beui group clear"),
-            layout: Some(&empty),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("full"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("clear"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -131,7 +104,6 @@ impl Groups {
             uniforms: uniforms(device, stride, capacity),
             layout,
             compose,
-            clear,
             stride,
             capacity,
             layers: Vec::new(),
@@ -153,7 +125,12 @@ impl Groups {
             self.capacity = opacities.len().next_power_of_two();
             self.uniforms = uniforms(device, self.stride, self.capacity);
             for layer in &mut self.layers {
-                layer.bind = bind(device, &self.layout, &self.uniforms, &layer.view);
+                layer.bind = bind(
+                    device,
+                    &self.layout,
+                    &self.uniforms,
+                    &crate::drawn_view(&layer.view),
+                );
             }
         }
         if size.0 > self.size.0 || size.1 > self.size.1 {
@@ -188,12 +165,6 @@ impl Groups {
         self.layers.get(depth).map(|layer| &layer.view)
     }
 
-    /// Makes the pass's scissored pixels transparent.
-    pub(super) fn clear(&self, pass: &mut wgpu::RenderPass<'_>) {
-        pass.set_pipeline(&self.clear);
-        pass.draw(0..3, 0..1);
-    }
-
     /// Paints the layer at `depth` into the pass at the opacity of group `index`.
     pub(super) fn compose(&self, pass: &mut wgpu::RenderPass<'_>, depth: usize, index: usize) {
         let Some(layer) = self.layers.get(depth) else {
@@ -217,10 +188,10 @@ impl Groups {
             dimension: wgpu::TextureDimension::D2,
             format: self.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
+            view_formats: crate::view_formats(self.format),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind = bind(device, &self.layout, &self.uniforms, &view);
+        let bind = bind(device, &self.layout, &self.uniforms, &crate::drawn_view(&view));
         Layer { view, bind }
     }
 }

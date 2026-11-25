@@ -69,12 +69,21 @@ fn with_surface<R>(surface: u32, act: impl FnOnce(&gpu::Surface) -> R) -> R {
     })
 }
 
-pub fn configure_surface(surface: u32, width: u32, height: u32, format: wgpu::TextureFormat) {
+/// Gives `surface` textures of this size and `format`, which may also be viewed as each of
+/// `view_formats` (`format` with or without its sRGB suffix).
+pub fn configure_surface(
+    surface: u32,
+    width: u32,
+    height: u32,
+    format: wgpu::TextureFormat,
+    view_formats: &[wgpu::TextureFormat],
+) {
     with_surface(surface, |surface| {
-        surface.configure(abi::SurfaceConfiguration {
+        surface.configure(&abi::SurfaceConfiguration {
             width,
             height,
             format: convert::to_abi(format),
+            view_formats: view_formats.iter().map(|view| convert::to_abi(*view)).collect(),
         })
     });
 }

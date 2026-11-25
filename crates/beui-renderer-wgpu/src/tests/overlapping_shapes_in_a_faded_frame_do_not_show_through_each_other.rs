@@ -26,15 +26,16 @@ fn overlapping_shapes_in_a_faded_frame_do_not_show_through_each_other() {
     );
     let capture = target.read();
 
+    // Half strength blended in sRGB, as Vello and the paintings blend.
     let [red, green, blue, _] = capture.pixel(40, 40);
     assert!(
-        red > 150 && green < 4 && blue < 4,
+        red.abs_diff(128) <= 1 && green < 4 && blue < 4,
         "the red square shows at half strength with none of the white under it: {:?}",
         [red, green, blue]
     );
     let [red, green, blue, _] = capture.pixel(4, 4);
     assert!(
-        red > 150 && red == green && green == blue,
+        red.abs_diff(128) <= 1 && red == green && green == blue,
         "the white square shows grey where nothing covers it: {:?}",
         [red, green, blue]
     );

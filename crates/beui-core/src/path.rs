@@ -11,7 +11,8 @@ use beui_types::{Pos2, Rect, pos2};
 const TOLERANCE: f32 = 0.05;
 const DOT: f64 = 0.001;
 
-fn kurbo_path(path: &Path, scale: f32) -> kurbo::BezPath {
+/// `path` as kurbo holds a path, its points scaled by `scale`.
+pub fn kurbo_path(path: &Path, scale: f32) -> kurbo::BezPath {
     let point =
         |point: Pos2| kurbo::Point::new(f64::from(point.x * scale), f64::from(point.y * scale));
     let mut out = kurbo::BezPath::new();
@@ -41,7 +42,8 @@ fn kurbo_path(path: &Path, scale: f32) -> kurbo::BezPath {
     out
 }
 
-fn kurbo_stroke(stroke: &Stroke, scale: f32) -> kurbo::Stroke {
+/// `stroke` as kurbo holds a stroke, its widths and dashes scaled by `scale`.
+pub fn kurbo_stroke(stroke: &Stroke, scale: f32) -> kurbo::Stroke {
     let scaled = |value: f32| f64::from(value * scale);
     let out = kurbo::Stroke::new(scaled(stroke.width))
         .with_join(match stroke.join {
@@ -115,6 +117,11 @@ impl PathPaint {
 
     pub fn bounds(&self) -> Rect {
         self.bounds
+    }
+
+    /// Whether it meets other fills on seams, which it paints as one fill with them.
+    pub fn seamed(&self) -> bool {
+        !self.seams.is_empty()
     }
 
     pub fn mesh(&self, scale: f32) -> Rc<[PathTriangle]> {

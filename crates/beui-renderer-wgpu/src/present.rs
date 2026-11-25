@@ -344,7 +344,7 @@ impl Target {
                 desired_maximum_frame_latency: FRAME_LATENCY,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 color_space: wgpu::SurfaceColorSpace::Auto,
-                view_formats: Vec::new(),
+                view_formats: crate::view_formats(format).to_vec(),
             },
             prepared_size: None,
             clear_color: None,
@@ -397,6 +397,7 @@ impl Target {
             .get_default_config(&gpu.adapter, width.max(1), height.max(1))
             .ok_or("the adapter does not support this surface")?;
         config.format = gpu.format;
+        config.view_formats = crate::view_formats(gpu.format).to_vec();
         config.present_mode = self.config.present_mode;
         config.desired_maximum_frame_latency = FRAME_LATENCY;
         let capabilities = surface.get_capabilities(&gpu.adapter);
@@ -482,7 +483,7 @@ impl Target {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                     | wgpu::TextureUsages::COPY_SRC
                     | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
+                view_formats: crate::view_formats(self.config.format),
             });
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             self.retained = Some(Retained {
