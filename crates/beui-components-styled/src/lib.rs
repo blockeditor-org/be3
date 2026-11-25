@@ -109,9 +109,7 @@ pub use command_palette::CommandPalette;
 pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
 pub use count_badge::{COUNT_BADGE_MOST, CountBadge, count_badge_text};
 pub use date_time_field::DateTimeField;
-pub use dialog::{
-    DIALOG_WIDTH, Dialog, DialogBody, DialogFrame, Modal, SHEET_BELOW, Scrim,
-};
+pub use dialog::{DIALOG_WIDTH, Dialog, DialogBody, DialogFrame, Modal, SHEET_BELOW, Scrim};
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius};
 pub use fullscreen::Fullscreen;

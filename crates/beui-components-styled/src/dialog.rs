@@ -127,7 +127,11 @@ pub fn DialogFrame(
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
                 <Frame padding=MARGIN>
-                    <Card padding=Space::None max_width={width.clone().map(Some)} pointer={handle.pointer}>
+                    <Card
+                        padding=Space::None
+                        max_width={width.clone().map(Some)}
+                        pointer={handle.pointer}
+                    >
                         {handle.body}
                     </Card>
                 </Frame>

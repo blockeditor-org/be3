@@ -69,21 +69,23 @@ pub(crate) fn KeepChanges(
             let body_id = id.clone();
             view! {
                 <Frame padding=beui::styled::dialog::MARGIN>
-<Card padding=Space::None max_width=Some(WIDTH)>
-                    <DialogBody
-                        kind=DialogKind::Alert
-                        title
-                        id={body_id}
-                        actions={vec![
-                            DialogAction::primary("Keep", keep),
-                            DialogAction::cancel("Revert"),
-                        ]}
-                        on_dismiss={revert}
-                    >
-                        <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>{message}</Text>
-                    </DialogBody>
-                </Card>
-</Frame>
+                    <Card padding=Space::None max_width=Some(WIDTH)>
+                        <DialogBody
+                            kind=DialogKind::Alert
+                            title
+                            id={body_id}
+                            actions={vec![
+                                DialogAction::primary("Keep", keep),
+                                DialogAction::cancel("Revert"),
+                            ]}
+                            on_dismiss={revert}
+                        >
+                            <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>
+                                {message}
+                            </Text>
+                        </DialogBody>
+                    </Card>
+                </Frame>
             }
         }</Modal>
     }
