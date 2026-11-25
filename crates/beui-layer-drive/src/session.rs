@@ -523,7 +523,9 @@ struct Session {
 /// one the program closed at once is.
 impl Drop for Session {
     fn drop(&mut self) {
-        if let Some(active) = self.active.take_if(|active| matches!(active.phase, Phase::Closing { .. }))
+        if let Some(active) = self
+            .active
+            .take_if(|active| matches!(active.phase, Phase::Closing { .. }))
         {
             (active.request.reply)(Reply::Text(CLOSED.to_owned()));
         }

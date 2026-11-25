@@ -1335,7 +1335,10 @@ impl Host for Gpu {
         // The format itself, and a format named twice, ask for nothing more: equal
         // configurations keep their textures.
         let mut view_formats: Vec<wgpu::TextureFormat> = Vec::new();
-        for view in asked.into_iter().map(Convert::<wgpu::TextureFormat>::convert) {
+        for view in asked
+            .into_iter()
+            .map(Convert::<wgpu::TextureFormat>::convert)
+        {
             if view != format && !view_formats.contains(&view) {
                 view_formats.push(view);
             }

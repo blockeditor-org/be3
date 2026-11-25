@@ -33,7 +33,8 @@ fn a_surface_configured_alike_keeps_its_textures_however_its_view_formats_are_na
 
     gpu.surface_configure(surface, configured(&[abi::TextureFormat::Bgra8Unorm]));
     assert!(
-        gpu.take_error().is_some_and(|error| error.contains("sRGB suffix")),
+        gpu.take_error()
+            .is_some_and(|error| error.contains("sRGB suffix")),
         "a view format that is another format is refused"
     );
 }

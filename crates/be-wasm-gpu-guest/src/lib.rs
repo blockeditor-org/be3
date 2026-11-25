@@ -83,7 +83,10 @@ pub fn configure_surface(
             width,
             height,
             format: convert::to_abi(format),
-            view_formats: view_formats.iter().map(|view| convert::to_abi(*view)).collect(),
+            view_formats: view_formats
+                .iter()
+                .map(|view| convert::to_abi(*view))
+                .collect(),
         })
     });
 }
