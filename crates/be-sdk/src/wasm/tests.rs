@@ -514,7 +514,9 @@ fn resolved(
     encoder.copy_buffer_to_buffer(&resolve, 0, &destination, 0, size);
     queue.submit([encoder.finish()]);
     read_back(device, &destination)
-        .as_chunks::<8>().0.iter()
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|value| u64::from_le_bytes(*value))
         .collect()
 }

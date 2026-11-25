@@ -90,7 +90,11 @@ impl Tasks {
                 id,
                 woken: Arc::clone(&self.woken),
             }));
-            if future.as_mut().poll(&mut Context::from_waker(&waker)).is_pending() {
+            if future
+                .as_mut()
+                .poll(&mut Context::from_waker(&waker))
+                .is_pending()
+            {
                 self.futures.borrow_mut().insert(id, future);
             }
         }

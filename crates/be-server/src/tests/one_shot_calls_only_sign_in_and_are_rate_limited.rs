@@ -18,10 +18,7 @@ async fn one_shot_calls_only_sign_in_and_are_rate_limited() {
     assert_eq!(status, 403, "a one-shot call did more than sign in");
 
     for _ in 1..crate::http::MAX_CALLS_PER_ADDRESS {
-        harness
-            .once(begin_login)
-            .await
-            .expect("a sign-in begins");
+        harness.once(begin_login).await.expect("a sign-in begins");
     }
     let (sending, mut sent) = tokio::sync::mpsc::unbounded_channel();
     let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {

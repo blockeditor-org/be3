@@ -2635,10 +2635,7 @@ impl TestClient {
         let pairs = self
             .call(|peer| {
                 peer.read::<Vec<be_block_protocol::Revocation>>(
-                    be_block_protocol::Query::Revocations {
-                        account,
-                        contact,
-                    },
+                    be_block_protocol::Query::Revocations { account, contact },
                 )
             })
             .await
@@ -3385,12 +3382,7 @@ impl TestClient {
 
     async fn set_mute(&mut self, block: Uuid, mode: be_block_protocol::NotifyMode) {
         let set = self
-            .call(|peer| {
-                peer.write::<()>(be_block_protocol::Op::SetMute {
-                    block,
-                    mode,
-                })
-            })
+            .call(|peer| peer.write::<()>(be_block_protocol::Op::SetMute { block, mode }))
             .await;
         assert!(set.is_ok(), "{set:?}");
     }

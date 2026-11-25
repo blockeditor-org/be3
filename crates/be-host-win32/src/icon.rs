@@ -9,7 +9,9 @@ pub fn from_bgra(width: u32, height: u32, bgra: &[u8], mask: Option<&[u8]>) -> O
     let has_alpha = bgra.as_chunks::<4>().0.iter().any(|pixel| pixel[3] != 0);
     let mask = mask.filter(|mask| mask.len() >= pixels * 4);
     let rgba = bgra
-        .as_chunks::<4>().0.iter()
+        .as_chunks::<4>()
+        .0
+        .iter()
         .enumerate()
         .flat_map(|(index, pixel)| {
             let alpha = match (has_alpha, mask) {

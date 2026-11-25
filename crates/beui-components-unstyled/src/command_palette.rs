@@ -8,11 +8,11 @@ use beui_view::types::Color;
 use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
 
-use beui_view::types::{Dismiss, Vec2};
-use beui_view::window::{Window, WindowAnchor, WindowHandle};
 use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
+use beui_view::types::{Dismiss, Vec2};
+use beui_view::window::{Window, WindowAnchor, WindowHandle};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PaletteItem {

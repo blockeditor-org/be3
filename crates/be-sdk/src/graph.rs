@@ -312,7 +312,6 @@ pub(crate) struct GraphState {
     on_info: Callbacks<Uuid, dyn Fn()>,
 }
 
-
 impl GraphState {
     pub(crate) fn defer_unless(&self, ready: Rc<dyn Fn() -> bool>) {
         *self.ready.borrow_mut() = Some(ready);

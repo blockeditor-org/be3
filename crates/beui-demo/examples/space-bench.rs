@@ -207,7 +207,7 @@ mod bench {
             let sky = Pos2::new(PLATFORM.x / 2.0, 30.0);
             self.drag_to(tab, sky);
             let space = self.space.borrow();
-            
+
             space
                 .panels
                 .iter()

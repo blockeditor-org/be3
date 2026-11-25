@@ -1712,12 +1712,10 @@ impl Space {
             if let Some(ray) = ray {
                 carry.follow(ray);
             }
-            if self.carried(&mut carry).is_some()
-                && pointer == Pointer::Mouse {
-                    let grabbed = carry.grabbed_at(&head);
-                    self.cursor =
-                        Some(head.position + (grabbed - head.position) * (1.0 - CURSOR_LIFT));
-                }
+            if self.carried(&mut carry).is_some() && pointer == Pointer::Mouse {
+                let grabbed = carry.grabbed_at(&head);
+                self.cursor = Some(head.position + (grabbed - head.position) * (1.0 - CURSOR_LIFT));
+            }
             if let Some(held) = self.held_mut(pointer) {
                 held.carry = Some(carry);
             }

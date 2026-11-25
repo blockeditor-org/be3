@@ -21,7 +21,10 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
     };
 
     let root = Entry::root(&creator, creator_id, LogKind::Block, block);
-    assert_eq!(check(std::slice::from_ref(&root)).unwrap().open_inside, Level::None);
+    assert_eq!(
+        check(std::slice::from_ref(&root)).unwrap().open_inside,
+        Level::None
+    );
     let opened = opening(
         &creator,
         creator_id,

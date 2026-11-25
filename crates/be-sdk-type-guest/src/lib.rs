@@ -811,8 +811,7 @@ impl Module {
                 journal_parts,
                 restarts,
             } => {
-                let journal_parts = journal_parts
-                    .into_iter().collect();
+                let journal_parts = journal_parts.into_iter().collect();
                 let pending = ops::with_parent(replica, || {
                     host::publish(
                         expected,
@@ -986,8 +985,7 @@ impl Module {
                 restarts,
                 parts,
             } => {
-                let parts = parts
-                    .into_iter().collect();
+                let parts = parts.into_iter().collect();
                 ops::with_parent(replica, || host::rebase_journal(base, restarts, parts)).detach()
             }
             Effect::Release { replica } => {

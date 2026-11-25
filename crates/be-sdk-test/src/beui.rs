@@ -1320,7 +1320,8 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         }
         if let Some(placements) = commit
             .children
-            .into_iter().rfind(|placements| placements.view == view)
+            .into_iter()
+            .rfind(|placements| placements.view == view)
         {
             let hidden = |placement: &ChildPlacement| placement.mode == ChildMode::Hidden;
             self.occluders = placements

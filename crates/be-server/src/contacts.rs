@@ -556,8 +556,8 @@ impl ServerStore {
             else {
                 return Err(link_not_found());
             };
-            let organization_name = organization_name(database, invitation.organization)?
-                .ok_or_else(link_not_found)?;
+            let organization_name =
+                organization_name(database, invitation.organization)?.ok_or_else(link_not_found)?;
             let mut state = invitation_state(database, &stored, invited, invitation.organization)?;
             if state == InvitationState::Waiting {
                 mark_opened(database, link)?;

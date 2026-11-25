@@ -29,10 +29,7 @@ async fn removing_a_contact_revokes_what_the_two_shared() {
     assert!(other.contacts().await.is_empty());
     for (client, block) in [(&mut other, mine), (&mut owner, theirs)] {
         let read = client.try_read_block(block).await;
-        assert!(
-            read.is_err(),
-            "a grant outlived the contact: {read:?}"
-        );
+        assert!(read.is_err(), "a grant outlived the contact: {read:?}");
     }
     let again = owner.grant(mine, other_id, Access::View).await;
     assert!(refused_as(&again, ErrorCode::NotAContact), "{again:?}");

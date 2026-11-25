@@ -53,12 +53,7 @@ pub fn Modal(
         Scrim::Opaque => theme.background.get(),
     });
     view! {
-        <unstyled::Modal
-            open
-            scrim={color}
-            level
-            on_dismiss={on_dismiss}
-        >|| {
+        <unstyled::Modal open scrim={color} level on_dismiss={on_dismiss}>|| {
             content.call()
         }</unstyled::Modal>
     }
@@ -125,11 +120,7 @@ pub fn DialogFrame(
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
                 <Frame padding=MARGIN>
-                    <Card
-                        padding=Space::None
-                        max_width={width.map(Some)}
-                        pointer={handle.pointer}
-                    >
+                    <Card padding=Space::None max_width={width.map(Some)} pointer={handle.pointer}>
                         {handle.body}
                     </Card>
                 </Frame>

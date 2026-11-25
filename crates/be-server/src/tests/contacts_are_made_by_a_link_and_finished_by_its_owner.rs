@@ -41,10 +41,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let own = owner
         .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
-    assert!(
-        own.is_err(),
-        "the owner opened its own link: {own:?}"
-    );
+    assert!(own.is_err(), "the owner opened its own link: {own:?}");
     let Ok(found) = other
         .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await

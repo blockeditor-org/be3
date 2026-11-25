@@ -9,8 +9,6 @@ pub fn Fullscreen(
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     view! {
-        <Modal open scrim=Scrim::Strong on_dismiss={on_dismiss}>
-            {content.call()}
-        </Modal>
+        <Modal open scrim=Scrim::Strong on_dismiss={on_dismiss}>{content.call()}</Modal>
     }
 }

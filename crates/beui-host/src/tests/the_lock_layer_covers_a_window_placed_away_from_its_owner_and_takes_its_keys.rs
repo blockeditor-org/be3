@@ -35,7 +35,9 @@ fn the_lock_layer_covers_a_window_placed_away_from_its_owner_and_takes_its_keys(
                 </Window>
                 <Modal open={locked} scrim=Scrim::Opaque level=LayerLevel::Lock>||
                     <List spacing=0.0>
-                        <Interactive on_press={move |_: PointerPress| lock_pressed.update(|n| *n += 1)}>
+                        <Interactive
+                            on_press={move |_: PointerPress| lock_pressed.update(|n| *n += 1)}
+                        >
                             <Frame height=400.0 />
                         </Interactive>
                         <Button @node_ref=&unlock label="Unlock" />
@@ -65,7 +67,11 @@ fn the_lock_layer_covers_a_window_placed_away_from_its_owner_and_takes_its_keys(
     );
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert_eq!(dismissed.get_untracked(), 0, "Escape never reaches the window");
+    assert_eq!(
+        dismissed.get_untracked(),
+        0,
+        "Escape never reaches the window"
+    );
 
     let at = harness.rect(inside.get()).center() - vec2(0.0, 40.0);
     harness.click(at);

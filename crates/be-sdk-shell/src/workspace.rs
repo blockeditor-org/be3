@@ -681,9 +681,9 @@ impl Workspace {
             && let Some(block) = self
                 .share
                 .with_untracked(|share| share.as_ref().map(|share| share.block))
-            {
-                self.share_action(block, ShareAction::Refresh);
-            }
+        {
+            self.share_action(block, ShareAction::Refresh);
+        }
     }
 
     /// A change of access the host could not make (offline, it needs the server): the dialog

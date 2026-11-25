@@ -1,7 +1,6 @@
 use accesskit::{Node, Role};
 
 use beui_view::components::overlay::{Modality, use_modal};
-use beui_view::window::{Window, WindowAnchor, WindowHandle};
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -12,6 +11,7 @@ use beui_view::types::Key;
 use beui_view::types::KeyPhase;
 use beui_view::types::text::Phrase;
 use beui_view::types::{Dismiss, Rect, Vec2};
+use beui_view::window::{Window, WindowAnchor, WindowHandle};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {

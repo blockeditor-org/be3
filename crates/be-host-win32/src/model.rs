@@ -315,9 +315,7 @@ impl Model {
                 *self.minimizes.entry(id).or_default() += 1;
             }
             let owner = index.visible_owner(window);
-            let parent = owner
-                .and_then(&root)
-                .filter(|parent| *parent != id);
+            let parent = owner.and_then(&root).filter(|parent| *parent != id);
             windows.push(Entry {
                 id,
                 kind: EntryKind::Window,

@@ -723,7 +723,9 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
         match event {
             wl_keyboard::Event::Enter { surface, keys, .. } => {
                 let held = keys
-                    .as_chunks::<4>().0.iter()
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|key| u32::from_ne_bytes([key[0], key[1], key[2], key[3]]))
                     .collect();
                 state.keyboard.push(Heard::Enter(held));

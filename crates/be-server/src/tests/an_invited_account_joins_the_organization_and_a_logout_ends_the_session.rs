@@ -63,10 +63,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(invitation))
         })
         .await;
-    assert!(
-        again.is_err(),
-        "the invitation outlived its use: {again:?}"
-    );
+    assert!(again.is_err(), "the invitation outlived its use: {again:?}");
 
     let token = guest.token.clone();
     let response = guest
