@@ -183,6 +183,11 @@ async fn run_host(
         if arguments.dev_workspace {
             core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
         }
+        // The root shows the desktop shell as its session's editor; the desktop's OS services
+        // (the screen lock, notifications, the tray) come back with 4g7g.
+        if arguments.desktop {
+            core.run_desktop_shell();
+        }
         return root::run(app, core, native_options()).await;
     }
     core.login_session_mode = arguments.drm;
@@ -1160,12 +1165,7 @@ impl HostCore {
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
-        self.desktop = true;
-        be_host_runtime::run_as_desktop();
-        self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
-        be_host_base::watches::publish::<be_sdk_api::DesktopBarWatch>(&true);
-        #[cfg(windows)]
-        be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
+        self.run_desktop_shell();
         #[cfg(target_os = "linux")]
         {
             memory::start();
@@ -1182,6 +1182,17 @@ impl HostCore {
                 ));
             }
         }
+    }
+
+    /// Makes the desktop shell the session's editor, its bars shown, without the desktop's OS
+    /// services, which `run_as_desktop` starts too.
+    fn run_desktop_shell(&mut self) {
+        self.desktop = true;
+        be_host_runtime::run_as_desktop();
+        self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
+        be_host_base::watches::publish::<be_sdk_api::DesktopBarWatch>(&true);
+        #[cfg(windows)]
+        be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
     }
 
     #[cfg(target_os = "linux")]
