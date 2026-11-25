@@ -23,7 +23,7 @@ pub(crate) use editors::with_window;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use palette::HostPalette;
+pub(crate) use palette::{HostPalette, OpenableBlock, quick_open};
 
 type Listeners = HashMap<String, Vec<(u64, Trigger)>>;
 

@@ -183,6 +183,12 @@ struct Core<G> {
     /// The root's `host.editor-of` and `host.open-editor` calls, by that id, until the host
     /// answers them.
     editor_replies: Vec<(u64, EditorReply)>,
+    /// What the root asked quick open to find (`host.find-blocks`), each by the id it is
+    /// answered by, until the host takes them, and the replies waiting on each.
+    block_finds: Vec<(u64, String)>,
+    block_found: Vec<(u64, Reply<Vec<be_wasm_root_api::OpenableBlock>>)>,
+    /// The blocks the root asked to open (`host.open-block`), until the host takes them.
+    block_opens: Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)>,
     /// The id the next of those is handed to the host with.
     next_editor: u64,
     /// What the root forwarded the host of the apps it spawned (`host.forward`), each app's
@@ -357,6 +363,9 @@ impl<G: Inline> Core<G> {
             editor_asks: Vec::new(),
             openings: Vec::new(),
             editor_replies: Vec::new(),
+            block_finds: Vec::new(),
+            block_found: Vec::new(),
+            block_opens: Vec::new(),
             next_editor: 1,
             forwarded: Vec::new(),
             relaying: Vec::new(),
@@ -691,6 +700,29 @@ impl<G: Inline> Core<G> {
         true
     }
 
+    /// What the root asked quick open to find since the last call, each by the id
+    /// `answer_block_find` answers it by.
+    fn take_block_finds(&mut self) -> Vec<(u64, String)> {
+        std::mem::take(&mut self.block_finds)
+    }
+
+    /// Answers the root's `host.find-blocks` of `id`. Answers whether the root waited for it.
+    fn answer_block_find(&mut self, id: u64, blocks: Vec<be_wasm_root_api::OpenableBlock>) -> bool {
+        let Some(at) = self.block_found.iter().position(|(asked, _)| *asked == id) else {
+            return false;
+        };
+        let (_, reply) = self.block_found.remove(at);
+        reply.send(&mut self.connection, &blocks);
+        true
+    }
+
+    /// The blocks the root asked to open since the last call (`host.open-block`).
+    fn take_block_opens(
+        &mut self,
+    ) -> Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)> {
+        std::mem::take(&mut self.block_opens)
+    }
+
     /// The editors the root asked to open since the last call.
     fn take_openings(&mut self) -> Vec<EditorOpening> {
         std::mem::take(&mut self.openings)
@@ -1018,6 +1050,14 @@ impl<G: Inline> Core<G> {
                         // for nobody (an agent's credentials, which cannot be had again).
                         self.secret_requests.retain(|(asked, _)| *asked != id);
                     } else if let Some(at) = self
+                        .block_found
+                        .iter()
+                        .position(|(_, reply)| reply.op() == op)
+                    {
+                        let (id, reply) = self.block_found.remove(at);
+                        self.block_finds.retain(|(asked, _)| *asked != id);
+                        reply.fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) = self
                         .editor_replies
                         .iter()
                         .position(|(_, reply)| reply.op() == op)
@@ -1218,6 +1258,20 @@ impl<G: Inline> Core<G> {
             }
             embed::Call::Host(embed::host::Call::LockPower { action, reply }) => {
                 self.lock_powers.push(action);
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::FindBlocks { text, reply }) => {
+                let id = self.next_editor;
+                self.next_editor += 1;
+                self.block_finds.push((id, text));
+                self.block_found.push((id, reply));
+            }
+            embed::Call::Host(embed::host::Call::OpenBlock {
+                opener,
+                block,
+                reply,
+            }) => {
+                self.block_opens.push((opener, block));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::EditorOf { shown, reply }) => {

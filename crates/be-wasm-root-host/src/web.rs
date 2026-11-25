@@ -309,6 +309,25 @@ impl Root {
         }
     }
 
+    /// What the root asked quick open to find since the last call (`host.find-blocks`).
+    pub fn take_block_finds(&self) -> Vec<(u64, String)> {
+        self.shared.core.borrow_mut().take_block_finds()
+    }
+
+    /// Answers the root's `host.find-blocks` of `id`.
+    pub fn answer_block_find(&self, id: u64, blocks: Vec<be_wasm_root_api::OpenableBlock>) {
+        if self.shared.core.borrow_mut().answer_block_find(id, blocks) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The blocks the root asked to open since the last call (`host.open-block`).
+    pub fn take_block_opens(
+        &self,
+    ) -> Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)> {
+        self.shared.core.borrow_mut().take_block_opens()
+    }
+
     /// The editors the root asked to open since the last call (`host.open-editor`), each
     /// answered by its id (`answer_opening`).
     pub fn take_openings(&self) -> Vec<crate::EditorOpening> {

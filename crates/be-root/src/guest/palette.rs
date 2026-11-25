@@ -2,12 +2,15 @@
 //! (`open-block.host-palette`): Ctrl+Shift+P, or an editor asking for it
 //! (`shell-message.open-palette`), lists the live actions of the editor whose view has the
 //! keyboard and of each editor placing it, outward, each under its app's name, innermost first;
-//! choosing one gives that view the keyboard back and runs it (`app.run-action`)
-//! (plans/host_as_platform_adapter.md, 4g7d1).
+//! choosing one gives that view the keyboard back and runs it (`app.run-action`). An editor
+//! asking for quick open (`PaletteMode::Blocks`, the workspace's Ctrl+P) gets it as a palette of
+//! blocks, which the host finds for what is typed (`host.find-blocks`) and opens the one chosen
+//! as that editor asked to (`host.open-block`) (plans/host_as_platform_adapter.md, 4g7d1).
 
 use be_lib_ui_types::KeyChord;
 use be_sdk_api::{EditorInstanceId, PaletteMode, ScreenId};
 use be_sdk_root::Embedded;
+use be_wasm_root_api::{OpenableBlock, OpenedIn};
 
 use super::*;
 use crate::PALETTE_SURFACE;
@@ -23,18 +26,40 @@ pub(super) fn palette_chord() -> KeyChord {
     )
 }
 
-/// One row: what it shows, and the action it runs on the screen of the app that described it.
+/// One row: what it shows, and what choosing it does.
 struct Row {
     item: PaletteItem,
-    app: u64,
-    screen: ScreenId,
-    id: String,
+    run: Run,
+}
+
+/// What choosing a row does.
+enum Run {
+    /// Runs the action `id` on the screen of the app `app` that described it.
+    Action { app: u64, screen: ScreenId, id: String },
+    /// Opens the block (quick open).
+    Open(OpenableBlock),
+}
+
+/// Quick open while the palette shows it: what is typed, the rows it shows, the editor it was
+/// asked from, and the host's answers.
+struct Blocks {
+    /// What is typed and the rows shown, the palette document's own, once it ran.
+    query: Rc<Cell<Option<Signal<String>>>>,
+    items: Rc<Cell<Option<Signal<Vec<PaletteItem>>>>>,
+    /// The editor that asked for it, which the block chosen opens as.
+    from: Option<OpenedIn>,
+    /// What was typed when the host was last asked (`host.find-blocks`).
+    asked: Option<String>,
+    /// The host's last answer and what it answered, until shown.
+    found: Rc<RefCell<Option<(String, Vec<OpenableBlock>)>>>,
 }
 
 /// The palette while it is open.
 pub(super) struct Palette {
     surface: BeuiSurface,
     rows: Rc<Vec<Row>>,
+    /// Quick open, while it shows blocks.
+    blocks: Option<Blocks>,
     /// The row picked, by its key, which its document sets.
     chosen: Rc<RefCell<Option<String>>>,
     /// Whether it closed with nothing picked (Escape, a press outside), which its document sets.
@@ -58,32 +83,59 @@ impl Root {
             return;
         }
         let from = self.embedding.borrow().focused_editor(None);
-        self.open_palette(from.map(|(app, editor, screen)| (app, editor, Some(screen))));
+        self.open_palette(
+            from.map(|(app, editor, screen)| (app, editor, Some(screen))),
+            PaletteMode::Actions,
+        );
     }
 
-    /// Opens the palette an editor asked for (`shell-message.open-palette`), listing outward
-    /// from that editor: its actions, then those of each editor placing it. Quick open (a
-    /// palette of blocks) is not drawn under the root yet.
+    /// Opens the palette an editor asked for (`shell-message.open-palette`): its actions, then
+    /// those of each editor placing it, or quick open, its blocks.
     pub(super) fn ask_palette(&self) {
         let asked = self.embedding.borrow().take_palette_ask();
         let Some((app, editor, mode)) = asked else {
             return;
         };
-        if mode != PaletteMode::Actions || self.palette.borrow().is_some() || self.palette_barred()
-        {
+        if self.palette.borrow().is_some() || self.palette_barred() {
             return;
         }
-        self.open_palette(Some((app, editor, None)));
+        self.open_palette(Some((app, editor, None)), mode);
     }
 
     /// Opens the palette listing outward from `from`, the editor and the screen of it that has
-    /// the keyboard, if one has.
-    fn open_palette(&self, from: Option<(Embedded, EditorInstanceId, Option<ScreenId>)>) {
+    /// the keyboard, if one has: its actions, or for quick open the blocks the host finds, the
+    /// block chosen opening as that editor asked to.
+    fn open_palette(
+        &self,
+        from: Option<(Embedded, EditorInstanceId, Option<ScreenId>)>,
+        mode: PaletteMode,
+    ) {
         let Some(beui) = self.beui.borrow().clone() else {
             return;
         };
-        let rows = Rc::new(self.palette_rows(from));
+        let blocks = (mode == PaletteMode::Blocks).then(|| Blocks {
+            query: Rc::default(),
+            items: Rc::default(),
+            from: from.as_ref().map(|(app, editor, _)| OpenedIn {
+                instance: app.instance(),
+                editor: editor.0,
+            }),
+            asked: None,
+            found: Rc::default(),
+        });
+        let rows = Rc::new(match mode {
+            PaletteMode::Actions => self.palette_rows(from),
+            PaletteMode::Blocks => Vec::new(),
+        });
         let items: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();
+        let (query_out, items_out) = match &blocks {
+            Some(blocks) => (Some(Rc::clone(&blocks.query)), Some(Rc::clone(&blocks.items))),
+            None => (None, None),
+        };
+        let (placeholder, label) = match mode {
+            PaletteMode::Actions => ("Run a command", "Command palette"),
+            PaletteMode::Blocks => ("Go to a file", "Quick open"),
+        };
         let chosen: Rc<RefCell<Option<String>>> = Rc::default();
         let closed: Rc<Cell<bool>> = Rc::default();
         let (picks, closes) = (Rc::clone(&chosen), Rc::clone(&closed));
@@ -97,7 +149,13 @@ impl Root {
             move || waker.wake(),
             move || {
                 let open = create_signal(true);
-                let items = create_memo(move || items.clone());
+                let query = create_signal(String::new());
+                let shown = create_signal(items.clone());
+                if let (Some(query_out), Some(items_out)) = (&query_out, &items_out) {
+                    query_out.set(Some(query));
+                    items_out.set(Some(shown));
+                }
+                let items = create_memo(move || shown.get());
                 let wakes_too = wakes.clone();
                 create_effect(move || {
                     if !open.get() {
@@ -111,6 +169,9 @@ impl Root {
                             open
                             items={PaletteItems::list(items)}
                             score={PaletteItem::fuzzy_score as PaletteScore}
+                            query
+                            placeholder={placeholder.to_owned()}
+                            label={label.to_owned()}
                             id="root.palette"
                             on_choose={move |key: String| {
                                 *picks.borrow_mut() = Some(key);
@@ -129,6 +190,7 @@ impl Root {
         *self.palette.borrow_mut() = Some(Palette {
             surface,
             rows,
+            blocks,
             chosen,
             closed,
             had,
@@ -181,6 +243,11 @@ impl Root {
             actions.sort_by_key(|(_, action)| !action.enabled);
             for (screen, action) in actions {
                 rows.push(Row {
+                    run: Run::Action {
+                        app: handle,
+                        screen,
+                        id: action.id.clone(),
+                    },
                     item: PaletteItem {
                         key: format!("{handle}/{}/{}", screen.0, action.id),
                         title: action.label,
@@ -194,9 +261,6 @@ impl Root {
                         disabled: !action.enabled,
                         ..PaletteItem::default()
                     },
-                    app: handle,
-                    screen,
-                    id: action.id,
                 });
             }
         }
@@ -207,6 +271,7 @@ impl Root {
     /// keyboard back to the layer that had it, or for a row picked to the layer showing the
     /// screen it runs on, as be-host focuses the chosen row's view, then runs it there.
     pub(super) fn settle_palette(&self) {
+        self.find_blocks();
         let picked = {
             let palette = self.palette.borrow();
             let Some(palette) = palette.as_ref() else {
@@ -214,13 +279,18 @@ impl Root {
             };
             let picked = palette.chosen.borrow_mut().take();
             match (picked, palette.closed.get()) {
-                (Some(key), _) => Some(
-                    palette
-                        .rows
-                        .iter()
-                        .find(|row| row.item.key == key)
-                        .map(|row| (row.app, row.screen, row.id.clone())),
-                ),
+                (Some(key), _) => Some(palette.rows.iter().find(|row| row.item.key == key).map(
+                    |row| match &row.run {
+                        Run::Action { app, screen, id } => {
+                            Run::Action {
+                                app: *app,
+                                screen: *screen,
+                                id: id.clone(),
+                            }
+                        }
+                        Run::Open(block) => Run::Open(block.clone()),
+                    },
+                )),
                 (None, true) => Some(None),
                 (None, false) => None,
             }
@@ -229,19 +299,90 @@ impl Root {
             return;
         };
         let closed = self.palette.borrow_mut().take();
-        let run = run.and_then(|(app, screen, id)| {
-            let app = self.embedding.borrow().app_of(app)?;
-            Some((app, screen, id))
-        });
+        let from = closed
+            .as_ref()
+            .and_then(|palette| palette.blocks.as_ref())
+            .and_then(|blocks| blocks.from);
+        let action = match &run {
+            Some(Run::Action { app, screen, id }) => self
+                .embedding
+                .borrow()
+                .app_of(*app)
+                .map(|app| (app, *screen, id.clone())),
+            _ => None,
+        };
         if let Some(mut palette) = closed {
-            if let Some((app, screen, _)) = &run {
+            if let Some((app, screen, _)) = &action {
                 palette.had = Some(app.layer_id(*screen));
             }
             self.close_palette(palette);
         }
-        if let Some((app, screen, id)) = run {
+        if let Some((app, screen, id)) = action {
             app.run_action(screen, id);
         }
+        // The block chosen opens as the editor that asked for quick open asked to.
+        if let Some(Run::Open(block)) = run {
+            let opened = host::open_block(from, block);
+            be_wasm_ops::guest::spawn(async move {
+                // A host that stopped answering stops the root too.
+                let _ = opened.await;
+            });
+        }
+    }
+
+    /// Keeps quick open's rows to what the host finds for what is typed: asks it again as that
+    /// changes (`host.find-blocks`), and shows each answer still for what is typed, in the
+    /// host's order.
+    fn find_blocks(&self) {
+        let mut palette = self.palette.borrow_mut();
+        let Some(palette) = palette.as_mut() else {
+            return;
+        };
+        let Some(blocks) = palette.blocks.as_mut() else {
+            return;
+        };
+        let (Some(query), Some(items)) = (blocks.query.get(), blocks.items.get()) else {
+            return;
+        };
+        let typed = palette.surface.enter(|| query.get_untracked());
+        if blocks.asked.as_ref() != Some(&typed) {
+            blocks.asked = Some(typed.clone());
+            let finding = host::find_blocks(typed.clone());
+            let found = Rc::clone(&blocks.found);
+            let waker = self.waker.clone();
+            be_wasm_ops::guest::spawn(async move {
+                // A host that stopped answering stops the root too.
+                if let Ok(answer) = finding.await {
+                    *found.borrow_mut() = Some((typed, answer));
+                    waker.wake();
+                }
+            });
+        }
+        let answer = blocks.found.borrow_mut().take();
+        let Some((_, found)) = answer.filter(|(text, _)| Some(text) == blocks.asked.as_ref())
+        else {
+            return;
+        };
+        let count = found.len();
+        let rows: Vec<Row> = found
+            .into_iter()
+            .enumerate()
+            .map(|(at, block)| Row {
+                item: PaletteItem {
+                    key: block.block.iter().map(|byte| format!("{byte:02x}")).collect(),
+                    title: block.name.clone(),
+                    detail: block.detail.clone(),
+                    glyph: Some(beui::icons::ICON_FILE),
+                    // In the host's order, which a search answers in.
+                    ranked: Some(u32::try_from(count - at).unwrap_or(u32::MAX)),
+                    ..PaletteItem::default()
+                },
+                run: Run::Open(block),
+            })
+            .collect();
+        let shown: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();
+        palette.rows = Rc::new(rows);
+        palette.surface.enter(|| items.set(shown));
     }
 
     /// Whether the palette stays shut, as be-host's does: while the session is locked, and while
