@@ -644,7 +644,9 @@ mod a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing;
 mod a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_lays_out_and_paints_at_the_pixels_per_point_its_host_reports;
+mod a_window_of_its_own_beside_a_node_blocks_its_owner_not_itself;
 mod a_window_of_its_own_opens_beside_its_anchor_blocks_its_owner_and_closes_while_locked;
+mod a_window_of_its_own_with_no_owner_blocks_its_window_and_no_other;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_window_shows_as_an_overlay_where_nothing_opens_windows;
 mod a_window_sized_to_its_content_lays_out_once_at_that_size;
@@ -2664,6 +2666,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 use crate::native::Document;
 use crate::primitives::Interactive;
 use crate::unstyled::Scroll;
+use crate::{WindowAnchor, WindowId, WindowPlacement, WindowRequest};
 use beui::WHEEL_LATCH_TIMEOUT;
 use beui::input::{BackEdge, BackGesture};
 
@@ -3444,3 +3447,5 @@ fn assert_hovered_not_pointed(rows: &Menu, what: &str) {
         "{what}: the pointer did not move, so it is not pointed at"
     );
 }
+
+const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 100);

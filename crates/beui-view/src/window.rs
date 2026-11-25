@@ -264,11 +264,14 @@ pub fn Window(
     });
     let blocking = blocks;
     // With no owner, its whole window is what it blocks.
-    let policy = create_memo(move || match (blocking.get() && !hosted.get(), owner.get().is_some()) {
-        (true, true) => LayerPolicy::BlocksParent,
-        (true, false) => LayerPolicy::BlocksAll,
-        (false, _) => LayerPolicy::Pass,
-    });
+    let policy =
+        create_memo(
+            move || match (blocking.get() && !hosted.get(), owner.get().is_some()) {
+                (true, true) => LayerPolicy::BlocksParent,
+                (true, false) => LayerPolicy::BlocksAll,
+                (false, _) => LayerPolicy::Pass,
+            },
+        );
     let blocking = blocks;
     let dimming = scrim;
     let dims = create_memo(move || match blocking.get() && !hosted.get() {
@@ -279,8 +282,17 @@ pub fn Window(
     let traps = create_memo(move || blocking.get());
     // A window of its own opens over the window its owner is in (else the one it is built in),
     // at the point its anchor gives in that window's points.
-    let built_in = create_memo(move || outer.and_then(|outer| outer.real.get()).unwrap_or(WindowId::MAIN));
-    let parent = create_memo(move || owner.get().map(crate::reactive::window_of).unwrap_or_else(|| built_in.get()));
+    let built_in = create_memo(move || {
+        outer
+            .and_then(|outer| outer.real.get())
+            .unwrap_or(WindowId::MAIN)
+    });
+    let parent = create_memo(move || {
+        owner
+            .get()
+            .map(crate::reactive::window_of)
+            .unwrap_or_else(|| built_in.get())
+    });
     let anchored_at = create_memo(move || {
         let anchor = anchor.get()?;
         let area = match parent.get() == built_in.get() {
@@ -305,7 +317,10 @@ pub fn Window(
             WindowAnchor::Node(node) => {
                 let node = node.try_get()?;
                 let rect = measure(node).get()?.rect;
-                (into_parent(rect, crate::reactive::window_of(node)), Placement::CARD)
+                (
+                    into_parent(rect, crate::reactive::window_of(node)),
+                    Placement::CARD,
+                )
             }
             WindowAnchor::Top => (
                 Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y)),
@@ -388,8 +403,6 @@ pub fn Window(
     // window (`shown_in`), so the window's overlay stays the root its callers name.
     let cover = move || {
         view! {
-            // Its content is empty and takes no room, so a press there reaches the owner beneath,
-            // which it shuts out and asks the window to close.
             <Overlay
                 anchor={cover_anchor}
                 placement=Placement::At
@@ -407,10 +420,7 @@ pub fn Window(
     };
     let inside = move || match may_block {
         true => view! {
-            <Layers>
-                {provided(handle, content)}
-                {cover()}
-            </Layers>
+            <Layers>{provided(handle, content)}{cover()}</Layers>
         },
         false => provided(handle, content),
     };

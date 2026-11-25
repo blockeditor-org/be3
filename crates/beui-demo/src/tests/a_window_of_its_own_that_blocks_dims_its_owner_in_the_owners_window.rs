@@ -13,23 +13,32 @@ fn a_window_of_its_own_that_blocks_dims_its_owner_in_the_owners_window() {
         view! {
             <Root>
                 <List spacing=Space::None>
-                <List direction=beui::Direction::Horizontal spacing=Space::Lg>
-                    <Frame @node_ref=&owner fill=ColorRole::Surface width=Size::Custom(360.0) height=Size::Custom(300.0)>
-                        <Text>"The owner, dimmed while its window is open"</Text>
-                    </Frame>
-                    <Frame fill=ColorRole::Surface width=Size::Custom(360.0) height=Size::Custom(300.0)>
-                        <Text>"Beside it, left bright"</Text>
-                    </Frame>
-                </List>
-                <Window
-                    size={Vec2::new(240.0, 120.0)}
-                    owner={owned}
-                    anchor={Some(WindowAnchor::Beside(anchor))}
-                    blocks=true
-                    scrim={beui::Color32::from_rgba_unmultiplied(0, 0, 0, 140)}
-                >|_: WindowHandle|
-                    <Text>"A dialog"</Text>
-                </Window>
+                    <List direction=beui::Direction::Horizontal spacing=Space::Lg>
+                        <Frame
+                            @node_ref=&owner
+                            fill=ColorRole::Surface
+                            width=Size::Custom(360.0)
+                            height=Size::Custom(300.0)
+                        >
+                            <Text>"The owner, dimmed while its window is open"</Text>
+                        </Frame>
+                        <Frame
+                            fill=ColorRole::Surface
+                            width=Size::Custom(360.0)
+                            height=Size::Custom(300.0)
+                        >
+                            <Text>"Beside it, left bright"</Text>
+                        </Frame>
+                    </List>
+                    <Window
+                        size={Vec2::new(240.0, 120.0)}
+                        owner={owned}
+                        anchor={Some(WindowAnchor::Beside(anchor))}
+                        blocks=true
+                        scrim={beui::Color32::from_rgba_unmultiplied(0, 0, 0, 140)}
+                    >|_: WindowHandle|
+                        <Text>"A dialog"</Text>
+                    </Window>
                 </List>
             </Root>
         }
