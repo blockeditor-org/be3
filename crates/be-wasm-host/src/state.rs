@@ -313,7 +313,7 @@ macro_rules! callers {
                 &mut self.state.returned
             }
 
-            $(fn $ticket(&mut self) -> u64 {
+            $(fn $ticket(&mut self) -> u32 {
                 self.state
                     .host("[ticket]", Gpu::webgpu_ticket)
                     .unwrap_or_default()

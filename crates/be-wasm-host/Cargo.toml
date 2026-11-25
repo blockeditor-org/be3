@@ -30,6 +30,7 @@ workspace = true
 [dev-dependencies]
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
+be-wasm-guest-webgpu = { path = "../be-wasm-guest-webgpu" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 uuid = "1"

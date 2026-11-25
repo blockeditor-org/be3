@@ -1,0 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "pure_guest_crate")
+
+cargo_package()
+
+# A guest that calls wasi:webgpu's ticketed, fallible and option-of-list calls through the
+# generated guest bindings and polls: be-wasm-host's tests run it on V8.
+pure_guest_crate()

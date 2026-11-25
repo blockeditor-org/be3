@@ -55,7 +55,7 @@ macro_rules! callers {
                 &mut self.returned
             }
 
-            $(fn $ticket(&mut self) -> u64 {
+            $(fn $ticket(&mut self) -> u32 {
                 self.gpu.webgpu_ticket()
             })?
         }

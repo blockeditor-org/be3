@@ -194,15 +194,16 @@ pub(crate) struct Web {
     wraps: Vec<Wrap>,
     scopes: u64,
     settled: Vec<Settled>,
-    tickets: u64,
+    tickets: u32,
     /// Uncaptured errors no listener heard, for the host's log of the app.
     logged: Vec<String>,
 }
 
 impl Web {
     /// A ticket for the host's own calls to the guest (`Caller::ticket`).
-    pub(crate) fn ticket(&mut self) -> u64 {
-        self.tickets += 1;
+    pub(crate) fn ticket(&mut self) -> u32 {
+        // Never `REFUSED` (0), even once the count wraps.
+        self.tickets = self.tickets.wrapping_add(1).max(1);
         self.tickets
     }
 }
@@ -213,7 +214,7 @@ fn poll_once<F: Future + ?Sized>(future: Pin<&mut F>, waker: &std::task::Waker) 
 
 impl Gpu {
     /// A ticket the app has not been answered with, for the generated glue.
-    pub fn webgpu_ticket(&mut self) -> u64 {
+    pub fn webgpu_ticket(&mut self) -> u32 {
         self.web.ticket()
     }
 
@@ -315,7 +316,7 @@ impl Gpu {
             self.web.logged.push(failure.message);
             return;
         }
-        let senders: Vec<u64> = state.uncaptured.iter().map(Sender::ticket).collect();
+        let senders: Vec<u32> = state.uncaptured.iter().map(Sender::ticket).collect();
         for ticket in senders {
             let error = web::GpuError(self.web.errors.insert(failure.clone()));
             self.web

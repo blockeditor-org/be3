@@ -110,6 +110,7 @@ members = [
     "crates/be-wasm-gpu-shim",
     "crates/be-wasm-guest-abi",
     "crates/be-wasm-guest-echo",
+    "crates/be-wasm-guest-webgpu",
     "crates/be-wasm-guest-host",
     "crates/be-wasm-panic",
     "crates/be-sdk-api",
