@@ -67,6 +67,7 @@ Landed on 2026-11-24:
 - `flakes-9`: undo steps timed by when an edit was relayed; a stopping stack closes its connection at once and account reads retry on a new one; an offline edit merges with no base when the ancestor is held nowhere; a preview canvas gets no view until its stage is measured (no stray glyph, no pause).
 - `keys-asserts-webviews`: input for an unannounced screen is dropped (no queue); a view that gets the keyboard is told the held modifiers as state with its focus; duplicate dock ids assert; web view leftovers (GTK/WebKit fixups, bootstrap packages) removed; an export stores the theme shown when its dialog opened.
 - `host-adapter-4g7b3h`: under the root a dialog on a phone opens as a sheet, Escape keeps the keyboard in an active child, and a web view fails with its message as under be-host.
+- `follower-fetches-heads`: a replica following its holder fetches the holder's seals (one at a time per block, skipping its own, cancelled at stop); a canvas with no measured camera takes no input.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
