@@ -20,11 +20,17 @@ pub(crate) type Erased = Rc<dyn Any>;
 /// A place in a site, as the board holds it: the site and what dropping there means.
 pub(crate) type Placed = (u64, Erased);
 
+/// Whether a site takes a payload, its type erased.
+pub(crate) type Accepts = Rc<dyn Fn(&dyn Any) -> bool>;
+
+/// How a site places a payload it takes, its types erased.
+pub(crate) type SpecOf = Rc<dyn Fn(&dyn Any) -> DragSpec<Erased>>;
+
 /// A site as the board keeps it, with its types erased.
 pub(crate) struct Site {
     pub(crate) id: u64,
-    pub(crate) accepts: Rc<dyn Fn(&dyn Any) -> bool>,
-    pub(crate) spec: Rc<dyn Fn(&dyn Any) -> DragSpec<Erased>>,
+    pub(crate) accepts: Accepts,
+    pub(crate) spec: SpecOf,
     pub(crate) over: Rc<dyn Fn(Option<Erased>)>,
     pub(crate) commit: Rc<dyn Fn(Erased, Erased)>,
 }
@@ -118,7 +124,7 @@ impl Board {
             .iter()
             .flat_map(|placing| placing.specs.iter().map(|(site, _)| *site))
             .collect();
-        let sites: Vec<(u64, Rc<dyn Fn(&dyn Any) -> DragSpec<Erased>>)> = self
+        let sites: Vec<(u64, SpecOf)> = self
             .sites
             .borrow()
             .iter()
@@ -373,6 +379,7 @@ impl Board {
     /// Where each carry is placed again once what is under it has moved: where it was last,
     /// but for a keyboard carry stepped to a labelled place, at that place wherever it is now,
     /// so a scroll or pan under it keeps it on the place it said.
+    #[allow(clippy::type_complexity)] // Read once, just below, by the fields it names.
     pub(crate) fn placing_again(&self) -> Vec<DragPoint> {
         let held: Vec<(
             PointerId,
