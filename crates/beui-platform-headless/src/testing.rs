@@ -27,8 +27,10 @@ use beui_types::{Pos2, Rect, Vec2};
 use crate::Simulation;
 use beui_core::program::accessibility_dump::Rendered;
 
+mod find;
 mod gui;
 
+pub use find::{Match, find_text};
 pub use gui::{Gui, Recording, Snapshots, Wakes, Wraps};
 
 pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);

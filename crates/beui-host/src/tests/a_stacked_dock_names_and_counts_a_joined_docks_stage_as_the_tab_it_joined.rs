@@ -60,7 +60,7 @@ fn a_stacked_dock_names_and_counts_a_joined_docks_stage_as_the_tab_it_joined() {
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
     let named = |title: &str| {
-        text_within(harness.document(), root, title)
+        find_text(harness.document(), root, title, Match::Exact)
             .is_some_and(|node| harness.document().node_rect(node).is_some())
     };
     assert!(

@@ -6,7 +6,7 @@ use crate::unstyled::MenuItem;
 
 fn shown(harness: &Harness, text: &str) -> Option<Pos2> {
     let root = harness.document().root().expect("the document has a root");
-    text_within(harness.document(), root, text)
+    find_text(harness.document(), root, text, Match::Exact)
         .or_else(|| {
             icon_within(
                 harness.document(),

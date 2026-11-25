@@ -272,7 +272,7 @@ impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(&document, root, words).is_some())
+            .is_some_and(|root| find_text(&document, root, words, Match::Contains).is_some())
     }
 
     fn click_text(&mut self, words: &str) {
@@ -285,7 +285,7 @@ impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(&document, root, words))
+            .and_then(|root| find_text(&document, root, words, Match::Contains))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         document.node_rect(node).expect("the text is laid out")
     }
@@ -301,7 +301,7 @@ impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
         let document = self.test.document();
         let settings = document
             .root()
-            .and_then(|root| text_within(&document, root, "Settings"))
+            .and_then(|root| find_text(&document, root, "Settings", Match::Contains))
             .expect("the sidebar has a Settings tab");
         let at = document
             .node_rect(settings)
@@ -348,20 +348,6 @@ impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
             .filter_map(|close| document.node_rect(close))
             .collect()
     }
-}
-
-fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
-    if document
-        .arena
-        .kind_of(id)
-        .is_some_and(|node| document.text(node).contains(words))
-    {
-        return Some(id);
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| text_within(&document, child, words))
 }
 
 const PROGRAMS: [(&str, &str); 5] = [

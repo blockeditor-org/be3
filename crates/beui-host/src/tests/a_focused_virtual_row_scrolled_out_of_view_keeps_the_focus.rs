@@ -38,7 +38,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
         .document()
         .focused
         .expect("Tab focuses the first row");
-    assert!(text_within(harness.document(), focused, "Row 0").is_some());
+    assert!(find_text(harness.document(), focused, "Row 0", Match::Exact).is_some());
 
     let far = VIRTUAL_ITEM_COUNT as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
     harness.document_mut().set_scroll_offset(scroll, far);
@@ -46,7 +46,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
     harness.frame(Vec::new());
     assert_eq!(harness.document().focused, Some(focused));
     assert!(harness.document().children(list).contains(&focused));
-    assert!(text_within(harness.document(), focused, "Row 0").is_some());
+    assert!(find_text(harness.document(), focused, "Row 0", Match::Exact).is_some());
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.settle();
@@ -55,7 +55,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
         .focused
         .expect("Tab moves to the next row");
     assert!(
-        text_within(harness.document(), next, "Row 1").is_some(),
+        find_text(harness.document(), next, "Row 1", Match::Exact).is_some(),
         "Tab goes to the row after the focused one, not to the rows in view"
     );
     assert_eq!(
@@ -67,7 +67,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
             .document()
             .children(list)
             .into_iter()
-            .all(|row| text_within(harness.document(), row, "Row 0").is_none()),
+            .all(|row| find_text(harness.document(), row, "Row 0", Match::Exact).is_none()),
         "the row the focus left is released once it is out of view"
     );
 }

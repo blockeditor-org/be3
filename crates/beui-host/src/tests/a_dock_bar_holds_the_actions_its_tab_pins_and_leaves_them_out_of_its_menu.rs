@@ -50,7 +50,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     let root = harness.document().root().expect("the document has a root");
     let pin = harness.find("dock.tabs.pin.share");
     assert!(
-        text_within(harness.document(), pin, "Share").is_some(),
+        find_text(harness.document(), pin, "Share", Match::Exact).is_some(),
         "a tiled bar labels the pinned action"
     );
     harness.click(harness.center(pin));
@@ -60,7 +60,7 @@ fn a_dock_bar_holds_the_actions_its_tab_pins_and_leaves_them_out_of_its_menu() {
     let at = harness.center(harness.find("dock.tabs.menu"));
     harness.click(at);
     harness.settle();
-    assert!(text_within(harness.document(), root, "Rename").is_some());
+    assert!(find_text(harness.document(), root, "Rename", Match::Exact).is_some());
     assert!(
         harness
             .document()

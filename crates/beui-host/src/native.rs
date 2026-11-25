@@ -11,7 +11,7 @@ pub use beui_layer_drive as drive;
 #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 pub use beui_platform_headless::Headless;
 pub use beui_platform_headless::Simulation;
-pub use beui_platform_headless::testing;
+pub mod testing;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use beui_platform_web::accessibility_tree;
 #[cfg(not(target_arch = "wasm32"))]

@@ -23,10 +23,10 @@ fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let trigger = text_within(
+    let trigger = find_text(
         harness.document(),
         harness.document().root().expect("the popover built a root"),
-        "Filters",
+        "Filters", Match::Exact,
     )
     .expect("the trigger shows its label");
 

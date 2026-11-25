@@ -17,7 +17,7 @@ fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = text_within(harness.document(), dock, "Pop out into a window")
+    let row = find_text(harness.document(), dock, "Pop out into a window", Match::Exact)
         .expect("the menu offers to pop the tab out");
     harness.click(harness.center(row));
     harness.frame(Vec::new());

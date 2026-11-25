@@ -16,7 +16,7 @@ fn splitting_a_dock_tab_with_the_next_shows_both_side_by_side() {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = text_within(harness.document(), dock, "Split with next tab")
+    let row = find_text(harness.document(), dock, "Split with next tab", Match::Exact)
         .expect("the menu offers to split the tab with the next");
     harness.click(harness.center(row));
     harness.frame(Vec::new());

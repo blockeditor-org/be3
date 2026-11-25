@@ -11,7 +11,7 @@ fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = text_within(harness.document(), dock, item)
+    let row = find_text(harness.document(), dock, item, Match::Exact)
         .unwrap_or_else(|| panic!("the grip's menu offers {item}"));
     harness.click(harness.center(row));
     harness.frame(Vec::new());
@@ -87,7 +87,7 @@ fn a_sidebar_dragged_past_its_narrowest_shows_icons_and_any_drag_back_shows_titl
         narrow < moving && narrow > far.x + 3.0,
         "and settles as wide as an icon, not at the pointer: {narrow}"
     );
-    assert!(text_within(harness.document(), dock, "Tab 1").is_none());
+    assert!(find_text(harness.document(), dock, "Tab 1", Match::Exact).is_none());
 
     let back = far + vec2(5.0, 0.0);
     after(&mut harness, Duration::from_millis(16), Some(back));

@@ -53,7 +53,7 @@ fn a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_toolb
     let [start, end] = handles[..] else {
         panic!("a word selected by touch shows two handles, not {handles:?}");
     };
-    let copy = text_within(harness.document(), root, "Copy")
+    let copy = find_text(harness.document(), root, "Copy", Match::Exact)
         .map(|copy| harness.rect(copy))
         .expect("the selection shows its toolbar");
     let below = start.y.max(end.y) + HANDLE_RADIUS * SCALE;

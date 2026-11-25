@@ -16,7 +16,7 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = text_within(harness.document(), dock, "Pop out into a window")
+    let row = find_text(harness.document(), dock, "Pop out into a window", Match::Exact)
         .expect("the menu offers to pop the tab out");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
