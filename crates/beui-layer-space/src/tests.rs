@@ -514,10 +514,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui_host::Color32;
+use beui_host::native::testing::{PanZoomStage, build_node, dock_tab, windowed_dock};
 use beui_host::native::{
     Document, Program, RendererInfo, Setup, Simulation, Waker, WindowSize, context,
 };
-use beui_host::native::testing::{PanZoomStage, build_node, dock_tab, windowed_dock};
 use beui_host::primitives::{Frame, Interactive};
 use beui_host::reactive::*;
 use beui_host::styled;

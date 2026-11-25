@@ -6,8 +6,8 @@ use be_sdk_test::HostCall;
 fn choose(fixture: &mut Fixture, words: &str) {
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
-    let row =
-        find_text(&document, root, words, Match::Contains).unwrap_or_else(|| panic!("the menu lists {words}"));
+    let row = find_text(&document, root, words, Match::Contains)
+        .unwrap_or_else(|| panic!("the menu lists {words}"));
     let at = document
         .node_rect(row)
         .expect("the row is laid out")
@@ -20,7 +20,8 @@ fn choose(fixture: &mut Fixture, words: &str) {
 fn says(fixture: &Fixture, words: &str) -> bool {
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
-    find_text(&document, root, words, Match::Contains).is_some_and(|node| document.node_rect(node).is_some())
+    find_text(&document, root, words, Match::Contains)
+        .is_some_and(|node| document.node_rect(node).is_some())
 }
 
 fn menu_says(fixture: &mut Fixture, words: &str) -> bool {
