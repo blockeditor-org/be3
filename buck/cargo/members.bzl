@@ -88,6 +88,7 @@ members = [
     "crates/be-lib-sequence",
     "crates/be-lib-sha256",
     "crates/be-lib-stable-hash",
+    "crates/be-lib-test-pause",
     "crates/be-lib-ui-keys",
     "crates/be-lib-ui-preferences",
     "crates/be-lib-ui-types",

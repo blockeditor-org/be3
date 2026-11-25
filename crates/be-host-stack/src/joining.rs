@@ -36,6 +36,26 @@ pub struct Joining {
     blocks: HashMap<Uuid, Joined>,
     /// Numbers each start of a channel, so what answers an earlier one is dropped.
     attempts: u64,
+    /// How many sends the server held back (`slow-down`), for a test to see they were.
+    #[cfg(test)]
+    slowed: u64,
+}
+
+/// How many sends on a host channel the server held back since this device started.
+#[cfg(test)]
+pub fn slowed(shared: &Shared) -> u64 {
+    shared.joining.slowed
+}
+
+/// Whether `block`, which an editor here joins, is not in its session yet: it waits for this
+/// connection's replica of the block to close and leave.
+#[cfg(test)]
+pub fn unjoined(shared: &Shared, block: Uuid) -> bool {
+    shared
+        .joining
+        .blocks
+        .get(&block)
+        .is_some_and(|joined| matches!(joined.state, State::Unjoined))
 }
 
 /// The channel event the app hears for `news`.
@@ -304,6 +324,10 @@ fn handshake(
                 // Held back by the rate limit: the same message again, while it is still this
                 // attempt's.
                 Err(ClientError::Refused(ErrorCode::SlowDown, _)) => {
+                    #[cfg(test)]
+                    {
+                        lock(&shared).joining.slowed += 1;
+                    }
                     peer.connection().clock().sleep(SLOWED).await;
                     if lock(&shared).joining.current(block, attempt).is_none() {
                         return;
@@ -403,6 +427,10 @@ fn pump(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
                     }
                 }
                 Err(ClientError::Refused(ErrorCode::SlowDown, _)) => {
+                    #[cfg(test)]
+                    {
+                        lock(&shared).joining.slowed += 1;
+                    }
                     peer.connection().clock().sleep(SLOWED).await;
                 }
                 // Lost, maybe with the session: the host would break the channel at the next
