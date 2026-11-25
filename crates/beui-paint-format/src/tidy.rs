@@ -16,7 +16,8 @@ impl Frame {
     ///   opaque rect, or paints its colour over pixels already that colour.
     pub fn tidy(&mut self) {
         let scale = self.pixels_per_point;
-        if !(scale > 0.0) {
+        // A painting at no positive scale, NaN included, touches no pixel.
+        if scale.is_nan() || scale <= 0.0 {
             return;
         }
         let size = self.size.map(|side| i64::from(side.max(1)));
