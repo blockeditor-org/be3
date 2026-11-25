@@ -27,12 +27,6 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
     )]);
     fixture.settle();
 
-    let window = fixture
-        .test
-        .desk_windows()
-        .first()
-        .copied()
-        .expect("the program's window is a window of its own on the display");
     let reset = fixture
         .test
         .desk_rects_of("workspace.layout.reset")
@@ -49,6 +43,13 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
         card.contains_rect(reset),
         "the card holds its buttons: {card:?} {reset:?}"
     );
+    // The notice is a window of its own too, so the program's is the one not holding it.
+    let window = fixture
+        .test
+        .desk_windows()
+        .into_iter()
+        .find(|window| !window.contains_rect(card))
+        .expect("the program's window is a window of its own on the display");
     let over = reset.intersect(window);
     assert!(
         over.is_positive(),

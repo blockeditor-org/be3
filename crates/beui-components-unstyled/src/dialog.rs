@@ -11,7 +11,7 @@ use beui_view::types::Key;
 use beui_view::types::KeyPhase;
 use beui_view::types::text::Phrase;
 use beui_view::types::{Dismiss, Rect, Vec2};
-use beui_view::window::{Window, WindowAnchor, WindowHandle};
+use beui_view::window::{Window, WindowAnchor, WindowHandle, opens_windows};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
@@ -464,6 +464,9 @@ fn dialog_presentation(
     }
 }
 
+/// The floor of a dialog window's bound, before its card is measured.
+const OPENED_AT: Vec2 = Vec2::new(360.0, 200.0);
+
 #[component]
 pub fn Dialog(
     open: Prop<bool>,
@@ -606,6 +609,13 @@ pub fn Dialog(
         | DialogPresentation::Sheet { .. } => (WindowAnchor::Centre, true),
     });
     let anchor = create_memo(move || Some(placed.get().0));
+    // Where a host opens windows (a desktop, space) the dialog is a window of its own over its
+    // window, measured to its card before the host is asked to open it, unless it shows as a
+    // sheet; elsewhere an overlay sized to its card, which in an app is an anchored view.
+    // `fits` only bounds that size.
+    let hosting = opens_windows();
+    let own_window = create_memo(move || hosting.get() && !sheeted.get());
+    let fits = create_memo(move || Some(viewport.get().max(OPENED_AT)));
     let dims = create_memo(move || match placed.get().1 {
         true => scrim.get(),
         false => Color::TRANSPARENT,
@@ -613,8 +623,9 @@ pub fn Dialog(
     view! {
         <List spacing=0.0>
             <Window
-                size=Vec2::ZERO
-                own_window=false
+                size={OPENED_AT}
+                fit={fits}
+                own_window={own_window}
                 anchor={anchor}
                 blocks=true
                 scrim={dims}
