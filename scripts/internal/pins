@@ -38,8 +38,8 @@ cargo_size_aarch64_pc_windows_msvc='16125527'
 # binary, which is also its name at https://be3-ci.b-cdn.net/bootstrap/<sha256>.
 # CI uploads and pins a new release when the binaries built from the checkout
 # are not these (guides/bootstrap.md).
-bootstrap_sha256_x86_64_unknown_linux_gnu='df86ca66d2508e9ca7553471d2d49d55fe9504a434fcb995c2af050bd93839ab'
-bootstrap_sha256_aarch64_unknown_linux_gnu='d929905ba418176e4b0f8ab0838e46db547b12a2ca2ff38014be3b0f724714b7'
+bootstrap_sha256_x86_64_unknown_linux_gnu='20e7cfa7a71713b23907a8a1ac665be07dfa4cce6250b2a9151e5d4237e6a52e'
+bootstrap_sha256_aarch64_unknown_linux_gnu='8a3212b159bb4c5861dca3d143dfc4692395d12f8dfbc8859b938928d118d895'
 bootstrap_sha256_x86_64_apple_darwin='23c20a0e4316b14207e1c6d7b2afe7aa2dfc25d37c63f5098179389505209103'
 bootstrap_sha256_aarch64_apple_darwin='0e702c7072aca94418ebbd7c9a843d879b6839f23b5cce9a024683ee226c8721'
 bootstrap_sha256_x86_64_pc_windows_msvc='a74e4b7ce23c3f9a953ab5ea9834bb6321ed61a1d88f9cdfa55edd5a8eee526d'
