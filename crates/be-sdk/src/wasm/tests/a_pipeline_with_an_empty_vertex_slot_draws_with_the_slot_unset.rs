@@ -47,8 +47,7 @@ fn a_pipeline_with_an_empty_vertex_slot_draws_with_the_slot_unset() {
     for bundled in [false, true] {
         let target = filled_target(&device);
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 color_attachments: &[cleared(&view)],

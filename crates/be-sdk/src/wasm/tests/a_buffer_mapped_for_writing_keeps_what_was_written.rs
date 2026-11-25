@@ -13,7 +13,8 @@ fn a_buffer_mapped_for_writing_keeps_what_was_written() {
     device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
     assert_eq!(*answer.lock().unwrap(), Some(Ok(())));
     staging
-        .get_mapped_range_mut(..).unwrap()
+        .get_mapped_range_mut(..)
+        .unwrap()
         .copy_from_slice(&[9, 8, 7, 6, 5, 4, 3, 2]);
     staging.unmap();
     let destination = readable(&device, 8);

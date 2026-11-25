@@ -54,24 +54,44 @@ fn main() {
         .collect();
     let mut bench = Bench::new(gpu);
     let scenes: Vec<(&str, Vec<Timed>)> = vec![
-        ("text", bench.run(frames, |_| Repaint::Everything, text_page)),
-        ("canvas-pan", bench.run(frames, |_| Repaint::Everything, |painter, frame| {
-            canvas(painter, host, frame, frames, false)
-        })),
-        ("canvas-zoom", bench.run(frames, |_| Repaint::Everything, |painter, frame| {
-            canvas(painter, host, frame, frames, true)
-        })),
-        ("opacity", bench.run(frames, |_| Repaint::Everything, |painter, frame| {
-            nested_opacity(painter, &groups, frame)
-        })),
+        (
+            "text",
+            bench.run(frames, |_| Repaint::Everything, text_page),
+        ),
+        (
+            "canvas-pan",
+            bench.run(
+                frames,
+                |_| Repaint::Everything,
+                |painter, frame| canvas(painter, host, frame, frames, false),
+            ),
+        ),
+        (
+            "canvas-zoom",
+            bench.run(
+                frames,
+                |_| Repaint::Everything,
+                |painter, frame| canvas(painter, host, frame, frames, true),
+            ),
+        ),
+        (
+            "opacity",
+            bench.run(
+                frames,
+                |_| Repaint::Everything,
+                |painter, frame| nested_opacity(painter, &groups, frame),
+            ),
+        ),
         ("damage", bench.damaged(frames)),
     ];
     let blurs: Vec<(f32, Vec<Timed>)> = BLUR_RADII
         .iter()
         .map(|radius| {
-            let timed = bench.run(frames, |_| Repaint::Everything, |painter, _| {
-                blurred(painter, *radius)
-            });
+            let timed = bench.run(
+                frames,
+                |_| Repaint::Everything,
+                |painter, _| blurred(painter, *radius),
+            );
             (*radius, timed)
         })
         .collect();
@@ -443,9 +463,11 @@ fn canvas(painter: &Painter, host: NodeId, frame: usize, frames: usize, zoom: bo
                     color,
                 ),
                 _ => camera.stroke_path(
-                    &Path::new()
-                        .move_to(rect.left_bottom())
-                        .cubic_to(rect.left_top(), rect.right_bottom(), rect.right_top()),
+                    &Path::new().move_to(rect.left_bottom()).cubic_to(
+                        rect.left_top(),
+                        rect.right_bottom(),
+                        rect.right_top(),
+                    ),
                     &stroke,
                     color,
                 ),
@@ -482,7 +504,10 @@ const DEPTH: usize = 8;
 /// every frame so a group keeps its identity between frames as a retained frame's does.
 fn nested_opacity(painter: &Painter, groups: &[NodeId], frame: usize) {
     for stack in 0..STACKS {
-        let origin = pos2((stack % 8) as f32 * 236.0 + 16.0, (stack / 8) as f32 * 350.0 + 16.0);
+        let origin = pos2(
+            (stack % 8) as f32 * 236.0 + 16.0,
+            (stack / 8) as f32 * 350.0 + 16.0,
+        );
         let mut group = painter.clone();
         for depth in 0..DEPTH {
             let inset = depth as f32 * 12.0;

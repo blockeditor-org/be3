@@ -1509,7 +1509,10 @@ impl RenderBundleEncoderInterface for RenderBundleEncoder {
         Box::new(self).finish_boxed(desc)
     }
 
-    fn finish_boxed(self: Box<Self>, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
+    fn finish_boxed(
+        self: Box<Self>,
+        desc: &wgpu::RenderBundleDescriptor<'_>,
+    ) -> DispatchRenderBundle {
         let descriptor = abi::RenderBundleDescriptor {
             label: convert::label(desc.label),
         };
