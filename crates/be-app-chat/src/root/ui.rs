@@ -241,7 +241,7 @@ fn attach(editor: Editor, chat: Chat, me: Uuid, composer: Composer, anchor: Node
             templates: true,
             place: None,
         },
-        &anchor,
+        anchor,
         move |picked| {
             let block_type = Uuid::from_bytes(picked.block_type);
             match picked.linked {
@@ -876,7 +876,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             glyph=ICON_SEND
                             variant=ButtonVariant::Primary
                             @test_id={"chat.send"}
-                            on_click={move || send()}
+                            on_click={&send}
                         />
                     </List>
                 </List>
