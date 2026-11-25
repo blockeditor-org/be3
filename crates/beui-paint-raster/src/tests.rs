@@ -1,12 +1,11 @@
 use super::*;
-#[allow(unused_imports)]
 use beui_paint_format::*;
-#[allow(unused_imports)]
 use std::collections::BTreeMap;
 
 mod a_faded_rect_fades_toward_the_edge_it_names;
 mod a_glyph_paints_its_coverage_in_its_colour;
 mod a_group_paints_its_shapes_as_one_at_its_opacity;
+mod a_painting_of_either_kind_is_drawn_by_what_draws_it;
 mod a_painting_placed_with_a_corner_radius_shows_its_corners_rounded;
 mod a_painting_rasterizes_onto_a_transparent_background;
 mod a_rounded_rect_covers_its_corners_by_the_area_inside_them;
@@ -16,20 +15,16 @@ mod a_triangle_is_filled_with_its_corner_colour;
 mod a_turned_rounded_rect_is_covered_where_it_turned_to;
 mod tidying_a_frame_keeps_its_pixels_and_drops_what_none_of_them_show;
 
-#[allow(unused_imports)]
 use beui_paint_snapshot::{Snapshot, Texture};
 
-#[allow(dead_code)]
 fn white() -> Texture {
     Texture::encode([1, 1], &[[255, 255, 255, 255]]).unwrap()
 }
 
-#[allow(dead_code)]
 fn triangle(colour: [u8; 4]) -> Snapshot {
     Snapshot::of(frame(colour), BTreeMap::from([(0, white())]))
 }
 
-#[allow(dead_code)]
 fn frame(colour: [u8; 4]) -> Frame {
     let corner = |x: f32, y: f32| Vertex {
         pos: [x, y],

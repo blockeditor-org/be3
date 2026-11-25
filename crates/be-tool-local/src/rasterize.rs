@@ -32,13 +32,12 @@ pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
     };
     let numbered = matches!(wanted, Wanted::All) && kept > 1;
     for index in frames {
-        let image = painting
-            .render(
-                index,
-                Some(Path::new(input)),
-                Some(&mut crate::browser::renderer(None)),
-                beui_paint_raster::render,
-            )
+        let image = beui_paint_raster::render_painting(
+            &painting,
+            index,
+            Some(Path::new(input)),
+            Some(&mut crate::browser::renderer(None)),
+        )
             .unwrap_or_else(|error| fail(&format!("frame {index} did not render: {error}")));
         let path = match numbered {
             true => numbered_path(Path::new(output), index),

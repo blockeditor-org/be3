@@ -19,6 +19,24 @@ mod mesh;
 mod snapshot;
 pub use snapshot::render;
 
+/// Draws frame `index` of a painting of either kind: a native one here (`render`), a browser
+/// one with `browser_renderer` (`BrowserSnapshot::render`), handed `file`, the file it was read
+/// from, when the caller has one.
+pub fn render_painting(
+    painting: &beui_paint_snapshot::Painting,
+    index: usize,
+    file: Option<&std::path::Path>,
+    browser_renderer: Option<&mut std::process::Command>,
+) -> Result<image::RgbaImage, String> {
+    match painting {
+        beui_paint_snapshot::Painting::Native(snapshot) => render(snapshot, index),
+        beui_paint_snapshot::Painting::Browser(_) if index != 0 => Err(format!(
+            "a browser painting has only frame 0, there is no frame {index}"
+        )),
+        beui_paint_snapshot::Painting::Browser(page) => page.render(file, browser_renderer),
+    }
+}
+
 /// `frame` painted over `background` (straight sRGB), its textures given by `textures`.
 pub fn rasterize<'a>(
     frame: &Frame,
@@ -108,7 +126,7 @@ impl Canvas for Cpu<'_> {
 
 struct Painter<'a, 't> {
     textures: &'t dyn Fn(TextureKey) -> Option<&'a Pixels>,
-    /// Each texture as a premultiplied pixmap, made as it is used.
+    /// Each texture as a pixmap of its straight-alpha texels, made as it is used.
     pixmaps: BTreeMap<TextureKey, Arc<Pixmap>>,
     /// Each texture's mip chain below it, for the meshes (`mesh`).
     chains: BTreeMap<TextureKey, Vec<Pixels>>,

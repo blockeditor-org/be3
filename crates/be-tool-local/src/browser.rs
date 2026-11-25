@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-/// The browser rasterizer that draws a browser painting (`Painting::render`): the one in
+/// The browser rasterizer that draws a browser painting (`BrowserSnapshot::render`): the one in
 /// `built`, the directory its `:release` is laid out in (browser_program in
 /// buck/program/drive.bzl) as CI downloads it, or else built and run through buck.
 pub fn renderer(built: Option<&Path>) -> Command {

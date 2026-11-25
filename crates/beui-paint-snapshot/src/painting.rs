@@ -6,9 +6,6 @@ use image::RgbaImage;
 
 use crate::{BrowserSnapshot, Difference, Snapshot};
 
-/// What draws frame `index` of a native painting: beui-paint-raster's `render`.
-pub type Native = fn(&Snapshot, usize) -> Result<RgbaImage, String>;
-
 /// A painting as its file holds it: what beui painted (`NAME.paint`), or a page rendered as
 /// HTML (`NAME.browser.paint`). Whatever reads a painting file decodes it here, so the two
 /// kinds are told apart, compared, described and drawn one way.
@@ -65,60 +62,51 @@ impl Painting {
             }),
         }
     }
-
-    /// Draws frame `index`. A native painting is drawn by `native` (beui-paint-raster's
-    /// `render`, which this crate cannot hold: the beui library holds it). A browser painting is
-    /// drawn by `browser_renderer`, a program (crates/be-tool-browser-rasterizer) that is handed
-    /// the painting's file and a PNG to write: `file`, the file it was decoded from, when the
-    /// caller has one, or else a temporary file it is written to.
-    pub fn render(
-        &self,
-        index: usize,
-        file: Option<&Path>,
-        browser_renderer: Option<&mut Command>,
-        native: Native,
-    ) -> Result<RgbaImage, String> {
-        match self {
-            Self::Native(snapshot) => native(snapshot, index),
-            Self::Browser(_) if index != 0 => Err(format!(
-                "a browser painting has only frame 0, there is no frame {index}"
-            )),
-            Self::Browser(snapshot) => {
-                let renderer = browser_renderer
-                    .ok_or("a browser painting needs the browser rasterizer, and none was given")?;
-                let written;
-                let input = match file {
-                    Some(file) => file,
-                    None => {
-                        written = Scratch::new("browser.paint");
-                        std::fs::write(&written.0, snapshot.encode()?).map_err(|error| {
-                            format!("could not write {}: {error}", written.0.display())
-                        })?;
-                        &written.0
-                    }
-                };
-                let output = Scratch::new("png");
-                let result = renderer
-                    .arg(input)
-                    .arg(&output.0)
-                    .output()
-                    .map_err(|error| format!("could not start the browser rasterizer: {error}"))?;
-                if !result.status.success() {
-                    return Err(format!(
-                        "browser rasterizer failed: {}",
-                        String::from_utf8_lossy(&result.stderr)
-                    ));
-                }
-                image::open(&output.0)
-                    .map(|image| image.to_rgba8())
-                    .map_err(|error| {
-                        format!("could not read what the browser rasterizer drew: {error}")
-                    })
-            }
-        }
-    }
 }
 
+impl BrowserSnapshot {
+    /// Draws the page with `browser_renderer`, a program (crates/be-tool-browser-rasterizer)
+    /// that is handed the painting's file and a PNG to write: `file`, the file it was decoded
+    /// from, when the caller has one, or else a temporary file it is written to. A native
+    /// painting is drawn by beui-paint-raster, which draws either (`render_painting`).
+    pub fn render(
+        &self,
+        file: Option<&Path>,
+        browser_renderer: Option<&mut Command>,
+    ) -> Result<RgbaImage, String> {
+        let snapshot = self;
+        let renderer = browser_renderer
+                .ok_or("a browser painting needs the browser rasterizer, and none was given")?;
+            let written;
+            let input = match file {
+                Some(file) => file,
+                None => {
+                    written = Scratch::new("browser.paint");
+                    std::fs::write(&written.0, snapshot.encode()?).map_err(|error| {
+                        format!("could not write {}: {error}", written.0.display())
+                    })?;
+                    &written.0
+                }
+            };
+            let output = Scratch::new("png");
+            let result = renderer
+                .arg(input)
+                .arg(&output.0)
+                .output()
+                .map_err(|error| format!("could not start the browser rasterizer: {error}"))?;
+            if !result.status.success() {
+                return Err(format!(
+                    "browser rasterizer failed: {}",
+                    String::from_utf8_lossy(&result.stderr)
+                ));
+            }
+            image::open(&output.0)
+                .map(|image| image.to_rgba8())
+                .map_err(|error| {
+                    format!("could not read what the browser rasterizer drew: {error}")
+            })
+    }
+}
 /// A file in the temporary directory, removed when dropped.
 struct Scratch(PathBuf);
 
