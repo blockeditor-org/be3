@@ -8,6 +8,9 @@ use crate::types::icons::Glyph;
 use crate::types::text::{FontPatch, IconSpan, Phrase, PhraseRun};
 use crate::types::{Color, FontFamily, FontId, GapWidth, SpanBackground};
 
+// Not boxed: a span is the child text has most of, and boxing it would allocate for every one
+// to make the rarer children smaller.
+#[allow(clippy::large_enum_variant)]
 pub enum TextChild {
     Span(Span),
     Gap(Gap),

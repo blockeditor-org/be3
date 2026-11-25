@@ -239,6 +239,7 @@ struct Carrying {
     active: Callback<bool>,
     cancelled: Callback<()>,
     face: Face,
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
 }
 
