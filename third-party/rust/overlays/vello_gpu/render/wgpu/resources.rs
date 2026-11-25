@@ -75,6 +75,10 @@ impl UploadStagingBelt {
     ) -> Option<BufferViewMut> {
         // beui: as `StagingBelt::write_buffer`, but none rather than a panic when the staging
         // buffer has no mapped range, as on a lost device.
+        debug_assert!(
+            offset.is_multiple_of(COPY_BUFFER_ALIGNMENT),
+            "write_buffer() offset {offset} must be a multiple of `COPY_BUFFER_ALIGNMENT`"
+        );
         self.frame_allocated += size.get();
         let slice = self
             .belt

@@ -19,7 +19,8 @@ fn a_device_lost_before_wgpu_reports_it_draws_nothing_rather_than_panicking() {
 
     target.device.destroy();
     // wgpu calls the lost callback only at the next poll, so this frame's uploads meet
-    // buffers with no mapped range, which Vello once panicked on.
+    // buffers with no mapped range. Without the wgpu and vello_gpu overlays
+    // (third-party/rust/fixups.bzl) this panics.
     assert!(!target.renderer.resources().lost());
     target.draw(Color32::BLACK, Repaint::Everything, paint);
 
