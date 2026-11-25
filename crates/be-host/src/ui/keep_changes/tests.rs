@@ -40,5 +40,6 @@ fn press(test: &mut DocumentTest, key: Key) {
     test.frame(Vec::new());
 }
 
+mod it_is_an_alert_centred_over_its_window;
 mod it_keeps_on_enter_and_reverts_on_escape;
 mod it_reverts_once_its_countdown_runs_out;
