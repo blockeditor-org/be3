@@ -342,7 +342,9 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   be-sdk-window-stack): `Embedded` adopts each from the layout commit that
   opens it and asks for it beside the screens the root asks for
   (`Embedded::show`), and `Embedded::window_layers` names each where it floats,
-  bottom first. `OwnSurface` is a surface of the root's own,
+  bottom first. A press on one raises it; a move or resize it asks for then
+  follows the main window's pointer, whose moves the root takes itself until
+  it is released (`Embedded::follow_held`). `OwnSurface` is a surface of the root's own,
   which it configures, draws (`fill`, or `acquire` and `present`) and names
   as a layer. `crates/be-sdk-beui-root` draws them with beui: `BeuiRoot` is
   what a root's surfaces share (the device `be3:gpu` gives it, the fonts

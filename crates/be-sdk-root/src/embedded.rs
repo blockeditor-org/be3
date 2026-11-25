@@ -34,7 +34,7 @@ use be_sdk_app_host::{
 };
 use be_wasm_root_api::{Shown, ShownBlock, guest::host};
 
-use crate::floating::Floating;
+use crate::floating::{self, Floating};
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
@@ -209,6 +209,11 @@ struct State {
     /// The windows the app opened from a screen asked with windows, which the root floats
     /// (`floating`), bottom first: each asked for besides `asked`.
     floating: Vec<Floating>,
+    /// The last press on one of those windows, which a move or resize it asks for starts from.
+    pressed: Option<floating::Pressed>,
+    /// The move or resize of one of them under way, which follows the main window's pointer
+    /// until it is released (`Embedded::follow_held`).
+    held: Option<floating::Held>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -376,6 +381,36 @@ impl Embedded {
         state.ask_screens();
     }
 
+    /// Whether one of the windows it opened that the root floats is being moved or resized.
+    pub(crate) fn holds(&self) -> bool {
+        self.state.borrow().held.is_some()
+    }
+
+    /// Follows the move or resize of one of its windows under way with the main window's
+    /// `input`, as be-host's desktop does: the window follows the pointer, which nothing else
+    /// hears meanwhile, until it is released, which the app hears. Answers whether the root
+    /// takes `input` itself.
+    pub(crate) fn follow_held(&self, input: &Input) -> bool {
+        let mut state = self.state.borrow_mut();
+        let Some(held) = state.held else {
+            return false;
+        };
+        match input {
+            Input::PointerMoved(at) => {
+                if floating::drag(&mut state.floating, held, *at) {
+                    state.ask_screens();
+                    state.wake();
+                }
+                true
+            }
+            Input::PointerButton { pressed: false, .. } | Input::PointersCancelled => {
+                state.held = None;
+                false
+            }
+            _ => false,
+        }
+    }
+
     /// The windows the app opened that the root floats, bottom first: each the screen it is
     /// asked for, and the layer showing it where it floats, in the window's points, once the app
     /// painted it.
@@ -483,6 +518,8 @@ impl Embedded {
             anchored: HashMap::default(),
             asked: Vec::new(),
             floating: Vec::new(),
+            pressed: None,
+            held: None,
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -1079,6 +1116,23 @@ impl Embedded {
         else {
             return;
         };
+        // A press on a window it opened that the root floats raises it, and a move or resize
+        // it asks for next starts from it.
+        if matches!(
+            input,
+            Input::PointerButton { pressed: true, .. }
+                | Input::Touch {
+                    phase: TouchPhase::Start,
+                    ..
+                }
+                | Input::Pen {
+                    phase: PenPhase::Down(_),
+                    ..
+                }
+        ) && let Some(pressed) = floating::press(&mut state.floating, screen)
+        {
+            state.pressed = Some(pressed);
+        }
         // Which of its screens has the keyboard, which lets its editor open the palette.
         if let Input::Focus(focused) = input {
             match focused {
@@ -1254,12 +1308,16 @@ impl State {
     /// Asks the app for the screens the root asks for and the windows it floats, unless it was
     /// asked for those already.
     fn ask_screens(&mut self) {
-        let screens: Vec<ScreenRequest> = self
+        let mut screens: Vec<ScreenRequest> = self
             .asked
             .iter()
             .cloned()
             .chain(self.floating.iter().map(Floating::request))
             .collect();
+        // In the order the app opened them, not as they are stacked: one raised is asked for
+        // as it was.
+        let asked = self.asked.len();
+        screens[asked..].sort_by_key(|screen| screen.screen.0);
         if self.failure.is_some() || self.run.screens == screens {
             return;
         }
@@ -1425,7 +1483,12 @@ impl State {
                 // windows, which it is asked for (or no longer) at once.
                 let requests = std::mem::take(&mut commit.window_requests);
                 let screens = self.run.screens.clone();
-                if crate::floating::hear(&mut self.floating, &screens, requests) {
+                let (changed, held) =
+                    floating::hear(&mut self.floating, &screens, requests, self.pressed);
+                if held.is_some() {
+                    self.held = held;
+                }
+                if changed {
                     self.ask_screens();
                 }
                 // A pick from a frame menu lets its editor open the palette for a few commits.
