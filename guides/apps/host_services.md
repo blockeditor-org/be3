@@ -148,7 +148,7 @@ Notes on particular calls:
   the account's mode for every block, and `set_mute` changes one; the
   workspace's block menu offers them (Notifications: All, Mentions only, Off),
   showing a change until the host answers and going back if it refuses.
-  `BeuiTest::take_announced` records what the editor's edits announced.
+  `BeuiTest::take_announced` records what the editor's log entries announced.
 - `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
   (none on a host that cannot receive them, which is every host but the web build); turning
   them on asks for the person's permission, so call it from their press. The settings list's

@@ -3955,8 +3955,6 @@ where
         }
         // Made while a tentative layer is held: it goes beneath the layer, which stays on top.
         if !self.tentative.is_empty() {
-            let mut unheld = self.unheld().clone();
-            unheld.apply(&operation);
             match self.doubtful_now {
                 true => {
                     self.first_doubtful.get_or_insert(self.edit_number());

@@ -151,9 +151,7 @@ interface host {
     /// restarting it, or a new build starting it over. `restarts` is the run
     /// of the order it is in (`status.restarts`). The server takes it only
     /// from the lease holder while `base.commit` is the head; this device's
-    /// journal takes it either way. The announcements kept beside the entries
-    /// `base` holds go with its commit when this device sealed it, sent once
-    /// the server holds it. `parts` are as `publish`'s `journal-parts`.
+    /// journal takes it either way. `parts` are as `publish`'s `journal-parts`.
     rebase-journal: async func(base: journal-base, restarts: u64, parts: list<part-ref>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
