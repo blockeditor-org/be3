@@ -752,47 +752,82 @@ fn PageView(page: Page) -> NodeId {
     }
 }
 
+/// The demo's top bar. Its theme choice is a select where there is room and, on a narrow
+/// window, a submenu under More beside the bar's other actions, which an action bar shows as
+/// icons there rather than labels, so the bar fits a phone-wide window.
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
     let program_layer = use_preference_layer(PreferenceSource::Program);
-    let selected_theme = create_memo(move || Some(program_layer.get().theme));
+    let theme = create_memo(move || program_layer.get().theme);
+    let choose = move |theme: Option<ThemeKind>| {
+        program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
+    };
+    let selected_theme = create_memo(move || Some(theme.get()));
     let narrow = narrower_than(NARROW_WIDTH);
+    let inspector = Action::new("demo.inspector", "Open the inspector", beui::open_inspector)
+        .glyph(ICON_BUG)
+        .enabled(beui::can_open_inspector())
+        .pin(Pin::Icon)
+        .detached();
+    let reset = Action::new("demo.reset", "Reset layout", move || pages.reset())
+        .glyph(ICON_ROTATE_CCW)
+        .pin(Pin::Label)
+        .detached();
+    let theme_choice = move |id: String, label: &'static str, kind: Option<ThemeKind>| {
+        Action::new(id, label, move || choose(kind))
+            .radio(create_memo(move || theme.get() == kind))
+            .detached()
+    };
+    let themes: Vec<Action> = std::iter::once(theme_choice("demo.theme.system".to_owned(), "System", None))
+        .chain(ThemeKind::ALL.iter().map(|kind| {
+            theme_choice(format!("demo.theme.{}", kind.name().to_lowercase()), kind.name(), Some(*kind))
+        }))
+        .collect();
+    let menu = move || {
+        let mut menu = vec![MenuNode::action(&inspector), MenuNode::action(&reset)];
+        if narrow.get() {
+            menu.push(MenuNode::Separator);
+            menu.push(MenuNode::submenu(
+                "demo.theme",
+                "Theme",
+                ICON_CONTRAST,
+                themes.iter().map(MenuNode::action).collect(),
+            ));
+        }
+        menu
+    };
+    let labels = move || match narrow.get() {
+        true => ActionLabels::Icons,
+        false => ActionLabels::Shown,
+    };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
+        <List
+            @test_id={"demo.toolbar"}
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=TOOLBAR_SPACING
+        >
             <Text style=TextStyle::TITLE>"beui"</Text>
             <Show value={move || !narrow.get()}>
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer />
-            <Select
-                label="Theme"
-                options={view! {
-                    <ChoiceOption value=None label="System" />
-                    <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
-                        <ChoiceOption value={Some(kind)} label={kind.name()} />
-                    </ForEach>
-                }}
-                selected={Binding::new(selected_theme, move |theme: Option<Option<ThemeKind>>| {
-                    let theme = theme.flatten();
-                    program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
-                })}
-            />
-            <Button
-                icon_only=true
-                @test_id={"demo.inspector"}
-                glyph=ICON_BUG
-                label="Open the inspector"
-                variant=ButtonVariant::Ghost
-                disabled={!beui::can_open_inspector()}
-                on_click={beui::open_inspector}
-            />
-            <Button
-                label="Reset layout"
-                glyph=ICON_ROTATE_CCW
-                icon_only={narrow}
-                variant=ButtonVariant::Secondary
-                on_click={move || pages.reset()}
-            />
+            <Show value={move || !narrow.get()}>
+                <Select
+                    @test_id={"demo.theme"}
+                    label="Theme"
+                    options={view! {
+                        <ChoiceOption value=None label="System" />
+                        <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                            <ChoiceOption value={Some(kind)} label={kind.name()} />
+                        </ForEach>
+                    }}
+                    selected={Binding::new(selected_theme, move |theme: Option<Option<ThemeKind>>| {
+                        choose(theme.flatten());
+                    })}
+                />
+            </Show>
+            <ActionBar menu labels test_prefix={"demo.bar".to_owned()} />
         </List>
     }
 }

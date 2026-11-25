@@ -23,7 +23,7 @@ const LABEL_MARGIN: Space = Space::Xs2;
 #[component]
 pub fn ActionBar(
     menu: Prop<Vec<MenuNode>>,
-    #[prop(default = ActionLabels::Shown)] labels: ActionLabels,
+    #[prop(default = ActionLabels::Shown)] labels: Prop<ActionLabels>,
     #[prop(default = false)] title: Prop<bool>,
     #[prop(default = Direction::Horizontal)] direction: Direction,
     #[prop(default = ButtonSize::Toolbar)] size: ButtonSize,
@@ -39,7 +39,7 @@ pub fn ActionBar(
 #[component]
 fn ActionBarFace(
     handle: ActionBarHandle,
-    labels: ActionLabels,
+    labels: Prop<ActionLabels>,
     direction: Direction,
     size: ButtonSize,
     test_prefix: String,
@@ -54,7 +54,18 @@ fn ActionBarFace(
             actions.with(|actions| actions.iter().map(Action::key).collect::<Vec<_>>())
         })
     };
-    let (icon_keys, label_keys) = (keys(icons), keys(labelled));
+    let icon_keys = keys(icons);
+    // Keyed by whether they show their labels too, so a bar whose labels change (a window
+    // that narrows) builds its labelled pins again as icons, and back.
+    let label_keys = create_memo(move || {
+        let shown = labels.get() == ActionLabels::Shown;
+        labelled.with(|actions| {
+            actions
+                .iter()
+                .map(|action| (action.key(), shown))
+                .collect::<Vec<_>>()
+        })
+    });
     let prefix = test_prefix.clone();
     let pin = move |actions: Memo<Vec<Action>>, key: u64, shown: bool| {
         let action = actions
@@ -76,7 +87,7 @@ fn ActionBarFace(
             <ForEach value={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
             <Show
                 value={move || {
-                    labels == ActionLabels::Shown
+                    labels.get() == ActionLabels::Shown
                         && icons.with(|icons| !icons.is_empty())
                         && labelled.with(|labelled| !labelled.is_empty())
                 }}
@@ -85,8 +96,8 @@ fn ActionBarFace(
                     <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
                 </Frame>
             </Show>
-            <ForEach value={label_keys}>|key: u64| {
-                labelled_pin(labelled, key, labels == ActionLabels::Shown)
+            <ForEach value={label_keys}>|(key, shown): (u64, bool)| {
+                labelled_pin(labelled, key, shown)
             }</ForEach>
             <Show value={move || overflow.with(|items| !items.is_empty())}>
                 <MenuButton
