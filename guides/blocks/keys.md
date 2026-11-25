@@ -1045,8 +1045,8 @@ who lost access. Cited from code by these names.
   writes, and that device keeps taking records an old key signs after a
   retirement it never sees. It can also number a live session's operations
   differently for different participants
-  (decisions/live_edits_are_ordered_by_the_server.md). The fix, not planned
-  yet, is fork detection: signed log heads carried in sessions, relays and
+  (decisions/live_edits_are_ordered_by_the_server.md). The fix
+  (plans/authorship.md) is fork detection: signed log heads carried in sessions, relays and
   commits, compared when two devices meet. A block's signed log already has
   them per device: each device keeps the log's head it verified and takes a
   later one only with a proof that it extends it (`ClientError::LogForked`;

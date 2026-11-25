@@ -1,7 +1,7 @@
 # Signed logs: chat messages outside whole states
 
-Depends on: none. Once it lands, it replaces most of plans/authorship.md and
-the "Copying parts" and "Notifications that never go" items of plans/chat.md.
+Depends on: none. Built; it replaced most of plans/authorship.md and the rest
+of plans/chat.md (decisions/a_blocks_records_that_only_grow_are_a_signed_log.md).
 
 ## The problem
 
@@ -328,12 +328,17 @@ within one page: step 4's fold takes the first occurrence of an id.
    entries (`Along::announcement`), held from when the server takes the entry.
    A journal entry keeps `received`, which tells what the server numbered from
    what a device numbered offline.
-7. **Docs.** A decision ("A block's records that only grow are a signed log,
+7. **Docs.** Built. A decision ("A block's records that only grow are a signed log,
    not content"), guides/chat.md, guides/blocks/{server,client,content_types}.md,
    guides/type_modules.md and guides/blocks/keys.md updated; plans/authorship.md
    reduced to what is left (first use of a key, forks), plans/chat.md's
    "Copying parts" and "Notifications that never go" removed. Done: no guide
    mentions segments, ranks or `arrival` slots.
+   Where it differs: plans/chat.md had nothing left once chat moved onto its
+   log ("Not sent" across a restart is `LogPage::refused`), so it went, with
+   plans/deferred/chat.md and plans/deferred/chat_segment_rewrite.md, which were
+   about segments; plans/deferred/chat_moderation.md now names what redaction
+   leaves (copies taken before) and the Post level.
 
 Later, not part of this plan: the Post access level on `append`
 (plans/deferred/chat_moderation.md), comments on any block, the tracker's

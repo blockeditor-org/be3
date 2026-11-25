@@ -14,6 +14,11 @@ carries: `apply`, `apply_beneath`, `absorb_operation`, `child_operations`), `Mer
 over parts, for a type that loads only its first part) and `Undo` (client-local
 steps).
 
+Content is a whole state that anyone with Edit may rewrite. Records that only
+grow, each its author's (chat's messages, comments), go in the block's signed
+log instead (`type-info.log`, `LogFold`; guides/type_modules.md, "Signed
+logs"; decisions/a_blocks_records_that_only_grow_are_a_signed_log.md).
+
 Undo emits inverse operations rather than rewinding state: `Undo::step` is
 taken from the state before an operation, and `revert`/`reapply` produce
 operations against the state as it is *now*, so an undo leaves alone what

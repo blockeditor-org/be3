@@ -261,13 +261,13 @@ might become a view over location metadata, as above.
 ### Chat
 
 A group chat is a block (guides/chat.md): it gets members, permissions and
-history from the core, and links to the documents it talks about. Its header
-holds the recent messages, and every edit, deletion and reaction keyed by
-message id; older messages close into segments, so a long chat loads only what
-is on screen; messages written offline merge with each side's run kept whole.
-The editor sends, replies, edits, reacts and deletes, shows sending state and
-unread counts, and signs messages; sending notifies members who are away.
-Still to come (plans/chat.md): what waits for its move to a signed log.
+history from the core, and links to the documents it talks about. Its
+messages, edits, reactions and deletions are entries of its signed log, each
+its author's, ordered and stamped by the server, so a long chat reads only the
+pages on screen and nobody but a message's author changes it; its content
+keeps drafts and the blocks messages carry. The editor sends, replies, edits,
+reacts and deletes, shows sending state and unread counts; sending notifies
+members who are away.
 
 ### Presentation
 
