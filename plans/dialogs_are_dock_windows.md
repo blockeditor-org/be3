@@ -24,8 +24,6 @@ stays an anchored view, so the app protocol does not change
    and `blocks`, so `DockDialog` stays an overlay there (`own_window=false`). Place it beside its
    anchor through `WindowPlacement::Over`, and block its owner across windows, before a dialog
    may be one.
-2. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
-   for windows; guides/beui/overlays.md and guides/beui/docking.md describe one way.
 
 ## The test
 
