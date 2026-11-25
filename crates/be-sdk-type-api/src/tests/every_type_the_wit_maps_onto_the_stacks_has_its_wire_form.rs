@@ -174,7 +174,7 @@ fn every_type_the_wit_maps_onto_the_stacks_has_its_wire_form() {
         may_edit: true,
         claimed: Some(23),
     };
-    agrees::<_, wit::Participant>(participant.clone(), true);
+    agrees::<_, wit::Participant>(participant, true);
     agrees::<_, wit::SessionState>(
         SessionState {
             index: 24,
