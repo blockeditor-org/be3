@@ -1,8 +1,10 @@
 use super::*;
 
-/// An offer of ownership ends with the offeree's access: once the owner takes this account's
-/// grant away, the block leaves `Query::OwnerOffers` as the server tells the roots changed, with
-/// no read asked for, and it comes back with no offer when the grant does.
+/// An offer of ownership ends with the offeree's access: the owner's grant taking this account
+/// below View ends the offer in the block's log (`Checked::offered`), and the server tells the
+/// roots changed to whoever could view the block before (`regranted`, `After::Revoked`), whose
+/// host reads the offers again: the block leaves `Query::OwnerOffers` with no read asked for,
+/// and comes back with no offer when the grant does, as the log's offer stays ended.
 #[test]
 fn a_block_offered_to_this_account_leaves_the_offers_once_its_access_ends() {
     let harness = Harness::start();
