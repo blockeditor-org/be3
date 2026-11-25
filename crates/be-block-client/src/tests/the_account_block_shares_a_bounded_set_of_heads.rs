@@ -19,7 +19,11 @@ fn the_account_block_shares_a_bounded_set_of_heads() {
     });
     let chosen = sharing_first(candidates, crate::peer::forks::SHARED_HEADS);
     assert_eq!(chosen.len(), 64, "a pass shares at most 64");
-    assert_eq!(chosen[0].block, block(500), "a block holding no head goes first");
+    assert_eq!(
+        chosen[0].block,
+        block(500),
+        "a block holding no head goes first"
+    );
     assert_eq!(
         chosen[1],
         Sharing {
@@ -31,8 +35,16 @@ fn the_account_block_shares_a_bounded_set_of_heads() {
     assert!(!chosen.iter().any(|sharing| sharing.block == block(0)));
 
     let held: Vec<(u32, i64)> = (0..6).map(|key| (key, 10 + key as i64)).collect();
-    assert_eq!(evicted(&held, &[], 6), Vec::<u32>::new(), "within the bound nothing goes");
-    assert_eq!(evicted(&held, &[9], 6), vec![0], "the oldest goes for a new one");
+    assert_eq!(
+        evicted(&held, &[], 6),
+        Vec::<u32>::new(),
+        "within the bound nothing goes"
+    );
+    assert_eq!(
+        evicted(&held, &[9], 6),
+        vec![0],
+        "the oldest goes for a new one"
+    );
     assert_eq!(
         evicted(&held, &[0, 8, 9], 4),
         vec![1, 2, 3, 4],

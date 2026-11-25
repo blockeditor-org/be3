@@ -34,8 +34,7 @@ async fn a_shared_head_no_verified_key_signed_is_replaced_and_keeps_no_verdict()
     let signed_with_old = |organization: Uuid| SharedHead {
         size: 1,
         root,
-        signature: old
-            .sign_log_head(organization.into_bytes(), chat.into_bytes(), 1, &root),
+        signature: old.sign_log_head(organization.into_bytes(), chat.into_bytes(), 1, &root),
         updated: 0,
     };
     let elsewhere = Uuid::new_v4();
@@ -52,7 +51,11 @@ async fn a_shared_head_no_verified_key_signed_is_replaced_and_keeps_no_verdict()
             if *block == chat && *forged == chat),
         "only this organization's head is compared, and it is refused: {compared:?}"
     );
-    assert_eq!(laptop.log_fork(chat), None, "a head no key vouched for keeps no verdict");
+    assert_eq!(
+        laptop.log_fork(chat),
+        None,
+        "a head no key vouched for keeps no verdict"
+    );
     let held = laptop.account_log_head(organization, chat).await.unwrap();
     assert_eq!(
         (held.size, held.root, held.signature),

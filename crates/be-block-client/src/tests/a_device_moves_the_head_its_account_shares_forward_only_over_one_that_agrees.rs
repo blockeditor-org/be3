@@ -34,7 +34,11 @@ async fn a_device_moves_the_head_its_account_shares_forward_only_over_one_that_a
         "{compared:?}"
     );
     assert_eq!(
-        phone.account_log_head(organization, chat).await.unwrap().size,
+        phone
+            .account_log_head(organization, chat)
+            .await
+            .unwrap()
+            .size,
         2,
         "a longer head of the same log moves the shared one forward"
     );

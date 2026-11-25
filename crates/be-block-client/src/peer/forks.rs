@@ -181,15 +181,12 @@ impl<S: ObjectStore> Peer<S> {
                 size: kept.size,
                 root: Hash::from_bytes(kept.root),
             },
-            signature: self
-                .keys
-                .identity()
-                .sign_log_head(
-                    self.organization.into_bytes(),
-                    block.into_bytes(),
-                    kept.size,
-                    &kept.root,
-                ),
+            signature: self.keys.identity().sign_log_head(
+                self.organization.into_bytes(),
+                block.into_bytes(),
+                kept.size,
+                &kept.root,
+            ),
         })
     }
 
@@ -428,7 +425,10 @@ impl<S: ObjectStore> Peer<S> {
             };
             // A head that does not decode is no one's: replaced like one no key signed.
             let Some(theirs) = SharedHead::decode(bytes) else {
-                candidates.push(Sharing { block, held: Some(0) });
+                candidates.push(Sharing {
+                    block,
+                    held: Some(0),
+                });
                 continue;
             };
             let replaceable = if (kept.size, kept.root) == (theirs.size, theirs.root) {
@@ -495,7 +495,10 @@ impl<S: ObjectStore> Peer<S> {
                     let held: Vec<((Uuid, Uuid), i64)> = root
                         .shared_log_heads()
                         .map(|(key, bytes)| {
-                            (key, SharedHead::decode(bytes).map_or(0, |head| head.updated))
+                            (
+                                key,
+                                SharedHead::decode(bytes).map_or(0, |head| head.updated),
+                            )
                         })
                         .collect();
                     let mut edits: Vec<_> = evicted(&held, &adding, KEPT_HEADS)
@@ -526,9 +529,10 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
     ) -> Option<SharedHead> {
         let connection = self.connection();
-        let records = crate::AccountRecords::open(&connection, self.account(), self.keys.identity())
-            .await
-            .unwrap()?;
+        let records =
+            crate::AccountRecords::open(&connection, self.account(), self.keys.identity())
+                .await
+                .unwrap()?;
         let content = records.read().await.unwrap();
         content
             .root()
@@ -545,10 +549,11 @@ impl<S: ObjectStore> Peer<S> {
         head: SharedHead,
     ) {
         let connection = self.connection();
-        let records = crate::AccountRecords::open(&connection, self.account(), self.keys.identity())
-            .await
-            .unwrap()
-            .expect("an account block");
+        let records =
+            crate::AccountRecords::open(&connection, self.account(), self.keys.identity())
+                .await
+                .unwrap()
+                .expect("an account block");
         records
             .update(move |_| {
                 crate::peer::account_block::answered(vec![be_block::AccountBlock::set_log_head(

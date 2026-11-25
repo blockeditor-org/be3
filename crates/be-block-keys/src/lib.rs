@@ -440,7 +440,14 @@ impl SigningPublic {
 }
 
 fn log_head(organization: [u8; 16], block: [u8; 16], size: u64, root: &[u8; 32]) -> Vec<u8> {
-    [LOG_HEAD_INFO, &organization, &block, &size.to_be_bytes(), root].concat()
+    [
+        LOG_HEAD_INFO,
+        &organization,
+        &block,
+        &size.to_be_bytes(),
+        root,
+    ]
+    .concat()
 }
 
 fn authored(block: [u8; 16], bytes: &[u8]) -> Vec<u8> {
