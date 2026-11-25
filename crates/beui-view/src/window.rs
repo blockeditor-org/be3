@@ -4,14 +4,26 @@ use crate::types::window::{
     WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport, WindowRequest, WindowRole,
     WindowSpec,
 };
-use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
+use crate::types::{Color, Dismiss, Extent, LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
 
 use crate::components::frame::Frame;
 use crate::components::overlay::Overlay;
+use crate::measure::measure;
 use crate::reactive::{
-    Callback, Get, IntoProp, Memo, Prop, RenderFn, Set, create_memo, create_signal,
-    provide_context, use_context,
+    Callback, Get, Memo, NodeRef, Prop, RenderFn, Set, create_memo, create_signal,
+    provide_context, use_context, use_viewport_size,
 };
+
+/// What a window points at, in its window's points, while it is not a window of its own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WindowAnchor {
+    /// Beside this rect (`Placement::CARD`), pointing a beak at it from the `pointer` frame,
+    /// and following its owner as the owner moves.
+    Beside(Rect),
+    /// At the top centre of its owner (of its window, with no owner), pointing at nothing:
+    /// where a window goes whose anchor does not show.
+    Top,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct WindowHandle {
@@ -104,15 +116,42 @@ pub fn Window(
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] fullscreen: Prop<bool>,
-    on_report: Callback<WindowReport>,
+    /// The node the window belongs to (a frame, a tab's panel): it hangs from it, follows it
+    /// as it moves and, while it `blocks`, keeps presses and focus off it.
+    owner: Option<NodeRef>,
+    /// What it points at while it is not a window of its own; `None` opens it at `at`.
+    #[prop(default = None)]
+    anchor: Prop<Option<WindowAnchor>>,
+    /// How far the beak reaches from the frame bound to `pointer` towards a `Beside` anchor.
+    #[prop(default = 0.0)]
+    beak: Prop<f32>,
+    pointer: Option<NodeRef>,
+    /// Blocks its owner while open: no presses reach the owner, `scrim` covers it, focus can't
+    /// enter it, and a press there asks the window to close (`on_dismiss`).
+    #[prop(default = false)]
+    blocks: Prop<bool>,
+    #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
+    #[prop(default = 0.0)] scrim_radius: Prop<f32>,
+    /// Whether a host that opens windows opens this one as a window of its own; when false it
+    /// is always an overlay in its window, sized to its content (`size` unused).
+    #[prop(default = true)]
+    own_window: Prop<bool>,
+    /// Which of the document's windows shows it while it is an overlay (see `Overlay`).
+    #[prop(default = None)]
+    shown_in: Prop<Option<WindowId>>,
+    /// Hears Escape, back and a press it shuts out, as an overlay's `on_dismiss` does.
+    on_dismiss: Option<Callback<Dismiss>>,
+    #[prop(default = Callback::default())] on_report: Callback<WindowReport>,
     #[prop(children)] content: RenderFn<WindowHandle, NodeId>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
     let opens = opens_windows();
     let placed = crate::core::placed_windows();
     let asked = placement.clone();
+    let separate = own_window.clone();
     let hosted = create_memo(move || {
-        opens.get() || (placed.get() && matches!(asked.get(), WindowPlacement::Host(_)))
+        separate.get()
+            && (opens.get() || (placed.get() && matches!(asked.get(), WindowPlacement::Host(_))))
     });
     let outer = use_window();
     let real = create_memo(move || match hosted.get() {
@@ -136,19 +175,69 @@ pub fn Window(
         }
         on_report.call(report);
     });
+    let sized = own_window.clone();
     let fitting = fit.clone();
-    let width = create_memo(move || match fitting.get() {
-        Some(_) => crate::types::Extent::fraction(1.0),
-        None => crate::types::Extent::px(shown.get().x),
+    let width = create_memo(move || match (sized.get(), fitting.get()) {
+        (false, _) => Extent::INTRINSIC,
+        (true, Some(_)) => Extent::fraction(1.0),
+        (true, None) => Extent::px(shown.get().x),
     });
+    let sized = own_window.clone();
     let fitting = fit.clone();
-    let height = create_memo(move || match fitting.get() {
-        Some(_) => crate::types::Extent::fraction(1.0),
-        None => crate::types::Extent::px(shown.get().y),
+    let height = create_memo(move || match (sized.get(), fitting.get()) {
+        (false, _) => Extent::INTRINSIC,
+        (true, Some(_)) => Extent::fraction(1.0),
+        (true, None) => Extent::px(shown.get().y),
     });
-    let anchor = create_memo(move || OverlayAnchor::Point(at.get())).into_prop();
+    let viewport = use_viewport_size();
+    let owned = create_memo(move || {
+        let node = owner?.try_get()?;
+        Some(measure(node).get()?.rect)
+    });
+    // Where the overlay goes, how, and whether its beak may point: hosted windows are placed by
+    // their host, at `placement`, so this is only the overlay's.
+    let placed = create_memo(move || {
+        let point = |at: Pos2| Rect::from_min_size(at, Vec2::ZERO);
+        let pinned = |rect: Rect| match owner {
+            Some(node) => OverlayAnchor::Pinned { node, rect },
+            None => OverlayAnchor::Rect(rect),
+        };
+        match anchor.get() {
+            Some(WindowAnchor::Beside(rect)) => (pinned(rect), Placement::CARD, true),
+            Some(WindowAnchor::Top) => {
+                let frame = owned
+                    .get()
+                    .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, viewport.get()));
+                let top = Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y));
+                (pinned(top), Placement::CARD, false)
+            }
+            None => (pinned(point(at.get())), Placement::At, false),
+        }
+    });
+    let anchored = create_memo(move || placed.get().0);
+    let placement_of = create_memo(move || placed.get().1);
+    let reach = create_memo(move || match placed.get().2 {
+        true => beak.get(),
+        false => 0.0,
+    });
+    let blocking = blocks.clone();
+    let policy = create_memo(move || match blocking.get() {
+        true => LayerPolicy::BlocksParent,
+        false => LayerPolicy::Pass,
+    });
+    let blocking = blocks.clone();
+    let dims = create_memo(move || match blocking.get() {
+        true => scrim.get(),
+        false => Color::TRANSPARENT,
+    });
+    let traps = create_memo(move || blocks.get());
+    let dismiss = on_dismiss.unwrap_or_default();
     let leveled = level.clone();
+    let separate = own_window.clone();
     let spec = create_memo(move || {
+        if !separate.get() {
+            return None;
+        }
         Some(WindowSpec {
             id,
             size: size.get(),
@@ -169,13 +258,19 @@ pub fn Window(
     });
     view! {
         <Overlay
-            anchor={anchor}
-            placement=Placement::At
-            policy=LayerPolicy::Pass
+            anchor={anchored}
+            placement={placement_of}
+            policy={policy}
+            scrim={dims}
+            scrim_radius={scrim_radius}
+            pointer={pointer}
+            beak={reach}
             level={level}
+            shown_in={shown_in}
             window={spec}
-            traps_focus=false
+            traps_focus={traps}
             open={open}
+            on_dismiss={dismiss}
         >
             <Frame width=width height=height>{provided(handle, content)}</Frame>
         </Overlay>
