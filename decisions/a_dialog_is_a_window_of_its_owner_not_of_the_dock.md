@@ -14,8 +14,8 @@ Dialogs are windows, and what makes one a dialog is a property of beui's own `Wi
   windows) a dialog, a dock's or a `Dialog`, is a window of its own unless it is a sheet: it
   opens where its anchor places it, with no beak (what it points at is in another window), a
   dock dialog's bar moves it through the host, it blocks its owner with a cover in the owner's
-  window and keeps the focus from it, one that blocks its whole document stays above the
-  document's other windows, and it closes while the document is locked.
+  window and keeps the focus from it, one about the whole session (a `level` above Normal)
+  stays above the programs' windows, and it closes while the document is locked.
 - **A dialog window is not a `DockState` surface.** It is not saved with the layout and its body
   never becomes a tab: it cannot be docked into a pane. It moves (and later snaps) as a window
   does, and keeps where it was moved until it closes.

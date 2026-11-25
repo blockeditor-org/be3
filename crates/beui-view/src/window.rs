@@ -329,9 +329,9 @@ pub fn Window(
             ),
             WindowAnchor::Centre => (frame, Placement::CenterOn),
         };
-        // Kept inside the parent's viewport only beside what is in it: a target outside it (a
-        // host's tab, handed to an app's dialog) leaves the window free to hang from it there.
-        let area = match area.contains_rect(target) || target.size() == Vec2::ZERO {
+        // Kept inside the parent's viewport unless what it hangs from is wholly outside it (a
+        // host's tab, handed to an app's dialog): then it is free to hang from it there.
+        let area = match area.intersects(target) || target.size() == Vec2::ZERO {
             true => area,
             false => Rect::from_min_max(Pos2::new(-FAR, -FAR), Pos2::new(FAR, FAR)),
         };
@@ -383,10 +383,6 @@ pub fn Window(
     let cover_shown_in = create_memo(move || Some(parent.get()));
     let dismiss = on_dismiss.unwrap_or_default();
     let leveled = level;
-    // One that blocks its whole document (no owner) stays above the document's other windows,
-    // as its overlay would over everything in its window.
-    let blocking = blocks;
-    let modal = create_memo(move || blocking.get() && owner.get().is_none());
     let separate = own_window;
     let spec = create_memo(move || {
         if !separate.get() {
@@ -401,7 +397,6 @@ pub fn Window(
             role: role.get(),
             level: match (fullscreen.get(), leveled.get()) {
                 (true, _) => WindowLevel::Fullscreen,
-                (false, LayerLevel::Normal) if modal.get() => WindowLevel::Above,
                 (false, LayerLevel::Normal) => WindowLevel::Normal,
                 (false, LayerLevel::Raised | LayerLevel::Top | LayerLevel::Lock) => {
                     WindowLevel::Above

@@ -105,6 +105,10 @@ impl Document {
     /// windows are hosted: that window, or the main one when this document holds no window of
     /// that id, as when it is the window of another document this one is drawn in (an app's
     /// editor in the region its platform opened for it).
+    ///
+    /// Only such a foreign id maps to main: every window this document opens is held (its node
+    /// noted as it opens, and found in `laying` while it is out of the arena being laid out), so
+    /// one of its own is never taken for another.
     pub(crate) fn shown_window(&self, window: WindowId) -> Option<WindowId> {
         let held = window.is_main()
             || self.windows.laying.iter().any(|(laying, _)| *laying == window)

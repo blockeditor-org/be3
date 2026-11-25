@@ -10,8 +10,9 @@ fn assert_points_at(host: &mut HostTest, tab: (f32, f32, f32, f32), from: &str) 
         "opened from {from}, the settings open just under the tab: {card:?} under {tab:?}"
     );
     assert!(
-        card.0 < middle && card.0 + card.2 > middle,
-        "around its middle: {card:?} for {tab:?}"
+        (card.0 + card.2 / 2.0 - middle).abs() < 2.0,
+        "centred on its middle, though the tab is outside the editor's region: {card:?} for \
+         {tab:?}"
     );
 }
 

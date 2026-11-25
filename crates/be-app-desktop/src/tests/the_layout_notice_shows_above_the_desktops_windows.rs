@@ -55,6 +55,12 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
         over.is_positive(),
         "the notice's button lies over the window: {reset:?} {window:?}"
     );
+    let lifted = fixture.test.desk_lifted(0);
+    assert!(
+        lifted.iter().all(|rect| !rect.intersects(window)),
+        "nothing of the display is lifted over the program's window, which still shows: \
+         {lifted:?} over {window:?}"
+    );
     fixture
         .test
         .desk_snapshot("the_layout_notice_above_a_window", 0);

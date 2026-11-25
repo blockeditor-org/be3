@@ -200,6 +200,7 @@ pub(crate) fn UnreadableBarsDialog(editor: Editor) -> NodeId {
             title="The bars of the other displays could not be read"
             width=Size::Dialog
             id="desktop.display-bars"
+            level=be_sdk_beui::beui::LayerLevel::Raised
             actions={vec![
                 DialogAction::secondary("Copy report", move || {
                     if let Some(report) = report.get_untracked() {

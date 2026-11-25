@@ -10,7 +10,7 @@ use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
 use beui_view::types::text::Phrase;
-use beui_view::types::{Dismiss, Rect, Vec2};
+use beui_view::types::{Dismiss, LayerLevel, Rect, Vec2};
 use beui_view::window::{Window, WindowAnchor, WindowHandle, opens_windows};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -477,6 +477,11 @@ pub fn Dialog(
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = 0.0)] beak: f32,
+    /// Its layer's level, and where it is a window of its own, the window's: above Normal, it
+    /// stays above the document's other windows (`WindowLevel::Above`), for a dialog about the
+    /// whole session (the desktop's notices) that must not go under the programs' windows.
+    #[prop(default = LayerLevel::Normal)]
+    level: Prop<LayerLevel>,
     /// Whether a press on the scrim dismisses it. One showing what cannot be had again (a
     /// secret shown once) stays, closing only from its own actions, Escape or back.
     #[prop(default = true)]
@@ -629,6 +634,7 @@ pub fn Dialog(
                 anchor={anchor}
                 blocks=true
                 scrim={dims}
+                level={level}
                 pointer={pointer}
                 beak={beak}
                 open={as_window}
