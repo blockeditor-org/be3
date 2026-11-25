@@ -2239,6 +2239,11 @@ Each step lands on its own.
              layer, which the host cannot name.
            - Left: the lock layer per display a real root shows (4g7, above): be-root shows one
              over its one window.
+           - Left: a GPU device lost under the root ends be-host (`RootShell::renderer_replaced`
+             stops the root, whose children drew on the lost device), so under `--root` as a
+             login session it ends the whole session, where be-host's own UI moves to the new
+             device (`be_host_runtime::replace_gpu`). Restarting the root and its instances on
+             the new device would keep the session.
            - Left: unlocking with a password has no host test (PAM needs the machine's
              password); be-root's `a_root_shows_its_hosts_lock_screen` covers handing it over.
            - Left: what 4g7a2 left to be-host's menu (About, Close be-host, its other debug

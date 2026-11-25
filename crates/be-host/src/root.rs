@@ -576,8 +576,8 @@ impl beui::native::Program for RootShell {
             Host::after(context, &mut self.document);
         }
         crate::frame::end(context);
-        // After the document and the host's frame, whose own requests (it hears no input, so the default cursor) the
-        // root's replace.
+        // After the document and the host's frame, whose own requests (it hears no input, so the
+        // default cursor) the root's replace.
         let Requests {
             cursor,
             pointer_locked,

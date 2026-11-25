@@ -59,12 +59,8 @@ impl Platform {
             lock.submit(password);
         }
         let locked = lock.locked();
-        let offered = lock_powers(core);
-        for action in powers {
-            let action = sdk_power(action);
-            if locked && offered.contains(&action) {
-                core.request_power(action, crate::login_session::Trigger::Menu);
-            }
+        for action in powers_to_do(locked, &lock_powers(core), powers) {
+            core.request_power(action, crate::login_session::Trigger::Menu);
         }
         let Some(lock) = &core.screen_lock else {
             return;
@@ -109,6 +105,21 @@ fn lock_powers(core: &HostCore) -> Vec<be_sdk_api::PowerAction> {
     .collect()
 }
 
+/// What of the power actions the root chose on its lock screen (`asked`) the host does: only
+/// while the session is locked, and only those its lock screen offers.
+#[cfg(target_os = "linux")]
+fn powers_to_do(
+    locked: bool,
+    offered: &[be_sdk_api::PowerAction],
+    asked: Vec<PowerAction>,
+) -> Vec<be_sdk_api::PowerAction> {
+    asked
+        .into_iter()
+        .map(sdk_power)
+        .filter(|action| locked && offered.contains(action))
+        .collect()
+}
+
 #[cfg(target_os = "linux")]
 fn root_power(action: be_sdk_api::PowerAction) -> Option<PowerAction> {
     match action {
@@ -151,3 +162,6 @@ fn serve_displays(core: &mut HostCore, root: &mut Root, on_roots: impl Fn(Durati
 fn nanos(at: Duration) -> u64 {
     u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests;
