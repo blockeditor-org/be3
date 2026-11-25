@@ -89,6 +89,7 @@ Landed on 2026-11-24:
 - `pure-guests-1`, `pure-guests-2`: pure guests' few WASI calls are answered natively and on the web, held to RFC 7539's vectors; the pure guests build in the guests' wasip1 plan (opt-level 3, pending the user)
 - `pure-guests-3`: a module from bytes' spawner chooses its seed; the plan is built and deleted
 - `one-way-host-1`, `-2`, `-5`, `-6`: one panic container the hook hears for every guest thread; one RootSettings in be-block; the push device state publishes itself; one FailureBudget for restarted guests and programs
+- `host-adapter-4g7e3b`: the root shows program windows where its apps place them, from pictures the desktop host hands it; drive's settle waits for a shown program window to draw its configure
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
