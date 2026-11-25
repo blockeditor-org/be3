@@ -39,16 +39,33 @@ directly. The HTML core is unaffected.
   intersect geometry and cost no texture. `push_clip_layer`, which renders into an intermediate
   texture, only where a clip must apply to a group as a whole.
 - **Opacity groups** (`Group::Mask`) become `push_opacity_layer`; each is an intermediate texture,
-  as `group.rs`'s offscreen layer is now.
+  as `group.rs`'s offscreen layer is now. A group that holds a `draw_gpu` drawing cannot be one
+  Vello layer, since the scene is split at the drawing: it keeps an offscreen texture of its own,
+  which Vello and the drawing paint into and which is then composed at the group's opacity.
 - **Blur** (`Group::Filter`) becomes a filter layer with Vello's Gaussian blur. A filter layer is
   padded by the blur's reach, so it includes shapes just outside the damage.
-- **Edge fades and punches** need a Vello form each: a fade as a mask layer of a linear gradient,
-  a punch as a layer with a clearing blend mode. Pick what matches today's paintings.
+- **Edge fades** are an isolated layer holding what is faded, then, for each faded edge, a layer
+  blended `Compose::DestIn` holding a linear gradient from transparent to opaque across the
+  edge's width. vello_gpu 0.4's mask layers are unimplemented (`Scene::push_layer` panics on a
+  mask).
+- **Punches** are a layer blended `Compose::DestOut` holding the punch's shape, which erases by
+  its coverage as today's punch pipeline does. A scene is composited over the target as a whole
+  (`TargetInit::SrcOver`), so nothing in it can erase what the target already holds: damaged
+  regions are cleared to transparent first (`TargetInit::Clear` with the damaged rects) and the
+  window's background is the scene's first fill. Known limit: a punch painted after a `draw_gpu`
+  drawing does not erase the drawing, since the scene is split there.
 - **Damage.** Each frame's scene holds only the display items that cross the damage, clipped to
-  it, rendered onto the retained target without clearing it (`LoadOp::Load`). Scroll copies stay
-  texture copies. Per-node encodings that beui retains today become Vello recordings
-  (`vello_common/src/record.rs`) replayed into the frame's scene, so an unchanged node is not
-  encoded again.
+  it, rendered onto the retained target, cleared only within the damage. Scroll copies stay
+  texture copies. vello_gpu 0.4 has no public recording API (`vello_common/src/record.rs` is its
+  scheduler's), so the per-display lists beui retains today stay beui's: each holds a display's
+  placed primitives, encoded once, and is written into the frame's scene when the display is
+  damaged.
+- **Colour.** Vello takes and writes sRGB-encoded values and never converts them, so it draws
+  into the non-sRGB view of its target (`format.remove_srgb_suffix()`): every texture beui draws
+  on lists that format in its `view_formats` (surface configurations, offscreen and Space
+  targets, composite roots, filter scenes, and the surfaces be-wasm-gpu-host makes for apps).
+  Blending is then in sRGB on every target, as the paintings rasterize it; on an sRGB target it
+  was linear before.
 - **`draw_gpu` drawings** run in paint order as now: the scene is split at each drawing, Vello
   renders the part before it, the drawing's `paint` runs in its own pass on the same target, then
   Vello renders the rest.
@@ -62,17 +79,20 @@ which this plan leaves for later.
 
 ## Steps
 
-1. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas. Paintings
-   do not change, since they record beui's display list, not pixels. Delete `ui.wgsl`'s shape
-   code, the instance encoding and `group.rs`. Put the suite's `renderer` benchmark, compared on
+1. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas, and
+   beui-paint-format's `raster.rs` is rebuilt on `vello_cpu` in a crate of its own, so the tests
+   that compare the GPU with the rasterizer compare Vello with Vello. Paintings do not change,
+   since they record beui's display list, not pixels. Delete `ui.wgsl`'s shape
+   code, the instance encoding, and `group.rs` but the offscreen layer of a group that holds a
+   drawing. The rasterizer stays out of the beui library: vello_cpu reaches only the tools, the
+   tests and the apps that export pictures. Put the suite's `renderer` benchmark, compared on
    a machine with a GPU against the build before (guides/performance.md), in the pull request.
 2. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
    replace decisions/beui_filter_blur_is_dual_kawase.md with a decision for Vello's blur
    (continuous in σ, logarithmic in cost). Put the `renderer` benchmark's blur rows, compared as
    in the step before, in the pull request.
 3. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
-   `Frame::tidy` learns it, and beui-paint-format's `raster.rs` (behind `rasterize` and review) is
-   rebuilt on `vello_cpu`, in the tools only, never in the beui library. Bump the format's
+   `Frame::tidy` and the rasterizer learn it. Bump the format's
    `VERSION` (guides/testing_a_gui.md, 4) and let verify rewrite the paintings. Delete the
    tessellator in `beui-core/src/path.rs`.
 4. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
