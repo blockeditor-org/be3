@@ -6,7 +6,7 @@ use beui::dock_host::styled::DockHost;
 /// the tab's panel with no beak.
 #[test]
 fn a_dock_dialog_whose_tab_shows_no_label_opens_at_the_top_of_its_panel() {
-    let size = Vec2::new(640.0, 400.0);
+    let size = Vec2::new(900.0, 600.0);
     let document = build(move || {
         view! {
             <Root>

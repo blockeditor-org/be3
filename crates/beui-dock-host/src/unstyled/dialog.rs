@@ -52,11 +52,13 @@ pub struct DockDialogHandle {
 pub struct DockDialogSheetHandle {
     pub tab: TabId,
     pub title: Memo<String>,
-    /// The size its body asks for: a body too tall for a fitted sheet opens full height.
-    pub size: Memo<Vec2>,
     pub open: Memo<bool>,
-    /// Asks the dialog's owner to close it (its `on_close`); a dialog with none stays.
+    /// A swipe away, Escape or back: asks the dialog's owner to close it (its `on_close`); a
+    /// dialog with none stays.
     pub close: Callback<()>,
+    /// A press on the scrim: what a press outside the dialog's window does (closes it with
+    /// `dismiss_on_outside_press`, calls attention to a modal one, else nothing).
+    pub outside: Callback<()>,
     /// Builds what shows the body in the sheet: call it in the sheet's content.
     pub body: BuildFn<NodeId>,
 }
@@ -436,6 +438,14 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         dock.focus_into_dialog();
         dock.call_attention();
     };
+    // A press outside: on the window's owner, or on a sheet's scrim.
+    let outside_press = move || {
+        if dismiss_on_outside_press.get_untracked() {
+            close.call(());
+        } else if blocking.get_untracked() {
+            call_attention();
+        }
+    };
     let overlay = NodeRef::new();
     let hosted = opens_windows();
     let shown_in = create_memo(move || {
@@ -467,10 +477,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             shown_in={shown_in}
             open={windowed}
             on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
-                Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
+                Dismiss::OutsidePress => outside_press(),
                 Dismiss::Escape | Dismiss::Back => close.call(()),
-                Dismiss::OutsidePress | Dismiss::WithParent => {}
+                Dismiss::WithParent => {}
             }}
         >|_: WindowHandle|
             <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
@@ -478,16 +487,20 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             </Interactive>
         </Window>
     };
-    // In the stacked and gathered modes the same body shows in a sheet.
+    // In the stacked and gathered modes the same body shows in a sheet. The window's face and
+    // the sheet each portal the one body and bind `frame` to what holds it. Each builds its
+    // content on open and drops it once gone, and the window closes as the sheet opens, so
+    // the face built last holds the body and `frame`: a sheet still sliding away as the mode
+    // widens again slides away empty, the body already in the window.
     let view = match sheet {
         None => view,
         Some(sheet) => {
             let sheet = sheet.call(DockDialogSheetHandle {
                 tab,
                 title,
-                size,
                 open: create_memo(move || shown.get() && sheeted.get()),
                 close,
+                outside: Callback::new(move |()| outside_press()),
                 body: BuildFn::new(move || {
                     view! {
                         <Interactive

@@ -25,7 +25,7 @@ use beui_components_styled::theme::{
 };
 use beui_components_styled::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::BAND_FILL;
-use beui_components_styled::sheet::{ModalSheet, SHEET_STOPS};
+use beui_components_styled::sheet::ModalSheet;
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_styled::{Length, List, MenuButton, MenuNodes, Scroll, Separator};
 use beui_components_unstyled::Container;
@@ -520,39 +520,29 @@ fn dialog_outline(focused: Memo<bool>, attention: Memo<bool>) -> Memo<Option<Bor
     })
 }
 
-/// A dialog on a phone: a sheet titled as its window would be, fitted to its body, or full
-/// height when the body is taller than a fitted sheet rests.
+/// A dialog on a phone: a sheet titled as its window would be, at its body's height, rising to
+/// the top stop for a large form.
 #[component]
 fn DockDialogSheetFace(handle: DockDialogSheetHandle) -> NodeId {
     let DockDialogSheetHandle {
         tab,
         title,
-        size,
         open,
         close,
+        outside,
         body,
     } = handle;
-    let viewport = use_viewport_size();
-    let content = move || {
-        view! {
-            <List spacing=Space::Md @test_id={format!("dock.dialog.{}.sheet", tab.value())}>
-                <Frame padding={Padding::horizontal(Space::Xl)}>
-                    <Text size=TextSize::Lg>{title}</Text>
-                </Frame>
-                {body.call()}
-            </List>
-        }
-    };
-    let tall = create_memo(move || size.get().y > viewport.get().y * SHEET_STOPS[1]);
     view! {
-        <Show
-            value={tall}
-            fallback={move || view! {
-                <ModalSheet open fit=true on_close={close}>|| { content() }</ModalSheet>
-            }}
-        >
-            <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>|| { content() }</ModalSheet>
-        </Show>
+        <ModalSheet open fit=true grows=true on_close={close} on_outside={outside}>|| {
+            view! {
+                <List spacing=Space::Md @test_id={format!("dock.dialog.{}.sheet", tab.value())}>
+                    <Frame padding={Padding::horizontal(Space::Xl)}>
+                        <Text size=TextSize::Lg>{title}</Text>
+                    </Frame>
+                    {body.call()}
+                </List>
+            }
+        }</ModalSheet>
     }
 }
 
