@@ -70,16 +70,19 @@ pub fn kurbo_stroke(stroke: &Stroke, scale: f32) -> kurbo::Stroke {
 pub struct PathPaint {
     path: Path,
     style: PathStyle,
-    seams: Vec<[Pos2; 2]>,
+    seamed: bool,
     bounds: Rect,
 }
 
 impl PathPaint {
     pub fn new(path: Path, style: PathStyle) -> Self {
-        Self::with_seams(path, style, Vec::new())
+        Self::with_seams(path, style, false)
     }
 
-    pub fn with_seams(path: Path, style: PathStyle, seams: Vec<[Pos2; 2]>) -> Self {
+    /// A path that, when `seamed`, meets the fills painted beside it on seams (the pieces of
+    /// one stroke): the renderer and the rasterizer fill the seamed nonzero fills that follow each
+    /// other alike as one path, so the edges they share do not show.
+    pub fn with_seams(path: Path, style: PathStyle, seamed: bool) -> Self {
         let bounds = match path.is_empty() {
             true => Rect::NOTHING,
             false => path.bounds().expand(style.reach()),
@@ -87,7 +90,7 @@ impl PathPaint {
         Self {
             path,
             style,
-            seams,
+            seamed,
             bounds,
         }
     }
@@ -104,17 +107,16 @@ impl PathPaint {
         self.bounds
     }
 
-    /// Whether it meets other fills on seams: the renderer and the rasterizer fill the seamed
-    /// nonzero fills that follow each other alike as one path, so their shared edges cancel.
+    /// Whether it meets other fills on seams (`with_seams`).
     pub fn seamed(&self) -> bool {
-        !self.seams.is_empty()
+        self.seamed
     }
 }
 
 impl PartialEq for PathPaint {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
-            || (self.path == other.path && self.style == other.style && self.seams == other.seams)
+            || (self.path == other.path && self.style == other.style && self.seamed == other.seamed)
     }
 }
 
