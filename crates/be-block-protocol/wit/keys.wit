@@ -45,6 +45,9 @@ interface keys {
 
     record recovery-key {
         public: option<public-key>,
+        /// Every key sealed to the account, in every organization and whether or
+        /// not it may view the block now: `set-recovery-key` deletes what it is
+        /// not sent again, so it is shown all of it.
         sealed: list<sealed-key>,
         /// Every access log the account signed a record in, which a new key
         /// must retire the old one in (`set-recovery-key`).
