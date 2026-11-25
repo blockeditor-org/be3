@@ -2078,6 +2078,17 @@ Each step lands on its own.
            Super+drag, kept on the displays' work areas. Today be-sdk-root drops a layout
            commit's `window-requests`, so no window an app opens shows under the root. In
            parts:
+           - Found while starting 4g7e2a: a session the desktop's Apps panel opens is a tab of
+             the desktop's own dock window, drawn in its main view, so it shows under the root
+             already, pressed by name (`#desktop.apps`, `#desktop.apps.sessions.new`). But
+             the session's workspace does not join that window's dock as it does under
+             be-host (whose window holds the workspace's Files, Settings and History tabs and
+             its editors' area, `#dock.grip.joined:2/files`): the root asks the workspace
+             for its frame docked (`Docks::docked` holds for it, and for the Files pane it
+             docks), yet no app sends a dock message (`Embedded::take_docks` is empty) and the
+             docks send none (`Docks::take`), so the workspace shows its panels alone, stacked
+             (`#dock.stack`), where `be_root_in_place_of_the_hosts_ui_shows_a_joined_dock`'s
+             apps declare their docks and hear them hosted. That comes first.
            - 4g7e2a. `open`, `close` and `raise`: the root adopts the window's screen as
              be-host-runtime's `adopt_window` does (asked for at its size, `windows: true`),
              floats it where its `window-placement` says (`at-pointer`, `over` its opener),
