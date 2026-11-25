@@ -318,6 +318,8 @@ pub struct Renderer {
     /// Runs that erase each damaged region, which clear the upper root there.
     cleared: Vec<Run>,
     vello: Option<Vello>,
+    /// The filter scene the scene being drawn blurs, while it is drawn.
+    filtered: Option<wgpu::TextureView>,
     /// Whether the device was alive when the frame began: Vello's buffer uploads panic on a lost
     /// device, where the frame then draws nothing, as wgpu's own pipelines draw nothing there.
     alive: bool,
@@ -777,6 +779,7 @@ impl Renderer {
             composition: None,
             cleared: Vec::new(),
             vello: None,
+            filtered: None,
             alive: true,
         }
     }
@@ -2184,7 +2187,7 @@ impl Renderer {
                     view: &drawn,
                     depth_view: None,
                 },
-                &self.textures.bindings(),
+                &self.textures.bindings(self.filtered.as_ref()),
                 options,
             ) {
                 eprintln!("beui: Vello could not render the frame: {error:?}");
@@ -2320,16 +2323,30 @@ impl Renderer {
                     self.begin_scene(&inner);
                     self.paint_steps(device, queue, encoder, &mut inner, filtered, depth);
                     self.flush(device, queue, encoder, &mut inner);
+                    let (prepared, srgb) = (self.filters[*index], self.format.is_srgb());
+                    let blurred = self.effects.get(*index).and_then(filter::Effects::blurred).cloned();
+                    if let Some(blurred) = blurred.filter(|_| prepared.sigma() > 0.0) {
+                        let region = prepared.region();
+                        // Blurred whole: under a clip, vello_gpu 0.4's filter layer takes
+                        // nothing from outside the clip's pixels, so light from beside the damage
+                        // went missing. The combine pass composes only the damage.
+                        let mut onto_blur = Onto::new(&blurred, onto.size, Some([0; 4]), None);
+                        self.begin_scene(&onto_blur);
+                        if let Some(vello) = &mut self.vello {
+                            scene::blur(&mut vello.scene, onto.size, region, prepared.sigma());
+                        }
+                        onto_blur.drawn.set(true);
+                        self.filtered = Some(drawn_view(&scene_view));
+                        self.flush(device, queue, encoder, &mut onto_blur);
+                        self.filtered = None;
+                    }
                     self.begin_scene(onto);
                     let scissors: Vec<Option<[u32; 4]>> = match &onto.clip {
                         Some(clip) => clip.iter().copied().map(Some).collect(),
                         None => vec![None],
                     };
-                    let (prepared, srgb) = (self.filters[*index], self.format.is_srgb());
-                    for scissor in &scissors {
-                        if let Some(effects) = self.effects.get_mut(*index) {
-                            effects.record(device, queue, encoder, &prepared, srgb, *scissor);
-                        }
+                    if let Some(effects) = self.effects.get_mut(*index) {
+                        effects.record(device, queue, &prepared, srgb);
                     }
                     let mut pass = self.begin_at(encoder, onto.view, wgpu::LoadOp::Load, depth);
                     for scissor in scissors {
