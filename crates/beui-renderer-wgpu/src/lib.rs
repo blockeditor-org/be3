@@ -104,6 +104,21 @@ pub(crate) fn drawn_view(view: &wgpu::TextureView) -> wgpu::TextureView {
     }
 }
 
+/// Each target's view Vello draws into, made once a frame.
+#[derive(Default)]
+struct Views(Vec<(wgpu::TextureView, wgpu::TextureView)>);
+
+impl Views {
+    fn of(&mut self, view: &wgpu::TextureView) -> wgpu::TextureView {
+        if let Some((_, drawn)) = self.0.iter().find(|(held, _)| held == view) {
+            return drawn.clone();
+        }
+        let drawn = drawn_view(view);
+        self.0.push((view.clone(), drawn.clone()));
+        drawn
+    }
+}
+
 /// Glyphs uploaded as Vello samples them: premultiplied RGBA8, a coverage glyph white with its
 /// coverage in every channel.
 pub(crate) struct Atlas {
@@ -318,6 +333,9 @@ pub struct Renderer {
     /// Runs that erase each damaged region, which clear the upper root there.
     cleared: Vec<Run>,
     vello: Option<Vello>,
+    /// The non-sRGB views of the targets drawn this frame (`drawn_view`): in an app each view is
+    /// a host call.
+    views: Views,
     /// The filter scene the scene being drawn blurs, while it is drawn.
     filtered: Option<wgpu::TextureView>,
 }
@@ -776,6 +794,7 @@ impl Renderer {
             composition: None,
             cleared: Vec::new(),
             vello: None,
+            views: Views::default(),
             filtered: None,
         }
     }
@@ -2001,6 +2020,7 @@ impl Renderer {
         if let Some(vello) = &mut self.vello {
             vello.rendered = 0;
         }
+        self.views.0.clear();
         let Some(mut composition) = self.composition.take() else {
             self.render_into(device, queue, encoder, target, load, 0..self.steps.len());
             return;
@@ -2131,6 +2151,9 @@ impl Renderer {
             if vello.format != format || !vello.made() {
                 vello.make(device, queue, format, onto.size);
             }
+            // vello_gpu's buffers hold one render, so a render after another (past a drawing, into
+            // a group's or filter's layer) waits for the encoder to be submitted: a frame split N
+            // times costs N submits.
             if vello.rendered > 0 {
                 let done = std::mem::replace(
                     encoder,
@@ -2164,7 +2187,7 @@ impl Renderer {
                 }
                 (true, None) => vello_gpu::TargetInit::SrcOver,
             };
-            let drawn = drawn_view(onto.view);
+            let drawn = self.views.of(onto.view);
             let mut options = vello_gpu::RenderOptions::default();
             options.target_init = target_init;
             let Vello {
@@ -2291,7 +2314,7 @@ impl Renderer {
                     self.flush(device, queue, encoder, &mut inner);
                     // The scene is shared: what follows the group is drawn onto this target again.
                     self.begin_scene(onto);
-                    let drawn = drawn_view(onto.view);
+                    let drawn = self.views.of(onto.view);
                     let mut pass = self.begin_at(encoder, &drawn, wgpu::LoadOp::Load, depth);
                     for region in regions {
                         clip(&mut pass, region);
@@ -2332,7 +2355,7 @@ impl Renderer {
                             scene::blur(&mut vello.scene, onto.size, region, prepared.sigma());
                         }
                         onto_blur.drawn.set(true);
-                        self.filtered = Some(drawn_view(&scene_view));
+                        self.filtered = Some(self.views.of(&scene_view));
                         self.flush(device, queue, encoder, &mut onto_blur);
                         self.filtered = None;
                     }
