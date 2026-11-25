@@ -27,7 +27,9 @@ fn be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop() {
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
     host.open_test_window("Test window");
-    host.wait(" #desktop.windows.");
+    // The window's own chip, named by its program: the bar's "No windows" placeholder is a
+    // `#desktop.windows.` target too.
+    host.wait("Button \"be-tool-wayland-window\"");
     host.run(&["settle"]);
     host.crop("0,676,1100,44");
     host.snapshot("be_root_lists_a_programs_window_on_the_desktop");
