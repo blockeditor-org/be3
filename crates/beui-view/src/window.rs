@@ -15,7 +15,8 @@ use crate::reactive::{
     use_context, use_viewport_size,
 };
 
-/// What a window points at, in its window's points, while it is not a window of its own.
+/// What a window points at, in the points of the window it is built in: an overlay is placed
+/// against it, and a window of its own opens over its owner's window where it puts it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WindowAnchor {
     /// Beside this rect (`Placement::CARD`), pointing a beak at it from the `pointer` frame,
@@ -127,7 +128,8 @@ pub fn Window(
     /// the window is open (an owner built after the window).
     #[prop(default = None)]
     owner: Prop<Option<NodeId>>,
-    /// What it points at while it is not a window of its own; `None` opens it at `at`.
+    /// What it points at, as an overlay or as a window of its own; `None` opens it at `at`
+    /// (an overlay) or at `placement` (a window of its own).
     #[prop(default = None)]
     anchor: Prop<Option<WindowAnchor>>,
     /// How far the beak reaches from the frame bound to `pointer` towards a `Beside` anchor.
@@ -154,6 +156,9 @@ pub fn Window(
     #[prop(children)] content: RenderFn<WindowHandle, NodeId>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
+    // Only a window that can block has a cover beside its content.
+    let may_block = !matches!(blocks, Prop::Static(false));
+    let popup = role.clone();
     let opens = opens_windows();
     let placed = crate::core::placed_windows();
     let asked = placement.clone();
@@ -199,30 +204,43 @@ pub fn Window(
         (true, None) => Extent::px(shown.get().y),
     });
     let viewport = use_viewport_size();
-    let owner = create_memo(move || owner.get());
-    // The overlay hangs from this, filled with the owner whenever the owner changes; a pinned
-    // anchor reads it again at each layout.
+    // What the window hangs from: the owner, filled here whenever the owner changes and read
+    // again by a pinned anchor at each layout, so every anchor and the cover name it.
     let hangs_from = NodeRef::new();
+    let owner = create_memo(move || {
+        let owner = owner.get();
+        if let Some(node) = owner
+            && hangs_from.try_get() != Some(node)
+        {
+            hangs_from.fill(node);
+        }
+        owner
+    });
     let owned = create_memo(move || Some(measure(owner.get()?).get()?.rect));
     // Where the overlay goes, how, and whether its beak may point: hosted windows are placed by
     // their host, at `placement`, so this is only the overlay's.
     let placed = create_memo(move || {
         let point = |at: Pos2| Rect::from_min_size(at, Vec2::ZERO);
         let pinned = |rect: Rect| match owner.get() {
-            Some(node) => {
-                if hangs_from.try_get() != Some(node) {
-                    hangs_from.fill(node);
-                }
-                OverlayAnchor::Pinned {
-                    node: hangs_from,
-                    rect,
-                }
-            }
+            Some(_) => OverlayAnchor::Pinned {
+                node: hangs_from,
+                rect,
+            },
             None => OverlayAnchor::Rect(rect),
         };
         match anchor.get() {
             Some(WindowAnchor::Beside(rect)) => (pinned(rect), Placement::CARD, true),
-            Some(WindowAnchor::Node(node)) => (OverlayAnchor::Node(node), Placement::CARD, true),
+            // With an owner it hangs from the owner, beside where the node was last laid out.
+            Some(WindowAnchor::Node(node)) => match owner.get() {
+                Some(_) => {
+                    let rect = node
+                        .try_get()
+                        .and_then(|node| measure(node).get())
+                        .map_or(Rect::ZERO, |measured| measured.rect);
+                    (pinned(rect), Placement::CARD, true)
+                }
+                None => (OverlayAnchor::Node(node), Placement::CARD, true),
+            },
             Some(WindowAnchor::Top) => {
                 let frame = owned
                     .get()
@@ -232,12 +250,7 @@ pub fn Window(
             }
             // On the owner's node itself, so it follows the owner's layout that frame.
             Some(WindowAnchor::Centre) => match owner.get() {
-                Some(node) => {
-                    if hangs_from.try_get() != Some(node) {
-                        hangs_from.fill(node);
-                    }
-                    (OverlayAnchor::Node(hangs_from), Placement::CenterOn, false)
-                }
+                Some(_) => (OverlayAnchor::Node(hangs_from), Placement::CenterOn, false),
                 None => (OverlayAnchor::Point(Pos2::ZERO), Placement::Center, false),
             },
             None => (pinned(point(at.get())), Placement::At, false),
@@ -275,9 +288,25 @@ pub fn Window(
             false => Rect::from_min_max(Pos2::new(-FAR, -FAR), Pos2::new(FAR, FAR)),
         };
         let frame = owned.get().unwrap_or(area);
+        // A rect in another window's points, moved into the parent's, through where the host
+        // shows both.
+        let into_parent = |rect: Rect, from: WindowId| {
+            let to = parent.get();
+            match from == to {
+                true => rect,
+                false => {
+                    let origin = |window| window_origin(window).unwrap_or(Pos2::ZERO);
+                    rect.translate(origin(from) - origin(to))
+                }
+            }
+        };
         let (target, placement) = match anchor {
-            WindowAnchor::Beside(rect) => (rect, Placement::CARD),
-            WindowAnchor::Node(node) => (measure(node.try_get()?).get()?.rect, Placement::CARD),
+            WindowAnchor::Beside(rect) => (into_parent(rect, built_in.get()), Placement::CARD),
+            WindowAnchor::Node(node) => {
+                let node = node.try_get()?;
+                let rect = measure(node).get()?.rect;
+                (into_parent(rect, crate::reactive::window_of(node)), Placement::CARD)
+            }
             WindowAnchor::Top => (
                 Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y)),
                 Placement::CARD,
@@ -298,7 +327,12 @@ pub fn Window(
     crate::reactive::create_effect_on(
         move || placement.get(),
         move |placement, was| {
-            if was.is_some() && hosted.get_untracked() && anchored_at.get_untracked().is_some() {
+            // A popup's host is asked to open it again at its new placement instead.
+            if was.is_some()
+                && hosted.get_untracked()
+                && anchored_at.get_untracked().is_some()
+                && popup.get_untracked() != WindowRole::Popup
+            {
                 handle.place(placement.clone());
             }
         },
@@ -371,6 +405,15 @@ pub fn Window(
             </Overlay>
         }
     };
+    let inside = move || match may_block {
+        true => view! {
+            <Layers>
+                {provided(handle, content)}
+                {cover()}
+            </Layers>
+        },
+        false => provided(handle, content),
+    };
     view! {
         <Overlay
             anchor={anchored}
@@ -387,12 +430,7 @@ pub fn Window(
             open={shows}
             on_dismiss={dismiss}
         >
-            <Frame width=width height=height>
-                <Layers>
-                    {provided(handle, content)}
-                    {cover()}
-                </Layers>
-            </Frame>
+            <Frame width=width height=height>{inside()}</Frame>
         </Overlay>
     }
 }

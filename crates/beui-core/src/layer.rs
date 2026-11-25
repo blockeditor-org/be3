@@ -188,6 +188,15 @@ impl Document {
     pub(crate) fn layers_changed(&mut self) {
         self.layer_state.generation += 1;
         self.focus_dirty = true;
+        // Published as a lock layer opens or closes, so a window of its own closes in the frame
+        // the lock screen shows.
+        let locked = self.layer_state.open.iter().any(|opened| {
+            self.contains(opened.overlay) && {
+                let node = self.arena.get_as::<OverlayNode>(opened.overlay);
+                node.open && node.policy == LayerPolicy::BlocksAll && node.level == LayerLevel::Lock
+            }
+        });
+        self.publish_locked(locked);
         for overlay in self.open_overlays() {
             self.arena.invalidate_node(overlay);
         }

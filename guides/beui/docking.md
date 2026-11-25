@@ -429,8 +429,12 @@ as its own and that has an `anchor` opens `WindowPlacement::Over` the window its
 the anchor puts it (as `layer::resolve_rect` would place the overlay), and is placed again as the
 anchor moves; it draws no beak. One that `blocks` covers its owner, in the owner's window, with an
 empty overlay that shuts out presses there, asks it to close and draws the scrim. Either closes
-while the document is locked (`Document::watch_locked`), since the lock layer of a display's
-window does not paint over a window of its own; a dock's windows are left to the host.
+while the document is locked (`Document::watch_locked`, published as a lock layer opens or
+closes), since the lock layer of a display's window does not paint over a window of its own, and
+opens again once unlocked, at a fresh place from its anchor; a dock's windows are left to the
+host. Its anchor's rect, in the points of the window it is built in, is moved into its owner's
+window's points through where the host shows both (`window_origin`). With no owner it blocks
+only its own window, never another window of its own.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,
 and then the caller moves it itself.
 
