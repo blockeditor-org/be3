@@ -12,9 +12,9 @@ directly. The HTML core is unaffected.
 ## Why
 
 - Exact anti-aliased fills and strokes of curves, gradients, clip paths, blend modes and COLRv1
-  colour glyphs, for every component and editor, not only the canvas. Today paths are tessellated
-  into triangles on the CPU (`beui-core/src/path.rs`) and shapes are distance-field quads in one
-  shader (`ui.wgsl`).
+  colour glyphs, for every component and editor, not only the canvas. beui-renderer-wgpu draws
+  with Vello now; paintings still hold paths as triangles the CPU tessellated
+  (`beui-core/src/path.rs`).
 - Vello's Gaussian blur halves the image until little blur remains and finishes with a kernel of
   at most 13 taps, keeping exact count of the variance each level adds
   (`vello_common/src/filter/gaussian_blur.rs`). So the blur equals the σ asked for at every radius,
@@ -22,17 +22,19 @@ directly. The HTML core is unaffected.
   (decisions/beui_filter_blur_is_dual_kawase.md) snaps when its level count changes, which shows
   as discontinuities while the scale changes.
 - Apps that draw their own 2D (charts, annotations) get the renderer beui uses.
-- About 2,000–2,500 lines of ours go: the shape half of `ui.wgsl` and the renderer's instance
-  encoding, `group.rs`, the tessellator, the dual-Kawase blur and beui-paint-format's `raster.rs`.
+- Lines of ours still to go: the tessellator and the dual-Kawase blur (`ui.wgsl`, the instance
+  encoding, most of `group.rs` and beui-paint-format's `raster.rs` went with the renderer).
 
 ## What maps to what
 
 - **Shapes.** Rounded and cornered rects, segments and turns become Vello fills and strokes;
-  `Content::Mesh` paths become `BezPath` fills or strokes with their fill rule.
+  `Content::Mesh` paths become `BezPath` fills or strokes with their fill rule. Fills that meet on
+  seams (`PathPaint::with_seams`, the canvas's freehand pieces) and follow each other alike are
+  filled as one nonzero path, so their shared edges cancel.
 - **Glyphs.** Rectangles drawn with an image paint from beui's atlas, sampled at the lowest
   quality (nearest) on pixel-aligned rects, with a `Tint` of `TintMode::AlphaMask` in the text's
   colour, as glifo draws its own cached glyphs. `AlphaMask` reads alpha, so the coverage atlas
-  becomes `Rgba8Unorm` with coverage in alpha (it is `R8Unorm` today, which samples alpha 1).
+  is `Rgba8Unorm` with coverage in alpha.
   Colour glyphs are drawn untinted. Text stays beui's: `vello_gpu`'s `text` feature and glifo are
   off.
 - **Clips.** `push_clip_rect` (a fast path for a pixel-aligned rect) and `push_clip_path`, which
@@ -41,7 +43,8 @@ directly. The HTML core is unaffected.
 - **Opacity groups** (`Group::Mask`) become `push_opacity_layer`; each is an intermediate texture,
   as `group.rs`'s offscreen layer is now. A group that holds a `draw_gpu` drawing cannot be one
   Vello layer, since the scene is split at the drawing: it keeps an offscreen texture of its own,
-  which Vello and the drawing paint into and which is then composed at the group's opacity.
+  which Vello and the drawing paint into and which is then composed at the group's opacity,
+  through the layer's and the target's non-sRGB views, so it blends as a Vello layer does.
 - **Blur** (`Group::Filter`) becomes a filter layer with Vello's Gaussian blur. A filter layer is
   padded by the blur's reach, so it includes shapes just outside the damage.
 - **Edge fades** are an isolated layer holding what is faded, then, for each faded edge, a layer
@@ -63,7 +66,8 @@ directly. The HTML core is unaffected.
 - **Colour.** Vello takes and writes sRGB-encoded values and never converts them, so it draws
   into the non-sRGB view of its target (`format.remove_srgb_suffix()`): every texture beui draws
   on lists that format in its `view_formats` (surface configurations, offscreen and Space
-  targets, composite roots, filter scenes, and the surfaces be-wasm-gpu-host makes for apps).
+  targets, composite roots, filter scenes, and the surfaces be-wasm-gpu-host makes for apps,
+  which be3:gpu's `surface-configuration` names in its `view-formats`).
   Blending is then in sRGB on every target, as the paintings rasterize it; on an sRGB target it
   was linear before.
 - **`draw_gpu` drawings** run in paint order as now: the scene is split at each drawing, Vello
@@ -79,26 +83,19 @@ which this plan leaves for later.
 
 ## Steps
 
-1. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas, and
-   beui-paint-format's `raster.rs` is rebuilt on `vello_cpu` in a crate of its own, so the tests
-   that compare the GPU with the rasterizer compare Vello with Vello. Paintings do not change,
-   since they record beui's display list, not pixels. Delete `ui.wgsl`'s shape
-   code, the instance encoding, and `group.rs` but the offscreen layer of a group that holds a
-   drawing. The rasterizer stays out of the beui library: vello_cpu reaches only the tools, the
-   tests and the apps that export pictures. Put the suite's `renderer` benchmark, compared on
-   a machine with a GPU against the build before (guides/performance.md), in the pull request.
-2. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
+1. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
    replace decisions/beui_filter_blur_is_dual_kawase.md with a decision for Vello's blur
-   (continuous in σ, logarithmic in cost). Put the `renderer` benchmark's blur rows, compared as
-   in the step before, in the pull request.
-3. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
+   (continuous in σ, logarithmic in cost). Put the `renderer` benchmark's blur rows, compared on
+   a machine with a GPU against the build before (guides/performance.md), in the pull request.
+2. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
    `Frame::tidy` and the rasterizer learn it. Until then beui-paint-raster draws a mesh itself, as
    a GPU draws triangles (`mesh.rs`: no antialiasing, colours interpolated across each), since
    Vello cannot interpolate a colour across a triangle's corners; images, colour glyphs and lines
-   reach paintings as meshes too. Bump the format's
+   reach paintings as meshes too. Seamed fills are rasterized as one path, as the renderer fills
+   them. Bump the format's
    `VERSION` (guides/testing_a_gui.md, 4) and let verify rewrite the paintings. Delete the
    tessellator in `beui-core/src/path.rs`.
-4. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
+3. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
    map, guides/beui/components.md (Drawing with the gpu), guides/testing_a_gui.md and
    guides/canvas.md. Record the choice in decisions/ with
    what was rejected below, and delete this plan.

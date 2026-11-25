@@ -84,7 +84,7 @@ use beui_core::document::Document;
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::painter::Painter;
 use beui_types::FontId;
-use beui_types::{Pos2, Rect, pos2, vec2};
+use beui_types::{Image, Pos2, Rect, pos2, vec2};
 
 const SIZE: u32 = 64;
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -183,7 +183,7 @@ impl Target {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
+            view_formats: crate::view_formats(format),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         Self {

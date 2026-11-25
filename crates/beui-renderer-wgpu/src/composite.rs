@@ -41,7 +41,7 @@ impl Root {
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
+            view_formats: crate::view_formats(format),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         Self {

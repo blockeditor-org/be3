@@ -16,10 +16,6 @@ fn crowded(painter: &Painter) {
 
 #[test]
 fn a_gpu_lost_mid_frame_is_reopened_and_paints_again() {
-    assert!(
-        (SIZE * SIZE * 4) as usize > LISTED,
-        "the crowded frame outgrows the instance list the renderer starts with"
-    );
     let mut gpu = pollster::block_on(create_offscreen(FORMAT, Default::default()))
         .expect("no graphics adapter is available");
     let mut lost = Target::on(gpu.device.clone(), gpu.queue.clone(), FORMAT);
