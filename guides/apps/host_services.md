@@ -344,7 +344,7 @@ dialog"), and the app's `beui_app!` map pairs the name with a root as it does an
 editor's; the framework refuses to start unless the roots cover the editors and
 hosts together. The root's `BeuiRoot::host(editor)` runs once it is attached,
 in a reactive scope kept while it runs, and is where the component does its
-work (its `View` is never shown): be-app-example-counter's `CounterHost` adds
+work (it needs no `View`, whose default is empty, since it is never shown): be-app-example-counter's `CounterHost` adds
 one to its block once the content arrives. With no frames, the guest takes in
 what changed each time the instance is woken instead (`Instance::pass`, which
 be-sdk-beui runs as `begin_frame` inside that scope, so the effects woken
@@ -443,12 +443,6 @@ access falls to Join, or rises from it, is closed at the app and opened again
 as the other kind, so a participant that falls to Join handshakes as a member.
 One just opened hears first who hosts now (`be_host_stack::channel_host`).
 In be-sdk-beui, `Editor::joined`, `Editor::on_channel` and `Editor::tell_host`.
-
-`BeuiTest::hosting` runs an app's host component with no screen and
-`BeuiTest::joined` its editor as a Join member; `hear_member` and
-`hear_channel` speak to each as be-host would, and `take_block_commands`
-reads what they tell (`tell-member`, `tell-host`). be-app-gem-hunt's tests use
-both (guides/blocks/hosted.md, "The gem hunt").
 
 ## Workers
 

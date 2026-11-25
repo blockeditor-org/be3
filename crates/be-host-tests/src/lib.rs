@@ -400,7 +400,14 @@ impl HostTest {
         ));
     }
 
+    /// Waits for `target` to go, as [`HostTest::wait`] waits for one to come: it first says
+    /// why when an app stopped, rather than when the wait runs out.
     pub fn gone(&mut self, target: &str) {
+        if self.within(SLOW_WAIT, &["wait", "not", target]).is_ok() {
+            self.steps.push(line(&["wait", "not", target]));
+            return;
+        }
+        self.check_stopped();
         self.run(&["wait", "not", target]);
     }
 

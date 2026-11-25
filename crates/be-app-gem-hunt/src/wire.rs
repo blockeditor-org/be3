@@ -24,12 +24,19 @@ pub struct Board {
     pub yours: u16,
 }
 
-/// A dug cell: a gem, or how many gems lie around it.
+/// A dug cell and what it showed.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Dug {
     pub cell: u16,
-    pub gem: bool,
-    pub near: u8,
+    pub found: Found,
+}
+
+/// What digging a cell showed: a gem, or how many gems lie around it. A gem's cell says no
+/// more, since the count around it would tell where other gems lie.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Found {
+    Gem,
+    Near(u8),
 }
 
 impl Board {
@@ -41,8 +48,10 @@ impl Board {
                 .keys()
                 .map(|&cell| Dug {
                     cell,
-                    gem: hunt.has_gem(cell),
-                    near: hunt.near(cell),
+                    found: match hunt.has_gem(cell) {
+                        true => Found::Gem,
+                        false => Found::Near(hunt.near(cell)),
+                    },
                 })
                 .collect(),
             gems: hunt.gems.len() as u16,

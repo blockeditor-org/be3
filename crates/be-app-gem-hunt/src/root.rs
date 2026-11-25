@@ -42,7 +42,11 @@ impl be_sdk_beui::BeuiRoot for HuntRoot {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.create(&HuntContent::new(&Hunt::scattered(seed()))))
+        let hunt = match creation.template() {
+            "practice" => Hunt::practice(),
+            _ => Hunt::scattered(seed()),
+        };
+        Ok(creation.create(&HuntContent::new(&hunt)))
     }
 }
 
@@ -59,16 +63,6 @@ pub struct HuntHost;
 
 #[component]
 impl be_sdk_beui::BeuiRoot for HuntHost {
-    #[component]
-    fn View(editor: Editor) -> Root {
-        let _ = editor;
-        view! {
-            <Root>
-                <be_sdk_beui::beui::styled::Frame />
-            </Root>
-        }
-    }
-
     fn host(editor: Editor) {
         let hunt = editor.block_content::<HuntContent>();
         let world = hunt.project(|content| content.root());
@@ -104,7 +98,8 @@ impl be_sdk_beui::BeuiRoot for HuntHost {
                 let Some(Ask::Dig(cell)) = decode(&said.payload) else {
                     return;
                 };
-                if world.get_untracked().may_dig(cell) {
+                // Judged on the world as stored, once it arrived.
+                if hunt.ready().is_ok() && world.get_untracked().may_dig(cell) {
                     hunt.operate(Hunt::dig(cell, account));
                 }
             }

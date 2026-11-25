@@ -61,8 +61,17 @@ pub use zoom::{ZoomActions, ZoomBar};
 
 #[beui::reactive::component]
 pub trait BeuiRoot: 'static {
+    /// The editor's view. A host component's root (`host`) is never shown, so it keeps this
+    /// empty one.
     #[beui::reactive::component]
-    fn View(editor: Editor) -> beui::styled::Root;
+    fn View(editor: Editor) -> beui::styled::Root {
+        let _ = editor;
+        beui::reactive::view! {
+            <beui::styled::Root>
+                <beui::styled::Frame />
+            </beui::styled::Root>
+        }
+    }
     #[beui::reactive::component]
     fn Preview(editor: Editor) -> beui::NodeId {
         let _ = editor;

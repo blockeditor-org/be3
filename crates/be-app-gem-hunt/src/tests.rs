@@ -5,7 +5,7 @@ use be_type_gem_hunt::{Hunt, HuntContent};
 use uuid::Uuid;
 
 use crate::root::{HuntHost, HuntRoot};
-use crate::wire::{Ask, Board, decode, encode};
+use crate::wire::{Ask, Board, Found, decode, encode};
 
 mod a_player_sees_only_what_the_host_tells_it_and_digs_by_asking;
 mod the_host_digs_where_a_player_asks_and_tells_each_only_what_is_dug;

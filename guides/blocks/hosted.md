@@ -188,14 +188,14 @@ knows nothing of the rules but `may_dig` and the counts. Its pieces:
 - `HuntHost`, the host component, keeps the members it heard join, digs where
   one asks (`wire::Ask::Dig`) when the cell may be dug, writing the dig to the
   block, and tells each member the world as that member may see it
-  (`wire::Board`: only the cells dug, never a gem still buried) as it joins and
-  whenever the world changes.
+  (`wire::Board`: only the cells dug, never a gem still buried, and a gem's cell
+  without the count around it) as it joins and whenever the world changes.
 - `HuntRoot` opens as `players::Players` for a Join member, which shows the
   last board the host told it and asks to dig, and as `world::World` for one
   who may read the block, which shows every gem and makes a new world.
 
-Its tests show both sides through `BeuiTest::hosting` and `BeuiTest::joined`
-(`hear_member`, `hear_channel`, and `take_block_commands` for what they tell),
-and be-host-tests' `a_player_digs_through_the_editor_that_hosts_the_hunt` plays
-it end to end: one device hosts while another account's device, given a Join
-link, digs through it.
+Its "Practice gem hunt" template hides the gems in the same cells every time
+(`Hunt::practice`). Its tests show each side alone (guides/testing_a_gui.md,
+3), and be-host-tests' `a_player_digs_through_the_editor_that_hosts_the_hunt`
+plays a practice hunt end to end: one device hosts while another account's
+device, given a Join link, digs through it.

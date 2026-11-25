@@ -42,6 +42,11 @@ fn the_host_digs_where_a_player_asks_and_tells_each_only_what_is_dug() {
         [0, 6],
         "only the dug cells, never where a gem still lies"
     );
+    assert_eq!(
+        first.dug[0].found,
+        Found::Gem,
+        "a gem's cell tells nothing of the gems around it"
+    );
     assert_eq!(joined[1].1.yours, 0, "Bo found none");
 
     let ask = |test: &mut BeuiTest<HuntHost>, member, cell| {

@@ -72,6 +72,12 @@ else the app sent (the `take_*` methods). Give it host-side state (view, chrome,
 its own calls (`set_view`, `set_chrome`, `drag_block`): setting it on the `EditorHost` directly
 skips the protocol, and the session overwrites it on the next frame.
 
+A hosted block's two sides (guides/blocks/hosted.md) each have an opening: `BeuiTest::hosting`
+runs the app's host component, with no screen, and `BeuiTest::joined` its editor as a Join
+member, with no content. `hear_member` and `hear_channel` speak to each as be-host does, and
+`take_block_commands` reads what they tell (`tell-member`, `tell-host`). be-app-gem-hunt's tests
+use both.
+
 `BeuiTest` has no hosted or floated window for an editor's main view (`module.window(view.id)` is
 none), so `ModuleProgram::update`'s fit-window path (`fit_window_to`, and the repaint when the fit
 changed during the frame) cannot be unit tested there. Cover it with a host test that opens the

@@ -8,7 +8,7 @@ use be_sdk_beui::beui::styled::*;
 use be_type_gem_hunt::CELLS;
 
 use super::field::{Field, Look};
-use crate::wire::{Ask, Board, decode, encode};
+use crate::wire::{Ask, Board, Dug, Found, decode, encode};
 
 const PADDING: Space = Space::Xl2;
 
@@ -36,8 +36,8 @@ pub fn Players(editor: Editor) -> NodeId {
             let playing = open.get() && board.as_ref().is_some_and(|board| !board.over());
             (0..CELLS)
                 .map(|cell| match board.as_ref().and_then(|board| board.dug(cell)) {
-                    Some(dug) if dug.gem => Look::Gem,
-                    Some(dug) => Look::Near(dug.near),
+                    Some(Dug { found: Found::Gem, .. }) => Look::Gem,
+                    Some(Dug { found: Found::Near(near), .. }) => Look::Near(near),
                     None => Look::Hidden { diggable: playing },
                 })
                 .collect::<Vec<_>>()
