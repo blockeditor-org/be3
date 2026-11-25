@@ -767,6 +767,13 @@ Each step lands on its own.
            so its deadline assumes the default.
          - A replaced device stops the root rather than moving it, so a replaced renderer
            (device loss) quits be-host under `--root`; and no host ships a root.
+         - `--root` on the web: be-host's web build runs no root yet. When it does, the web
+           `Root` (be-wasm-root-host's `web.rs`) needs an `on_wake` as the native one has: a
+           wake between frames only resumes a frame being drawn there (`Shared::resume` does
+           nothing while none is), so a root that wakes itself for a frame its apps want
+           (be-root's `Root::stepped`) gets none until its page draws one. The microtask a
+           wake queues would call the page's `on_wake` while nothing is drawing, for it to
+           ask `requestAnimationFrame` for one.
    - 4f. The router over the layer list:
      - 4f1. Built: raw input to the root. beui's `Program` gained `input(window, &Input)`, which
        the runner offers each of the platform's inputs, in its window's points, after the
