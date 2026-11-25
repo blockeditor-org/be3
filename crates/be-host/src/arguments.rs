@@ -88,11 +88,6 @@ pub(crate) fn parse(
                 beui_host::native::environment::PLATFORM
             ));
         }
-        if parsed.root.is_some() {
-            return Err(format!(
-                "{ROOT}APP runs none of the host's core yet, the lock screen among it, so it does not run as a login session"
-            ));
-        }
         parsed.drm = true;
     }
     Ok(parsed)

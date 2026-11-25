@@ -163,6 +163,20 @@ pub(super) fn unlock(typed: String) {
     });
 }
 
+/// Super+L, which locks the session as it does under be-host's own UI.
+pub(super) fn lock_chord() -> KeyChord {
+    KeyChord::new(Key::L, Modifiers::LOGO)
+}
+
+/// Asks the host to lock the session (`host.lock-session`), as Super+L does: the lock reaches
+/// the root as the lock's next change.
+pub(super) fn lock_session() {
+    be_wasm_ops::guest::spawn(async move {
+        // A host that cannot hear it has stopped, which the root hears from its frames.
+        let _ = host::lock_session().await;
+    });
+}
+
 /// Tells the host the person chose `action` on the lock screen.
 pub(super) fn lock_power(action: PowerAction) {
     be_wasm_ops::guest::spawn(async move {

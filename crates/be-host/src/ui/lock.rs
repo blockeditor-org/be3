@@ -41,7 +41,9 @@ fn action(power: PowerAction) -> LockAction {
     }
 }
 
-fn clock() -> ReadSignal<DateTime> {
+/// The wall clock to the minute, read afresh whenever `open` turns true, so a lock screen made
+/// long before it shows (or before drive pins the wall clock) shows the time it opened at.
+fn clock(open: Memo<bool>) -> ReadSignal<DateTime> {
     let unix = beui::reactive::wall_clock;
     let shown = move || {
         let seconds = i64::try_from(unix().as_secs()).unwrap_or(0)
@@ -58,6 +60,14 @@ fn clock() -> ReadSignal<DateTime> {
         Some(until_next_minute())
     });
     ticking.start(until_next_minute());
+    create_effect(move || {
+        if open.get() {
+            untrack(|| {
+                clock.set(shown());
+                ticking.restart(until_next_minute());
+            });
+        }
+    });
     clock.read_only()
 }
 
@@ -76,7 +86,8 @@ pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: b
         .enabled(available)
         .register();
     }
-    let clock = clock();
+    let open = create_memo(move || lock.get().locked);
+    let clock = clock(open);
     let time = create_memo(move || clock.get().time.format(HourCycle::H24));
     let date = create_memo(move || {
         let date = clock.get().date;
@@ -87,7 +98,6 @@ pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: b
             date.month_name()
         )
     });
-    let open = create_memo(move || lock.get().locked);
     let user = create_memo(move || lock.get().user);
     let error = create_memo(move || lock.get().error);
     let busy = create_memo(move || lock.get().busy);

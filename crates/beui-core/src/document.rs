@@ -792,7 +792,10 @@ impl Document {
         self.input_frames
     }
 
-    pub(crate) fn note_input(&mut self) {
+    /// Counts a frame that carried the person's input (`input_frames`). The document counts what
+    /// it hears itself; a program that takes the platform's input before the document hears it
+    /// (`Program::input`) notes the frames it took some in.
+    pub fn note_input(&mut self) {
         self.input_frames += 1;
     }
 

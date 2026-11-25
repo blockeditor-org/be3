@@ -10,6 +10,8 @@ pub(crate) const LONGEST_WAIT: Duration = Duration::from_secs(60);
 pub(crate) enum Trigger {
     Shortcut,
     Menu,
+    /// The root guest asked (`host.lock-session`): Super+L, or anything else of its own.
+    Root,
     Logind,
     Sleep,
     Idle,
@@ -20,6 +22,7 @@ impl Trigger {
         match self {
             Self::Shortcut => "Super+L",
             Self::Menu => "the power menu",
+            Self::Root => "the root's asking",
             Self::Logind => "logind",
             Self::Sleep => "a suspend",
             Self::Idle => "idling",
@@ -117,6 +120,22 @@ impl Lock {
             }
         }
         false
+    }
+
+    /// Whether a password is being checked.
+    pub(crate) fn checking(&self) -> bool {
+        self.checking
+    }
+
+    /// Why the last password was refused, while locked, without the wait after it, which a root
+    /// counts down itself (`retry_at`).
+    pub(crate) fn refused(&self) -> Option<&str> {
+        self.error.as_deref().filter(|_| self.locked)
+    }
+
+    /// When, on the host's clock, the wait after failed passwords ends, while it lasts at `now`.
+    pub(crate) fn retry_at(&self, now: Duration) -> Option<Duration> {
+        self.retry_at.filter(|retry| *retry > now)
     }
 
     pub(crate) fn wait(&self, now: Duration) -> Option<Duration> {
