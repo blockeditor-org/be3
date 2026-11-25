@@ -51,7 +51,7 @@ fn a_collapsed_folder_inside_a_shown_one_knows_it_has_something_to_expand() {
             shared
                 .graph
                 .get(block)
-                .map(|node| crate::app_graph::info_of(node, false, None, false).references)
+                .map(|node| crate::app_graph::info_of(node, false, None, false, None).references)
         })
         .flatten()
     };

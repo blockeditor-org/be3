@@ -47,6 +47,7 @@ pub use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::accesskit;
 pub use be_sdk_api::blocks::{ChannelEvent, HostingHere, JoinedMember, MemberEvent, MemberSaid};
+pub use be_sdk_api::blocks::{LogDoubt, LogDoubtKind, LogDoubtSource};
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
     AccessGrant, AccessLevel, AccessListing, AccountRole, AccountStorage, ArtifactAction,

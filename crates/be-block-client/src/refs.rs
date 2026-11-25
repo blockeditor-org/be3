@@ -589,6 +589,9 @@ pub struct LogFork {
     pub from: HeadFrom,
     pub kind: ForkKind,
     pub found: Option<i64>,
+    /// The person dismissed it on this device (`Peer::dismiss_log_fork`): kept, no longer shown.
+    #[serde(default)]
+    pub dismissed: bool,
 }
 
 /// What a kept verdict on a block's signed log says (`LogFork`).
@@ -1739,6 +1742,24 @@ impl Refs {
     /// The first fork of `block`'s signed log this device found, if any.
     pub fn log_fork(&self, block: Uuid) -> Option<LogFork> {
         self.state.lock().unwrap().log_forks.get(&block).cloned()
+    }
+
+    /// Every block's kept verdict (`log_fork`).
+    pub fn log_forks(&self) -> Vec<LogFork> {
+        self.state.lock().unwrap().log_forks.values().cloned().collect()
+    }
+
+    /// Marks `block`'s verdict dismissed, if one is kept: whether it was.
+    pub fn dismiss_fork(&self, block: Uuid) -> Result<bool, StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(mut fork) = state.log_forks.get(&block).cloned().filter(|fork| !fork.dismissed)
+        else {
+            return Ok(false);
+        };
+        fork.dismissed = true;
+        self.write(vec![row(Table::LogForks, block.as_bytes().to_vec(), &fork)])?;
+        state.log_forks.insert(block, fork);
+        Ok(true)
     }
 
     /// Keeps `fork` unless a fork of its block is kept already: whether it was kept. Written

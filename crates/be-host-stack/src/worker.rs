@@ -319,6 +319,8 @@ pub(super) enum Command {
         mode: be_block_protocol::NotifyMode,
         reply: MuteReply,
     },
+    /// Hides `block`'s log doubt on this device (`Peer::dismiss_log_fork`): kept, not shown.
+    DismissLogDoubt(Uuid),
     ReadHead {
         block: Uuid,
         commit: CommitId,
@@ -518,6 +520,7 @@ impl Command {
             Command::ShareLink { .. } => "share link",
             Command::ListNames { .. } => "list names",
             Command::SetMute { .. } => "set mute",
+            Command::DismissLogDoubt(_) => "dismiss log doubt",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
             Command::PlainFile { .. } => "plain file",
@@ -588,6 +591,7 @@ impl Command {
                 | Command::UnwatchVersion(_)
                 | Command::DismissPairing(_)
                 | Command::SetMute { .. }
+                | Command::DismissLogDoubt(_)
                 | Command::Push(_)
                 | Command::Create { .. }
                 | Command::SetParent { .. }
@@ -652,6 +656,7 @@ impl Command {
             | Command::ShareLink { block, .. }
             | Command::ListNames { block, .. }
             | Command::SetMute { block, .. }
+            | Command::DismissLogDoubt(block)
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
@@ -1873,6 +1878,16 @@ impl Session<'_> {
                             held.counting.appended(appended.block);
                             held.search.sealed(appended.block);
                         }
+                        // A verdict on a block's signed log reaches what apps are told of it.
+                        if let Some(Event::LogForked(fork)) = &event {
+                            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                            match crate::app_graph::log_doubt_of(fork) {
+                                Some(doubt) => held.log_doubts.insert(fork.block, doubt),
+                                None => held.log_doubts.remove(&fork.block),
+                            };
+                            held.touch(fork.block);
+                            crate::changes::graph();
+                        }
                         // A redacted entry's text leaves the index, and may change what is
                         // unread.
                         if let Some(Event::Redacted(redacted)) = &event {
@@ -2316,6 +2331,8 @@ impl Session<'_> {
             held.reached = true;
             held.arriving = true;
             held.error = None;
+            // The verdicts on blocks' signed logs this device kept, as they stand.
+            held.log_doubts = crate::app_graph::log_doubts(peer);
             held.sync_error = None;
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -3155,6 +3172,10 @@ impl Ran<'_> {
                 }
                 reply.send(created.map_err(|error| error.to_string()));
                 crate::changes::wake();
+                false
+            }
+            Command::DismissLogDoubt(block) => {
+                dismiss_log_doubt(self.peer, self.shared, block);
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
@@ -4038,6 +4059,10 @@ async fn apply(
 ) -> bool {
     let ctx = (peer, shared);
     match command {
+        Command::DismissLogDoubt(block) => {
+            dismiss_log_doubt(peer, shared, block);
+            false
+        }
         Command::SetParent { block, parent } => {
             // A block this device keeps moves here and its move waits in the outbox; one it
             // never saw asks the server.
@@ -5776,4 +5801,17 @@ fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
 /// leaving it. A closing replica's join answers come from a session it is on its way out of.
 fn in_session(replicas: &Replicas, block: Uuid) -> bool {
     replicas.is_open(block) && !replicas.is_closing(block) && !replicas.is_leaving(block)
+}
+
+/// Hides `block`'s log doubt on this device: its verdict stays kept, marked dismissed
+/// (`Peer::dismiss_log_fork`), and apps are no longer told of it (`BlockInfo::log_doubt`).
+fn dismiss_log_doubt(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    if let Err(error) = peer.dismiss_log_fork(block) {
+        record(shared, error);
+    }
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if held.log_doubts.remove(&block).is_some() {
+        held.touch(block);
+        crate::changes::graph();
+    }
 }

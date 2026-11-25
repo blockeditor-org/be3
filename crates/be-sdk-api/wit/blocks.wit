@@ -56,6 +56,36 @@ interface blocks {
         /// How many things in the block's content this account has not read, for a type
         /// that counts them (a chat's new messages); zero otherwise.
         unread: u32,
+        /// Doubt this device holds about the block's signed log, until the person dismisses it
+        /// (guides/blocks/keys.md, "Forks").
+        log-doubt: option<log-doubt>,
+    }
+
+    /// Why a device doubts a block's signed log: what it found, where the other head came
+    /// from, and when, by the server's clock as the device estimates it.
+    record log-doubt {
+        kind: log-doubt-kind,
+        source: log-doubt-source,
+        /// The account whose device signed the other head, if one did.
+        account: option<account-id>,
+        /// The sizes of the head this device kept and of the other one.
+        ours: u64,
+        theirs: u64,
+        found: option<s64>,
+    }
+
+    enum log-doubt-kind {
+        /// Another device, or this one at another time, was shown a different history.
+        forked,
+        /// The server answered a proof about the log that does not check.
+        misbehaved,
+    }
+
+    enum log-doubt-source {
+        session,
+        commit,
+        account,
+        server,
     }
 
     enum artifact-action {
@@ -164,6 +194,9 @@ interface blocks {
         /// the shell lists it among what this device hosts, with Stop. Kept in
         /// memory only, so quitting the host stops it.
         keep-hosting(bool),
+        /// Hides the block's log doubt (`block-info.log-doubt`) on this device: the verdict
+        /// stays kept, it is only no longer shown.
+        dismiss-log-doubt,
     }
 
     /// Whether this device hosts an editor's block: runs its host component

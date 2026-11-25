@@ -571,6 +571,17 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.log_fork(block)
     }
 
+    /// Every block's kept verdict, dismissed ones too.
+    pub fn log_forks(&self) -> Vec<LogFork> {
+        self.refs.log_forks()
+    }
+
+    /// The person dismissed `block`'s verdict on this device: kept, no longer shown. Whether
+    /// there was one to dismiss.
+    pub fn dismiss_log_fork(&self, block: Uuid) -> Result<bool, ClientError> {
+        Ok(self.refs.dismiss_fork(block)?)
+    }
+
     /// Whether `signed` is signed with a key this device verified for its account: this
     /// account's own, or a key a contact's card or key change vouched for. A key only the
     /// server names vouches for nothing, since the server could name its own.
@@ -664,6 +675,7 @@ impl<S: ObjectStore> Peer<S> {
             from,
             kind,
             found: self.server_now(),
+            dismissed: false,
         }
     }
 

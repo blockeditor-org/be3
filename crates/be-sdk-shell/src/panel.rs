@@ -17,6 +17,7 @@ use super::artifact::ArtifactBar;
 use super::block_menu::with_block_menu;
 use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
+use super::log_doubt::LogDoubtBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, Workspace};
 use beui::Align;
@@ -66,6 +67,8 @@ pub struct TabInfo {
     pub deleted: Option<Deleted>,
     /// The host is offline and holds no version of the block's content, so it cannot open it.
     pub out_of_reach: bool,
+    /// Doubt this device holds about the block's signed log (`BlockInfo::log_doubt`).
+    pub log_doubt: Option<be_sdk_beui::LogDoubt>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -141,6 +144,7 @@ fn read_item_info(
     let ceiling = workspace.ceiling(item.id);
     let own = workspace.info(item.id);
     let out_of_reach = own.as_ref().is_some_and(|info| info.out_of_reach);
+    let log_doubt = own.as_ref().and_then(|info| info.log_doubt.clone());
     let parent = own.as_ref().and_then(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let mut references = refs(watched.references.as_ref());
@@ -188,6 +192,7 @@ fn read_item_info(
         },
         deleted,
         out_of_reach,
+        log_doubt,
     })
 }
 
@@ -244,6 +249,7 @@ pub(crate) fn BlockPanel(
                 {(!session).then(|| view! {
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
                     <DeletedBar workspace={workspace} info={info.read_only()} />
+                    <LogDoubtBar workspace={workspace} info={info.read_only()} />
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 })}
                 <TabBar bar={move || bar.call()} own=true />
@@ -390,6 +396,7 @@ fn DockedBlockTab(
             {(!session).then(|| view! {
                 <ArtifactBar workspace={workspace} info={info} />
                 <DeletedBar workspace={workspace} info={info} />
+                <LogDoubtBar workspace={workspace} info={info} />
                 <LinkedBar workspace={workspace} info={info} />
             })}
             <TabBar bar={move || bar.call()} own />

@@ -261,7 +261,12 @@ shows as a badge (`CountBadge`). A size comes from that field, never from walkin
 `out_of_reach` says the host is offline and holds no version of the block's
 content whole (`Peer::held_head`), so it can be neither opened nor changed, nor have a block
 added to it, until the host reconnects; the block picker refuses to make a
-block there. `BlockInfo::reach` (`Open`, `Locked`, `NoAccess`),
+block there. `log_doubt` is the verdict this device kept on the block's signed
+log (guides/blocks/keys.md, "Forks": a fork, or the server misbehaving), until
+the person dismisses it on this device (`block-command.dismiss-log-doubt`;
+`Seen::log_doubts`, loaded as the connection comes up and told on
+`Event::LogForked`); the workspace shows it above the block (be-sdk-shell's
+`LogDoubtBar`), writing still allowed. `BlockInfo::reach` (`Open`, `Locked`, `NoAccess`),
 `BlockInfo::label` and `be_sdk_beui::label_glyph` give every place that draws
 a referenced block one way to show these states.
 

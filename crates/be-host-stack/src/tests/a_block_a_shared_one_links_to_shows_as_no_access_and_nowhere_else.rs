@@ -112,6 +112,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
         false,
         crate::unfiled(),
         false,
+        None,
     ));
     assert!(info.no_access() && !info.locked);
     assert_eq!(info.reach(), be_sdk::be_sdk_ui::Reach::NoAccess);

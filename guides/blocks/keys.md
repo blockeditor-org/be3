@@ -1058,7 +1058,9 @@ who lost access. Cited from code by these names.
   answering a comparison with a proof that does not check, which the device keeps
   as a verdict of its own (`ForkKind::Misbehaved`: the server proved it
   misbehaves, not what it hides), or with a log that grows each time it is read
-  (`Contended`), which leaves no verdict. One rule holds everywhere: a head
+  (`Contended`), which leaves no verdict. A verdict shows above the block as a
+  warning bar with Details and Dismiss, writing still allowed (`BlockInfo::log_doubt`,
+  guides/blocks/apps.md). One rule holds everywhere: a head
   shorter than the kept one, or of its size with another root, is a fork; a proof
   that does not check is `Tampered`. A block's signed
   log already has them per device: each device keeps the log's head it verified and takes a

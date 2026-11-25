@@ -1812,6 +1812,7 @@ impl ContentStore {
             tree_size: 0,
             out_of_reach: false,
             unread: 0,
+            log_doubt: None,
         });
         {
             let mut inner = self.0.borrow_mut();

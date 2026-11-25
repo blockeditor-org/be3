@@ -4,6 +4,7 @@ mod deleted;
 mod dialogs;
 mod host_panel;
 mod linked;
+mod log_doubt;
 mod menu;
 mod panel;
 mod program;

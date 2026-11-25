@@ -3675,6 +3675,7 @@ impl HostCore {
                 self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
             }
             BlockCommand::Restore => self.restore(id),
+            BlockCommand::DismissLogDoubt => be_host_stack::dismiss_log_doubt(id),
             // The runtime answers them for a host component and a Join member
             // (`Instances::act_on`).
             BlockCommand::TellMember(_) | BlockCommand::TellHost(_) => {}
