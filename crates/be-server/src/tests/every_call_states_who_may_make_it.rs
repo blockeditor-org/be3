@@ -519,7 +519,7 @@ impl TestClient {
             .await;
         calls
             .write(Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: None,
                 references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
@@ -529,7 +529,7 @@ impl TestClient {
             .await;
         calls
             .write(Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: commit,
@@ -836,10 +836,10 @@ async fn every_call_states_who_may_make_it() {
                     parent: BlockParent::Root,
                     metadata: Vec::new(),
                     references: vec![block],
-                    key: key,
+                    key,
                     owner_only: false,
-                    root: root,
-                    placement: placement,
+                    root,
+                    placement,
                 },
                 Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, referrer, KeyKind::Data)],

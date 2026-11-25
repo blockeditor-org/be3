@@ -30,7 +30,7 @@ async fn removing_a_contact_revokes_what_the_two_shared() {
     for (client, block) in [(&mut other, mine), (&mut owner, theirs)] {
         let read = client.try_read_block(block).await;
         assert!(
-            matches!(read, Err(_)),
+            read.is_err(),
             "a grant outlived the contact: {read:?}"
         );
     }

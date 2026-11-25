@@ -7,7 +7,7 @@ async fn summaries(client: &mut TestClient, blocks: Vec<Uuid>) -> Vec<Option<Uui
         .call(|peer| {
             peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(
                 be_block_protocol::Query::Blocks {
-                    blocks: blocks,
+                    blocks,
                     contents: false,
                     held: Vec::new(),
                 },
@@ -62,10 +62,10 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
                     parent: BlockParent::Block(settings),
                     metadata: Vec::new(),
                     references: Vec::new(),
-                    key: key,
+                    key,
                     owner_only: true,
                     root: root.clone(),
-                    placement: placement,
+                    placement,
                 },
                 be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, secret, KeyKind::Data)],

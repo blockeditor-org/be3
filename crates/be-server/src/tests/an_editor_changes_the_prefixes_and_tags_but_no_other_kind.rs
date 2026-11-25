@@ -14,15 +14,15 @@ async fn create_under(
         .call(|peer| {
             peer.write_all::<be_block_protocol::BlockSummary>(vec![
                 be_block_protocol::Op::CreateBlock {
-                    block: block,
-                    content_type: content_type,
+                    block,
+                    content_type,
                     parent: BlockParent::Block(parent),
                     metadata: Vec::new(),
                     references: Vec::new(),
-                    key: key,
+                    key,
                     owner_only: false,
-                    root: root,
-                    placement: placement,
+                    root,
+                    placement,
                 },
                 be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
@@ -101,7 +101,7 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
         "an editor opened a kind a manager made: {opened:?}"
     );
     let tag = create_under(&mut editor, Uuid::from_u128(0x7a6), tags).await;
-    assert!(matches!(tag, Ok(_)), "{tag:?}");
+    assert!(tag.is_ok(), "{tag:?}");
 
     assert_eq!(editor.read_block(home).await.access, Access::View);
     let author = Author::new(editor_id);

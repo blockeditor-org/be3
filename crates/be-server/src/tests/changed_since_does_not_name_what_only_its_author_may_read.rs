@@ -15,7 +15,7 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: root,
-                        after: after.clone(),
+                        after: after,
                         limit: 100,
                     },
                     false,
@@ -84,10 +84,10 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
                     parent: BlockParent::Block(settings),
                     metadata: Vec::new(),
                     references: Vec::new(),
-                    key: key,
+                    key,
                     owner_only: true,
                     root: root.clone(),
-                    placement: placement,
+                    placement,
                 },
                 be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, secret, KeyKind::Data)],

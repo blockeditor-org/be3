@@ -33,7 +33,7 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
         .map(|(block, head, chunks)| {
             publisher.peer.write::<be_block_protocol::PublishOutcome>(
                 be_block_protocol::Op::Publish {
-                    block: block,
+                    block,
                     expected: None,
                     commit: Some(be_block_protocol::NewCommit {
                         id: head,

@@ -202,7 +202,7 @@ fn page_of(
             return Ok(KeyPage { keys: page, next });
         }
         room = room.saturating_sub(size);
-        page.keys.push(row.clone());
+        page.keys.push(*row);
         page.wrapped.extend(wrapped);
     }
     Ok(KeyPage {
@@ -1425,8 +1425,8 @@ impl ServerStore {
             let mut found = Vec::new();
             for account in accounts.into_iter().collect::<BTreeSet<_>>() {
                 let known = account == identity.account
-                    || crate::contacts::is_contact(&database, identity.account, account)?
-                    || is_member_of(&database, account, identity.organization)?;
+                    || crate::contacts::is_contact(database, identity.account, account)?
+                    || is_member_of(database, account, identity.organization)?;
                 if !known {
                     continue;
                 }
@@ -1496,7 +1496,7 @@ impl ServerStore {
     ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
         let (public, memberships) = {
             self.with_database(move |_, database| {
-                let public = recovery_key_of(&database, account)?;
+                let public = recovery_key_of(database, account)?;
                 let mut statement = database.prepare(
                     "SELECT memberships.organization_id, memberships.role, agents.bound_to
                      FROM memberships
@@ -1580,7 +1580,7 @@ impl ServerStore {
         &self,
         account: Uuid,
     ) -> Result<Vec<be_block_protocol::SignedLog>, ServerError> {
-        self.with_database(move |_, database| crate::access::signed_logs(&database, account))
+        self.with_database(move |_, database| crate::access::signed_logs(database, account))
             .await
     }
 
@@ -1722,7 +1722,7 @@ impl ServerStore {
                 )));
             }
             for change in &changes {
-                if !crate::contacts::is_contact(&database, account, change.contact)? {
+                if !crate::contacts::is_contact(database, account, change.contact)? {
                     return Err(ServerError::Refused(
                         ErrorCode::NotAContact,
                         format!("{} is not one of your contacts", change.contact),

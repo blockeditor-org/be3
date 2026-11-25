@@ -40,7 +40,7 @@ async fn a_change_made_while_a_follow_is_read_is_read_or_told() {
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: folder,
-                        after: after,
+                        after,
                         limit: 1,
                     },
                     false,

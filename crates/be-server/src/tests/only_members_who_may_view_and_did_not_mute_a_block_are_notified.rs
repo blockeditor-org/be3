@@ -44,7 +44,7 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
     let muted = bystander
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::SetMute {
-                block: block,
+                block,
                 mode: NotifyMode::Off,
             })
         })
@@ -59,7 +59,7 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         .call(|peer| {
             peer.send(
                 be_block_protocol::Target::Push {
-                    block: block,
+                    block,
                     mentions: Vec::new(),
                     keys: Vec::new(),
                 },

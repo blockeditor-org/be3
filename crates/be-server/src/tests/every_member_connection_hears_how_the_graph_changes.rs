@@ -48,7 +48,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
             })
         })
         .await;
-    assert!(matches!(response, Ok(_)), "{response:?}");
+    assert!(response.is_ok(), "{response:?}");
     assert_eq!(advanced(&mut other).await, folder);
     let (renamed, _) = other.read_changes(folder).await;
     assert!(

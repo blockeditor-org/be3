@@ -821,7 +821,7 @@ impl Client {
                 {
                     self.following.sessions.remove(&block);
                 }
-                session(block, SessionEvent::Membership((*entry).clone()))
+                session(block, SessionEvent::Membership((*entry)))
             }
             Push::Sealed {
                 block,
@@ -1307,7 +1307,7 @@ impl Client {
                 let payer = self.connection.store.payer(account).await?;
                 self.follow_storage(payer);
                 let usage = self.connection.store.storage_usage(account).await?;
-                self.storage = Some(usage.clone());
+                self.storage = Some(usage);
                 Ok(Page::Storage(usage))
             }
             query => self.answer(admitted, query).await,
@@ -2350,8 +2350,8 @@ impl Client {
                     connection
                         .after(After::Regranted {
                             organization: identity.organization,
-                            block: block,
-                            before: before,
+                            block,
+                            before,
                         })
                         .await;
                 }
@@ -2498,7 +2498,7 @@ impl Client {
                     .await?;
                 connection
                     .after(After::Revoked {
-                        revoked: revoked,
+                        revoked,
                         accounts: vec![caller, account],
                     })
                     .await;
@@ -2623,7 +2623,7 @@ impl Client {
                 if connection.store.delete_message(account, id).await? {
                     connection
                         .after(After::Tell {
-                            account: account,
+                            account,
                             push: Push::MailboxChanged,
                         })
                         .await;

@@ -36,7 +36,7 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
     let accepted = invited
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: link,
+                link,
                 card: Vec::new(),
                 contact: Vec::new(),
                 key: Vec::new(),

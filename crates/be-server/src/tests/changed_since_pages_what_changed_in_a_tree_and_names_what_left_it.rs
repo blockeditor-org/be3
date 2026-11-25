@@ -22,8 +22,8 @@ async fn changes(
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: root,
-                        after: after.clone(),
-                        limit: limit,
+                        after: after,
+                        limit,
                     },
                     false,
                 )
@@ -212,7 +212,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: work,
-                        after: cursor.clone(),
+                        after: cursor,
                         limit: 1,
                     },
                     false,
@@ -269,7 +269,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: lone,
-                        after: after.clone(),
+                        after: after,
                         limit: 100,
                     },
                     false,

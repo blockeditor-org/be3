@@ -948,7 +948,7 @@ impl TestClient {
             .call(|peer| {
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
-                        entry: entry,
+                        entry,
                         after: ChangeCursor {
                             changed: u64::MAX >> 1,
                             block: Uuid::max(),
@@ -983,8 +983,8 @@ impl TestClient {
                 .call(|peer| {
                     peer.ask::<be_block_protocol::ChangedPage>(
                         be_block_protocol::Query::Tree {
-                            entry: entry,
-                            after: after,
+                            entry,
+                            after,
                             limit: 100,
                         },
                         false,
@@ -1310,7 +1310,7 @@ impl TestClient {
                     signing: identity.signing.0,
                     sealed: Vec::new(),
                     changes: Vec::new(),
-                    retirements: retirements,
+                    retirements,
                 })
             })
             .await;
@@ -1340,9 +1340,9 @@ impl TestClient {
                 let (id, root) = organization_root(account);
                 peer.write::<be_block_protocol::Organization>(
                     be_block_protocol::Op::CreateOrganization {
-                        id: id,
+                        id,
                         name: name.into(),
-                        root: root,
+                        root,
                         pinned: Vec::new(),
                     },
                 )
@@ -1455,7 +1455,7 @@ impl TestClient {
                 .call(|peer| {
                     peer.read::<be_block_protocol::KeyPage>(be_block_protocol::Query::Keys {
                         blocks: asked,
-                        after: after,
+                        after,
                     })
                 })
                 .await
@@ -1595,13 +1595,13 @@ impl TestClient {
         let before = author.held_by(expected);
         self.call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
-                expected: expected,
+                block,
+                expected,
                 commit: Some(be_block_protocol::NewCommit {
                     id: commit,
                     parents: expected.into_iter().collect(),
                     held: objects_change(&before, chunks),
-                    time: time,
+                    time,
                     pinned: false,
                     objects: Vec::new(),
                     log_through: None,
@@ -2027,10 +2027,10 @@ impl TestClient {
     ) -> Result<(), Error> {
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: link,
+                link,
                 card: b"the owner's card".to_vec(),
-                kind: kind,
-                signed: signed,
+                kind,
+                signed,
             })
         })
         .await
@@ -2061,7 +2061,7 @@ impl TestClient {
         CODES.lock().unwrap().insert((link, organization), code);
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: link,
+                link,
                 card: card.clone(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
@@ -2115,7 +2115,7 @@ impl TestClient {
         };
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::DeleteLink {
-                link: link,
+                link,
                 signed: signed.clone(),
             })
         })
@@ -2160,7 +2160,7 @@ impl TestClient {
         let member = self.acceptance(link).await;
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: link,
+                link,
                 card: b"the accepter's card".to_vec(),
                 contact: b"the owner's key, sealed for the accepter".to_vec(),
                 key: key.to_vec(),
@@ -2233,7 +2233,7 @@ impl TestClient {
             peer.write_in::<be_block_protocol::CreatedAgent>(
                 Some(organization),
                 be_block_protocol::Op::CreateAgent {
-                    account: account,
+                    account,
                     name: "Terminal host".into(),
                     recovery: identity.public.0,
                     signing: identity.signing.0,
@@ -2274,8 +2274,8 @@ impl TestClient {
     ) -> Result<(), Error> {
         let record = self.signed_parent(block, parent).await;
         let mut ops = vec![be_block_protocol::Op::Move {
-            block: block,
-            parent: parent,
+            block,
+            parent,
             placement: record,
         }];
         if !keys.is_empty() {
@@ -2418,9 +2418,9 @@ impl TestClient {
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::AppendLog(
                 be_block_protocol::LogRecord::Grant {
-                    block: block,
-                    account: account,
-                    access: access,
+                    block,
+                    account,
+                    access,
                     signed: signed.clone(),
                 },
             ))
@@ -2537,7 +2537,7 @@ impl TestClient {
             peer.write_in::<be_block_protocol::CreatedAgent>(
                 Some(organization),
                 be_block_protocol::Op::CreateAgent {
-                    account: account,
+                    account,
                     name: name.clone(),
                     recovery: identity.public.0,
                     signing: identity.signing.0,
@@ -2622,7 +2622,7 @@ impl TestClient {
         let revocations = self.removal_revocations(account, true).await;
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::RemoveContact {
-                account: account,
+                account,
                 revocations: revocations.clone(),
             })
         })
@@ -2636,8 +2636,8 @@ impl TestClient {
             .call(|peer| {
                 peer.read::<Vec<be_block_protocol::Revocation>>(
                     be_block_protocol::Query::Revocations {
-                        account: account,
-                        contact: contact,
+                        account,
+                        contact,
                     },
                 )
             })
@@ -3387,8 +3387,8 @@ impl TestClient {
         let set = self
             .call(|peer| {
                 peer.write::<()>(be_block_protocol::Op::SetMute {
-                    block: block,
-                    mode: mode,
+                    block,
+                    mode,
                 })
             })
             .await;
@@ -3401,8 +3401,8 @@ impl TestClient {
             .call(|peer| {
                 peer.send(
                     be_block_protocol::Target::Push {
-                        block: block,
-                        mentions: mentions,
+                        block,
+                        mentions,
                         keys: Vec::new(),
                     },
                     sealed,
@@ -3423,9 +3423,9 @@ impl TestClient {
             .call(|peer| {
                 peer.send(
                     be_block_protocol::Target::Push {
-                        block: block,
+                        block,
                         mentions: Vec::new(),
-                        keys: keys,
+                        keys,
                     },
                     sealed,
                 )

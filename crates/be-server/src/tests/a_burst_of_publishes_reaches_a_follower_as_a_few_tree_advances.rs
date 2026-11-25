@@ -28,8 +28,8 @@ async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
         let before = author.held_by(expected);
         sent.push(writer.peer.write::<be_block_protocol::PublishOutcome>(
             be_block_protocol::Op::Publish {
-                block: block,
-                expected: expected,
+                block,
+                expected,
                 commit: Some(be_block_protocol::NewCommit {
                     id: head,
                     parents: expected.into_iter().collect(),

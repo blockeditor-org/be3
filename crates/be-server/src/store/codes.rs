@@ -457,7 +457,7 @@ impl ServerStore {
                 ],
             )?;
             transaction.commit()?;
-            Ok(sent.then(|| MailedCode {
+            Ok(sent.then_some(MailedCode {
                 email,
                 purpose,
                 code,

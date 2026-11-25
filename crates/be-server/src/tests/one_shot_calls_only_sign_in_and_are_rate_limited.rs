@@ -19,7 +19,7 @@ async fn one_shot_calls_only_sign_in_and_are_rate_limited() {
 
     for _ in 1..crate::http::MAX_CALLS_PER_ADDRESS {
         harness
-            .once(|peer| begin_login(peer))
+            .once(begin_login)
             .await
             .expect("a sign-in begins");
     }

@@ -15,7 +15,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     let response = author_connection
         .call(|peer| {
             peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: None,
                 references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
@@ -24,7 +24,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             })
         })
         .await;
-    assert!(matches!(response, Ok(_)), "{response:?}");
+    assert!(response.is_ok(), "{response:?}");
 
     let author = Author::new(account);
     let (head, chunks) = author.compose(b"first\n", 1_000, None);
@@ -34,7 +34,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     let response = author_connection
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: head,
@@ -70,7 +70,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     let response = author_connection
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: None,
                 references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),

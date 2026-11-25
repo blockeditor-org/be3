@@ -10,15 +10,15 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
         .call(|peer| {
             peer.write_all::<be_block_protocol::BlockSummary>(vec![
                 be_block_protocol::Op::CreateBlock {
-                    block: block,
-                    content_type: content_type,
+                    block,
+                    content_type,
                     parent: BlockParent::Block(parent),
                     metadata: Vec::new(),
                     references: Vec::new(),
-                    key: key,
+                    key,
                     owner_only: false,
                     root: root.clone(),
-                    placement: placement,
+                    placement,
                 },
                 be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
@@ -27,7 +27,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
             ])
         })
         .await;
-    assert!(matches!(response, Ok(_)), "{response:?}");
+    assert!(response.is_ok(), "{response:?}");
     block
 }
 
