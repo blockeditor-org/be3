@@ -621,10 +621,9 @@ struct Transport {
     woken: Cell<bool>,
     panicked: RefCell<Option<String>>,
     wake: Wake,
-    /// Its WASI (guides/app_libraries.md, Pure guests), from the zero seed.
+    /// Its WASI (guides/app_libraries.md, Pure guests), from the zero seed: the testing root, the
+    /// only pure root, wants its runs alike, and the real root is an app with an app's WASI.
     wasi: RefCell<be_wasm_pure_wasi::Wasi>,
-    /// What it wrote to standard output or error since its last whole line.
-    line: RefCell<String>,
 }
 
 impl Transport {
@@ -684,22 +683,17 @@ fn wasi_calls(transport: &Rc<Transport>) -> Vec<(&'static str, Closure<WasiCall>
                     .iter()
                     .map(|value| value.as_f64().map_or(0, |word| word as i64 as u32 as u64))
                     .collect();
-                let memory = held.memory.borrow().clone().ok_or("the root has no memory")?;
-                let mut logged = Vec::new();
-                let answered = held.wasi.borrow_mut().call(
-                    name,
-                    &words,
-                    &mut PageMemory(memory),
-                    &mut |bytes| logged.extend_from_slice(bytes),
-                );
-                if !logged.is_empty() {
-                    let mut line = held.line.borrow_mut();
-                    line.push_str(&String::from_utf8_lossy(&logged));
-                    while let Some(end) = line.find('\n') {
-                        web_sys::console::error_1(&line[..end].into());
-                        line.drain(..=end);
-                    }
-                }
+                let answered = match held.memory.borrow().clone() {
+                    Some(memory) => held.wasi.borrow_mut().call(
+                        name,
+                        &words,
+                        &mut PageMemory(memory),
+                        &mut |line| web_sys::console::error_1(&format!("the root: {line}").into()),
+                    ),
+                    None => Err(be_wasm_pure_wasi::Stopped::Fault(
+                        "the root has no memory".to_owned(),
+                    )),
+                };
                 match answered {
                     Ok(errno) => Ok(errno.into()),
                     Err(stopped) => {
@@ -738,7 +732,6 @@ impl PageGuest {
             panicked: RefCell::new(None),
             wake,
             wasi: RefCell::new(be_wasm_pure_wasi::Wasi::new([0; 32])),
-            line: RefCell::new(String::new()),
         });
         let held = Rc::clone(&transport);
         let send = Closure::<dyn FnMut(u32, u32)>::new(move |pointer, length| {

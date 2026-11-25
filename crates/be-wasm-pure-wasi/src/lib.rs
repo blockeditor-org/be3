@@ -5,6 +5,9 @@
 //! are empty, it has no clock, and exiting stops it. Every other WASI call is refused when the
 //! guest is loaded, as any import its host does not answer is.
 //!
+//! What it writes reaches the log a line at a time (`Wasi::call`'s `log`), which each host prefixes
+//! with the guest's name.
+//!
 //! Every host of a pure guest answers these through `Wasi`: be-wasm-host's on V8, tabletop-host's
 //! on wasmi and be-wasm-root-host's on the page. be-wasm-guest-host's worker (src/guest.js)
 //! answers the same in JavaScript, with the same stream.
@@ -30,6 +33,32 @@ pub const ENOSYS: i32 = 52;
 
 const STDOUT: u32 = 1;
 const STDERR: u32 = 2;
+
+/// A WebAssembly value type a call takes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Word {
+    I32,
+    I64,
+}
+
+/// The parameters of the call `name`, one of `ANSWERED`, which returns an i32 errno unless it is
+/// `proc_exit`, which returns nothing; None for any other name.
+pub fn parameters(name: &str) -> Option<&'static [Word]> {
+    use Word::{I32, I64};
+    match name {
+        "clock_time_get" => Some(&[I32, I64, I32]),
+        "fd_write" => Some(&[I32, I32, I32, I32]),
+        "proc_exit" => Some(&[I32]),
+        "args_get" | "args_sizes_get" | "clock_res_get" | "environ_get" | "environ_sizes_get"
+        | "random_get" => Some(&[I32, I32]),
+        _ => None,
+    }
+}
+
+/// Whether the call `name` returns an errno: every answered call but `proc_exit`.
+pub fn returns_errno(name: &str) -> bool {
+    name != "proc_exit"
+}
 
 /// Whether a pure guest's import of `module`.`name` is answered.
 pub fn answers(module: &str, name: &str) -> bool {
@@ -73,27 +102,47 @@ impl From<String> for Stopped {
     }
 }
 
-/// One guest's WASI: its randomness, drawn in order from its seed.
+/// One guest's WASI: its randomness, drawn in order from its seed, and what it wrote since its
+/// last whole line.
 pub struct Wasi {
     random: Keystream,
+    line: Vec<u8>,
 }
 
 impl Wasi {
     pub fn new(seed: [u8; 32]) -> Self {
         Self {
             random: Keystream::new(seed),
+            line: Vec::new(),
         }
     }
 
     /// Answers the call `name` (one of `ANSWERED`) with its arguments as raw words: the errno it
-    /// returns, or why the guest stops. What it writes to standard output or error is handed to
-    /// `log`.
+    /// returns, or why the guest stops. Each whole line it has written to standard output or
+    /// error is handed to `log` without its newline, and what is left of one when it exits.
     pub fn call(
         &mut self,
         name: &str,
         arguments: &[u64],
         memory: &mut dyn Memory,
-        log: &mut dyn FnMut(&[u8]),
+        log: &mut dyn FnMut(&str),
+    ) -> Result<i32, Stopped> {
+        let answered = self.answer(name, arguments, memory);
+        while let Some(end) = self.line.iter().position(|byte| *byte == b'\n') {
+            let line: Vec<u8> = self.line.drain(..=end).collect();
+            log(&String::from_utf8_lossy(&line[..end]));
+        }
+        if answered.is_err() && !self.line.is_empty() {
+            log(&String::from_utf8_lossy(&std::mem::take(&mut self.line)));
+        }
+        answered
+    }
+
+    fn answer(
+        &mut self,
+        name: &str,
+        arguments: &[u64],
+        memory: &mut dyn Memory,
     ) -> Result<i32, Stopped> {
         let word = |index: usize| arguments.get(index).copied().unwrap_or(0) as u32;
         match name {
@@ -105,7 +154,7 @@ impl Wasi {
             }
             "args_get" | "environ_get" => Ok(SUCCESS),
             "clock_res_get" | "clock_time_get" => Ok(ENOSYS),
-            "fd_write" => fd_write(word(0), word(1), word(2), word(3), memory, log),
+            "fd_write" => fd_write(word(0), word(1), word(2), word(3), memory, &mut self.line),
             "proc_exit" => Err(Stopped::Exited(word(0) as i32)),
             "random_get" => {
                 let (at, length) = (word(0), word(1));
@@ -206,7 +255,7 @@ fn fd_write(
     count: u32,
     written: u32,
     memory: &mut dyn Memory,
-    log: &mut dyn FnMut(&[u8]),
+    line: &mut Vec<u8>,
 ) -> Result<i32, Stopped> {
     if fd != STDOUT && fd != STDERR {
         return Ok(EBADF);
@@ -224,14 +273,42 @@ fn fd_write(
             read_u32(memory, entry.wrapping_add(4))?,
         );
         bytes.extend(memory.read(pointer, length)?);
-        // A guest may name one buffer many times: what one call takes stays within its memory.
+        // A guest may name one buffer many times: one call writes no more than its memory holds,
+        // and says it wrote only that much, as a short write may.
         if bytes.len() >= memory.size() {
+            bytes.truncate(memory.size());
             break;
         }
     }
-    log(&bytes);
+    line.extend_from_slice(&bytes);
     memory.write(written, &(bytes.len() as u32).to_le_bytes())?;
     Ok(SUCCESS)
+}
+
+/// ChaCha20's keystream test vectors (RFC 7539, appendix A.1), which every host's tests check
+/// its stream against, with the seed and block each is: a guest seeded with `seed` draws
+/// `block`'s bytes as its stream's bytes `64 * block` onwards.
+pub mod vectors {
+    /// Test vector 1: the zero key's block 0.
+    pub const ZERO_BLOCK_0: &str = "76b8e0ada0f13d90405d6ae55386bd28bdd219b8a08ded1aa836efcc8b770dc7\
+                                    da41597c5157488d7724e03fb8d84a376a43b8f41518a11cc387b669b2ee6586";
+    /// Test vector 2: the zero key's block 1.
+    pub const ZERO_BLOCK_1: &str = "9f07e7be5551387a98ba977c732d080dcb0f29a048e3656912c6533e32ee7aed\
+                                    29b721769ce64e43d57133b074d839d531ed1f28510afb45ace10a1f4b794d6f";
+    /// Test vector 3: block 1 under the key whose last byte is 1 (`ONE`).
+    pub const ONE_BLOCK_1: &str = "3aeb5224ecf849929b9d828db1ced4dd832025e8018b8160b82284f3c949aa5a\
+                                   8eca00bbb4a73bdad192b5c42f73f2fd4e273644c8b36125a64addeb006c13a0";
+    /// The key whose last byte is 1.
+    pub const ONE: [u8; 32] = {
+        let mut key = [0; 32];
+        key[31] = 1;
+        key
+    };
+
+    /// `bytes` as lowercase hex, as the vectors are written.
+    pub fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
 }
 
 #[cfg(test)]

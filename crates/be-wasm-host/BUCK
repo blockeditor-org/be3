@@ -31,6 +31,18 @@ genrule(
     srcs = ["src/tests/standalone.wat"],
 )
 
+# The pure guests every host of one is held to (src/tests/pure_wasi.wat), and one that would read
+# a file, assembled for be-wasm-root-web-testing's page, which runs them in the browser.
+[
+    genrule(
+        name = name + ".wasm",
+        cmd = "$(exe //buck/tools:wasm-as) $SRCS -o $OUT",
+        out = name + ".wasm",
+        srcs = ["src/tests/{}.wat".format(name)],
+    )
+    for name in ["pure_wasi", "reads_a_file"]
+]
+
 program(
     name = "standalone-bundle",
     bindgen = ["//crates/be-wasm-gpu-shim:module"],

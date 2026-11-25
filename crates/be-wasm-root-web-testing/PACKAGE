@@ -20,6 +20,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/be-wasm-root-api:be-wasm-root-api",
                 "//crates/be-wasm-root-host:be-wasm-root-host",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
