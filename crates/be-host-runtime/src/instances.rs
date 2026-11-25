@@ -3616,7 +3616,7 @@ impl Instances {
                         changed = true;
                     }
                     if let (Some(backdrop), false) = (&report.backdrop, anchored) {
-                        entry.backdrop = Some(backdrop.clone());
+                        entry.backdrop = Some(*backdrop);
                     }
                     changed |= screen.report.as_ref() != Some(&report);
                     screen.report = Some(report.clone());

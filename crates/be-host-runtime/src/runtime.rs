@@ -2631,11 +2631,11 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .fit
         .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
     let inert = offers.iter().all(|offer| offer.inert);
-    let frame = chosen.frame.clone().map(|frame| FrameSpec {
+    let frame = chosen.frame.map(|frame| FrameSpec {
         phone: PHONE.get(),
         ..frame
     });
-    let view = chosen.view.clone();
+    let view = chosen.view;
     let ViewPlace {
         rect, clip, zoom, ..
     } = chosen.placement;
