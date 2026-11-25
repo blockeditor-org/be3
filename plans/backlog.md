@@ -580,23 +580,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   them name their `apps`. Done when a deployed `be` has read a block type and
   hosted a block from its release, or a test serves a release as the mirror does.
 
-## 23. Sandbox
-
-- **A stopped wire keeps saying why.** An app's sandbox is dropped with it (`Wire::stop_sandbox`),
-  and a sandbox call that comes later finds no server and is refused as unsupported, which reads
-  as "this host runs no workers". Done when the wire keeps a `stopped` reason once it stops its
-  sandbox and answers every later sandbox call with it, with a be-host-runtime test that calls
-  after a stop.
-- **Server::stop answers pending compiles.** `be_wasm_sandbox_host::Server::stop` answers each
-  instance's waiting `next` but drops the compiles still under way, so their callers are never
-  answered. Done when it answers each with the stop's reason too, with a test that stops a
-  server mid-compile.
-- **The PDF renderer keeps its document.** Every render job carries the whole PDF
-  (be-worker-pdf's `Job`), so the editor copies it into the renderer and PDFium loads it again
-  for each tile. Done when the renderer keeps the last document it opened, by the block's
-  revision, behind an Open and a Render message, and a job sends the bytes only when the revision
-  is new, with a be-worker-pdf-render test that renders twice from one Open.
-
 ## 24. Build tooling
 
 - **`./scripts/test NAME` for a crate whose tests are not `:test`.** When NAME

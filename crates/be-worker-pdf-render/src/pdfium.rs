@@ -63,12 +63,30 @@ pub(crate) fn start() {
     });
 }
 
-fn record(measures: &mut Vec<Measure>, name: &str, since: Instant) {
+pub(crate) fn record(measures: &mut Vec<Measure>, name: &str, since: Instant) {
     measures.push(Measure::Duration(name.to_owned(), since.elapsed()));
 }
 
 fn count(measures: &mut Vec<Measure>, name: &str, value: u64) {
     measures.push(Measure::Count(name.to_owned(), value));
+}
+
+/// An open PDF, which PDFium reads from the bytes it holds for as long as it is open.
+pub(crate) struct Pdf {
+    // Declared first, so it closes before the bytes it reads from go.
+    document: Document,
+    _data: Vec<u8>,
+}
+
+impl Pdf {
+    pub(crate) fn open(data: Vec<u8>) -> Result<Self, String> {
+        // The bytes stay where they are when `data` moves into the `Pdf`.
+        let document = Document::load(&data)?;
+        Ok(Self {
+            document,
+            _data: data,
+        })
+    }
 }
 
 struct Document(*mut c_void);
@@ -163,30 +181,15 @@ fn load_error(code: c_ulong) -> String {
     }
 }
 
-/// Renders `target` of page `page` of the PDF `data`, adding what it measured to `measures`.
-pub(crate) fn render(
-    data: &[u8],
-    page: usize,
-    target: Target,
-    measures: &mut Vec<Measure>,
-) -> Result<Rendered, String> {
-    let started = Instant::now();
-    let rendered = render_tile(data, page, target, measures);
-    record(measures, "Worker total", started);
-    rendered
-}
-
+/// Renders `target` of page `page` of `pdf`, adding what it measured to `measures`.
 // unsafe(ffi)
-fn render_tile(
-    data: &[u8],
+pub(crate) fn render(
+    pdf: &Pdf,
     page: usize,
     target: Target,
     measures: &mut Vec<Measure>,
 ) -> Result<Rendered, String> {
-    let phase = Instant::now();
-    let document = Document::load(data)?;
-    record(measures, "Document load", phase);
-
+    let document = &pdf.document;
     let phase = Instant::now();
     let page_count = document.page_count();
     if page_count == 0 {

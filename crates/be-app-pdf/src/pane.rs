@@ -7,6 +7,7 @@ use be_sdk_beui::{
 
 use crate::render::{
     DETAIL_MAX_DIM, MIN_SCALE, RenderClient, RenderRequest, RenderTarget, RenderedTile,
+    Unrendered,
 };
 
 const TILE_MIN_SCALE_FACTOR: f32 = 0.4;
@@ -67,7 +68,9 @@ impl Pane {
                 self.store(request, rendered, performance);
                 Some(facts)
             }
-            Err(error) => {
+            // The renderer let go of the document: the next `ensure` sends it again.
+            Err(Unrendered::Unopened) => None,
+            Err(Unrendered::Failed(error)) => {
                 self.error = Some(error);
                 self.failed = Some((request.revision, request.page));
                 None
@@ -140,22 +143,20 @@ impl Pane {
                 None => return,
             }
         };
-        let data_started = Instant::now();
-        let Some(data) = data() else {
-            return;
-        };
-        performance.record_duration("PDF data copy", data_started.elapsed());
-        performance.record_count("PDF bytes", data.len() as u64);
         let request = RenderRequest {
             revision,
             page,
             target,
         };
-        let sent = Instant::now();
-        self.client
+        let started = Instant::now();
+        let sent = self
+            .client
             .get_or_insert_with(|| RenderClient::new(&waker))
-            .send(data, page, target);
-        performance.record_duration("Send render job", sent.elapsed());
+            .send(revision, page, target, performance, data);
+        if !sent {
+            return;
+        }
+        performance.record_duration("Send render job", started.elapsed());
         self.job = Some(request);
     }
 
