@@ -36,6 +36,11 @@ disagree. Each step below removes one of the pair.
    implements `SettingsGraph` over the stack, keeping its read cache and its `ready(Roots)`
    check inside that implementation, and builds its sessions, profiles, My Files and Unfiled on
    `be_sdk::root_settings`. guides/settings.md then names one place.
+   Done: the rules moved down to `be_block::root_settings`, which be-sdk re-exports, since be-sdk
+   is the guest's crate (on the web it would bring the guest's wgpu into be-host). `SettingsGraph`
+   makes a block `under` a block or at the root, and its `listed` is the roots check be-host's
+   implementation answers with `ready(Roots)`, dropping what it read before; be-host's
+   `Stack` keeps the read cache.
 3. **One block-stack test fixture.** `be-host-testing`'s `Harness` is nearly line for line
    `be-host-stack/src/tests.rs`'s `Harness`/`serving` (the `ONE_STACK` mutex, a temp directory,
    registering `counter@example.com`, the "Counters" organization, `stop_server`/`start_server`,

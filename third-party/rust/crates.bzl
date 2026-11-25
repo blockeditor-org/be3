@@ -62043,6 +62043,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "macos-arm64": {
