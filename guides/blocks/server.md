@@ -1318,17 +1318,18 @@ starts one beside the web build.
   `offline`, `slow`), push options, and a listener that stops and starts again
   at its address (`stop`, `start_again`); be-host's host tests sign each host in
   as a device of one of its accounts. The harness,
-  `be_host_stack::testing::Harness`, signs one account's stack in against it in
-  the organization "Counters", asking the server only what `TestServer` says,
-  so nothing a host ships links be-server, though it is compiled into every
-  native build (decisions/test_hooks_are_ordinary_code.md). be-host-stack's own
-  tests wrap it with the relay they reach the server through; crates above it
-  use `be-host-testing`'s `Harness`, which serves the first-party types in
-  process (`be_host_stack::testing::serve_in_process`) on a driven clock. Both
-  stop and start the server (`stop_server`, `start_server`) for a test of what
-  the host does while it is out of reach, and make a block from another device
-  under a folder the host never lists (`block_out_of_sight`) for a test of a
-  create the server refuses.
+  `be_host_stack::testing::Harness`, signs one account's stack in, in the
+  organization "Counters", from what it is handed (`SignIn`: the server's url
+  and the account's id, email and token) rather than the server, so nothing a
+  host ships links be-server, though the harness is compiled into every native
+  build (decisions/test_hooks_are_ordinary_code.md). be-host-stack's own tests
+  wrap it with their server and the relay they may reach it through; crates
+  above it use `be-host-testing`'s `Harness`, which serves the first-party types
+  in process (`be_host_stack::testing::serve_in_process`) on a driven clock.
+  Each wrapper stops and starts its server (`stop_server`, `start_server`) for
+  a test of what the host does while it is out of reach, and the harness makes
+  a block from another device under a folder the host never lists
+  (`block_out_of_sight`) for a test of a create the server refuses.
 - `crates/be-block-fault-relay` sits between a client and a server and can
   `stall`, `stall_at_next_request`, `cut`, `hold_new` or `jam_at_next_request`
   connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are

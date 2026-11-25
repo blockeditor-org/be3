@@ -109,6 +109,11 @@ pub fn start_now_at(at: i64) {
     SHIFT.store(at.saturating_sub(system_milliseconds()), Ordering::Relaxed);
 }
 
+/// Undoes `start_now_at`: `now_milliseconds` reads the system clock again.
+pub fn run_now_on_the_system_clock() {
+    SHIFT.store(0, Ordering::Relaxed);
+}
+
 /// Pins `now_milliseconds` for the whole process, `None` unpins it. A test drives it: be-host
 /// pins it to its wall clock while that is pinned, and be-host-stack's harness sets it, so
 /// commit times, and the history an embedded server keeps, follow the test's clock.

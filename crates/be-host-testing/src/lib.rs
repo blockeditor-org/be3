@@ -3,10 +3,7 @@
 //! a server of the test's own (`be_host_server::testing::Server`), with every block type the
 //! host links served in process.
 
-use std::path::PathBuf;
-
 use be_host_server::testing::Server;
-use uuid::Uuid;
 
 pub struct Harness {
     // Dropped first: the stack stops before its server goes.
@@ -35,47 +32,34 @@ impl Harness {
             knows: be_type_bundle::knows,
         });
         let server = Server::start();
+        let counter = server.account("Counter");
+        let harness = be_host_stack::testing::Harness::start(be_host_stack::testing::SignIn {
+            url: server.url(),
+            account: counter.id,
+            token: server.token(counter.id),
+            email: counter.email,
+        });
         Self {
             // A failed connect's wait moves the clock on to the next reconnect, so no test
             // strands on a clock nobody moves (guides/blocks/host.md).
-            harness: be_host_stack::testing::Harness::start(Box::new(Served(server.clone())))
-                .on_clock(be_block_client::Clock::driven()),
+            harness: harness.on_clock(be_block_client::Clock::driven()),
             server,
         }
+    }
+
+    /// Stops the server, as a device losing its connection finds it: the stack keeps what it
+    /// does until `start_server` brings it back at the same address.
+    pub fn stop_server(&mut self) {
+        self.server.stop();
+    }
+
+    /// Starts the server again on the same data and address after `stop_server`.
+    pub fn start_server(&mut self) {
+        self.server.start_again();
     }
 
     /// The server the stack signs in against.
     pub fn server(&self) -> &Server {
         &self.server
-    }
-}
-
-/// The test server, as the stack's harness asks it.
-struct Served(Server);
-
-impl be_host_stack::testing::TestServer for Served {
-    fn url(&self) -> String {
-        self.0.url()
-    }
-
-    fn directory(&self) -> PathBuf {
-        self.0.directory().to_owned()
-    }
-
-    fn account(&self, name: &str) -> (Uuid, String) {
-        let account = self.0.account(name);
-        (account.id, account.email)
-    }
-
-    fn token(&self, account: Uuid) -> String {
-        self.0.token(account)
-    }
-
-    fn stop(&self) {
-        self.0.stop();
-    }
-
-    fn start_again(&self) {
-        self.0.start_again();
     }
 }

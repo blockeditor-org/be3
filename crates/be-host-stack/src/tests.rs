@@ -369,36 +369,6 @@ impl std::ops::DerefMut for Harness {
     }
 }
 
-/// The test server, as the stack's harness asks it.
-struct Served(be_host_server::testing::Server);
-
-impl crate::testing::TestServer for Served {
-    fn url(&self) -> String {
-        self.0.url()
-    }
-
-    fn directory(&self) -> PathBuf {
-        self.0.directory().to_owned()
-    }
-
-    fn account(&self, name: &str) -> (Uuid, String) {
-        let account = self.0.account(name);
-        (account.id, account.email)
-    }
-
-    fn token(&self, account: Uuid) -> String {
-        self.0.token(account)
-    }
-
-    fn stop(&self) {
-        self.0.stop();
-    }
-
-    fn start_again(&self) {
-        self.0.start_again();
-    }
-}
-
 impl Harness {
     pub fn start() -> Self {
         Self::serving(be_server::push::PushConfig::DEFAULT)
@@ -497,11 +467,29 @@ impl Harness {
             push,
             ..be_host_server::testing::Options::default()
         });
+        let counter = server.account("Counter");
+        let harness = crate::testing::Harness::start(crate::testing::SignIn {
+            url: server.url(),
+            account: counter.id,
+            token: server.token(counter.id),
+            email: counter.email,
+        });
         Self {
-            harness: crate::testing::Harness::start(Box::new(Served(server.clone()))),
+            harness,
             relay: None,
             server,
         }
+    }
+
+    /// Stops the server, as a device losing its connection finds it: the stack keeps what it
+    /// does until `start_server` brings it back at the same address.
+    fn stop_server(&mut self) {
+        self.server.stop();
+    }
+
+    /// Starts the server again on the same data and address after `stop_server`.
+    fn start_server(&mut self) {
+        self.server.start_again();
     }
 
     async fn outside_peer(

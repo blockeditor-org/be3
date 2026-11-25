@@ -47,26 +47,39 @@ pub struct Server {
     inner: Arc<Inner>,
 }
 
+// Its fields go in order: the server stops first, then the store's handles close, and the data
+// goes last (`Data`), once nothing has it open.
 struct Inner {
-    // Stopped before the store and the runtime go, and before the data does.
     running: Mutex<Option<EmbeddedServer>>,
     /// The test's own handle on the server's data, opened before the server so the two never
     /// set the database up at once; it makes accounts and signs devices in.
     store: be_server::ServerStore,
     address: SocketAddr,
-    directory: PathBuf,
     push: be_server::push::PushConfig,
     relays: Mutex<Vec<Weak<Relay>>>,
     /// How long each device's relay holds each answer of the server's (`slow`).
     latency: Mutex<Duration>,
     runtime: tokio::runtime::Runtime,
+    /// Whether it started the process's clock at a set moment (`Options::starts_at`), which
+    /// it undoes as it goes.
+    shifted: bool,
+    data: Data,
 }
 
 impl Drop for Inner {
     fn drop(&mut self) {
-        // The server stops before its files go, or it fails opening them as it winds down.
-        *lock(&self.running) = None;
-        let _ = std::fs::remove_dir_all(&self.directory);
+        if self.shifted {
+            be_block_commit::run_now_on_the_system_clock();
+        }
+    }
+}
+
+/// The server's data, deleted when it goes.
+struct Data(PathBuf);
+
+impl Drop for Data {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
     }
 }
 
@@ -113,11 +126,12 @@ impl Server {
                 running: Mutex::new(Some(running)),
                 store,
                 address,
-                directory,
                 push: options.push,
                 relays: Mutex::new(Vec::new()),
                 latency: Mutex::new(Duration::ZERO),
                 runtime,
+                shifted: options.starts_at.is_some(),
+                data: Data(directory),
             }),
         }
     }
@@ -133,7 +147,7 @@ impl Server {
 
     /// The server's data, which a test may read or change behind its back.
     pub fn directory(&self) -> &Path {
-        &self.inner.directory
+        &self.inner.data.0
     }
 
     /// Makes an account named `name`, with its own My files in the server's personal
@@ -176,7 +190,7 @@ impl Server {
     pub fn start_again(&self) {
         let running = crate::start_embedded_server_at(
             &self.inner.address.to_string(),
-            self.inner.directory.clone(),
+            self.inner.data.0.clone(),
             self.inner.push.clone(),
         )
         .expect("the test server starts again");
@@ -186,7 +200,8 @@ impl Server {
     /// A network of its own for one device, carrying its connections to the server.
     pub fn relay(&self) -> Arc<Relay> {
         let relay = Arc::new(Relay::start(self.inner.address));
-        // `stress --latency` (crates/be-tool-local) slows every answer too.
+        // `HOST_TEST_LATENCY_MS` slows every answer too, for every test that relays: host tests
+        // under `stress --latency` (crates/be-tool-local), and the stack's own.
         let stressed = std::env::var("HOST_TEST_LATENCY_MS")
             .ok()
             .and_then(|milliseconds| milliseconds.parse().ok())
@@ -215,7 +230,7 @@ impl Server {
     /// (guides/blocks/keys.md, "Contacts"). Every contact's record is spoiled alike.
     pub fn spoil_contacts(&self, of: &Account) {
         let of = of.id.to_string();
-        be_block_sqlite_schema::open(self.inner.directory.join("metadata.sqlite"))
+        be_block_sqlite_schema::open(self.inner.data.0.join("metadata.sqlite"))
             .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"))
             .execute(
                 "UPDATE wrapped_keys SET sealed = x'07070707070707070707070707070707'
@@ -234,7 +249,7 @@ impl Server {
     /// straight into the server's data, as a server adding a member on its own would: no
     /// invitation signed them into the organization's log.
     pub fn add_member(&self, of: &Account, name: &str, joiner: &Account) {
-        let added = be_block_sqlite_schema::open(self.inner.directory.join("metadata.sqlite"))
+        let added = be_block_sqlite_schema::open(self.inner.data.0.join("metadata.sqlite"))
             .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"))
             .execute(
                 "INSERT INTO memberships (organization_id, account_id, role)
