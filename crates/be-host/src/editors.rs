@@ -160,6 +160,7 @@ pub(crate) trait PendingCreation {
 pub(crate) struct TemplateEntry {
     pub(crate) target: app::CreationTarget,
     /// The app whose editor makes it.
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     app: Arc<AppManifest>,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
@@ -312,6 +313,7 @@ impl EditorRegistry {
             let app = Arc::clone(manifest);
             self.templates.push(TemplateEntry {
                 target,
+                #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
                 app: Arc::clone(&app),
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
