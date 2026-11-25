@@ -161,7 +161,7 @@ impl Mapping<'_> {
                             Some(owner) => Some((self.tab)(owner)?),
                             None => None,
                         },
-                        placement: bar.placement.clone(),
+                        placement: bar.placement,
                         hidden: bar.hidden,
                         pane: bar.pane.as_ref().and_then(|pane| (self.tab)(pane)),
                     })
@@ -410,7 +410,7 @@ impl DockRequest {
             }
             Self::PlaceBar(place) => Self::PlaceBar(crate::DockBarPlace {
                 bar: place.bar.clone().through(child),
-                placement: place.placement.clone(),
+                placement: place.placement,
             }),
             Self::MoveBar(moved) => Self::MoveBar(crate::DockBarMove {
                 bar: moved.bar.clone().through(child),
@@ -476,7 +476,7 @@ impl DockHosted {
                         Some(owner) => Some(path(owner)?),
                         None => None,
                     },
-                    placement: bar.placement.clone(),
+                    placement: bar.placement,
                     hidden: bar.hidden,
                     pane: bar.pane.as_ref().and_then(path),
                 })
@@ -519,7 +519,7 @@ impl DockHosted {
                 Some(DockPlacedBar {
                     owner: owner(&tab)?,
                     bar: tab,
-                    placement: bar.placement.clone(),
+                    placement: bar.placement,
                     hidden: bar.hidden,
                     pane: bar.pane.as_ref().and_then(|pane| pane.within(child)),
                 })
