@@ -1332,10 +1332,15 @@ impl Host for Gpu {
             return;
         }
         let format = Convert::<wgpu::TextureFormat>::convert(format);
-        let view_formats: Vec<wgpu::TextureFormat> = view_formats
-            .into_iter()
-            .map(Convert::<wgpu::TextureFormat>::convert)
-            .collect();
+        // The format itself, and a format named twice, ask for nothing more: equal
+        // configurations keep their textures.
+        let mut views: Vec<wgpu::TextureFormat> = Vec::new();
+        for view in view_formats.into_iter().map(Convert::<wgpu::TextureFormat>::convert) {
+            if view != format && !views.contains(&view) {
+                views.push(view);
+            }
+        }
+        let view_formats = views;
         if let Some(view) = view_formats
             .iter()
             .find(|view| view.remove_srgb_suffix() != format.remove_srgb_suffix())
@@ -1372,7 +1377,16 @@ impl Host for Gpu {
                 view_formats: &view_formats,
             })
         };
+        // A device without `DownlevelFlags::VIEW_FORMATS` (WebGL2) refuses other view formats:
+        // the app hears why rather than the host's error handler.
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let textures = vec![texture(), texture()];
+        if let Some(error) = caught(scope.pop()) {
+            self.report(format!(
+                "surface {surface} could not be given {format:?} textures viewed as {view_formats:?}: {error}"
+            ));
+            return;
+        }
         self.insert_surface(surface, textures, view_formats);
     }
 
