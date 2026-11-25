@@ -158,6 +158,9 @@ struct RootShell {
     /// document of beui's the host reserves for it: what drive's `tree`, `find` and presses
     /// by name read under `--root`, and a screen reader hears.
     tree: be_sdk_app_host::accessibility::Graft,
+    /// Whether the root has described itself (`tree` holds what it sent), before which there is
+    /// no tree to publish.
+    tree_heard: bool,
     /// Whether the root was last asked for its tree (`frame-request.describe`).
     describing: bool,
     /// Whether the last frame was hurried (`Context::hurried`), as be-host's own UI keeps it:
@@ -169,19 +172,29 @@ struct RootShell {
 /// where the root is drawn (`area`), as be-host grafts an app's screen. Actions on its
 /// nodes (a screen reader's press) do not reach the root yet: drive presses by name at the
 /// point its tree says, which the root hears as any press.
+///
+/// Published every frame once the root described itself, whether or not it sent a change, as
+/// be-host publishes its apps' screens (be-host-runtime's `description`): a frame whose tree no
+/// one took (nothing listened, `Runner::accessibility_requested`) still counts as known, so the
+/// next listener's reset (`accessibility_known`) is answered with the whole graft, which holds
+/// what that frame changed.
 fn publish_tree(
     graft: &mut be_sdk_app_host::accessibility::Graft,
+    heard: &mut bool,
     context: &beui::native::Context,
     area: beui::Rect,
     tree: Option<&[u8]>,
 ) {
     let document = graft.document();
     context.take_accessibility_actions(document);
-    let Some(tree) = tree.and_then(be_sdk_api::ops::decode::<be_sdk_api::accesskit::TreeUpdate>)
-    else {
+    if let Some(tree) = tree.and_then(be_sdk_api::ops::decode::<be_sdk_api::accesskit::TreeUpdate>)
+    {
+        graft.update(tree);
+        *heard = true;
+    }
+    if !*heard {
         return;
-    };
-    graft.update(tree);
+    }
     let grafted = graft.grafted(
         be_sdk_app_host::accessibility::Placing {
             title: None,
@@ -257,6 +270,7 @@ impl RootShell {
             tree: be_sdk_app_host::accessibility::Graft::new(
                 beui::native::accessibility::next_document_id(),
             ),
+            tree_heard: false,
             describing: false,
             hurried: false,
         }
@@ -352,7 +366,13 @@ impl RootShell {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
-        publish_tree(&mut self.tree, context, area, done.accessibility.as_deref());
+        publish_tree(
+            &mut self.tree,
+            &mut self.tree_heard,
+            context,
+            area,
+            done.accessibility.as_deref(),
+        );
         clipboard(context, root, &self.pasted);
         serve_editors(&mut self.core, root, &mut self.editors);
         for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {
