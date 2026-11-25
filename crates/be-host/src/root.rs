@@ -1065,7 +1065,11 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     }
     // The views placing program windows whose statuses changed since they were last worded.
     if core.desktop {
-        views.extend(windows_restated(&editors.shown, served, &mut editors.windows));
+        views.extend(windows_restated(
+            &editors.shown,
+            served,
+            &mut editors.windows,
+        ));
     }
     views.sort_unstable();
     views.dedup();
