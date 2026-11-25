@@ -146,12 +146,18 @@ pub(super) fn wire(app: &AppManifest) -> Wire {
 }
 
 /// Tells be-wasm-host what every staged app imports, once, so the libraries they link are
-/// trimmed to that and compiled once for all of them (be_wasm_host::keep_exports).
+/// trimmed to that and compiled once for all of them (be_wasm_host::keep_exports). A headless
+/// runtime runs only host components, so it reads only the apps that have one: `be` stages
+/// the others' manifests alone, and a deployed `be` would download each module it read.
 fn keep_staged_exports() {
     static KEPT: std::sync::Once = std::sync::Once::new();
     KEPT.call_once(|| {
         let mut names = be_lib_stable_hash::HashSet::default();
+        let headless = super::runtime::headless();
         for manifest in discovery::manifests() {
+            if headless && manifest.hosts.is_empty() {
+                continue;
+            }
             let workers = manifest
                 .workers
                 .iter()

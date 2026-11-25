@@ -1469,7 +1469,17 @@ pub fn install(setup: &beui::native::Setup) {
 /// Installs the runtime with no beui setup: no presenter and no gpu, so an app that asks for
 /// the device is told there is none (guides/apps/runtime.md, "Headless"; `Headless`).
 pub fn install_headless() {
+    HEADLESS.store(true, std::sync::atomic::Ordering::Relaxed);
     install_with(Availability(Ok(())));
+}
+
+static HEADLESS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the runtime was installed headless (`install_headless`), where it runs only host
+/// components, so only the apps that have one are ever staged to run.
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn headless() -> bool {
+    HEADLESS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 fn install_with(availability: Availability) {
