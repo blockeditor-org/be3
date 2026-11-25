@@ -635,10 +635,16 @@ impl Document {
         self.share_sheet.read_only()
     }
 
-    /// Whether a lock layer is open, as `locked`, published each frame once laid out: a window
-    /// of its own, which the lock layer does not paint over, closes while it is.
+    /// Whether a lock layer is open, as `locked`, published as soon as one opens or closes: a
+    /// window of its own, which the lock layer does not paint over, closes while it is.
     pub fn watch_locked(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.locked_watched.read_only()
+    }
+
+    pub(crate) fn publish_locked(&self, locked: bool) {
+        if self.locked_watched.get_untracked() != locked {
+            self.locked_watched.set(locked);
+        }
     }
 
     pub fn watch_focused(&self) -> ::beui_reactive::ReadSignal<Option<NodeId>> {
@@ -1667,10 +1673,6 @@ impl Document {
         crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
         let layers = self.layers();
-        let locked = layers.locked();
-        if self.locked_watched.get_untracked() != locked {
-            self.locked_watched.set(locked);
-        }
         let keyboard_window = match self.focused {
             Some(focused) => self.window_of(focused),
             None if layers.takes_keyboard() => layers[layers.keyboard()].window,
