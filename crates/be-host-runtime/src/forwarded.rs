@@ -120,6 +120,19 @@ impl Forwarded {
         self.instances.card(instance)
     }
 
+    /// Asks the editor `instance`, opened as a creation (`InstanceRole::Creation`), to make its
+    /// block, as be-host commits a creation: the block, or why not, arrives as its
+    /// `InstanceEvent::Created`.
+    pub fn commit_creation(&mut self, instance: EditorInstanceId) {
+        let messages = self.instances.commit_creation(instance);
+        self.wire.send(messages);
+    }
+
+    /// Whether the editor `instance` opened in its app.
+    pub fn is_open(&self, instance: EditorInstanceId) -> bool {
+        self.instances.is_open(instance)
+    }
+
     /// Closes the editor `instance`: it is served no more, and the app hears it closed with the
     /// next `step`.
     pub fn close(&mut self, instance: EditorInstanceId) {
@@ -239,8 +252,15 @@ impl Forwarded {
             | Heard::Presented(_)
             | Heard::ShutDown
             | Heard::Unanswered(_)
-            | Heard::Answer(..)
             | Heard::Paintings(_) => {}
+            // What an editor answers the host asked it (the block its creation made, an
+            // artifact's outcome, a render), which its listeners hear as an event
+            // (`InstanceEvent::Created`), as `Runtime` answers it.
+            Heard::Answer(instance, answer) => {
+                let mut answered = (instance, answer);
+                instances.translate(&mut answered, true);
+                instances.answered(answered.0, answered.1);
+            }
         }
     }
 }

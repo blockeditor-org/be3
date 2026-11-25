@@ -1,5 +1,6 @@
 use super::*;
 mod a_crash_report_does_not_leave_a_dev_run_busy;
+mod a_creation_that_failed_tries_again_once_committed_again;
 mod a_leave_asked_while_another_is_pending_does_not_change_what_confirm_leaves;
 mod a_move_into_a_container_whose_type_refuses_it_puts_the_block_back;
 mod a_reorder_its_container_refuses_is_reported;

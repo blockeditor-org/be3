@@ -23,13 +23,14 @@ use be_host_runtime::{
 };
 
 /// What one instance's events left for the host object that runs it, until it takes them.
-struct Inbox<T> {
+pub(crate) struct Inbox<T> {
     held: Rc<RefCell<Vec<T>>>,
     _mailbox: host::Mailbox,
 }
 
 impl<T: 'static> Inbox<T> {
-    fn new(
+    /// Holds what `pick` takes of the events the editor `instance` of the app `app_id` sends.
+    pub(crate) fn new(
         app_id: &str,
         instance: EditorInstanceId,
         pick: impl Fn(InstanceEvent) -> Option<T> + 'static,
@@ -49,7 +50,7 @@ impl<T: 'static> Inbox<T> {
     }
 
     /// The latest it holds, forgetting the rest.
-    fn take_latest(&self) -> Option<T> {
+    pub(crate) fn take_latest(&self) -> Option<T> {
         std::mem::take(&mut *self.held.borrow_mut()).pop()
     }
 }
@@ -278,15 +279,14 @@ impl PendingCreation for AppCreation {
         })
     }
 
+    fn name(&self) -> &'static str {
+        self.target.name
+    }
+
     fn create(&mut self) -> Result<Option<Uuid>, String> {
         match &self.state {
             CreationState::Starting => return Ok(None),
-            CreationState::Failed(error) => {
-                return Err(format!(
-                    "{} could not be created: {error}",
-                    self.target.name
-                ));
-            }
+            CreationState::Failed(error) => return Err(error.clone()),
             CreationState::Ready => {}
         }
         if !self.committed {
@@ -298,10 +298,7 @@ impl PendingCreation for AppCreation {
             Some(Ok(block_id)) => Ok(Some(block_id)),
             Some(Err(error)) => {
                 self.committed = false;
-                Err(format!(
-                    "{} could not be created: {error}",
-                    self.target.name
-                ))
+                Err(error)
             }
         }
     }

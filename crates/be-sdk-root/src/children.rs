@@ -146,6 +146,9 @@ pub struct Spawning {
 /// The children one embedded app's editors placed, as the root shows them.
 #[derive(Default)]
 pub struct Children {
+    /// The creations a placer committed (`commit-child`) whose editors have yet to open, with
+    /// the placer (`relay_commits`).
+    commits: Vec<(EditorInstanceId, be_sdk_api::shell_types::ChildCreation)>,
     /// The handle of the app whose editors place these, as of the last `settle`.
     instance: u64,
     /// The layers showing that app's screens, with the editor and view each shows.
@@ -653,7 +656,10 @@ impl Child {
                 Some(*block_id),
             ),
             // A dialog an app runs for its placer, as be-host runs it in place of the child.
-            ChildContent::Picker { .. } | ChildContent::Rename(_) | ChildContent::Export { .. } => {
+            ChildContent::Picker { .. }
+            | ChildContent::Rename(_)
+            | ChildContent::Export { .. }
+            | ChildContent::Creation { .. } => {
                 let dialog = ShownDialog {
                     content: be_wasm_ops::encode(&placement.content),
                     sheet: false,
@@ -863,6 +869,16 @@ impl Child {
 
 /// What names the editor a place keeps (`Child::key`): its place, and what it shows.
 type ChildKey = (EditorInstanceId, ViewId, ChildId, Vec<u8>);
+
+/// How the editor of a child placed is (`Children::child_of`).
+enum PlacedEditor {
+    /// Open in its app.
+    Open(Embedded, EditorInstanceId),
+    /// Being opened.
+    Opening,
+    /// Not placed, or it failed: it shows nothing.
+    Gone,
+}
 
 /// What a `settle` makes of the children shown and those placed now (`reconcile`).
 struct Reconciled {
@@ -1421,10 +1437,48 @@ impl Children {
                         self.pick_child_menu(editor, &choice);
                     }
                     ShellMessage::LeaveFrame => self.leave_frame(editor),
+                    ShellMessage::CommitChild(creation) => self.commits.push((editor, creation)),
                     _ => {}
                 }
             }
         }
+        self.relay_commits();
+    }
+
+    /// Hands each creation a placer committed (`commit-child`) to the editor its child runs,
+    /// through the host (`host.tell-shell`), which makes the block as be-host does, once that
+    /// editor opened: one asked for before keeps until then, and goes with its child.
+    fn relay_commits(&mut self) {
+        let commits = std::mem::take(&mut self.commits);
+        for (placer, creation) in commits {
+            match self.child_of(placer, creation.child) {
+                PlacedEditor::Open(app, editor) => {
+                    app.tell_shell(editor, vec![ShellMessage::CommitChild(creation)]);
+                }
+                PlacedEditor::Opening => self.commits.push((placer, creation)),
+                PlacedEditor::Gone => {}
+            }
+        }
+    }
+
+    /// How the editor of the child `child` that `placer` places is, any number of levels deep.
+    fn child_of(&self, placer: EditorInstanceId, child: ChildId) -> PlacedEditor {
+        if let Some(found) = self
+            .shown
+            .iter()
+            .find(|shown| shown.placed && (shown.placer, shown.child) == (placer, child))
+        {
+            return match (found.hosted(), &*found.editor.showing.borrow()) {
+                (Some((app, editor)), _) => PlacedEditor::Open(app, editor),
+                (None, Showing::Opening) => PlacedEditor::Opening,
+                (None, _) => PlacedEditor::Gone,
+            };
+        }
+        self.shown
+            .iter()
+            .map(|shown| shown.editor.nested.borrow().child_of(placer, child))
+            .find(|found| !matches!(found, PlacedEditor::Gone))
+            .unwrap_or(PlacedEditor::Gone)
     }
 
     /// The place that shows the editor `editor`, any number of levels deep, as the handle of
