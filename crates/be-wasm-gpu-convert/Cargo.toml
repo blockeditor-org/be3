@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "30", default-features = false }
 
 [lints]
 workspace = true

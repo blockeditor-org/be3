@@ -19,7 +19,7 @@ beui-host = { path = "../beui-host" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-runner = { path = "../beui-runner" }
 beui-types = { path = "../beui-types" }
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "30", default-features = false }
 
 [lints]
 workspace = true

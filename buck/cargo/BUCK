@@ -96,13 +96,13 @@ rust_sysroot(
 # for the wasm-bindgen crate: the two agree on a schema that changes between
 # releases, and the tool refuses a module built against any other.
 # The project's own release of it, for Linux x86_64.
-wasm_bindgen_version = "0.2.122"
+wasm_bindgen_version = "0.2.130"
 
 configured_once(
     http_archive,
     name = "wasm-bindgen-release",
-    sha256 = "122a3fe2ea9c6e3e89b50e42dd1a346e499f3f65a54aae0b4eaeb658139d1e0e",
-    size_bytes = 11457701,
+    sha256 = "9687f3bb551b9f66f37ed32a40d7913a00f7962db653054e56857bc306c3227f",
+    size_bytes = 11860397,
     strip_prefix = "wasm-bindgen-{}-x86_64-unknown-linux-musl".format(wasm_bindgen_version),
     urls = ["https://github.com/wasm-bindgen/wasm-bindgen/releases/download/{0}/wasm-bindgen-{0}-x86_64-unknown-linux-musl.tar.gz".format(wasm_bindgen_version)],
 )

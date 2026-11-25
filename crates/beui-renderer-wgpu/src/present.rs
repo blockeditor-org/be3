@@ -150,6 +150,7 @@ async fn open(
                 .request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: wgpu::PowerPreference::HighPerformance,
                     force_fallback_adapter: false,
+                    apply_limit_buckets: false,
                     compatible_surface: probe,
                 })
                 .await?
@@ -342,6 +343,7 @@ impl Target {
                 present_mode: wgpu::PresentMode::Fifo,
                 desired_maximum_frame_latency: FRAME_LATENCY,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                color_space: wgpu::SurfaceColorSpace::Auto,
                 view_formats: Vec::new(),
             },
             prepared_size: None,
@@ -658,7 +660,7 @@ impl Target {
         }
         gpu.queue.submit(Some(encoder.finish()));
         if let Some(frame) = frame {
-            frame.present();
+            gpu.queue.present(frame);
         }
         self.presented_size = Some(size);
         self.presented = true;
@@ -723,7 +725,7 @@ pub fn read_texture(
         });
     device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
     receiver.try_recv().ok()?.ok()?;
-    let mapped = buffer.slice(..).get_mapped_range();
+    let mapped = buffer.slice(..).get_mapped_range().ok()?;
     let mut rgba = Vec::with_capacity((row * height) as usize);
     for line in mapped.chunks(padded as usize) {
         rgba.extend_from_slice(&line[..row as usize]);

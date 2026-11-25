@@ -18,7 +18,8 @@ fn the_inspector_shows_the_renderer_the_host_reports() {
             backend: wgpu::Backend::Vulkan,
             subgroup_min_size: 32,
             subgroup_max_size: 32,
-            transient_saves_memory: false,
+            transient_saves_memory: Some(false),
+            limit_bucket: None,
         },
         wgpu::TextureFormat::Bgra8UnormSrgb,
     ));

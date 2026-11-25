@@ -15,7 +15,7 @@ rustix = { version = "1", features = ["event"] }
 smithay = { version = "0.7", default-features = false, features = ["backend_drm", "backend_gbm", "backend_libinput", "backend_session_libseat", "backend_udev"] }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
-wgpu = { version = "29", default-features = false, features = ["vulkan"] }
+wgpu = { version = "30", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
 be-lib-layers = { path = "../be-lib-layers" }

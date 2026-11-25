@@ -375,7 +375,7 @@ fn read_back(device: &wgpu::Device, buffer: &wgpu::Buffer) -> Vec<u8> {
         Some(Ok(())),
         "the read map settled"
     );
-    let bytes = buffer.get_mapped_range(..).to_vec();
+    let bytes = buffer.get_mapped_range(..).unwrap().to_vec();
     buffer.unmap();
     bytes
 }

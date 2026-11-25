@@ -19,7 +19,7 @@ beui-text-editor-core = { path = "../beui-text-editor-core" }
 beui-core = { path = "../beui-core", optional = true }
 beui-draw = { path = "../beui-draw", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"], optional = true }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"], optional = true }
 
 [lints]
 workspace = true

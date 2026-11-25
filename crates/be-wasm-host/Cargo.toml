@@ -18,7 +18,7 @@ wasm-encoder = "0.257"
 wasmparser = "0.257"
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-wasm-pure-wasi = { path = "../be-wasm-pure-wasi" }
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -33,4 +33,4 @@ be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 uuid = "1"
 wat = "1"
-wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["noop", "std", "wgsl"] }

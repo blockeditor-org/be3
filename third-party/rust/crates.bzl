@@ -4989,7 +4989,7 @@ third_party = {
         ],
         "version": "2.2.2",
     },
-    "bit-set-0.9.1": {
+    "bit-set-0.10.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Alexis Beingessner <a.beingessner@gmail.com>",
@@ -5057,7 +5057,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.9.1",
+        "version": "0.10.0",
     },
     "bit-vec-0.9.1": {
         "build_script": None,
@@ -17374,35 +17374,6 @@ third_party = {
         ],
         "version": "1.0.7",
     },
-    "foldhash-0.1.5": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Orson Peters <orsonpeters@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A fast, non-cryptographic, minimally DoS-resistant hashing algorithm.",
-            "CARGO_PKG_LICENSE": "Zlib",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/orlp/foldhash",
-            "CARGO_PKG_RUST_VERSION": "1.60",
-        },
-        "library": {
-            "crate": "foldhash",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "foldhash",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.5",
-    },
     "foldhash-0.2.0": {
         "build_script": None,
         "env": {
@@ -20218,18 +20189,18 @@ third_party = {
             "linux-x86_64": {},
             "wasi": {
                 "deps": [
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":slotmap-1.1.1",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
                 ],
             },
             "wasm32-bindgen": {
                 "deps": [
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":slotmap-1.1.1",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
                 ],
             },
             "windows-arm64": {},
@@ -20368,133 +20339,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.28.0",
-    },
-    "gpu-descriptor-0.3.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Zakarum <zakarumych@ya.ru>",
-            "CARGO_PKG_DESCRIPTION": "Implementation agnostic descriptor allocator for Vulkan like APIs",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/zakarumych/gpu-descriptor",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/zakarumych/gpu-descriptor",
-        },
-        "library": {
-            "crate": "gpu_descriptor",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "gpu-descriptor",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.3.2",
-    },
-    "gpu-descriptor-types-0.2.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Zakarum <zakarumych@ya.ru>",
-            "CARGO_PKG_DESCRIPTION": "Core types of gpu-descriptor crate",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/zakarumych/gpu-descriptor",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/zakarumych/gpu-descriptor",
-        },
-        "library": {
-            "crate": "gpu_descriptor_types",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "gpu-descriptor-types",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.2.0",
     },
     "group-0.13.0": {
         "build_script": None,
@@ -21449,70 +21293,6 @@ third_party = {
         ],
         "version": "0.14.5",
     },
-    "hashbrown-0.15.5": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Amanieu d'Antras <amanieu@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A Rust port of Google's SwissTable hash map",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/hashbrown",
-            "CARGO_PKG_RUST_VERSION": "1.65.0",
-        },
-        "library": {
-            "crate": "hashbrown",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "hashbrown",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.15.5",
-    },
     "hashbrown-0.16.1": {
         "build_script": None,
         "env": {
@@ -21582,7 +21362,6 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
-                    "inline-more",
                 ],
             },
             "macos-x86_64": {
@@ -21591,34 +21370,6 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
-                    "inline-more",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":foldhash-0.2.0",
-                ],
-                "features": [
-                    "default-hasher",
-                    "inline-more",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":foldhash-0.2.0",
-                ],
-                "features": [
-                    "default-hasher",
-                    "inline-more",
-                ],
-            },
-            "wasm32-bindgen": {
-                "deps": [
-                    ":foldhash-0.2.0",
-                ],
-                "features": [
-                    "default-hasher",
-                    "inline-more",
                 ],
             },
             "windows-arm64": {
@@ -21681,6 +21432,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21691,6 +21443,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21701,6 +21454,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21712,6 +21466,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21722,6 +21477,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21732,10 +21488,19 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
-            "wasi-guest": {},
+            "wasi-guest": {
+                "deps": [
+                    ":foldhash-0.2.0",
+                ],
+                "features": [
+                    "default-hasher",
+                    "inline-more",
+                ],
+            },
             "wasm32-bindgen": {
                 "deps": [
                     ":foldhash-0.2.0",
@@ -21743,6 +21508,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21753,6 +21519,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -21763,6 +21530,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -22312,38 +22080,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.8.0",
-    },
-    "hexf-parse-0.2.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Kang Seonghoon <public+rust@mearie.org>",
-            "CARGO_PKG_DESCRIPTION": "Parses hexadecimal floats (see also hexf)",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/lifthrasiir/hexf",
-            "CARGO_PKG_LICENSE": "CC0-1.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/lifthrasiir/hexf",
-        },
-        "library": {
-            "crate": "hexf_parse",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "hexf-parse",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "wasi": {},
-            "wasm32-bindgen": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.2.1",
     },
     "hkdf-0.12.4": {
         "build_script": None,
@@ -27945,7 +27681,7 @@ third_party = {
         ],
         "version": "1.0.0",
     },
-    "js-sys-0.3.99": {
+    "js-sys-0.3.107": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -27954,7 +27690,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "js_sys",
@@ -27968,8 +27704,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -27981,8 +27716,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -27994,8 +27728,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -28007,8 +27740,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -28020,7 +27752,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.3.99",
+        "version": "0.3.107",
     },
     "kbkdf-0.1.0-rc.1": {
         "build_script": None,
@@ -31308,7 +31040,7 @@ third_party = {
         ],
         "version": "0.8.1",
     },
-    "naga-29.0.3": {
+    "naga-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -31335,16 +31067,16 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31363,16 +31095,16 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31391,16 +31123,16 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31419,16 +31151,16 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31444,16 +31176,16 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31469,16 +31201,16 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31494,16 +31226,16 @@ third_party = {
             "wasm32-bindgen": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31519,16 +31251,16 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31547,16 +31279,16 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -31576,7 +31308,141 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
+    },
+    "naga-types-30.0.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "gfx-rs developers",
+            "CARGO_PKG_DESCRIPTION": "Common types for naga and wgpu",
+            "CARGO_PKG_HOMEPAGE": "https://wgpu.rs/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/gfx-rs/wgpu",
+        },
+        "library": {
+            "crate": "naga_types",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "naga-types",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasm32-bindgen": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "30.0.2",
     },
     "ndk-0.8.0": {
         "build_script": None,
@@ -34222,6 +34088,7 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                 ],
@@ -34231,6 +34098,7 @@ third_party = {
                     "alloc",
                     "bitflags",
                     "objc2-core-foundation",
+                    "objc2-core-graphics",
                     "objc2-metal",
                     "std",
                 ],
@@ -34240,6 +34108,7 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                 ],
@@ -34249,6 +34118,7 @@ third_party = {
                     "alloc",
                     "bitflags",
                     "objc2-core-foundation",
+                    "objc2-core-graphics",
                     "objc2-metal",
                     "std",
                 ],
@@ -34678,7 +34548,6 @@ third_party = {
                     "race",
                 ],
             },
-            "wasi-html": {},
             "wasm32-bindgen": {
                 "features": [
                     "alloc",
@@ -45433,6 +45302,7 @@ third_party = {
                 ],
             },
             "wasi": {},
+            "wasi-guest": {},
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -62137,7 +62007,7 @@ third_party = {
         ],
         "version": "0.11.1+wasi-snapshot-preview1",
     },
-    "wasm-bindgen-0.2.122": {
+    "wasm-bindgen-0.2.130": {
         "build_script": {
             "crate_root": "build.rs",
             "edition": "2021",
@@ -62152,7 +62022,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen",
@@ -62165,9 +62035,8 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62177,9 +62046,8 @@ third_party = {
             "wasi-guest": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62189,9 +62057,8 @@ third_party = {
             "wasi-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62201,9 +62068,8 @@ third_party = {
             "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62214,9 +62080,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
-    "wasm-bindgen-futures-0.4.72": {
+    "wasm-bindgen-futures-0.4.80": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -62225,7 +62091,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_futures",
@@ -62237,8 +62103,8 @@ third_party = {
         "platforms": {
             "wasi": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62247,8 +62113,8 @@ third_party = {
             },
             "wasi-html": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62257,8 +62123,8 @@ third_party = {
             },
             "wasm32-bindgen": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -62269,9 +62135,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.4.72",
+        "version": "0.4.80",
     },
-    "wasm-bindgen-macro-0.2.122": {
+    "wasm-bindgen-macro-0.2.130": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -62280,7 +62146,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_macro",
@@ -62293,24 +62159,24 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":quote-1.0.45",
-                    ":wasm-bindgen-macro-support-0.2.122",
+                    ":wasm-bindgen-macro-support-0.2.130",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
-    "wasm-bindgen-macro-support-0.2.122": {
+    "wasm-bindgen-macro-support-0.2.130": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
             "CARGO_PKG_DESCRIPTION": "Implementation APIs for the `#[wasm_bindgen]` attribute",
             "CARGO_PKG_HOMEPAGE": "https://wasm-bindgen.github.io/wasm-bindgen/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_macro_support",
@@ -62325,17 +62191,17 @@ third_party = {
                     ":bumpalo-3.20.3",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-2.0.117",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":syn-3.0.3",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
-    "wasm-bindgen-shared-0.2.122": {
+    "wasm-bindgen-shared-0.2.130": {
         "build_script": {
             "crate_root": "build.rs",
             "edition": "2021",
@@ -62346,7 +62212,7 @@ third_party = {
             "CARGO_PKG_HOMEPAGE": "https://wasm-bindgen.github.io/wasm-bindgen/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_shared",
@@ -62386,7 +62252,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
     "wasm-encoder-0.257.1": {
         "build_script": None,
@@ -64355,7 +64221,7 @@ third_party = {
         ],
         "version": "0.31.11",
     },
-    "web-sys-0.3.99": {
+    "web-sys-0.3.107": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -64364,7 +64230,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "web_sys",
@@ -64376,8 +64242,8 @@ third_party = {
         "platforms": {
             "wasi": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "AbortController",
@@ -64507,8 +64373,8 @@ third_party = {
             },
             "wasi-guest": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "CharacterData",
@@ -64538,8 +64404,8 @@ third_party = {
             },
             "wasi-html": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "AbstractRange",
@@ -64607,8 +64473,8 @@ third_party = {
             },
             "wasm32-bindgen": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "AngleInstancedArrays",
@@ -64631,6 +64497,7 @@ third_party = {
                     "HtmlVideoElement",
                     "ImageBitmap",
                     "ImageData",
+                    "MediaQueryList",
                     "Navigator",
                     "Node",
                     "NodeList",
@@ -64686,7 +64553,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.3.99",
+        "version": "0.3.107",
     },
     "webauthn-attestation-ca-0.6.2": {
         "build_script": None,
@@ -65473,7 +65340,7 @@ third_party = {
         ],
         "version": "0.1.12",
     },
-    "wgpu-29.0.3": {
+    "wgpu-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -65505,16 +65372,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65539,16 +65406,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65573,16 +65440,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65607,16 +65474,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65641,16 +65508,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65675,19 +65542,19 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wasm-bindgen-0.2.122",
-                    ":wasm-bindgen-futures-0.4.72",
-                    ":web-sys-0.3.99",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":wasm-bindgen-futures-0.4.80",
+                    ":web-sys-0.3.107",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "std",
@@ -65705,15 +65572,15 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":static_assertions-1.1.0",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65729,19 +65596,19 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wasm-bindgen-0.2.122",
-                    ":wasm-bindgen-futures-0.4.72",
-                    ":web-sys-0.3.99",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":wasm-bindgen-futures-0.4.80",
+                    ":web-sys-0.3.107",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "std",
@@ -65759,16 +65626,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65793,16 +65660,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -65824,9 +65691,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-29.0.3": {
+    "wgpu-core-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -65853,15 +65720,16 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -65869,10 +65737,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -65891,15 +65759,16 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -65907,10 +65776,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -65929,15 +65798,16 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -65945,10 +65815,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -65967,15 +65837,16 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -65983,10 +65854,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-apple-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-apple-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -66005,15 +65876,16 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -66021,10 +65893,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-apple-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-apple-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -66043,15 +65915,16 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -66059,10 +65932,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-wasm-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-wasm-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -66075,15 +65948,16 @@ third_party = {
             "wasm32-bindgen": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -66091,10 +65965,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-wasm-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-wasm-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -66107,15 +65981,16 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -66123,10 +65998,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -66145,15 +66020,16 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -66161,10 +66037,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -66184,9 +66060,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-apple-29.0.3": {
+    "wgpu-core-deps-apple-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -66207,7 +66083,7 @@ third_party = {
         "platforms": {
             "macos-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -66215,7 +66091,7 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -66225,9 +66101,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-wasm-29.0.3": {
+    "wgpu-core-deps-wasm-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -66248,7 +66124,7 @@ third_party = {
         "platforms": {
             "wasi": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "webgl",
@@ -66256,7 +66132,7 @@ third_party = {
             },
             "wasm32-bindgen": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "webgl",
@@ -66266,9 +66142,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-windows-linux-android-29.0.3": {
+    "wgpu-core-deps-windows-linux-android-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -66289,7 +66165,7 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66300,7 +66176,7 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66311,7 +66187,7 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66322,7 +66198,7 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66333,7 +66209,7 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66346,9 +66222,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-hal-29.0.3": {
+    "wgpu-hal-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -66383,13 +66259,13 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libc-0.2.186",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":ndk-sys-0.6.0+11769913",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
@@ -66397,10 +66273,11 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
                     ":wayland-sys-0.31.11",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66419,23 +66296,24 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libc-0.2.186",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
                     ":wayland-sys-0.31.11",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66454,23 +66332,24 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libc-0.2.186",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
                     ":wayland-sys-0.31.11",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -66487,12 +66366,14 @@ third_party = {
                     ":block2-0.6.2",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
-                    ":hashbrown-0.16.1",
-                    ":libc-0.2.186",
+                    ":hashbrown-0.17.1",
+                    ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                     ":objc2-quartz-core-0.3.2",
@@ -66501,9 +66382,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":raw-window-metal-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -66517,12 +66399,14 @@ third_party = {
                     ":block2-0.6.2",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
-                    ":hashbrown-0.16.1",
-                    ":libc-0.2.186",
+                    ":hashbrown-0.17.1",
+                    ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                     ":objc2-quartz-core-0.3.2",
@@ -66531,9 +66415,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":raw-window-metal-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -66547,18 +66432,20 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "gles",
@@ -66571,18 +66458,20 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "gles",
@@ -66592,19 +66481,19 @@ third_party = {
                 "deps": [
                     ":arrayvec-0.7.8",
                     ":ash-0.38.0+1.3.281",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":glutin_wgl_sys-0.6.1",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
@@ -66613,9 +66502,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                     ":windows-0.62.2",
                     ":windows-core-0.62.2",
                     ":windows-result-0.4.1",
@@ -66632,19 +66522,19 @@ third_party = {
                 "deps": [
                     ":arrayvec-0.7.8",
                     ":ash-0.38.0+1.3.281",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":glutin_wgl_sys-0.6.1",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
@@ -66653,9 +66543,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                     ":windows-0.62.2",
                     ":windows-core-0.62.2",
                     ":windows-result-0.4.1",
@@ -66672,9 +66563,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-naga-bridge-29.0.3": {
+    "wgpu-naga-bridge-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -66694,65 +66585,65 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "linux-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "macos-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "wasi": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "wasm32-bindgen": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "windows-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-types-29.0.3": {
+    "wgpu-types-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -66775,7 +66666,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66787,7 +66680,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66799,7 +66694,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66811,7 +66708,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66823,7 +66722,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66834,10 +66735,12 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
-                    ":web-sys-0.3.99",
+                    ":static_assertions-1.1.0",
+                    ":web-sys-0.3.107",
                 ],
                 "features": [
                     "std",
@@ -66848,10 +66751,12 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
-                    ":web-sys-0.3.99",
+                    ":static_assertions-1.1.0",
+                    ":web-sys-0.3.107",
                 ],
                 "features": [
                     "std",
@@ -66862,10 +66767,12 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
-                    ":web-sys-0.3.99",
+                    ":static_assertions-1.1.0",
+                    ":web-sys-0.3.107",
                 ],
                 "features": [
                     "std",
@@ -66877,7 +66784,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66889,7 +66798,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -66900,7 +66811,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
     "which-6.0.3": {
         "build_script": None,

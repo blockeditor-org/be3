@@ -15,13 +15,13 @@ beui-draw = { path = "../beui-draw" }
 be-lib-layers = { path = "../be-lib-layers" }
 bytemuck = { version = "1", features = ["derive"] }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = "0.4"
 
 [target.'cfg(any(windows, all(unix, not(target_vendor = "apple"))))'.dependencies]
-wgpu = { version = "29", default-features = false, features = ["vulkan"] }
+wgpu = { version = "30", default-features = false, features = ["vulkan"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", optional = true, features = [
