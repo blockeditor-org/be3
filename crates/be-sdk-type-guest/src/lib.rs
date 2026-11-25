@@ -70,9 +70,15 @@ type ReplayFn = fn(Option<&[u8]>, &Journal) -> Result<Vec<u8>, String>;
 /// or of whole content bytes, with a block's place (none: the default place).
 #[derive(Clone, Copy)]
 struct UnreadFns {
-    places: fn(&[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String>,
-    count: fn(Content, Option<&[u8]>, &[be_block_content::LogItem], Uuid) -> Result<u32, String>,
+    places: PlacesFn,
+    count: CountFn,
 }
+
+/// The places of the account's layers of a reads kind, as `UnreadFns::places` reads them.
+type PlacesFn = fn(&[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String>;
+
+/// How much of content is unread from a place, as `UnreadFns::count` counts it.
+type CountFn = fn(Content, Option<&[u8]>, &[be_block_content::LogItem], Uuid) -> Result<u32, String>;
 
 /// Content handed to a stateless request: as a host loads a commit, or whole bytes.
 pub enum Content<'a> {
@@ -254,6 +260,7 @@ fn merge<C: Merge + Default>(
     )
 }
 
+#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
 fn merge_parts<C: MergeParts + Default>(
     sides: [Option<Loaded>; 3],
     organization: Uuid,
