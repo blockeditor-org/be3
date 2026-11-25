@@ -143,6 +143,7 @@ struct Converting {
 }
 
 impl Converting {
+    #[allow(clippy::unnecessary_to_owned)] // the copy leaves self.holes free for the loop to punch more
     fn items(&mut self, items: Vec<Flat>, primitives: &mut Vec<Primitive>) -> Result<(), String> {
         let mut quads = Vec::new();
         let mut fades = Vec::new();
