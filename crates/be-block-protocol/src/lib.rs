@@ -683,14 +683,12 @@ pub fn ask<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
     answered(client::server::read(caller, organization, query, follow))
 }
 
-fn answered<T: FromPage + Send>(
+async fn answered<T: FromPage + Send>(
     pending: impl Future<Output = Result<Result<Page, Error>, be_wasm_ops::OpError>> + Send + 'static,
-) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
-    async move {
-        Ok(pending
-            .await?
-            .and_then(|page| T::from_page(page).ok_or_else(unexpected)))
-    }
+) -> Result<Result<T, Error>, be_wasm_ops::OpError> {
+    Ok(pending
+        .await?
+        .and_then(|page| T::from_page(page).ok_or_else(unexpected)))
 }
 
 /// Writes one op in `organization` (`server.write`), answered as the case `T` it makes.
