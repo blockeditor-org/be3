@@ -21,6 +21,7 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_ban_made_while_a_join_registers_takes_it_out_again;
 mod a_block_agent_is_deleted_with_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
@@ -2714,6 +2715,37 @@ impl TestClient {
             },
         );
         Some(entry.encode())
+    }
+
+    /// Bars `account` from joining `block`'s host as a device does (`Peer::ban`): a ban record
+    /// this client's test keys sign, by the Edit it holds on the block.
+    async fn ban(&mut self, block: Uuid, account: Uuid) -> Result<(), Error> {
+        use be_block_keys::{Ban, Record};
+        let me = self.account.expect("signed in");
+        let log = decode_steps(self.access_log(Some(block)).await.unwrap_or_default());
+        let authority = self.authority(block, &log, be_block_keys::Level::Edit).await;
+        let signed = be_block_keys::Entry::sign(
+            &test_secret(me),
+            me.into_bytes(),
+            block.into_bytes(),
+            log.last().map(be_block_keys::Step::hash),
+            false,
+            Record::Ban(Ban {
+                account: account.into_bytes(),
+                authority,
+            }),
+        )
+        .encode();
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AppendLog(
+                be_block_protocol::LogRecord::Ban {
+                    block,
+                    account,
+                    signed: signed.clone(),
+                },
+            ))
+        })
+        .await
     }
 }
 
