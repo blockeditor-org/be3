@@ -4,7 +4,7 @@ use super::*;
 fn values_round_trip_as_objects() {
     let vault = vault(7);
     let manifest = vault
-        .write(id(7), CONTENT, &pseudorandom(9000, 31))
+        .write(id(7), CONTENT, pseudorandom(9000, 31))
         .unwrap();
     let hash = vault.put_value(id(7), &manifest).unwrap();
     assert!(vault.has_value(hash).unwrap());
