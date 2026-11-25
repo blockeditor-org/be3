@@ -109,10 +109,11 @@ impl<S: ObjectStore> Peer<S> {
                 size: kept.size,
                 root: Hash::from_bytes(kept.root),
             },
-            signature: self
-                .keys
-                .identity()
-                .sign_log_head(block.into_bytes(), kept.size, &kept.root),
+            signature: self.keys.identity().sign_log_head(
+                block.into_bytes(),
+                kept.size,
+                &kept.root,
+            ),
         })
     }
 
@@ -207,8 +208,11 @@ impl<S: ObjectStore> Peer<S> {
                 // The server serves this device a head that does not extend the one just read.
                 return Err(self.own_fork(block, &ours, &page.head));
             }
-            let proof: Vec<merkle::TreeHash> =
-                page.consistency.iter().map(|hash| *hash.as_bytes()).collect();
+            let proof: Vec<merkle::TreeHash> = page
+                .consistency
+                .iter()
+                .map(|hash| *hash.as_bytes())
+                .collect();
             let Some(prefix) = page.known_root.filter(|prefix| {
                 merkle::consistent(
                     head.size,
@@ -346,7 +350,13 @@ impl<S: ObjectStore> Peer<S> {
         theirs: &LogHead,
         from: HeadFrom,
     ) -> ClientError {
-        let fork = self.verdict(block, (ours, theirs), (None, Vec::new()), from, ForkKind::Misbehaved);
+        let fork = self.verdict(
+            block,
+            (ours, theirs),
+            (None, Vec::new()),
+            from,
+            ForkKind::Misbehaved,
+        );
         if let Err(error) = self.keep_verdict(fork) {
             return error;
         }

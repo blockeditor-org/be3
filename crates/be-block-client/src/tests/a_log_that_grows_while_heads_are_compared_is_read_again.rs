@@ -48,8 +48,7 @@ async fn a_log_that_grows_while_heads_are_compared_is_read_again() {
         .unwrap(),
     );
     tablet.read_log(chat, 0, 10).await.unwrap();
-    let mut reads =
-        relay.count(|method, _| method == be_block_protocol::__args::SERVER_READ);
+    let mut reads = relay.count(|method, _| method == be_block_protocol::__args::SERVER_READ);
     // The tablet's first read of the head is answered before the laptop appends, and held
     // until after it.
     relay.hold_answers(true);

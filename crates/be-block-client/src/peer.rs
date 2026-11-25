@@ -3992,10 +3992,13 @@ impl<S: ObjectStore> Peer<S> {
             None => None,
         };
         let made = self.commits.get(id)?;
-        let log_through = made.log_through.as_ref().map(|head| be_block_protocol::LogHead {
-            size: head.size,
-            root: be_block_store::Hash::from_bytes(head.root),
-        });
+        let log_through = made
+            .log_through
+            .as_ref()
+            .map(|head| be_block_protocol::LogHead {
+                size: head.size,
+                root: be_block_store::Hash::from_bytes(head.root),
+            });
         let manifest = made.manifest;
         let merging = parents.len() > usize::from(expected.is_some());
         let (held, listed) = match &previous {

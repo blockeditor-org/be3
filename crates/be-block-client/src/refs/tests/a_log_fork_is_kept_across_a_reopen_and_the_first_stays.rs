@@ -43,7 +43,11 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
     }
 
     let refs = RefsDb::open(&path).unwrap().scope(scope).unwrap();
-    assert_eq!(refs.log_fork(block), Some(first), "the verdict outlives a restart");
+    assert_eq!(
+        refs.log_fork(block),
+        Some(first),
+        "the verdict outlives a restart"
+    );
     assert_eq!(refs.log_fork(Uuid::new_v4()), None);
 
     drop(refs);

@@ -95,7 +95,10 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
     rewrite(5);
     assert!(
         // Longer, it does not prove it extends the kept head: the server's proof does not check.
-        matches!(owner.read_log(chat, 3, 10).await, Err(ClientError::Tampered(_))),
+        matches!(
+            owner.read_log(chat, 3, 10).await,
+            Err(ClientError::Tampered(_))
+        ),
         "a forked log was taken"
     );
     assert_eq!(

@@ -130,10 +130,7 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
     else {
         panic!("a head of another log was taken as agreeing");
     };
-    assert_eq!(
-        (fork.block, fork.ours.size, fork.theirs.size),
-        (chat, 4, 3)
-    );
+    assert_eq!((fork.block, fork.ours.size, fork.theirs.size), (chat, 4, 3));
     assert_eq!(
         fork.from,
         crate::HeadFrom::Session {
@@ -157,7 +154,11 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
         "with the proof that the head this device read extends it"
     );
     assert_eq!(fork.kind, crate::ForkKind::Forked);
-    assert_eq!(tablet.log_fork(chat), Some(fork.clone()), "the verdict is kept");
+    assert_eq!(
+        tablet.log_fork(chat),
+        Some(fork.clone()),
+        "the verdict is kept"
+    );
     // A longer head, or one as long with another root, cannot lie on its log either; the
     // verdict kept stays the first, told once.
     for other in [signed(9, [7; 32]), signed(4, [8; 32])] {
@@ -175,7 +176,11 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
             told.push(fork);
         }
     }
-    assert_eq!(told, vec![fork], "the fork is told once, as it is first found");
+    assert_eq!(
+        told,
+        vec![fork],
+        "the fork is told once, as it is first found"
+    );
 
     // A head as long with another root is a fork on a device with no verdict yet too.
     let pad = another(&harness, &laptop).await;

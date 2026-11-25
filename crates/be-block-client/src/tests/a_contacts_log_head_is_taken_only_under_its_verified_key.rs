@@ -11,14 +11,9 @@ async fn a_contacts_log_head_is_taken_only_under_its_verified_key() {
     let ada = harness.member(&owner, "ada@example.com").await;
     let bo = harness.member(&owner, "bo@example.com").await;
     let chat = workspace(&ada, "Chat").await;
-    ada.append(
-        chat,
-        "test.app",
-        b"one",
-        be_block_content::Along::default(),
-    )
-    .await
-    .unwrap();
+    ada.append(chat, "test.app", b"one", be_block_content::Along::default())
+        .await
+        .unwrap();
     let kept = ada.read_log(chat, 0, 10).await.unwrap().head;
     let from_bo = SignedLogHead {
         account: bo.account(),

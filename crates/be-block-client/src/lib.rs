@@ -20,8 +20,8 @@ pub use connection::{Answer, Connection, Credentials, Event, ask};
 pub use contacts::Contact;
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
-pub use peer::hosted::{Admitted, Admitting, Joining};
 pub use peer::forks::{HeadVia, LogAgreement, Relayed, SignedLogHead};
+pub use peer::hosted::{Admitted, Admitting, Joining};
 pub use peer::log::{Appended, ExportedEntry, LOG_SALT_BYTES, LogRead, LoggedEntry, Said};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
@@ -29,8 +29,8 @@ pub use peer::{
     Resolver, Saved, Sealed, SealsJournal, UPDATE_ATTEMPTS, Write, by_app,
 };
 pub use refs::{
-    Aside, ForkKind, HeadFrom, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, LogFork, ListedBlock, OpenEdits,
-    PendingCounts, RefsDb, SetAside, UnsentBlock,
+    Aside, ForkKind, HeadFrom, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock,
+    LogFork, OpenEdits, PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
 pub use share_links::ScopeOffer;
 #[cfg(not(target_arch = "wasm32"))]

@@ -22,15 +22,27 @@ fn a_replica_joining_its_session_trades_log_heads_with_the_participants() {
                 .await
                 .expect("the entry is appended");
         }
-        let before = phone.read_log(block, 0, 10).await.expect("the log reads").head;
+        let before = phone
+            .read_log(block, 0, 10)
+            .await
+            .expect("the log reads")
+            .head;
         rewrite_log(laptop.organization(), block, laptop.account(), 3);
-        let after = laptop.read_log(block, 0, 10).await.expect("the log reads").head;
+        let after = laptop
+            .read_log(block, 0, 10)
+            .await
+            .expect("the log reads")
+            .head;
         assert_eq!((before.size, after.size), (2, 3));
 
         let mut on_phone = phone.connection().subscribe();
         phone
             .connection()
-            .join_session(phone.organization(), block, be_block_store::Hash::of(b"a phone build"))
+            .join_session(
+                phone.organization(),
+                block,
+                be_block_store::Hash::of(b"a phone build"),
+            )
             .await
             .expect("the phone joins the session");
         replicas
