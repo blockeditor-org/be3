@@ -37,12 +37,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A reader outside the session cannot replay a base whose state goes by a part.** `replay`
-  reads no part, so a base past `LARGEST_RELAYED_OPERATION` (a large session with others in
-  it) fails it and the reader reads the head alone. The host could read the base's part
-  (`read-part`) and hand its bytes to `replay`. Done when such a reader sees the journal's
-  edits.
-
 - **Hosted channel paths without tests.** Nothing tests a Join member's send
   held back by `slow-down` and sent again, a join that waits for a replica of
   the block to leave, a host that answers the newest of two handshakes a member

@@ -294,13 +294,15 @@ pub const OUTSIDE_REQUEST: &str =
     "a stateless request reads only the parts of the commits it was handed";
 
 /// The parts a stateless request may read with `read-part`: those of the `loaded` content it
-/// was handed, so a module reads nothing of a block, or of another, that it was not asked
-/// about. Any stateless request that hands a module content loaded by parts asks with one
+/// was handed, or for one handed a block's journal (`replay`), those sealed under that block's
+/// keys, so a module reads nothing of a block, or of another, that it was not asked about. Any stateless request that hands a module content loaded by parts asks with one
 /// (`Modules::ask_reading`, `Replicas::ask_reading`), which also keeps what was served: the
 /// parts read, and the first read that failed.
 #[derive(Debug, Default)]
 pub struct Scope {
     allowed: HashSet<be_block_store::PartRef>,
+    /// The block whose parts it may read besides `allowed`.
+    block: Option<Uuid>,
     read: Vec<be_block_store::PartRef>,
     failed: Option<ClientError>,
 }
@@ -317,8 +319,31 @@ impl Scope {
         }
     }
 
+    /// The parts sealed under `block`'s keys: those its journal names.
+    pub fn of_block(block: Uuid) -> Self {
+        Self {
+            block: Some(block),
+            ..Self::default()
+        }
+    }
+
     pub fn allows(&self, part: be_block_store::PartRef) -> bool {
         self.allowed.contains(&part)
+    }
+
+    /// Whether `part` is one this scope may read: handed, or sealed under its block's keys.
+    async fn reaches<S: ObjectStore>(
+        &self,
+        peer: &Peer<S>,
+        part: be_block_store::PartRef,
+    ) -> Result<bool, ClientError> {
+        if self.allows(part) {
+            return Ok(true);
+        }
+        match self.block {
+            Some(block) => Ok(peer.block_of_part(part).await? == Some(block)),
+            None => Ok(false),
+        }
     }
 
     /// The handed parts whose hash is one of `hashes`.
@@ -355,9 +380,14 @@ impl Scope {
     /// call). An `error` comes back for the host to report.
     pub fn take(&mut self, connection: &mut Connection, op: OpId, call: Call) -> Under {
         match call {
-            Call::ReadPart { reply, part, range } => match self.allows(part) {
+            Call::ReadPart { reply, part, range } => match self.allows(part) || self.block.is_some()
+            {
+                // One outside `allowed` is checked against the block before it is read
+                // (`Scope::reaches`).
                 true => {
-                    self.read.push(part);
+                    if self.allows(part) {
+                        self.read.push(part);
+                    }
                     Under::Read(PartRead { reply, part, range })
                 }
                 false => {
@@ -1027,7 +1057,22 @@ impl Modules {
             }
             let served = !reads.is_empty();
             for read in reads {
-                let result = read.read(peer).await;
+                let result = match scope.reaches(peer, read.part).await {
+                    Ok(true) => {
+                        if !scope.allows(read.part) {
+                            scope.read.push(read.part);
+                        }
+                        read.read(peer).await
+                    }
+                    Ok(false) => {
+                        self.call(module, |connection| {
+                            read.reply
+                                .send(connection, &Err(OUTSIDE_REQUEST.to_owned()))
+                        });
+                        continue;
+                    }
+                    Err(error) => Err(error),
+                };
                 self.call(module, |connection| scope.answer(connection, read, result));
             }
             if !served {
@@ -1053,8 +1098,12 @@ impl Modules {
 
     /// A block's content as a reader outside its session sees it: its head with the journal
     /// replayed on top by the type, when this build wrote the journal on that head; otherwise
-    /// the head alone.
-    pub async fn readable(&mut self, read: be_block_client::BlockRead) -> Option<Vec<u8>> {
+    /// the head alone. The type reads the parts the journal names from `peer`.
+    pub async fn readable<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        read: be_block_client::BlockRead,
+    ) -> Option<Vec<u8>> {
         let be_block_client::BlockRead {
             summary,
             stored,
@@ -1074,14 +1123,15 @@ impl Modules {
             return bytes;
         }
         let head = bytes.clone();
-        match self
-            .ask_type(content_type, |connection| {
+        let mut scope = Scope::of_block(summary.id);
+        let answer = self
+            .ask_reading(module, peer, &mut scope, |connection| {
                 replicas::replay(connection, content_type, head, journal)
             })
-            .await
-        {
-            Ok(replayed) => Some(replayed),
-            Err(_) => bytes,
+            .await;
+        match (answer, scope.take_failure()) {
+            (Ok(Ok(replayed)), None) => Some(replayed),
+            _ => bytes,
         }
     }
 
