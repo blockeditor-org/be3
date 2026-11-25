@@ -16,8 +16,6 @@ use beui_dock::DockMode;
 use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
-/// Room for a dialog's bar above its body, before a window of its own is measured.
-const DIALOG_CHROME: f32 = 40.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DialogParts {
@@ -363,23 +361,30 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let closable = on_close.is_some();
     // Where the person moved it, once they have: it stays there, hung from its owner.
     let moved = create_signal(None::<Pos2>);
-    let detached = create_memo(move || moved.with(Option::is_some));
+    // A window of its own its host has moved: the host owns where it is, so it follows its
+    // anchor no more and `moved` (a point in its owner's window) means nothing.
+    let host_moved = create_signal(false);
+    let detached = create_memo(move || moved.with(Option::is_some) || host_moved.get());
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let viewport = use_viewport_size();
     let hosting = opens_windows();
     create_effect(move || {
         if !shown.get() {
-            untrack(|| moved.set(None));
+            untrack(|| {
+                moved.set(None);
+                host_moved.set(false);
+            });
         }
     });
     // The window it shows in while it is a window of its own, which the host moves.
     let hosted_window = StoredCell::new(None::<WindowHandle>);
     let grab = Callback::new(move |at: Pos2| {
-        if let Some(window) = hosted_window.get().filter(|window| window.is_window()) {
-            // Moved by its host, it stops following its anchor.
-            if window.begin_move() {
-                moved.set(Some(Pos2::ZERO));
-            }
+        // A window of its own is moved by its host, if the host moves windows; else it is
+        // dragged in its window as an overlay is.
+        if let Some(window) = hosted_window.get().filter(|window| window.is_window())
+            && window.begin_move()
+        {
+            host_moved.set(true);
             grabbed.set(None);
             dock.focus_dialog(tab);
             return;
@@ -464,21 +469,24 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let shown_in = create_memo(move || hosted.get().then(|| owner.get().map(window_of)).flatten());
     let windowed = create_memo(move || shown.get() && !sheeted.get());
     let anchor = create_memo(move || match (moved.get(), pointed.get()) {
+        _ if host_moved.get() => None,
         (Some(_), _) => None,
         (None, Some(rect)) => Some(WindowAnchor::Beside(rect)),
         (None, None) => Some(WindowAnchor::Top),
     });
     let at = create_memo(move || moved.get().unwrap_or(Pos2::ZERO));
-    // Where a host opens windows it is a window of its own, sized to what it shows, opened at
-    // the size its body asks for until it is measured; elsewhere an overlay sized to its face.
-    let opened_at = create_memo(move || size.get() + Vec2::new(0.0, DIALOG_CHROME));
+    // Where a host opens windows it is a window of its own (unless the dock shows it as a sheet),
+    // sized to its face, which is measured before the host is asked to open it; elsewhere an
+    // overlay sized to its face. `fits` only bounds that size: the dock's own window spans what
+    // its dialogs open over, and a face larger than it still asks for its body's size.
+    let own_window = create_memo(move || hosting.get() && !sheeted.get());
     let fits = create_memo(move || Some(viewport.get().max(size.get())));
     let view = view! {
         <Window
             @node_ref=&overlay
-            size={opened_at}
+            size={size}
             fit={fits}
-            own_window={hosting}
+            own_window={own_window}
             owner={owner}
             anchor={anchor}
             at={at}
