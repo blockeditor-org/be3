@@ -192,7 +192,7 @@ fn the_share_dialog_makes_copies_and_revokes_share_links() {
 
     fixture
         .test
-        .click(&format!("share.links.revoke.{}", Uuid::from_u128(0x11)));
+        .click(format!("share.links.revoke.{}", Uuid::from_u128(0x11)));
     fixture.settle();
     assert!(
         answer_listings(&mut fixture, block)

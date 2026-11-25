@@ -256,7 +256,7 @@ impl Pick {
                 self.error = Some(PickError::failed(error.clone()));
                 PickOutcome::Open(Box::new(self))
             }
-            CreationProgress::Options { .. } | CreationProgress::Working => {
+            CreationProgress::Options | CreationProgress::Working => {
                 PickOutcome::Open(Box::new(self))
             }
         }
