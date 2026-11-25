@@ -264,12 +264,14 @@ lock and the password check are its host's (`be3:root`'s `host.lock` and
 
 ## Modals and dialogs
 
-`unstyled::Modal` is every modal's outer part: an overlay with a scrim that
-fades with its presence. `styled::Modal` picks the scrim (`Scrim`);
-`styled::Dialog`, `Fullscreen` and `ModalSheet` sit on it. A modal has no exit
-motion but a sheet's: Escape, back and the scrim ask its owner at once
+A dialog is a `Window` (guides/beui/docking.md, Windows and window hosts) that
+points at its anchor or is centred on its frame and blocks it, or a
+`ModalSheet` on a phone. `unstyled::Modal` is an overlay with a scrim that fades
+with its presence: `Fullscreen` and `ModalSheet` sit on it, and be-host's lock
+screen. Neither has an exit motion but a sheet's: Escape, back and the scrim ask
+the owner at once
 ([decision](../../decisions/beui_modal_asks_before_it_slides_away.md)), and a
-`Still` modal the owner closes is gone that frame. Only a `ModalSheet`
+window the owner closes is gone that frame. Only a `ModalSheet`
 (`ModalMotion::Reported`) moves, sliding down out of sight.
 
 A dialog's buttons are data
@@ -281,10 +283,14 @@ all run the dialog's `on_dismiss`. A confirmation inside a dialog is an alert
 of its own opened over it.
 
 `styled::Dialog` is `DialogFrame` (outer part) plus `DialogBody` (title row,
-scrolling content, pinned footer). `dialog_presentation` picks, in one place,
-between a centred card, a card anchored to a control or rect, a card centred on
-the frame, and a `ModalSheet` (a narrow window, below `SHEET_BELOW`, or one a
-finger opened). Which anchor to pass:
+scrolling content, pinned footer); `DialogFrame` alone presents a body of the
+caller's own. It is the one place that presents a dialog by its kind
+(decisions/dialogs_are_presented_by_kind.md), in one `Window`: an alert
+centred with a scrim (`WindowAnchor::Centre`), a small form beside its control
+(`WindowAnchor::Node`) or rect with a beak, or at the top of its window when
+neither shows (`Top`), a large one centred on its frame; or a `ModalSheet` (a
+narrow window, below `SHEET_BELOW`, or one a finger opened). The command
+palette is a blocking window at the top centre. Which anchor to pass:
 
 - A small form about one control: `DialogAnchor::Control` of that control
   (database's Filter button). From a menu row, a `MenuItem` is no node: fill a
@@ -300,8 +306,8 @@ finger opened). Which anchor to pass:
   frame (be-host's Members) pass none and stay centred.
 - Alerts and program-level modals pass no anchor.
 
-Code that places its own body uses the parts (a `Card`, `DialogBody`, a
-`Modal`), as be-host's keep-changes prompt and an app opened as a dialog do.
+Code that presents its own body uses `DialogFrame` around it, as be-host's
+keep-changes prompt, the picker and a root's dialogs do.
 
 A root guest's dialog is a layer of its own over the rest. be-root's is a
 surface the window's size whose document shows the dialog as be-host's own

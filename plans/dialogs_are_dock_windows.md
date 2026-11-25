@@ -24,26 +24,12 @@ stays an anchored view, so the app protocol does not change
    and `blocks`, so `DockDialog` stays an overlay there (`own_window=false`). Place it beside its
    anchor through `WindowPlacement::Over`, and block its owner across windows, before a dialog
    may be one.
-2. **Dialogs become windows.** `Dialog` stays the one place that presents a dialog by its
-   kind (decisions/dialogs_are_presented_by_kind.md), rebuilt on `Window`, and `DialogFrame` is
-   it around a body of the caller's own:
-   - Small forms (1): a window beside its control (`WindowAnchor::Node`) or rect with a beak, or
-     at the top of its window when neither shows.
-   - Confirmations (2) and large forms and embedded editors (3): a window centred on its frame
-     (`WindowAnchor::Centre`) that blocks it, with a scrim.
-   - A sheet where the window is narrow or a finger opened it.
-   - Program dialogs (5): already windows.
-   - The command palette (6): a blocking window at the top centre (`WindowAnchor::Top`).
-   Its own `Modal` and anchored `Overlay`, `DialogTarget`, `DialogPresentation` and
-   `ModalPlacement` go; `DialogBody` stays the inside of these windows, and
-   decisions/app_dialogs_are_drawn_by_the_app_with_dialog_body.md holds for an app's.
-   decisions/beui_modal_asks_before_it_slides_away.md holds for a blocking window: dismissal is
-   reported at once and the window goes only when its owner closes it.
-3. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
+2. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
    4) are not windows: the lock screen is a security boundary and must never move, dock or be
    covered. They keep the host's lock layer and a plain full-window overlay; that is `Modal`'s
-   only remaining use, and it shrinks to it.
-4. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
+   only remaining use (with `Fullscreen` and `ModalSheet`), and it shrinks to it:
+   `ModalPlacement` goes.
+3. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
    for windows; guides/beui/overlays.md and guides/beui/docking.md describe one way.
 
 ## The test
