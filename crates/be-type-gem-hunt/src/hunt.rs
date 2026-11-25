@@ -31,15 +31,6 @@ impl Hunt {
         }
     }
 
-    /// The practice world: its gems always lie in the same cells, the top left corner among
-    /// them, so a hunt learnt once (or a test) plays the same way every time.
-    pub fn practice() -> Self {
-        Self {
-            gems: vec![0, 9, 20, 27, 31, 35],
-            dug: Map::default(),
-        }
-    }
-
     /// Hides the gems again, scattered by `seed`, and fills every dug cell in.
     pub fn new_world(&self, seed: u64) -> Edit {
         let mut changes = vec![Self::GEMS.set(ObjectId::ROOT, &scatter(seed))];

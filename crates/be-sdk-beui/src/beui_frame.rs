@@ -398,7 +398,8 @@ impl Watched {
 #[derive(Clone)]
 struct FrameActions {
     /// None for a Join member, which holds none of the block's content
-    /// (guides/blocks/hosted.md, "Access"): it has nothing to undo, rename or share.
+    /// (guides/blocks/hosted.md, "Access"): it has nothing to undo, rename, share or export
+    /// (`exports` is empty too).
     content: Option<ContentActions>,
     details: Action,
     /// Only while this device hosts the block (guides/blocks/hosted.md, "Hosting"), so the
@@ -539,7 +540,11 @@ fn frame_actions(
             .glyph(ICON_X)
             .enabled(closable)
             .register(),
-        exports: export_actions(editor, live),
+        // A Join member has no content to export either.
+        exports: match editor.joined() {
+            true => Vec::new(),
+            false => export_actions(editor, live),
+        },
         _zoom: zoom,
     }
 }

@@ -68,35 +68,36 @@ fn Cell(looks: Memo<Vec<Look>>, cell: u16, dig: Rc<dyn Fn(u16)>) -> NodeId {
         })
     });
     let (row, column) = (cell / SIDE + 1, cell % SIDE + 1);
-    let hidden = create_memo(move || matches!(look.get(), Look::Hidden { .. }));
-    let gem = create_memo(move || matches!(look.get(), Look::Gem | Look::Buried));
+    // Every cell but a count is a button, so each names what it shows: a gem drawn as an
+    // icon has no text of its own to read out.
+    let counted = create_memo(move || matches!(look.get(), Look::Near(_)));
+    let label = move || match look.get() {
+        Look::Hidden { .. } => format!("Dig row {row}, column {column}"),
+        Look::Buried => format!("Row {row}, column {column}: a gem lies here"),
+        Look::Gem => format!("Row {row}, column {column}: a gem, dug up"),
+        Look::Near(_) => String::new(),
+    };
+    let glyph = move || matches!(look.get(), Look::Gem | Look::Buried).then_some(ICON_GEM);
     let fill = move || match look.get() {
         Look::Gem => ColorRole::Accent,
         Look::Buried => ColorRole::AccentSoft,
         Look::Near(_) => ColorRole::Shade,
         Look::Hidden { .. } => ColorRole::None,
     };
-    let ink = move || match look.get() {
-        Look::Gem => TextColor::OnAccent,
-        Look::Buried => TextColor::Accent,
-        _ => TextColor::Default,
-    };
     let near = create_memo(move || match look.get() {
         Look::Near(near) if near > 0 => near.to_string(),
         _ => String::new(),
     });
-    let dug = move || {
+    let button = move || {
         view! {
-            <Show
-                value={gem}
-                fallback={move || view! {
-                    <Text align=TextAlign::Center color={ink}>{near}</Text>
-                }}
-            >
-                <Text align=TextAlign::Center color={ink}>
-                    <Icon glyph=ICON_GEM />
-                </Text>
-            </Show>
+            <Button
+                icon_only=true
+                size=ButtonSize::Small
+                label={label}
+                glyph={glyph}
+                disabled={move || look.get() != Look::Hidden { diggable: true }}
+                on_click={pressing(&dig, cell)}
+            />
         }
     };
     view! {
@@ -108,13 +109,8 @@ fn Cell(looks: Memo<Vec<Look>>, cell: u16, dig: Rc<dyn Fn(u16)>) -> NodeId {
             radius=Radius::Md
             @test_id={format!("hunt.cell.{cell}")}
         >
-            <Show value={hidden} fallback={dug}>
-                <Button
-                    icon_only=true
-                    label={format!("Dig row {row}, column {column}")}
-                    disabled={move || look.get() != Look::Hidden { diggable: true }}
-                    on_click={pressing(&dig, cell)}
-                />
+            <Show value={counted} fallback={button}>
+                <Text align=TextAlign::Center>{near}</Text>
             </Show>
         </Frame>
     }
