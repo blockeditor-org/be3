@@ -267,7 +267,9 @@ pub fn counts_unread(content_type: Uuid) -> bool {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Read {
     build_id: Option<String>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // Each manifest's name with its text or why it failed, or why the listing failed: as handed to
+    // the worker.
+    #[allow(clippy::type_complexity)]
     manifests: Result<Vec<(String, Result<String, String>)>, String>,
 }
 

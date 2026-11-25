@@ -54,7 +54,8 @@ pub(crate) struct Desk {
     raised: Vec<Raised>,
     next_screen: u64,
     gesture: Option<(ViewId, Gesture)>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // The screen, point and view (with its rect) a held press began on.
+    #[allow(clippy::type_complexity)]
     pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
     pointer: Pos2,
     outside: bool,

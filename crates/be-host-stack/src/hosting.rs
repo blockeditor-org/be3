@@ -444,16 +444,20 @@ fn answer(
                 }) if *current == admit => next.take(),
                 _ => return,
             };
-            match (next, admitted) {
-                (Some(next), _) => Ok(next),
-                (None, Ok((admitting, reply))) => {
-                    channels.insert(from, Member::Admitting(Box::new(admitting)));
-                    Err((reply, missed))
-                }
-                (None, Err(_)) => {
-                    channels.remove(&from);
-                    return;
-                }
+            // Matched apart, so an answer passed over for a later handshake is dropped once the
+            // lock is let go.
+            match next {
+                Some(next) => Ok(next),
+                None => match admitted {
+                    Ok((admitting, reply)) => {
+                        channels.insert(from, Member::Admitting(Box::new(admitting)));
+                        Err((reply, missed))
+                    }
+                    Err(_) => {
+                        channels.remove(&from);
+                        return;
+                    }
+                },
             }
         };
         match after {

@@ -43,12 +43,10 @@ type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
 
 type MergeFn = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>;
 
-type MergePartsFn = fn(
-    [Option<Loaded>; 3],
-    Uuid,
-    PartReader,
-)
-    -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>>;
+/// A merge by parts under way: what it writes, and how many conflicts it left.
+type MergingParts = std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>>;
+
+type MergePartsFn = fn([Option<Loaded>; 3], Uuid, PartReader) -> MergingParts;
 
 type SearchTextFn = fn(
     Loaded,
@@ -260,12 +258,11 @@ fn merge<C: Merge + Default>(
     )
 }
 
-#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
 fn merge_parts<C: MergeParts + Default>(
     sides: [Option<Loaded>; 3],
     organization: Uuid,
     parts: PartReader,
-) -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>> {
+) -> MergingParts {
     Box::pin(async move {
         let [base, ours, theirs] = sides.map(|side| match side {
             Some(loaded) => {

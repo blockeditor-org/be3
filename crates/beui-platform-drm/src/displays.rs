@@ -26,7 +26,9 @@ impl Display {
 struct Shared {
     displays: RefCell<Vec<Display>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // The program's screenshot hook: optional, shared and replaced in place, each layer of which is
+    // needed.
+    #[allow(clippy::type_complexity)]
     screenshot: RefCell<Option<Rc<dyn Fn() -> Option<Image>>>>,
 }
 

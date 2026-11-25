@@ -342,7 +342,8 @@ pub(crate) struct GraphDelta {
     unpublished: Option<<imbl::OrdSet<Uuid> as Diff>::Delta>,
     derived: Option<<imbl::OrdMap<Uuid, Entries> as Diff>::Delta>,
     referenced: Option<<imbl::OrdMap<Uuid, Vec<Uuid>> as Diff>::Delta>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // The same `Diff::Delta` of a map as the fields around it, only with a pair for its value.
+    #[allow(clippy::type_complexity)]
     read: Option<<imbl::OrdMap<Uuid, (CommitId, Vec<Uuid>)> as Diff>::Delta>,
     unreadable: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     reported: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,

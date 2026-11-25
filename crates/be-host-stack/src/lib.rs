@@ -353,7 +353,8 @@ struct Stack {
     /// How many commands the page sent: those the worker has not finished are pending.
     sent: Arc<AtomicUsize>,
     /// Frames the host could not deliver yet (`keep_editor_frames`), by editor.
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // Each editor's undelivered frames as their view and bytes, a pair nothing else holds.
+    #[allow(clippy::type_complexity)]
     kept_frames: std::collections::HashMap<u64, Vec<(Uuid, Arc<Vec<u8>>)>>,
     /// Whether an editor watches the account's storage (`watch_storage`).
     storage_watched: bool,

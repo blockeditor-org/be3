@@ -1029,11 +1029,11 @@ fn stop_comparing(seen: &mut Seen) {
 
 /// What the worker hands over: its whole `Seen` first, then what changed since the one before.
 #[derive(serde::Deserialize, serde::Serialize)]
-// `Changed` is what most updates are, and an update is made, moved once and taken apart: boxing
-// it would allocate for every one.
+// `Whole` is boxed and `Changed` is not: a whole `Seen` is far larger than what changed and is
+// handed over seldom, while `Changed` is what most updates are, each made, moved once and taken
+// apart, so boxing it would allocate for every one.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Update {
-    // Boxed: a whole `Seen` is far larger than what changed, and is handed over seldom.
     Whole(Box<Seen>),
     Changed(SeenDelta),
 }

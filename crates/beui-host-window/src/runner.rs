@@ -110,7 +110,8 @@ fn link(choice: Option<&Choice>, application: &str) -> Option<Link> {
         .then(|| Link::new(application))
 }
 
-#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+// The platform with the layers stacked over it, which the one caller takes apart at once.
+#[allow(clippy::type_complexity)]
 fn choose_platform(
     choice: Option<Choice>,
     link: Option<Link>,

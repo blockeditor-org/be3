@@ -20,7 +20,8 @@ const CHECKED_ENTRIES: usize = 1 << 20;
 /// entries: at most `CHECKED_ENTRIES` in all, the one used longest ago let go first. Kept for the
 /// process, so every server in it shares them; a log another's data holds (a restore, a test's
 /// other server) does not reach a kept head by its hashes, and is checked from its root.
-#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+// A process-wide cache whose key, kind, organization and log, the comment above names.
+#[allow(clippy::type_complexity)]
 static CHECKED: std::sync::LazyLock<
     std::sync::Mutex<be_block_keys::lru::Lru<(LogKind, Uuid, Uuid), std::sync::Arc<Checked>>>,
 > = std::sync::LazyLock::new(|| {

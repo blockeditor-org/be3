@@ -626,7 +626,8 @@ impl Headset {
     /// window's version changed, so an idle panel costs no copy. Layers go under the
     /// projection layer, farthest first, and the projection layer blends by alpha
     /// over the holes space leaves for them.
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // `draw` is the host's per-frame closure, written inline at the one call, in host.rs.
+    #[allow(clippy::type_complexity)]
     pub fn submit(
         &mut self,
         device: &wgpu::Device,

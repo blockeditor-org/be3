@@ -21,7 +21,8 @@ struct Inner {
     settings: RefCell<Vec<u8>>,
     saved: RefCell<Vec<u8>>,
     edit: RefCell<Option<Vec<u8>>>,
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // Callbacks keyed by `Changed`, each handed the artifact's new bytes.
+    #[allow(clippy::type_complexity)]
     changed: Callbacks<Changed, dyn Fn(&[u8])>,
 }
 

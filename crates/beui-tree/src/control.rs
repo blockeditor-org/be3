@@ -377,7 +377,8 @@ struct Rows<C: SlotChild> {
     /// While the `fallback` fills the place, the rows must not.
     empty: Cell<bool>,
     /// Tells the `ForEach`'s handle what each row holds once the rows fill their place.
-    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
+    // Set by the `ForEach`'s handle, then told the stored children of every row.
+    #[allow(clippy::type_complexity)]
     shown: RefCell<Option<Box<dyn Fn(Vec<Vec<C::Stored>>)>>>,
 }
 
