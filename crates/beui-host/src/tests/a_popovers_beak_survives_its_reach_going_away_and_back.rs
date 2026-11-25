@@ -12,7 +12,7 @@ fn a_popovers_beak_survives_its_reach_going_away_and_back() {
                 <Frame @node_ref=&button width=40.0 height=20.0 />
                 <Show value={shown}>|| {
                     let pointer = NodeRef::new();
-                    let placement = create_memo(move || if carded.get() { Placement::BELOW_CENTER.gap(4).margin(8) } else { Placement::BELOW_START });
+                    let placement = create_memo(move || if carded.get() { Placement::CARD } else { Placement::BELOW_START });
                     let inner = view! {
                         <Overlay
                             anchor={OverlayAnchor::Node(button)}

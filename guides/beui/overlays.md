@@ -80,7 +80,8 @@ caps menus and `Beside` overlays with a `max-width` and `max-height` from
 
 An overlay `Beside` its anchor above or below it with a `pointer` frame stands
 that frame `gap` off the anchor and can point a beak at it (a `Popover`'s
-`beak`, an editor's child popovers `BELOW_CENTER` with a gap and margin). The beak lies outside the content's
+`beak`; `Placement::CARD`, below the centre with a gap and margin, is a small dialog's, a dock
+dialog's and an editor's child popover's). The beak lies outside the content's
 frame and takes no room, so give it room with padding: an app's host draws
 whatever lies outside an overlay's content under the editors it holds.
 
@@ -150,7 +151,9 @@ Each layer has one `LayerPolicy`:
 - `Inert` (tooltips, drag previews): takes no input.
 
 `traps_focus` (default on) keeps Tab inside and makes the layer a key boundary
-(guides/beui_keyboard.md). Menus, dialogs and popovers trap; windows don't. A
+(guides/beui_keyboard.md). Menus, dialogs and popovers trap; windows don't, unless they
+`block` their owner (a modal `DockDialog`). It may change while the layer is open: the layer
+then still gives the focus back to what it held before it opened. A
 blocking layer that doesn't trap (the touch selection's Copy/Paste menu) leaves
 focus in the field beneath.
 

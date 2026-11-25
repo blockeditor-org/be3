@@ -28,6 +28,16 @@ impl Document {
         self.push_scope(holder, Some(traps));
     }
 
+    /// Whether an open layer's scope traps, changed in place, so it still gives the focus back
+    /// to what it held before the layer opened.
+    pub(crate) fn set_layer_scope_traps(&mut self, holder: NodeId, traps: bool) {
+        for scope in &mut self.focus_scopes.0 {
+            if scope.holder == holder && scope.layer.is_some() {
+                scope.layer = Some(traps);
+            }
+        }
+    }
+
     fn push_scope(&mut self, holder: NodeId, layer: Option<bool>) {
         let returns_to = match self.focused {
             Some(focused) if self.is_within(focused, holder) => self

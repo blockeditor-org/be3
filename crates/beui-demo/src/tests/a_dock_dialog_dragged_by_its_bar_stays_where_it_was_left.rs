@@ -28,12 +28,31 @@ fn a_dock_dialog_dragged_by_its_bar_stays_where_it_was_left() {
         "and stays where it was let go"
     );
 
-    let grab = test.rect_of(&header).center();
-    test.drag(grab, pos2(-200.0, grab.y));
-    test.settle();
-    let left = test.rect_of(&dialog).left();
+    let margin = f32::from(beui::Placement::CARD.edge_margin());
+    let drag_to = |test: &mut DocumentTest, to: Pos2| {
+        let grab = test.rect_of(&header).center();
+        test.drag(grab, to);
+        test.settle();
+        test.rect_of(&header)
+    };
+    let left = drag_to(&mut test, pos2(-200.0, 300.0));
+    // The bar is inset in the dialog's frame by its border.
+    let inset = left.left() - margin;
     assert!(
-        (0.0..=before.left() - 100.0).contains(&left),
-        "dragged past the window's edge, it stops at the edge: {left}"
+        (0.0..=4.0).contains(&inset),
+        "dragged past the left edge, it stops a card's margin inside it: {left:?}"
+    );
+    let right = drag_to(&mut test, pos2(WIDE.x + 200.0, 300.0));
+    assert_eq!(
+        right.right(),
+        WIDE.x - margin - inset,
+        "and past the right edge, as far inside it"
+    );
+    drag_to(&mut test, pos2(300.0, WIDE.y + 200.0));
+    let body = test.rect_of(&dialog);
+    let below = WIDE.y - margin - body.bottom();
+    assert!(
+        (0.0..=4.0).contains(&below),
+        "and past the bottom, its body just above the margin: {below} short of it"
     );
 }
