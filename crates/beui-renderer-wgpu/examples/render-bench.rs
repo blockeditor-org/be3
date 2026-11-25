@@ -218,7 +218,7 @@ struct Bench {
 
 impl Bench {
     fn new(gpu: Gpu) -> Self {
-        let renderer = Renderer::new(&Resources::new(&gpu.device, FORMAT));
+        let renderer = Renderer::new(&Resources::new(&gpu.device, FORMAT, &gpu.setup().lost));
         let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("renderer bench target"),
             size: wgpu::Extent3d {

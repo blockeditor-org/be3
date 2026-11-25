@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::ffi::CStr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::Renderer;
 use crate::Repaint;
@@ -117,6 +116,8 @@ pub struct GpuSetup {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub format: wgpu::TextureFormat,
+    /// Set once `device` is lost; a renderer made on it is given it (`Resources::new`).
+    pub lost: crate::Lost,
 }
 
 pub struct Gpu {
@@ -127,14 +128,14 @@ pub struct Gpu {
     pub format: wgpu::TextureFormat,
     pub renderer: Renderer,
     open_device: OpenDevice,
-    lost: Arc<AtomicBool>,
+    lost: crate::Lost,
 }
 
 struct Opened {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    lost: Arc<AtomicBool>,
+    lost: crate::Lost,
 }
 
 async fn open(
@@ -168,17 +169,10 @@ async fn open(
         Some(opened) => opened,
         None => adapter.request_device(&descriptor).await?,
     };
-    let lost = Arc::new(AtomicBool::new(false));
-    let flag = lost.clone();
-    device.set_device_lost_callback(move |reason, message| {
-        if reason != wgpu::DeviceLostReason::Destroyed {
-            eprintln!("beui: the GPU was lost: {message}");
-        }
-        flag.store(true, Ordering::SeqCst);
-    });
+    let lost = crate::Lost::watch(&device);
     let flag = lost.clone();
     device.on_uncaptured_error(Arc::new(move |error| {
-        if !flag.load(Ordering::SeqCst) {
+        if !flag.is_lost() {
             panic!("wgpu error: {error}");
         }
     }));
@@ -219,7 +213,8 @@ impl Gpu {
         format: wgpu::TextureFormat,
         open_device: OpenDevice,
     ) -> Self {
-        let mut renderer = Renderer::new(&crate::Resources::new(&opened.device, format));
+        let mut renderer =
+            Renderer::new(&crate::Resources::new(&opened.device, format, &opened.lost));
         renderer.set_window(true);
         Self {
             renderer,
@@ -234,7 +229,7 @@ impl Gpu {
     }
 
     pub fn lost(&self) -> bool {
-        self.lost.load(Ordering::SeqCst)
+        self.lost.is_lost()
     }
 
     pub fn stale(&self) -> bool {
@@ -273,6 +268,7 @@ impl Gpu {
             device: self.device.clone(),
             queue: self.queue.clone(),
             format: self.format,
+            lost: self.lost.clone(),
         }
     }
 }

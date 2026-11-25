@@ -56,6 +56,7 @@ fn an_apps_textures_are_let_go_once_its_layout_no_longer_holds_them() {
         device: device.clone(),
         queue,
         format: wgpu::TextureFormat::Rgba8Unorm,
+        lost: Default::default(),
     });
     install(&setup);
     PRESENTER.with(|presenter| {

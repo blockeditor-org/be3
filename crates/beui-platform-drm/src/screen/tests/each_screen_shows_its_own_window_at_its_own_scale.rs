@@ -19,7 +19,7 @@ fn filled(size: Vec2, color: Color32) -> beui::native::WindowOutput {
 #[test]
 fn each_screen_shows_its_own_window_at_its_own_scale() {
     let (device, queue) = vulkan_device();
-    let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT);
+    let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT, &Default::default());
     // White but for a clear first column, so the pointer starts a point past where it is.
     let pixels: Vec<u8> = (0..4 * 12)
         .flat_map(|at| match at % 4 {
