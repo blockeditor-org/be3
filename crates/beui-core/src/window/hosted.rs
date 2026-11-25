@@ -541,6 +541,8 @@ impl Document {
             else {
                 continue;
             };
+            // A window that fits its content asks for the size it measured, once it has.
+            let size = self.fitted_window_size(*window).unwrap_or(size);
             if !self.windows.asked.contains(window) {
                 ctx.request_window(WindowRequest::Open {
                     window: *window,
