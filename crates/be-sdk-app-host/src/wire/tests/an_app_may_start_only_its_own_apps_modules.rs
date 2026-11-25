@@ -8,15 +8,15 @@ use be_wasm_sandbox_api::{
 use super::a_watch_of_an_extension_the_manifest_does_not_grant_is_denied::{exchange, opened};
 use super::*;
 
-const APP: &str = "be3.echo";
+pub(super) const APP: &str = "be3.echo";
 
 /// The app's own modules are asked of the host's loader, and none is staged in this test.
-fn unstaged(app: &str, module: &str) -> Result<be_wasm_host::sandbox::Staged, String> {
+pub(super) fn unstaged(app: &str, module: &str) -> Result<be_wasm_host::sandbox::Staged, String> {
     Err(format!("asked for {app}'s {module}"))
 }
 
 /// The host's sandbox, as be-host-runtime serves it (`AppSandbox`).
-struct Served(be_wasm_sandbox_host::Server);
+pub(super) struct Served(pub(super) be_wasm_sandbox_host::Server);
 
 impl crate::sandbox::Sandbox for Served {
     fn call(
@@ -48,9 +48,9 @@ fn config() -> Config {
 }
 
 /// What the instance's first `next` answered.
-type Next = Rc<RefCell<Option<Result<Vec<Vec<u8>>, String>>>>;
+pub(super) type Next = Rc<RefCell<Option<Result<Vec<Vec<u8>>, String>>>>;
 
-fn spawned(guest: &be_sdk_api::ops::guest::Executor, app: &str) -> Next {
+pub(super) fn spawned(guest: &be_sdk_api::ops::guest::Executor, app: &str) -> Next {
     let next = Next::default();
     let told = Rc::clone(&next);
     let source = Source::App(StagedModule {

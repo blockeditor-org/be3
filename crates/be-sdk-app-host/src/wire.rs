@@ -8,7 +8,7 @@ use crate::calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound};
 use be_sdk_api::{Encoded, Watch};
 use be_wasm_sandbox_api::embed::sandbox;
 
-use crate::sandbox::Sandbox;
+use crate::sandbox::{Sandbox, Stopped};
 
 use be_sdk_api::{
     AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId, Failure, Fonts,
@@ -82,6 +82,8 @@ pub struct Wire {
     /// The sandbox API served to the app, which starts its workers; none where the host serves
     /// none to it: to a wire made for a test.
     sandbox: Option<Box<dyn Sandbox>>,
+    /// What answers the app's sandbox calls once the wire stopped its sandbox (`stop_sandbox`).
+    stopped: Option<Stopped>,
     /// Whether the host offers a published interface of an extension the app is granted
     /// (`offering`); none unless it says so.
     offered: fn(&str) -> bool,
@@ -164,6 +166,7 @@ impl Default for Wire {
             acks: Vec::new(),
             hearing: Vec::new(),
             sandbox: None,
+            stopped: None,
             offered: |_| false,
             forwarding: Forwarding::default(),
         }
@@ -211,10 +214,12 @@ impl Wire {
         self.sandbox.is_some()
     }
 
-    /// Stops every worker the app started.
+    /// Stops every worker the app started, and answers every sandbox call the app makes later
+    /// with why (`WORKERS_STOPPED`).
     pub fn stop_sandbox(&mut self) {
         if let Some(sandbox) = self.sandbox.take() {
             sandbox.stop(WORKERS_STOPPED, &mut self.connection);
+            self.stopped = Some(Stopped::new(WORKERS_STOPPED));
         }
     }
 
@@ -224,6 +229,10 @@ impl Wire {
         };
         if let Some(sandbox) = &mut self.sandbox {
             sandbox.call(call, &mut self.connection);
+            return;
+        }
+        if let Some(stopped) = &mut self.stopped {
+            stopped.call(call, &mut self.connection);
             return;
         }
         let (op, outcome) = call.refuse(OpError::Unsupported);
@@ -993,6 +1002,11 @@ impl Wire {
             Incoming::Canceled { op } => {
                 if let Some(sandbox) = &mut self.sandbox
                     && sandbox.canceled(op, &mut self.connection)
+                {
+                    return Ok(());
+                }
+                if let Some(stopped) = &mut self.stopped
+                    && stopped.canceled(op, &mut self.connection)
                 {
                     return Ok(());
                 }
