@@ -1860,9 +1860,23 @@ Each step lands on its own.
                message in a browser tab yet: its editor hears the failure on the wire, but
                its page shows nothing (not yet understood). Host test
                `be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone`.
-             - Left, in this order: creations (be-host steps a `PendingCreation` per child,
-               with the placer's `commit-child`, host-side), artifact settings (be-host's own
-               settings UI), and host panels. be-host keeps no beui but its platform adapters,
+             - 4g7b3k. Built: creations. A creation child (`ChildContent::Creation`) is a
+               dialog the root opens like a picker: the host opens the template's editor in
+               it (`EditorRegistry::creation_app`, `InstanceRole::Creation`) and steps it as
+               be-host's `step_creations` does (`RootCreation`, `step_creations` in
+               be-host's root.rs). Its placer's `commit-child` reaches the root
+               (`Embedded::hear_tell`), which hands it to the host under the child's editor
+               once that opened (`Children::relay_commits`, `host.tell-shell`); once the
+               editor is open (a dialog's accepted), the host asks it to make the block
+               (`Forwarded::commit_creation`), whose answer `Forwarded` now hears
+               (`take_created`), puts it where the commit says and names it, and the
+               child's status says how far it got (`child-status.creation`). Host test
+               `be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates`. A
+               creation dialog's height (be-host's `CREATION_DIALOG_HEIGHT` and
+               `view_size`) is not reported yet, nor is its dismissal (`dismiss-child`);
+               no test makes a block through a creation dialog (an image's import) yet.
+             - Left, in this order: artifact settings (be-host's own settings UI), and host
+               panels. be-host keeps no beui but its platform adapters,
                so it draws no panel: be-root draws the block stack, performance, apps and menu
                panels itself, as its own surfaces (the user's decision).
              - One app crashing fails every child it runs: expected, as the pool shares one

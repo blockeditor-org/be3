@@ -821,10 +821,27 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         };
         // A root that encodes what no editor can read has nothing to relay.
         if let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) {
+            // The commit of a creation its placer sent, which makes its block.
+            if let Some(creation) = editors
+                .opened
+                .get_mut(&(instance, editor))
+                .and_then(|opened| opened.creation.as_mut())
+            {
+                for message in &messages {
+                    if let ShellMessage::CommitChild(commit) = message {
+                        creation.commit = Some(be_host_runtime::ChildCommit {
+                            child: commit.child,
+                            parent: commit.parent,
+                            name: commit.name.clone(),
+                        });
+                    }
+                }
+            }
             forwarded.shell_told(EditorInstanceId(editor), messages);
             told = true;
         }
     }
+    told |= step_creations(&mut editors.opened, served);
     let mut views = Vec::new();
     for shown in root.take_shown_children() {
         let placer = (shown.instance, shown.editor);
@@ -1026,6 +1043,7 @@ enum Shows {
     Picker(be_host_runtime::PickerRequest),
     Rename(Uuid, bool),
     Export(EditorBlock, be_sdk_api::ExportRequest),
+    Creation(crate::editors::app::CreationTarget),
 }
 
 /// The app and editor that run what the root's child shows, and how it is opened: a block's
@@ -1081,6 +1099,13 @@ fn shown_editor(
             };
             Ok((app, editor, Shows::Export(opened, request)))
         }
+        be_sdk_api::ChildContent::Creation { editor, template } => {
+            let (app, target) = core
+                .registry
+                .creation_app(Uuid::from_bytes(editor), &template)
+                .ok_or("no app makes blocks from that template")?;
+            Ok((app, target.editor, Shows::Creation(target)))
+        }
         _ => Err("the host runs no dialog of that kind".to_owned()),
     }
 }
@@ -1130,6 +1155,93 @@ struct OpenedFor {
     app: std::sync::Arc<be_sdk_manifest::AppManifest>,
     editor: Uuid,
     block: Option<Uuid>,
+    /// For a creation dialog (`InstanceRole::Creation`), how its block is being made.
+    creation: Option<RootCreation>,
+}
+
+/// A creation a root's child runs, as be-host's `CreationChild` steps one: the template, the
+/// commit its placer sent (`commit-child`), and how far making its block got.
+struct RootCreation {
+    target: crate::editors::app::CreationTarget,
+    commit: Option<be_host_runtime::ChildCommit>,
+    /// Whether its editor was asked to make the block (`Forwarded::commit_creation`).
+    committed: bool,
+    progress: Option<be_sdk_api::CreationProgress>,
+}
+
+/// Steps each creation a root's child runs, as be-host's `step_creations` does: still asking
+/// until its placer commits it; then, once its editor is open (and a dialog accepted), asks it
+/// to make the block, which is put where the commit says and named as it says. Answers whether
+/// any changed how far it got, which its placer's status says.
+fn step_creations(
+    opened: &mut HashMap<(u64, u64), OpenedFor>,
+    served: &mut HashMap<u64, Forwarded>,
+) -> bool {
+    let mut changed = false;
+    for ((instance, editor), opened) in opened.iter_mut() {
+        let Some(creation) = opened.creation.as_mut() else {
+            continue;
+        };
+        if matches!(
+            creation.progress,
+            Some(
+                be_sdk_api::CreationProgress::Created(_) | be_sdk_api::CreationProgress::Failed(_)
+            )
+        ) {
+            continue;
+        }
+        let Some(forwarded) = served.get_mut(instance) else {
+            continue;
+        };
+        let editor = EditorInstanceId(*editor);
+        let ready = match creation.target.dialog {
+            true => {
+                forwarded.dialog_status(editor).answer == Some(be_sdk_api::DialogAnswer::Accepted)
+            }
+            false => forwarded.is_open(editor),
+        };
+        let progress = match &creation.commit {
+            None => be_sdk_api::CreationProgress::Options,
+            Some(commit) => match be_host_stack::app_graph::parent_of(commit.parent) {
+                // Only Unfiled resolves to nothing, and only before the host made it: as
+                // be-host, fail rather than wait.
+                None => {
+                    creation.commit = None;
+                    be_sdk_api::CreationProgress::Failed("Your files are still loading".to_owned())
+                }
+                Some(_) if !ready => be_sdk_api::CreationProgress::Working,
+                Some(parent) => {
+                    if !creation.committed {
+                        creation.committed = true;
+                        forwarded.commit_creation(editor);
+                    }
+                    match forwarded.take_created(editor) {
+                        None => be_sdk_api::CreationProgress::Working,
+                        Some(Ok(block)) => {
+                            be_host_stack::set_parent(block, parent);
+                            if let Some(name) = commit.name.clone() {
+                                be_host_stack::name_when_created(block, name);
+                            }
+                            be_sdk_api::CreationProgress::Created(block.into_bytes())
+                        }
+                        Some(Err(error)) => {
+                            creation.commit = None;
+                            creation.committed = false;
+                            be_sdk_api::CreationProgress::Failed(format!(
+                                "{} could not be created: {error}",
+                                creation.target.name
+                            ))
+                        }
+                    }
+                }
+            },
+        };
+        if creation.progress.as_ref() != Some(&progress) {
+            creation.progress = Some(progress);
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Said of a child the root shows nothing of and gave no reason for: one whose editor is still
@@ -1213,7 +1325,13 @@ fn child_status(
         menu: be_sdk_api::ops::decode::<Vec<be_sdk_api::MenuItem>>(&child.menu)
             .and_then(|items| be_sdk_api::MenuEntry::nest(items).ok())
             .unwrap_or_default(),
-        creation: None,
+        // How far a creation dialog's block got, as be-host's `creation_status` says.
+        creation: child
+            .shown_in
+            .as_ref()
+            .and_then(|shown| opened.get(&(shown.instance, shown.editor)))
+            .and_then(|opened| opened.creation.as_ref())
+            .and_then(|creation| creation.progress.clone()),
         preview,
         dialog: dialog
             .as_ref()
@@ -1248,6 +1366,15 @@ fn open_editor(
         ));
     }
     let instance = crate::editors::app::next_instance();
+    let creation = match &shows {
+        Shows::Creation(target) => Some(RootCreation {
+            target: *target,
+            commit: None,
+            committed: false,
+            progress: None,
+        }),
+        _ => None,
+    };
     let (role, block) = match shows {
         Shows::Block(opened) => (
             InstanceRole::Editor(
@@ -1269,6 +1396,7 @@ fn open_editor(
             be_host_runtime::ask_export(instance, request);
             (InstanceRole::Export(editor, block), None)
         }
+        Shows::Creation(target) => (InstanceRole::Creation(target.editor, target.template), None),
     };
     opened_for.insert(
         (opening.instance, instance.0),
@@ -1276,6 +1404,7 @@ fn open_editor(
             app: std::sync::Arc::clone(&app),
             editor,
             block,
+            creation,
         },
     );
     let frames = served

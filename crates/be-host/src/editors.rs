@@ -102,6 +102,8 @@ pub(crate) trait PendingCreation {
 
 pub(crate) struct TemplateEntry {
     pub(crate) target: app::CreationTarget,
+    /// The app whose editor makes it.
+    app: Arc<AppManifest>,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
     pub(crate) debug: bool,
@@ -253,6 +255,7 @@ impl EditorRegistry {
             let app = Arc::clone(manifest);
             self.templates.push(TemplateEntry {
                 target,
+                app: Arc::clone(&app),
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
                 debug: template.debug,
@@ -362,6 +365,21 @@ impl EditorRegistry {
     pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<app::AppPicker> {
         let (app, editor) = self.accepting(ShellRequest::Rename)?;
         Some(app::AppPicker::rename(app, editor, block, sheet))
+    }
+
+    /// The app whose editor `editor` makes a block from its template `template`, and what it
+    /// makes: what a root's creation child opens in that app (`InstanceRole::Creation`).
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    pub(crate) fn creation_app(
+        &self,
+        editor: Uuid,
+        template: &str,
+    ) -> Option<(Arc<AppManifest>, app::CreationTarget)> {
+        let entry = self
+            .templates
+            .iter()
+            .find(|entry| entry.target.editor == editor && entry.target.template == template)?;
+        Some((Arc::clone(&entry.app), entry.target))
     }
 
     pub(crate) fn create(

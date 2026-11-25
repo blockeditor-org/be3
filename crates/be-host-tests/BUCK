@@ -98,6 +98,7 @@ APPS = {
     "be_root_in_place_of_the_hosts_ui_shows_a_checklist_in_place_on_a_canvas": ["infinite-canvas", "checklist", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_joined_dock": ["example-beui-gallery", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places": ["infinite-canvas", "checklist", "//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates": ["infinite-canvas", "checklist", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone": ["infinite-canvas", "checklist", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews": ["infinite-canvas", "presentation", "text", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_its_onboarding": ["//crates/be-root"],

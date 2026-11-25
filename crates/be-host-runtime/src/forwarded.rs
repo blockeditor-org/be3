@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use super::{
     HostChildStatus, InstanceRole,
-    calls::{EditorCall, Heard, Outbound},
+    calls::{EditorAnswer, EditorCall, Heard, Outbound},
     instances::Instances,
     wire::Wire,
 };
@@ -27,6 +27,9 @@ use be_host_base::host;
 pub struct Forwarded {
     wire: Wire,
     instances: Instances,
+    /// The block each editor opened as a creation made, or why not, as it answered
+    /// (`commit_creation`), until taken (`take_created`).
+    created: be_lib_stable_hash::HashMap<EditorInstanceId, Result<Uuid, String>>,
 }
 
 impl Forwarded {
@@ -43,6 +46,7 @@ impl Forwarded {
                 .offering(super::published::offered)
                 .relayed(),
             instances,
+            created: be_lib_stable_hash::HashMap::default(),
         }
     }
 
@@ -118,6 +122,25 @@ impl Forwarded {
     /// Whether the editor `instance` shows as a card, as it last told the shell.
     pub fn card(&self, instance: EditorInstanceId) -> bool {
         self.instances.card(instance)
+    }
+
+    /// Asks the editor `instance`, opened as a creation (`InstanceRole::Creation`), to make its
+    /// block, as be-host commits a creation: the block, or why not, arrives as its
+    /// `InstanceEvent::Created`.
+    pub fn commit_creation(&mut self, instance: EditorInstanceId) {
+        let messages = self.instances.commit_creation(instance);
+        self.wire.send(messages);
+    }
+
+    /// Whether the editor `instance` opened in its app.
+    pub fn is_open(&self, instance: EditorInstanceId) -> bool {
+        self.instances.is_open(instance)
+    }
+
+    /// The block the editor `instance`, opened as a creation, made once committed, or why it
+    /// could not: once.
+    pub fn take_created(&mut self, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
+        self.created.remove(&instance)
     }
 
     /// Closes the editor `instance`: it is served no more, and the app hears it closed with the
@@ -239,8 +262,21 @@ impl Forwarded {
             | Heard::Presented(_)
             | Heard::ShutDown
             | Heard::Unanswered(_)
-            | Heard::Answer(..)
             | Heard::Paintings(_) => {}
+            // What an editor answers the host asked it (the block its creation made), which its
+            // owner in the host hears as an event (`InstanceEvent::Created`).
+            Heard::Answer(instance, answer) => {
+                let mut answered = (instance, answer);
+                instances.translate(&mut answered, true);
+                if let EditorAnswer::Created(created) = &answered.1 {
+                    let created = created
+                        .clone()
+                        .map(Uuid::from_bytes)
+                        .map_err(|failure| failure.to_string());
+                    self.created.insert(answered.0, created);
+                }
+                instances.answered(answered.0, answered.1);
+            }
         }
     }
 }

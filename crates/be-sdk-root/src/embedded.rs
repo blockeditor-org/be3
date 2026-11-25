@@ -306,6 +306,17 @@ impl Embedded {
         self.show(all);
     }
 
+    /// Tells the root's host what its editor `editor` was told as the shell would hear it
+    /// (`host.tell-shell`): a dialog's pick or answer, or the creation its placer committed.
+    pub(crate) fn tell_shell(&self, editor: EditorInstanceId, messages: Vec<ShellMessage>) {
+        let op = self.state.borrow().instance.op();
+        let told = host::tell_shell(op, editor.0, be_wasm_ops::encode(&messages));
+        be_wasm_ops::guest::spawn(async move {
+            // A host that stopped answering stops the root too.
+            let _ = told.await;
+        });
+    }
+
     /// Closes its editor `editor`: the app is asked for none of its screens, and the root's host
     /// stops serving it and closes it in the app (`host.close-editor`). The app keeps running
     /// its other editors.
@@ -1259,6 +1270,7 @@ impl State {
                 ShellMessage::Menu(_)
                 | ShellMessage::Details
                 | ShellMessage::ChildMenuPick(_)
+                | ShellMessage::CommitChild(_)
                 | ShellMessage::LeaveFrame => {
                     self.told.push((instance, message));
                     self.wake();
