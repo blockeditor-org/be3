@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use beui_paint_format::{
-    Content, Fade, Frame, Glyph, Pixels, Primitive, Round, RoundedRect, TextureKey, Triangle,
-    Turn,
+    Cap, Content, Fade, Frame, Glyph, Join, PathCommand, PathShape, PathStyle, Pixels, Primitive,
+    Round, RoundedRect, TextureKey, Triangle, Turn,
 };
 use beui_vello::vello_common::kurbo::{Affine, BezPath, Rect, Shape, Stroke};
 use beui_vello::vello_common::paint::{ImageSource, PaintType, Tint};
@@ -163,8 +163,17 @@ impl Painter<'_, '_> {
             if faded.is_some() {
                 beui_vello::begin_fade(canvas);
             }
-            for primitive in &primitives[start..end] {
-                self.primitive(canvas, primitive)?;
+            let mut at = start;
+            while at < end {
+                let joined = primitives[at + 1..end]
+                    .iter()
+                    .take_while(|next| seamed_together(&primitives[at], next))
+                    .count();
+                match joined {
+                    0 => self.primitive(canvas, &primitives[at])?,
+                    _ => self.primitive(canvas, &joined_fill(&primitives[at..=at + joined]))?,
+                }
+                at += 1 + joined;
             }
             if let Some(faded) = faded {
                 let bounds = [0.0, 0.0, f32::from(u16::MAX), f32::from(u16::MAX)];
@@ -206,6 +215,7 @@ impl Painter<'_, '_> {
             Content::CorneredRect(shape, corners) => rounded_rect(canvas, shape, *corners, scale),
             Content::Glyph(glyph) => self.glyph(canvas, glyph)?,
             Content::Mesh(triangles) => self.mesh(canvas, triangles, clip)?,
+            Content::Path(path) => drawn_path(canvas, path, scale),
             Content::Callback(rect) => beui_vello::filled_rect(
                 canvas,
                 rect.map(|value| (value * scale).round()),
@@ -276,6 +286,87 @@ fn rounded_rect(canvas: &mut Cpu<'_>, shape: &RoundedRect, corners: [f32; 4], sc
         shape.color,
         turned(shape.turn.scaled(scale)),
     );
+}
+
+fn drawn_path(canvas: &mut Cpu<'_>, path: &PathShape, scale: f32) {
+    let outline = outline(&path.commands);
+    let transform = Affine::scale(f64::from(scale));
+    match &path.style {
+        PathStyle::Fill { even_odd } => {
+            let rule = match even_odd {
+                true => Fill::EvenOdd,
+                false => Fill::NonZero,
+            };
+            beui_vello::filled_path(canvas, &outline, rule, path.color, transform);
+        }
+        PathStyle::Stroke(stroke) => {
+            let mut drawn = Stroke::new(f64::from(stroke.width))
+                .with_join(match stroke.join {
+                    Join::Miter => beui_vello::vello_common::kurbo::Join::Miter,
+                    Join::Round => beui_vello::vello_common::kurbo::Join::Round,
+                    Join::Bevel => beui_vello::vello_common::kurbo::Join::Bevel,
+                })
+                .with_miter_limit(f64::from(stroke.miter_limit))
+                .with_caps(match stroke.cap {
+                    Cap::Butt => beui_vello::vello_common::kurbo::Cap::Butt,
+                    Cap::Round => beui_vello::vello_common::kurbo::Cap::Round,
+                    Cap::Square => beui_vello::vello_common::kurbo::Cap::Square,
+                });
+            if !stroke.dashes.is_empty() {
+                drawn = drawn.with_dashes(
+                    f64::from(stroke.dash_offset),
+                    stroke.dashes.iter().map(|dash| f64::from(*dash)),
+                );
+            }
+            beui_vello::stroked_path(canvas, &outline, drawn, path.color, transform);
+        }
+    }
+}
+
+fn outline(commands: &[PathCommand]) -> BezPath {
+    let point = |[x, y]: [f32; 2]| (f64::from(x), f64::from(y));
+    let mut outline = BezPath::new();
+    for command in commands {
+        match *command {
+            PathCommand::MoveTo(to) => outline.move_to(point(to)),
+            PathCommand::LineTo(to) => outline.line_to(point(to)),
+            PathCommand::QuadTo(control, to) => outline.quad_to(point(control), point(to)),
+            PathCommand::CubicTo(first, second, to) => {
+                outline.curve_to(point(first), point(second), point(to))
+            }
+            PathCommand::Close => outline.close_path(),
+        }
+    }
+    outline
+}
+
+/// Whether `next` is a seamed nonzero fill alike to the seamed fill `first` but for its
+/// outline, which the renderer fills with it as one path.
+fn seamed_together(first: &Primitive, next: &Primitive) -> bool {
+    let (Content::Path(one), Content::Path(other)) = (&first.content, &next.content) else {
+        return false;
+    };
+    one.seamed
+        && other.seamed
+        && one.style == (PathStyle::Fill { even_odd: false })
+        && other.style == one.style
+        && other.color == one.color
+        && next.clip == first.clip
+        && next.fade == first.fade
+        && next.rounds == first.rounds
+}
+
+/// Seamed fills as the one primitive filling all their outlines.
+fn joined_fill(primitives: &[Primitive]) -> Primitive {
+    let mut joined = primitives[0].clone();
+    if let Content::Path(path) = &mut joined.content {
+        for primitive in &primitives[1..] {
+            if let Content::Path(next) = &primitive.content {
+                path.commands.extend_from_slice(&next.commands);
+            }
+        }
+    }
+    joined
 }
 
 fn push_round(canvas: &mut Cpu<'_>, round: Round) {

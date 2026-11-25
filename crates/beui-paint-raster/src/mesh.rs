@@ -1,9 +1,9 @@
 //! A mesh as a GPU draws triangles: each pixel whose centre a triangle holds (by the top-left
 //! rule, so triangles that share an edge never both cover a pixel on it nor leave it uncovered)
 //! takes the colour and texture coordinates interpolated across the triangle, with no
-//! antialiasing. The pieces a painting draws as meshes (a 3D scene's panels and backdrop from
-//! beui-layer-space, colour glyphs, images and lines until paintings hold paths) are drawn
-//! that way on the GPU, and vello's shapes cannot interpolate a colour across three corners.
+//! antialiasing. The pieces a painting holds as meshes (a 3D scene's panels and backdrop from
+//! beui-layer-space, colour glyphs, images and lines) were drawn that way on the GPU when they
+//! were recorded, and Vello's shapes cannot interpolate a colour across three corners.
 
 use std::collections::BTreeMap;
 

@@ -14,6 +14,7 @@ fn main() {
         for p in &frame.primitives {
             let what = match &p.content {
                 Content::Mesh(t) => format!("mesh {} tris", t.len()),
+                Content::Path(p) => format!("path {:?} {:?}", p.bounds(), p.color),
                 Content::Callback(r) => format!("callback {r:?}"),
                 Content::RoundedRect(r) => format!(
                     "rect {:?} r{} s{} {:?}",
