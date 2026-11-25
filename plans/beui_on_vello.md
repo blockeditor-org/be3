@@ -67,7 +67,7 @@ directly. The HTML core is unaffected.
   into the non-sRGB view of its target (`format.remove_srgb_suffix()`): every texture beui draws
   on lists that format in its `view_formats` (surface configurations, offscreen and Space
   targets, composite roots, filter scenes, and the surfaces be-wasm-gpu-host makes for apps,
-  which be3:gpu's `surface-configuration` names in its `view-formats`).
+  which be3:gpu's `surface-configuration` names in its `view-format`).
   Blending is then in sRGB on every target, as the paintings rasterize it; on an sRGB target it
   was linear before.
 - **`draw_gpu` drawings** run in paint order as now: the scene is split at each drawing, Vello
