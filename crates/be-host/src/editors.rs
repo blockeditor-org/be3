@@ -336,8 +336,8 @@ impl EditorRegistry {
     }
 
     /// The app and editor that make an artifact of a `source_type` block with its exporter
-    /// `exporter`, whose settings view a root's artifact settings child shows.
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    /// `exporter`: its session's, and the one whose settings view a root's artifact settings
+    /// child shows.
     pub(crate) fn artifact_editor(
         &self,
         source_type: Uuid,
@@ -368,28 +368,16 @@ impl EditorRegistry {
         target_type: Uuid,
         client_id: Uuid,
     ) -> Result<Box<dyn ArtifactSession>, String> {
-        let editor = self
-            .default_editor(source_type)
-            .ok_or_else(|| format!("unsupported dynamic artifact source type {source_type}"))?;
-        let generates = editor
-            .manifest
-            .editor(editor.id.into_bytes())
-            .is_some_and(|manifest| manifest.exporter(exporter).is_some());
-        match generates {
-            true => Ok(Box::new(app::AppArtifact::new(
-                Arc::clone(&editor.manifest),
-                editor.id,
-                source,
-                exporter.to_owned(),
-                target_id,
-                target_type,
-                client_id,
-            ))),
-            false => Err(format!(
-                "{} blocks are not exported as \"{exporter}\"",
-                self.display_name(source_type).unwrap_or("These")
-            )),
-        }
+        let (app, editor) = self.artifact_editor(source_type, exporter)?;
+        Ok(Box::new(app::AppArtifact::new(
+            app,
+            editor,
+            source,
+            exporter.to_owned(),
+            target_id,
+            target_type,
+            client_id,
+        )))
     }
 
     pub(crate) fn picker(&self, request: be_host_runtime::PickerRequest) -> Option<app::AppPicker> {

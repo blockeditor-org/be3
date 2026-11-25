@@ -692,6 +692,10 @@ struct HostCore {
     artifact_watches: HashMap<(String, be_sdk_api::EditorInstanceId), Vec<Uuid>>,
     /// The states of the artifacts watched, as `poll_artifacts` made them last.
     artifact_states: Vec<be_sdk_api::ArtifactState>,
+    /// The editors whose watches were forgotten as they closed since the watches were last
+    /// heard: a watch one reported before it closed, heard after, is dropped
+    /// (`hear_artifact_watches`), so its exporter does not go on making its artifact.
+    closed_watchers: HashSet<(String, be_sdk_api::EditorInstanceId)>,
     /// What instances reported that the core acts on: focus, artifact watches, and their
     /// children's commits, dismissals and closes.
     instance_events: Vec<be_host_runtime::Heard>,
@@ -1084,6 +1088,7 @@ impl HostCore {
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
             artifact_states: Vec::new(),
+            closed_watchers: HashSet::new(),
             instance_events: Vec::new(),
             _instance_events: {
                 let (mailbox, post) = desk().mailbox(HostCore::instance_heard);
@@ -3119,9 +3124,11 @@ impl HostCore {
 
     /// Forgets what the editor `instance` of the app `app_id` watched, once it closed.
     fn forget_artifact_watch(&mut self, app_id: String, instance: be_sdk_api::EditorInstanceId) {
-        if self.artifact_watches.remove(&(app_id, instance)).is_some() {
+        let watcher = (app_id, instance);
+        if self.artifact_watches.remove(&watcher).is_some() {
             self.watch_artifacts(self.watched());
         }
+        self.closed_watchers.insert(watcher);
     }
 
     /// Takes in the artifacts editors watch, as they reported them, which `poll_artifacts`
@@ -3130,12 +3137,17 @@ impl HostCore {
     fn hear_artifact_watches(&mut self) -> Vec<be_host_runtime::Heard> {
         let mut rest = Vec::new();
         let mut rewatched = false;
+        // What an editor reported before it closed reaches here by the next delivery at the
+        // latest, which this follows: those closed since the last are forgotten after it.
+        let closed = std::mem::take(&mut self.closed_watchers);
         for heard in std::mem::take(&mut self.instance_events) {
             match heard.event {
                 be_host_runtime::InstanceEvent::ArtifactWatch(watch) => {
-                    self.artifact_watches
-                        .insert((heard.app_id, heard.instance), watch);
-                    rewatched = true;
+                    let watcher = (heard.app_id, heard.instance);
+                    if !closed.contains(&watcher) {
+                        self.artifact_watches.insert(watcher, watch);
+                        rewatched = true;
+                    }
                 }
                 _ => rest.push(heard),
             }
@@ -3493,7 +3505,9 @@ impl HostCore {
     /// Applies the settings `data` a root's artifact settings child accepted to the artifact
     /// `id`, as `apply_artifact_settings` applies those of be-host's own dialog: kept as the
     /// artifact's, which its session makes it again with.
-    fn apply_root_artifact_settings(&mut self, id: Uuid, data: Vec<u8>) {
+    /// Keeps `data` as the artifact `id`'s settings and makes it again with them, as both
+    /// be-host's settings dialog and a root's artifact settings child apply them.
+    fn store_artifact_settings(&mut self, id: Uuid, data: Vec<u8>) {
         let Some(descriptor) = artifact_of(id) else {
             return;
         };
@@ -3514,25 +3528,17 @@ impl HostCore {
         if self.dynamic_artifact_settings_open != Some(id) {
             return;
         }
-        let Some(descriptor) = artifact_of(id) else {
+        if artifact_of(id).is_none() {
             self.dynamic_artifact_settings_open = None;
             return;
-        };
+        }
         let Some(data) = self.dynamic_artifact_settings.remove(&id) else {
             return;
         };
-        set_artifact(
-            id,
-            Some(be_block_content::Artifact {
-                settings: data.clone(),
-                ..descriptor
-            }),
-        );
+        self.store_artifact_settings(id, data);
         if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
-            session.regenerate(&data);
             session.close_dialog();
         }
-        self.dynamic_artifact_errors.remove(&id);
         self.dynamic_artifact_settings_open = None;
     }
 
