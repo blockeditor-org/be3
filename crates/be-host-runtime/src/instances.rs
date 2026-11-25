@@ -1761,9 +1761,12 @@ impl Instances {
             .collect();
         let files = super::input::file_drop(input, screen.dragging == Some(DragKind::Files));
         messages.extend(self.drag(instance, region, DragKind::Files, files));
-        let revoked =
-            (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
-        (messages, revoked)
+        // A press in the placer takes its active children back, keyboard and frame; an Escape it
+        // does not handle takes back only the frame a child took over: the keyboard stays where
+        // it is, as under a root (be-sdk-root's `Children::revoke`).
+        let revoked = pressed && input.hovered && self.revoke_active(instance, region);
+        let framed_back = escaped && self.revoke_frame_children(instance, region);
+        (messages, revoked || framed_back)
     }
 
     pub(super) fn shown_anchored(
@@ -3349,6 +3352,24 @@ impl Instances {
                 (*instance, framed)
             })
             .collect()
+    }
+
+    /// Takes back the frame the children of `instance`'s view `region` took over, keeping them
+    /// active: whether any had it.
+    fn revoke_frame_children(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return false;
+        };
+        let mut revoked = false;
+        for child in &screen.children.children {
+            if matches!(child.mode, ChildMode::Active | ChildMode::Live)
+                && !child.own_frame
+                && !screen.revoked.contains(&child.child)
+            {
+                revoked |= screen.frame_revoked.insert(child.child);
+            }
+        }
+        revoked
     }
 
     pub(super) fn revoke_frame_child(&mut self, instance: EditorInstanceId) {

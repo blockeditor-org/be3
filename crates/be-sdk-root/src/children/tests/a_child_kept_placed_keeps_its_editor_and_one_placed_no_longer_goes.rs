@@ -67,6 +67,7 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
             1.0,
             placed(place, ChildMode::Hidden),
             Vec::new(),
+            false,
         )
         .is_none()
     );

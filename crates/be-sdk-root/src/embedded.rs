@@ -658,6 +658,23 @@ impl Embedded {
     /// showing it at its rect, which is in host coordinates, the window's points, as its anchor
     /// space said, with how it hangs. Its layer shows its surface as `Surface::Anchored`, and
     /// its id is the same every frame for the same screen.
+    /// The views of its editors anchored to an edge of their owners' (sheets), by editor and
+    /// view, as their layout says: known with the layout that places their children, before
+    /// they paint, so a dialog placed in one opens as a sheet from the first.
+    pub(crate) fn sheet_views(&self) -> Vec<(EditorInstanceId, be_sdk_api::ViewId)> {
+        let state = self.state.borrow();
+        sheet_views(
+            state
+                .anchored
+                .iter()
+                .map(|(screen, hanging)| (*screen, &hanging.placement)),
+            |screen| {
+                let placement = state.run.placement(screen)?;
+                Some((placement.instance, placement.view))
+            },
+        )
+    }
+
     pub fn anchored(&self) -> Vec<AnchoredView> {
         let state = self.state.borrow();
         let mut anchored: Vec<(&ScreenId, &Hanging)> = state.anchored.iter().collect();
@@ -989,6 +1006,18 @@ pub struct Wants {
 
 /// What an app in `session` wants at the frame clock's `now`, `drawing` when it was granted a
 /// surface, as its `pacing` says.
+/// The views among the `anchored` ones (each by its screen) anchored to an edge of their
+/// owners', by the editor and view `view_of` says each screen shows.
+pub(crate) fn sheet_views<'a>(
+    anchored: impl Iterator<Item = (ScreenId, &'a AnchoredPlacement)>,
+    view_of: impl Fn(ScreenId) -> Option<(EditorInstanceId, be_sdk_api::ViewId)>,
+) -> Vec<(EditorInstanceId, be_sdk_api::ViewId)> {
+    anchored
+        .filter(|(_, placement)| matches!(placement.anchor, be_sdk_api::ViewAnchor::Edge(_)))
+        .filter_map(|(screen, _)| view_of(screen))
+        .collect()
+}
+
 /// The screens `all` with those of `editor` in place of its own, in the order of their ids
 /// whichever editor asked last, so the app is asked again only once what it shows changed.
 fn with_editors_screens(
