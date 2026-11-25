@@ -75,7 +75,7 @@ impl HiddenEdges {
             let input = edges.asked.with(|asked| ScreenInput {
                 walls: asked
                     .values()
-                    .filter_map(|asked| asked.wall.clone())
+                    .filter_map(|asked| asked.wall)
                     .collect(),
                 regions: asked
                     .values()

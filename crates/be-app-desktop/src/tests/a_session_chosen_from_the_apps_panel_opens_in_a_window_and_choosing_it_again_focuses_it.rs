@@ -34,7 +34,7 @@ fn a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_
 
     fixture
         .test
-        .click(&format!("desktop.apps.sessions.{}", sessions[0]));
+        .click(format!("desktop.apps.sessions.{}", sessions[0]));
     fixture.settle();
     let placed = fixture.placed_blocks();
     let [(block, view, rect)] = placed[..] else {
@@ -51,7 +51,7 @@ fn a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_
     fixture.settle();
     fixture
         .test
-        .click(&format!("desktop.apps.sessions.{}", sessions[1]));
+        .click(format!("desktop.apps.sessions.{}", sessions[1]));
     fixture.settle();
     assert_eq!(fixture.placed_blocks().len(), 2, "a second session opens");
     let overlap = fixture
@@ -71,7 +71,7 @@ fn a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_
     fixture.test.snapshot("the_apps_panel_with_open_sessions");
     fixture
         .test
-        .click(&format!("desktop.apps.sessions.{}", sessions[0]));
+        .click(format!("desktop.apps.sessions.{}", sessions[0]));
     fixture.settle();
     let placed = fixture.placed_blocks();
     assert_eq!(

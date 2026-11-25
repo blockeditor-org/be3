@@ -10,7 +10,7 @@ fn a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focu
         fixture.settle();
         fixture
             .test
-            .click(&format!("desktop.apps.sessions.{session}"));
+            .click(format!("desktop.apps.sessions.{session}"));
         fixture.settle();
     }
     assert_eq!(fixture.placed_blocks().len(), 2, "both sessions open");
@@ -35,7 +35,7 @@ fn a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focu
         .snapshot("the_apps_panel_with_a_hidden_session");
     fixture
         .test
-        .click(&format!("desktop.apps.sessions.{}", sessions[0]));
+        .click(format!("desktop.apps.sessions.{}", sessions[0]));
     fixture.settle();
     let placed = fixture.placed_blocks();
     assert_eq!(

@@ -835,10 +835,10 @@ impl Fixture {
 
     fn bar_menu(&mut self, bar: u64, rows: &[&str]) {
         self.test
-            .click(&format!("dock.bar.{}.grip", SHELL_BARS + bar));
+            .click(format!("dock.bar.{}.grip", SHELL_BARS + bar));
         self.settle();
         for row in rows {
-            self.test.click(&format!("grip.dock.bar.{row}"));
+            self.test.click(format!("grip.dock.bar.{row}"));
             self.settle();
         }
     }
@@ -1208,7 +1208,7 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_under(&document, child))
+        .find_map(|child| text_under(document, child))
 }
 
 fn accessible_under(document: &Document, id: NodeId) -> Option<String> {

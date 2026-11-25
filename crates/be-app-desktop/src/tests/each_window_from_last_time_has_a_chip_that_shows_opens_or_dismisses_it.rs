@@ -53,7 +53,7 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
 
     resumed.test.clear_calls();
     resumed.test.click_with(
-        &format!("desktop.windows.{kept_foot}"),
+        format!("desktop.windows.{kept_foot}"),
         PointerButton::Secondary,
     );
     resumed.settle();
@@ -69,7 +69,7 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
     resumed.test.snapshot("the_menu_of_a_window_from_last_time");
     resumed
         .test
-        .click(&format!("desktop.windows.{kept_foot}.open"));
+        .click(format!("desktop.windows.{kept_foot}.open"));
     resumed.settle();
     assert_eq!(
         resumed
@@ -83,13 +83,13 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
     );
 
     resumed.test.click_with(
-        &format!("desktop.windows.{kept_notes}"),
+        format!("desktop.windows.{kept_notes}"),
         PointerButton::Secondary,
     );
     resumed.settle();
     resumed
         .test
-        .click(&format!("desktop.windows.{kept_notes}.dismiss"));
+        .click(format!("desktop.windows.{kept_notes}.dismiss"));
     resumed.settle();
     assert!(
         !resumed.test.shown(&format!("desktop.windows.{kept_notes}"))
@@ -99,7 +99,7 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
     assert_eq!(kept_keys(&resumed), vec![kept_terminal, resumed.tab_of(9)]);
 
     let mut fronted = Fixture::resumed(saved);
-    fronted.test.click(&format!("desktop.windows.{kept_foot}"));
+    fronted.test.click(format!("desktop.windows.{kept_foot}"));
     fronted.settle();
     fronted.show_windows(&[foot(1), notes(6)]);
     assert_eq!(

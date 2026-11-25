@@ -53,7 +53,7 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
 
     resumed
         .test
-        .click(&format!("workspace.placeholder.{notes}.dismiss"));
+        .click(format!("workspace.placeholder.{notes}.dismiss"));
     resumed.settle();
     assert!(resumed.placeholder_rect(notes).is_none());
     assert_eq!(
