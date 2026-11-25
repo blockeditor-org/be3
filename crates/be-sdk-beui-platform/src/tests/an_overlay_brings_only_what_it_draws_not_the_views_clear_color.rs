@@ -51,7 +51,7 @@ fn an_overlay_brings_only_what_it_draws_not_the_views_clear_color() {
     );
     let painting = surface.painting(shown.id()).expect("the view is painted");
     let pixels =
-        beui_core::painting::rasterize(&painting.frame, painting.frame.background, |key| {
+        beui_paint_raster::rasterize(&painting.frame, painting.frame.background, |key| {
             painting.textures.get(&key)
         })
         .expect("the painting rasterizes");

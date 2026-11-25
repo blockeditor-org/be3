@@ -31,6 +31,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
@@ -52,6 +53,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
@@ -73,6 +75,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
@@ -94,6 +97,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
@@ -115,6 +119,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
@@ -157,6 +162,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
@@ -178,6 +184,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/beui-paint-raster:beui-paint-raster",
                 "//crates/beui:beui",
             ],
             "test_features": [],
