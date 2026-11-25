@@ -32,7 +32,7 @@ directly. The HTML core is unaffected.
 - **Glyphs.** Rectangles drawn with an image paint from beui's atlas, sampled at the lowest
   quality (nearest) on pixel-aligned rects, with a `Tint` of `TintMode::AlphaMask` in the text's
   colour, as glifo draws its own cached glyphs. `AlphaMask` reads alpha, so the coverage atlas
-  is `Rgba8Unorm` with coverage in alpha.
+  is `Rgba8Unorm` with coverage in alpha: four times the memory the `R8Unorm` atlas took.
   Colour glyphs are drawn untinted. Text stays beui's: `vello_gpu`'s `text` feature and glifo are
   off.
 - **Clips.** `push_clip_rect` (a fast path for a pixel-aligned rect) and `push_clip_path`, which
@@ -55,7 +55,8 @@ directly. The HTML core is unaffected.
   (`TargetInit::SrcOver`), so nothing in it can erase what the target already holds: damaged
   regions are cleared to transparent first (`TargetInit::Clear` with the damaged rects) and the
   window's background is the scene's first fill. Known limit: a punch painted after a `draw_gpu`
-  drawing does not erase the drawing, since the scene is split there.
+  drawing erases nothing drawn earlier in the frame, the drawing or Vello's shapes before it,
+  since the scene is split at the drawing and what follows is composited over (`SrcOver`).
 - **Damage.** Each frame's scene holds only the display items that cross the damage, clipped to
   it, rendered onto the retained target, cleared only within the damage. Scroll copies stay
   texture copies. vello_gpu 0.4 has no public recording API (`vello_common/src/record.rs` is its
@@ -71,7 +72,8 @@ directly. The HTML core is unaffected.
   was linear before.
 - **`draw_gpu` drawings** run in paint order as now: the scene is split at each drawing, Vello
   renders the part before it, the drawing's `paint` runs in its own pass on the same target, then
-  Vello renders the rest.
+  Vello renders the rest. vello_gpu's buffers hold one render, so each render after the first in a
+  frame submits the encoder before it: a frame split by N drawings costs N submits.
 - **The Space layer** keeps one renderer per texture
   (decisions/beui_space_keeps_one_renderer_per_texture.md): one Vello renderer each.
 
