@@ -307,6 +307,7 @@ async fn pick_places(
 /// should a listing have put it back without; one whose head is held is counted; one whose head
 /// is not is marked as loading. And the types to start the module of: their manifest says they
 /// count, and nothing started it yet.
+#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
 fn take_dirty(
     shared: &Arc<Mutex<Shared>>,
 ) -> (

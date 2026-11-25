@@ -267,6 +267,7 @@ pub fn counts_unread(content_type: Uuid) -> bool {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Read {
     build_id: Option<String>,
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     manifests: Result<Vec<(String, Result<String, String>)>, String>,
 }
 
