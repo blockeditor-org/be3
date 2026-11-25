@@ -198,7 +198,7 @@ impl Owner {
         let Some(data) = self.fetch(self.atoms.TARGETS) else {
             return Vec::new();
         };
-        data.chunks_exact(4)
+        data.as_chunks::<4>().0.iter()
             .filter_map(|atom| Some(u32::from_ne_bytes(atom.try_into().ok()?)))
             .filter_map(|atom| self.name(atom))
             .collect()
