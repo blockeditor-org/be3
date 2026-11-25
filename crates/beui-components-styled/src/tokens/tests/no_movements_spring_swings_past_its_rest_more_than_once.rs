@@ -3,7 +3,8 @@ use beui_view::reactive::SpringMotion;
 
 /// No motion rings: let go at rest, moving away from where it rests, or thrown hard towards
 /// it, a movement's spring passes its rest at most once and lands there on the way back.
-/// `Settle` and `Pull` overshoot once, visibly, from rest; `Rubber` never does.
+/// `Settle` overshoots once, visibly, from rest; `Rubber` and `Pull`, which spring back to an
+/// edge, never do.
 #[test]
 fn no_movements_spring_swings_past_its_rest_more_than_once() {
     for movement in Movement::ALL {
@@ -47,8 +48,8 @@ fn no_movements_spring_swings_past_its_rest_more_than_once() {
         }
         assert_eq!(
             overshoots_from_rest,
-            movement != Movement::Rubber,
-            "{}: only content pulled past its end never overshoots",
+            movement == Movement::Settle,
+            "{}: only what lands where layout puts it overshoots",
             movement.name()
         );
     }
