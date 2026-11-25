@@ -9,6 +9,7 @@ use be_sdk_worker_echo::{ECHOED, MODULE};
 use super::*;
 
 /// A client of the shared echo worker, and the task that waits on it.
+#[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
 fn client() -> (Shared<Vec<u8>, Vec<u8>>, Rc<RefCell<Option<Waker>>>) {
     let waiting = Rc::new(RefCell::new(None::<Waker>));
     let woken = Rc::clone(&waiting);
