@@ -15,6 +15,7 @@ mod a_child_taking_the_frame_is_hit_but_where_its_placers_world_shows;
 mod a_child_that_opens_fails_or_is_refused_takes_no_frame;
 mod a_childs_dock_views_keep_their_screens_while_placed;
 mod a_dialog_child_runs_in_an_editor_of_its_own;
+mod a_dialog_in_a_view_anchored_to_an_edge_opens_as_a_sheet;
 mod a_joined_docks_body_is_its_owners_dock_view_framed_where_it_holds_the_content;
 mod a_keyboard_ask_for_a_child_not_up_takes_the_keyboard_out_and_gives_it_once_up;
 mod a_keyboard_ask_never_takes_the_keyboard_from_outside_its_editor;
@@ -68,6 +69,7 @@ fn wanted(placement: ChildPlacement) -> Child {
         1.0,
         placement,
         Vec::new(),
+        false,
     )
     .expect("a block child placed to run its editor is shown")
 }

@@ -78,7 +78,7 @@ use be_sdk_api::{
     AnchorSpace, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
     DockUpdate, EditorInstanceId, Fonts, FrameChrome, FrameSpec, HostTransform, MenuItem,
     ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2,
-    ViewAnchor, ViewId, ViewPlacement, ViewportMetrics,
+    ViewId, ViewPlacement, ViewportMetrics,
     app::{EditorEvent, MenuChoice},
     shell_types::{ChildMenuChoice, MenuSet, ShellMessage},
 };
@@ -643,13 +643,15 @@ struct SpawnWith {
 impl Child {
     /// The child `placement` places in `editor`'s view `view`, laid out at `raster` pixels per
     /// point, when it is a block child placed to run its editor: its editor not looked up yet
-    /// (`reconcile`).
+    /// (`reconcile`). A dialog opens as a sheet (`shown-dialog.sheet`) when `sheet`, its view
+    /// being anchored to an edge of its owner's.
     fn placed(
         editor: EditorInstanceId,
         view: ViewId,
         raster: f32,
         placement: ChildPlacement,
         occluders: Vec<Rect>,
+        sheet: bool,
     ) -> Option<Self> {
         if !runs_editor(placement.mode) {
             return None;
@@ -676,7 +678,7 @@ impl Child {
             | ChildContent::ArtifactSettings { .. } => {
                 let dialog = ShownDialog {
                     content: be_wasm_ops::encode(&placement.content),
-                    sheet: false,
+                    sheet,
                 };
                 (Shown::Dialog(dialog), None)
             }
@@ -699,15 +701,6 @@ impl Child {
         })
     }
 
-    /// It, a dialog, opened as a sheet (`shown-dialog.sheet`).
-    fn in_sheet(mut self) -> Self {
-        if let Shown::Dialog(dialog) = &mut self.shown {
-            dialog.sheet = true;
-            self.editor = Editor::new(self.shown.clone(), Showing::Opening);
-        }
-        self
-    }
-
     /// What names the editor it keeps while placed: its place, and what it shows. A child placed
     /// showing another block, or with another editor or view block named, is another editor.
     fn key(&self) -> ChildKey {
@@ -719,6 +712,9 @@ impl Child {
                 key.extend(shown.view_block.iter().flatten());
                 key
             }
+            // Whether it is a sheet is the host's to open it as (a rename form's role says it), so
+            // a dialog whose view's anchor moves to or from an edge is another; `sheet_views`
+            // knows it from the first layout, so it is not opened twice for a late paint.
             Shown::Dialog(dialog) => {
                 let mut key = dialog.content.clone();
                 key.push(u8::from(dialog.sheet));
@@ -1135,14 +1131,11 @@ impl Children {
                     .map(|view| view.request),
             )
             .collect();
+        // A dialog placed in a view anchored to an edge of its owner's opens as a sheet, as
+        // under be-host: known from the layout that places it, before that view paints.
+        let sheets = parent.sheet_views();
         let mut placed = parent.placed();
         placed.retain(|placements| ours(placements.instance));
-        let sheets: Vec<(EditorInstanceId, ViewId)> = parent
-            .anchored()
-            .into_iter()
-            .filter(|view| matches!(view.placement.anchor, ViewAnchor::Edge(_)))
-            .map(|view| (view.editor, view.view))
-            .collect();
         let mut wanted = Vec::new();
         let mut asking: HashMap<EditorInstanceId, (u64, ChildId)> = HashMap::default();
         let mut docked = docked_children(&placed);
@@ -1227,12 +1220,8 @@ impl Children {
                     raster,
                     in_view(placement, placements.view),
                     occluders,
+                    sheets.contains(&(placements.instance, placements.view)),
                 ) {
-                    // A dialog placed in a view anchored to an edge of its owner's opens as a
-                    // sheet, as under be-host.
-                    Some(child) if sheets.contains(&(placements.instance, placements.view)) => {
-                        wanted.push(child.in_sheet())
-                    }
                     Some(child) => wanted.push(child),
                     None => self.unshown.push((
                         (placements.instance, placements.view),

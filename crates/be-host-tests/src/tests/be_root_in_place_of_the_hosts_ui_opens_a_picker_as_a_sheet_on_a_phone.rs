@@ -13,12 +13,21 @@ fn be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone() {
         ..Options::default()
     });
     add_to_my_files(&mut host, "Canvas");
-    host.restart_as_root(ROOT);
     // A phone the canvas's tool bar fits across, with its Block button where be-host lays it.
     host.run(&["resize", "520x900"]);
     host.run(&["settle"]);
-    host.run(&["tap", "428,872"]);
-    // A sheet slides up on the clock (guides/running/drive.md, Targets).
+    let block = host.place("#infinite-canvas.dock.block");
+    let block = format!(
+        "{:.0},{:.0}",
+        block.0 + block.2 / 2.0,
+        block.1 + block.3 / 2.0
+    );
+    host.restart_as_root(ROOT);
+    host.run(&["resize", "520x900"]);
+    host.run(&["settle"]);
+    host.run(&["tap", &block]);
+    // The sheet slides up on the clock, and drive's tree does not see into the root's views for
+    // `wait_still` to watch it come to rest, so the clock is moved past its slide.
     host.pause(600);
     host.run(&["settle"]);
     host.snapshot("be_root_opens_a_picker_as_a_sheet_on_a_phone");
