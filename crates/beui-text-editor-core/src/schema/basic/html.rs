@@ -461,13 +461,12 @@ impl Reader {
                 self.end_line();
             }
             "td" | "th" if self.line.is_some() => self.push("\t"),
-            "input" if self.lists.last().is_some() && self.line.is_none() => {
-                if Token::attribute(attributes, "type")
+            "input" if self.lists.last().is_some() && self.line.is_none()
+                && Token::attribute(attributes, "type")
                     .is_some_and(|kind| kind.eq_ignore_ascii_case("checkbox"))
-                {
+                => {
                     self.checked = Some(Token::attribute(attributes, "checked").is_some());
                 }
-            }
             _ => {}
         }
         if closed || VOID_ELEMENTS.contains(&name.as_str()) {
