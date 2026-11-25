@@ -911,17 +911,18 @@ impl KeyBook {
         Some((plain, by_retired))
     }
 
-    /// Keeps `plain`, which `wrap` sealed to a retired secret, sealed again to the current one
-    /// from this account, as `crate::contacts::reseal_from` does, so the account can one day
-    /// drop the secret (`take_resealed`).
-    fn reseal(&self, wrap: &WrappedKey, plain: &[u8]) {
-        let mine = Party {
-            account: self.account.into_bytes(),
-            public: self.identity.public(),
+    /// Keeps `plain`, which `wrap`'s sender, by its key `public`, sealed to a retired secret,
+    /// sealed again to the current one as still the sender's (`RecoverySecret::seal_as_from`),
+    /// as `crate::contacts::reseal_from` does, so the account can one day drop the secret
+    /// (`take_resealed`) and the key is checked as the sender's whenever it opens.
+    fn reseal(&self, wrap: &WrappedKey, public: RecoveryPublic, plain: &[u8]) {
+        let from = Party {
+            account: wrap.sender.into_bytes(),
+            public,
         };
         let Ok(sealed) =
             self.identity
-                .seal_for(self.account.into_bytes(), &mine, wrap.key.as_bytes(), plain)
+                .seal_as_from(&from, self.account.into_bytes(), wrap.key.as_bytes(), plain)
         else {
             return;
         };
@@ -930,7 +931,7 @@ impl KeyBook {
             be_block_protocol::SealedKey {
                 organization: self.organization,
                 key: wrap.key,
-                sender: self.account,
+                sender: wrap.sender,
                 sealed,
             },
         );
@@ -1730,7 +1731,7 @@ impl KeyBook {
 
     fn unwrap(&self, wrap: &WrappedKey, row: Option<KeyRow>, vouched: bool) -> Option<Opened> {
         let block = row.map(|row| row.block);
-        // What opened, and whether a retired secret opened it, which `reseal` then seals again.
+        // What opened, and the sender's key when a retired secret opened it (`reseal`).
         let (bytes, by_retired) = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
                 if !self.accepts(wrap.sender, block, vouched) {
@@ -1779,7 +1780,7 @@ impl KeyBook {
                 {
                     return None;
                 }
-                (plain, retired)
+                (plain, retired.then_some(public))
             }
             WrappedBy::Account(_) => return None,
             // Opened only from a member the organization's log names, with the keys it names,
@@ -1826,8 +1827,8 @@ impl KeyBook {
             }
         };
         let opened = self.opened(row, &bytes, vouched)?;
-        if by_retired {
-            self.reseal(wrap, &bytes);
+        if let Some(public) = by_retired {
+            self.reseal(wrap, public, &bytes);
         }
         Some(opened)
     }

@@ -346,6 +346,41 @@ impl RecoverySecret {
         Ok(sealed)
     }
 
+    /// Seals `plain` to this secret's own key, account `to`, as `from` would (`seal_for`): what
+    /// `open_from` opens as from `from`. The seal binds both keys and nothing more, so the holder
+    /// of either secret can make it: a device seals again, as still its sender's, a key a contact
+    /// sealed to a key it replaced or from a key the contact replaced, so it opens as the
+    /// contact's, never as its own.
+    pub fn seal_as_from(
+        &self,
+        from: &Party,
+        to: [u8; 16],
+        context: &[u8],
+        plain: &[u8],
+    ) -> Result<Vec<u8>, KeyError> {
+        let ephemeral = StaticSecret::from(random::<32>());
+        let ephemeral_public = PublicKey::from(&ephemeral).to_bytes();
+        let me = Party {
+            account: to,
+            public: self.public(),
+        };
+        let key = from_key(
+            &*agree(&ephemeral, me.public.0)?,
+            &*agree(&self.0, from.public.0)?,
+            ephemeral_public,
+            from,
+            &me,
+            context,
+        );
+        let mut sealed = ephemeral_public.to_vec();
+        sealed.extend(seal_with(
+            &key,
+            &[FROM_INFO, &ephemeral_public].concat(),
+            plain,
+        ));
+        Ok(sealed)
+    }
+
     pub fn open_from(
         &self,
         from: &Party,

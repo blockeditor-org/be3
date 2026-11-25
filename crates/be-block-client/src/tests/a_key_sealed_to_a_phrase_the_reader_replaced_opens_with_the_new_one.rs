@@ -70,6 +70,7 @@ async fn a_key_sealed_to_a_phrase_the_reader_replaced_opens_with_the_new_one() {
         "the admin followed the guest's key change, so sealed to the new key"
     );
 
+    let reader = be_block_keys::RecoverySecret::from_bytes(fresh.to_bytes());
     let renewed = Peer::connect(
         PeerConfig::new(
             &harness.url,
@@ -88,18 +89,22 @@ async fn a_key_sealed_to_a_phrase_the_reader_replaced_opens_with_the_new_one() {
         Some(key),
         "the guest's new phrase did not open the key sealed to its old one"
     );
-    // Opened with a retired secret once, then sealed again to the new one, from the guest.
-    let sender: String = harness
-        .database()
-        .query_row(
-            "SELECT sender FROM wrapped_keys WHERE key_id = ?1 AND wrapped_by = ?2",
-            [key.to_string(), format!("account:{}", guest.account())],
-            |row| row.get(0),
-        )
-        .unwrap();
+    // Opened with a retired secret once, then sealed again to the new one, still as the
+    // admin's, so it is checked as the admin's whenever it opens.
+    let (sender, sealed) = wrap_to(&harness, key, guest.account());
     assert_eq!(
         sender,
-        guest.account().to_string(),
+        admin.account(),
+        "the key a retired secret opened was sealed again as another's"
+    );
+    let from = be_block_keys::Party {
+        account: admin.account().into_bytes(),
+        public: admin.keys().identity().public(),
+    };
+    assert!(
+        reader
+            .open_from(&from, guest.account().into_bytes(), key.as_bytes(), &sealed)
+            .is_ok(),
         "the key a retired secret opened was not sealed again to the new phrase"
     );
 

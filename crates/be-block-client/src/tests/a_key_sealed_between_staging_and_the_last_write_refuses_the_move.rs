@@ -23,6 +23,7 @@ async fn a_key_sealed_between_staging_and_the_last_write_refuses_the_move() {
     let resealed = crate::contacts::new_identity(
         rosa.account(),
         rosa.keys().identity(),
+        &[],
         &fresh,
         before.sealed.clone(),
         &std::collections::HashMap::new(),

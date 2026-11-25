@@ -156,9 +156,10 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   (`KeyMissing`). A move within a scope or to Recently Deleted changes no
   keys, and the server checks none. `Peer::share` grants
   and makes the block a scope root sealed to the grantee's verified key, the
-  seal and the grant in one write when this device manages the block, so a
-  refused grant leaves no key behind: a device takes a verified contact's key
-  without a grant of its own (`KeyBook::sender_may` checks only the sender).
+  seal and the grant in one write when this device manages the block, so the
+  server stores no key for a grant it refuses: a device takes a verified
+  contact's key without a grant of its own (`KeyBook::sender_may` checks only
+  the sender).
 - **Wrapped only under what is above.** A device wraps a key of a block under
   a scope key only of a block the signed parent records place it at or under
   (`Peer::signed_below`, Access logs below): making a block, moving one (the
@@ -807,7 +808,13 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
 - **A new phrase** (`contacts::set_recovery_key`) must reseal every row the
   account sealed for itself, which the server checks, so only a device with the
   old secret can make one; it reseals too every row a contact sealed to it that its
-  records in the account's block reach, which the server cannot check. The
+  records in the account's block reach, which the server cannot check. A
+  contact's row stays the contact's: the device seals it again to itself as
+  from the contact (`RecoverySecret::seal_as_from`, which the seal's
+  ephemeral-static and static-static Diffie-Hellman lets either end make), and
+  the server keeps the contact as its sender, so every device still checks the
+  contact may hand that key over (`KeyBook::sender_may`) rather than trusting
+  it as the account's own. The
   account's block's keys are among those rows, so the new phrase reads its
   history; and in the same write the block starts a new key epoch whose scope
   key is sealed to the new phrase alone (`AccountRecords::epoch_for`, a
@@ -825,8 +832,9 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   verified contact gets a key change naming both new public keys
   (`contacts::new_identity`, `RecoverySecret::seal_key_change`), left in the
   contact's mailbox (`letter.key-change`) by the same write; a contact's device
-  follows changes one at a time from the key it holds, reseals what that
-  account sealed to it (`ResealKeys`), writes its record in the account's block
+  follows changes one at a time from the key it holds, reseals, as still that
+  account's, what it sealed to it from any key the changes pass through
+  (`reseal_from`, `put-keys.reseal`), writes its record in the account's block
   and deletes the changes it followed. Before sending, the device follows its own
   contacts' waiting changes, checked against its pins, so the changes seal to
   each contact's newest key; that step is best-effort, so a contact's mailbox
@@ -851,8 +859,13 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   nothing it seals opens with a retired secret. Members who are no contact seal
   by the key a log names, which follows the retirement, so never get one. A
   key the `KeyBook` opens with a retired secret it seals again to the current
-  one, from the account, and writes (`KeyBook::take_resealed`,
-  `Peer::reseal_retired`), so each opens so once. An agent has no block to keep one in, and needs none:
+  one, still as its sender's, and writes (`KeyBook::take_resealed`,
+  `Peer::reseal_retired`), so no key needs a retired secret a second time. A
+  link made again with a contact whose record did not hold the current key
+  reseals so too what that contact sealed before (`contacts::reseal_relinked`),
+  since the new record holds the current key. A device reads the retired
+  secrets as it connects, before it reads any key. A reseal the server finds
+  gone (rotated away, revoked) is skipped, not refused. An agent has no block to keep one in, and needs none:
   the server refuses an agent a new phrase (its maker makes it again), so nothing
   is ever sealed to a key it replaced. The server, in
   the same write, seals again from its own account each key the account sealed
@@ -1155,9 +1168,12 @@ who lost access. Cited from code by these names.
   which for a contact that has sent no key change since, and was not linked
   again, is any time after the new phrase: nothing on the device tells when it
   followed. A forged change would move its record to a key of the thief's, as
-  the race of two key changes does (below). No retired secret is ever dropped:
-  the device seals again what it opens with one, but cannot tell when every
-  contact has followed.
+  the race of two key changes does (below). A forged key gains no more than the
+  contact could hand over itself: it opens, and is sealed again, only as that
+  contact's (`RecoverySecret::seal_as_from`), so `KeyBook::sender_may` still
+  judges it by the contact's access. No retired secret is ever dropped: the
+  device seals again what it opens with one, but cannot tell when every contact
+  has followed.
 - **Two key changes from one old phrase race.** Whoever holds an old phrase
   can leave a contact a key change of their own, sealed with the old key as
   the owner's is. A contact's device follows the first its mailbox holds; the

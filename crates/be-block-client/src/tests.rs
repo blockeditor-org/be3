@@ -129,7 +129,10 @@ mod a_join_link_lets_its_opener_join_the_host_and_read_nothing_stored;
 mod a_join_link_opener_refuses_a_log_the_server_makes_up;
 mod a_join_member_refuses_a_host_the_server_makes_up;
 mod a_joiner_whose_grant_was_revoked_is_refused_by_the_host;
+mod a_key_a_contact_may_not_send_stays_refused_once_sealed_again_after_its_key_change;
+mod a_key_a_contact_sealed_between_two_of_its_new_phrases_opens_once_both_are_followed;
 mod a_key_a_contact_sealed_to_a_replaced_phrase_before_its_own_new_one_opens_with_the_new_one;
+mod a_key_a_contact_sealed_to_a_replaced_phrase_opens_after_the_two_link_again;
 mod a_key_a_contact_seals_after_their_revocation_is_not_taken;
 mod a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox;
 mod a_key_opened_from_escrow_arrives_and_unlocks_its_block;
@@ -139,6 +142,7 @@ mod a_key_sealed_between_staging_and_the_last_write_refuses_the_move;
 mod a_key_sealed_by_a_contact_verified_later_arrives_as_it_is_verified;
 mod a_key_sealed_for_a_grant_the_server_refuses_reaches_no_one;
 mod a_key_sealed_to_a_phrase_the_reader_replaced_opens_with_the_new_one;
+mod a_key_sealed_to_a_replaced_phrase_by_a_contact_known_to_hold_the_new_one_is_refused;
 mod a_key_the_server_labels_as_the_organizations_settings_never_seals_another_block;
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
 mod a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_nothing;
@@ -793,6 +797,62 @@ fn sealed_to(harness: &Harness, key: Uuid, account: Uuid) -> i64 {
             |row| row.get(0),
         )
         .unwrap()
+}
+
+/// The sender and sealed bytes of the server's wrap of `key` sealed to `account`.
+fn wrap_to(harness: &Harness, key: Uuid, account: Uuid) -> (Uuid, Vec<u8>) {
+    let (sender, sealed): (String, Vec<u8>) = harness
+        .database()
+        .query_row(
+            "SELECT sender, sealed FROM wrapped_keys WHERE key_id = ?1 AND wrapped_by = ?2",
+            [key.to_string(), format!("account:{account}")],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    (sender.parse().unwrap(), sealed)
+}
+
+/// Puts `wrap`, a key of `organization` sealed to an account, in the server's database as a
+/// server that stores what its sender sends would, whether or not it was granted.
+fn plant_wrap(harness: &Harness, organization: Uuid, wrap: &be_block_protocol::WrappedKey) {
+    let be_block_protocol::WrappedBy::Account(to) = wrap.wrapped_by else {
+        panic!("only a wrap sealed to an account is planted");
+    };
+    harness
+        .database()
+        .execute(
+            "INSERT OR REPLACE INTO wrapped_keys
+                (organization_id, key_id, wrapped_by, sender, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                organization.to_string(),
+                wrap.key.to_string(),
+                format!("account:{to}"),
+                wrap.sender.to_string(),
+                wrap.sealed
+            ],
+        )
+        .unwrap();
+}
+
+/// The server's wrap of `key` sealed to `account`, with `key`'s row as `peer` holds it, for a
+/// device's `KeyBook::absorb`.
+fn served_wrap(
+    harness: &Harness,
+    peer: &Peer<MemoryStore>,
+    key: Uuid,
+    account: Uuid,
+) -> be_block_protocol::KeySet {
+    let (sender, sealed) = wrap_to(harness, key, account);
+    be_block_protocol::KeySet {
+        keys: vec![peer.keys().row(key).unwrap()],
+        wrapped: vec![be_block_protocol::WrappedKey {
+            key,
+            wrapped_by: be_block_protocol::WrappedBy::Account(account),
+            sender,
+            sealed,
+        }],
+    }
 }
 
 /// The newest entry of an access log, taken out of the server's database as a server that
