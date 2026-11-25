@@ -2090,6 +2090,10 @@ Each step lands on its own.
              - Left, under be-host too: an editor first laid out undocked and later moved into
                a dock tab's body keeps its undocked frame (`DockedTabs::key`). Host test `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`,
              beside be-host's own painting of the same.
+           - Left with them: a desktop session's window be-host's own UI opened is not
+             shown when the root starts on the same data (it is listed in the windows bar
+             only), where be-host started again restores it. be-host's UI opened it as a host
+             window, which a root asking for no windows does not open again.
            - Deferred until 4g7e3 needs them, 4g7e2a's window requests and 4g7e2b/c: the
              root asks every screen with `windows: false`, so its apps draw their windows in
              their own views and send no `window-request`, which paints as be-host's desktop
