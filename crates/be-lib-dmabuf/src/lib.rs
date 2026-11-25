@@ -392,6 +392,7 @@ impl Vulkan {
                     usage: usage.wgpu(),
                     view_formats: &[],
                 },
+                wgpu::TextureUses::UNINITIALIZED,
             )
         };
         Ok(Imported { texture, opaque })

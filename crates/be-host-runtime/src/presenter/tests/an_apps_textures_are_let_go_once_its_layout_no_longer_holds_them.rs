@@ -8,6 +8,7 @@ fn device() -> (wgpu::Device, wgpu::Queue) {
         &wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
             compatible_surface: None,
         },
     ))

@@ -22,6 +22,7 @@ pub fn vulkan_device(
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::LowPower,
         force_fallback_adapter: false,
+        apply_limit_buckets: false,
         compatible_surface: None,
     }))
     .expect("a Vulkan adapter is available");
@@ -76,7 +77,7 @@ pub fn read(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture)
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .expect("the device finishes");
-    let mapped = buffer.slice(..).get_mapped_range();
+    let mapped = buffer.slice(..).get_mapped_range().unwrap();
     mapped
         .chunks(padded as usize)
         .flat_map(|chunk| chunk[..row as usize].to_vec())

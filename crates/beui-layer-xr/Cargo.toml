@@ -12,14 +12,14 @@ beui-runner = { path = "../beui-runner" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 glam = "0.30"
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "30", default-features = false }
 
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 ash = "0.38"
 libloading = "0.9"
 openxr = { version = "0.22", default-features = false, features = ["loaded"] }
 serde_json = "1"
-wgpu = { version = "29", default-features = false, features = ["vulkan"] }
+wgpu = { version = "30", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
 beui-font-skrifa = { path = "../beui-font-skrifa" }

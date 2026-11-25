@@ -133,7 +133,7 @@ write_package_value("be3.cargo", {
                 "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                 "//crates/beui-runner:beui-runner",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],

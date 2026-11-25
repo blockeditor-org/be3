@@ -13,7 +13,7 @@ be-sdk-beui = { path = "../be-sdk-beui" }
 be-type-scene-3d = { path = "../be-type-scene-3d" }
 bytemuck = { version = "1", features = ["derive"] }
 uuid = "1"
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [dev-dependencies]
 be-sdk-test = { path = "../be-sdk-test" }

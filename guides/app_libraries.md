@@ -269,9 +269,9 @@ Traps when changing it:
   (`queries.rs`), as Chrome does.
 - Render bundles are recorded by the host and replayed at `finish`
   (`bundles.rs`).
-- `third-party/rust/overlays/wgpu` patches wgpu for custom-backend bundles,
-  bundle validation errors and occlusion queries in the browser; refresh or
-  drop it when wgpu is upgraded.
+- `third-party/rust/overlays/wgpu` patches wgpu so a bundle that fails
+  validation reaches the device's error sink, and so occlusion queries work in
+  the browser; refresh or drop it when wgpu is upgraded.
 
 `example-gpu-calls` in be-wasm-host times the per-draw calls
 (guides/performance.md).

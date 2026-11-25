@@ -18,7 +18,7 @@ be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "30", default-features = false }
 
 [dev-dependencies]
 beui = { path = "../beui" }

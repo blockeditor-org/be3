@@ -22,7 +22,7 @@ pub(crate) enum Command {
     Pipeline(wgpu::RenderPipeline),
     BindGroup(u32, Option<wgpu::BindGroup>, Vec<u32>),
     IndexBuffer(wgpu::Buffer, wgpu::IndexFormat, u64, Option<u64>),
-    VertexBuffer(u32, wgpu::Buffer, u64, Option<u64>),
+    VertexBuffer(u32, Option<wgpu::Buffer>, u64, Option<u64>),
     Draw(Range<u32>, Range<u32>),
     DrawIndexed(Range<u32>, i32, Range<u32>),
     DrawIndirect(wgpu::Buffer, u64),
@@ -65,7 +65,7 @@ impl BundleEncoder {
 
     pub(crate) fn push(&mut self, command: Command) -> Outcome<()> {
         if let Command::IndexBuffer(buffer, _, offset, size)
-        | Command::VertexBuffer(_, buffer, offset, size) = &command
+        | Command::VertexBuffer(_, Some(buffer), offset, size) = &command
         {
             slice(buffer, *offset, *size)?;
         }
@@ -95,8 +95,11 @@ impl BundleEncoder {
                 Command::IndexBuffer(buffer, format, offset, size) => {
                     encoder.set_index_buffer(slice(buffer, *offset, *size)?, *format)
                 }
-                Command::VertexBuffer(slot, buffer, offset, size) => {
+                Command::VertexBuffer(slot, Some(buffer), offset, size) => {
                     encoder.set_vertex_buffer(*slot, slice(buffer, *offset, *size)?)
+                }
+                Command::VertexBuffer(slot, None, ..) => {
+                    encoder.set_vertex_buffer(*slot, None::<wgpu::BufferSlice<'_>>)
                 }
                 Command::Draw(vertices, instances) => {
                     encoder.draw(vertices.clone(), instances.clone())

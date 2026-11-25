@@ -91,7 +91,7 @@ be-wasm-host = { path = "../be-wasm-host" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-root-host = { path = "../be-wasm-root-host" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "30", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # The block stack with the apps' type modules in process.

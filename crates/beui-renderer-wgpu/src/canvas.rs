@@ -44,6 +44,7 @@ impl CanvasSurface {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -82,6 +83,7 @@ impl CanvasSurface {
             present_mode: wgpu::PresentMode::Fifo,
             desired_maximum_frame_latency: FRAME_LATENCY,
             alpha_mode,
+            color_space: wgpu::SurfaceColorSpace::Auto,
             view_formats: Vec::new(),
         };
         Ok(Self {
@@ -135,7 +137,7 @@ impl CanvasSurface {
             wgpu::LoadOp::Clear(clear),
         );
         self.queue.submit(Some(encoder.finish()));
-        frame.present();
+        self.queue.present(frame);
         false
     }
 }

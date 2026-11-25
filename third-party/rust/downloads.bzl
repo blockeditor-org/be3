@@ -482,11 +482,11 @@ downloads = {
         "size_bytes": 106823,
         "version": "2.2.2",
     },
-    "bit-set-0.9.1": {
+    "bit-set-0.10.0": {
         "name": "bit-set",
-        "sha256": "34ddef2995421ab6a5c779542c81ee77c115206f4ad9d5a8e05f4ff49716a3dd",
-        "size_bytes": 20389,
-        "version": "0.9.1",
+        "sha256": "09ec2f926cc3060f09db9ebc5b52823d85268d24bb917e472c0c4bea35780a7d",
+        "size_bytes": 20439,
+        "version": "0.10.0",
     },
     "bit-vec-0.9.1": {
         "name": "bit-vec",
@@ -1718,18 +1718,6 @@ downloads = {
         "size_bytes": 54791,
         "version": "0.28.0",
     },
-    "gpu-descriptor-0.3.2": {
-        "name": "gpu-descriptor",
-        "sha256": "b89c83349105e3732062a895becfc71a8f921bb71ecbbdd8ff99263e3b53a0ca",
-        "size_bytes": 7943,
-        "version": "0.3.2",
-    },
-    "gpu-descriptor-types-0.2.0": {
-        "name": "gpu-descriptor-types",
-        "sha256": "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91",
-        "size_bytes": 2169,
-        "version": "0.2.0",
-    },
     "group-0.13.0": {
         "name": "group",
         "sha256": "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63",
@@ -1855,12 +1843,6 @@ downloads = {
         "sha256": "1f7685beb53fc20efc2605f32f5d51e9ba18b8ef237961d1760169d2290d3bee",
         "size_bytes": 7072,
         "version": "0.8.0",
-    },
-    "hexf-parse-0.2.1": {
-        "name": "hexf-parse",
-        "sha256": "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df",
-        "size_bytes": 4662,
-        "version": "0.2.1",
     },
     "hkdf-0.12.4": {
         "name": "hkdf",
@@ -2276,11 +2258,11 @@ downloads = {
         "size_bytes": 6407,
         "version": "1.0.0",
     },
-    "js-sys-0.3.99": {
+    "js-sys-0.3.107": {
         "name": "js-sys",
-        "sha256": "142bc4740e452c1e57ade0cbc129f139c9093e354346f0872ef985f4f5cf5f11",
-        "size_bytes": 108515,
-        "version": "0.3.99",
+        "sha256": "8dc09d2154098bbf4ef54eab6b117a3c24cbbffe94046b16ee6d6d4510584d3a",
+        "size_bytes": 136092,
+        "version": "0.3.107",
     },
     "kbkdf-0.1.0-rc.1": {
         "name": "kbkdf",
@@ -2546,11 +2528,17 @@ downloads = {
         "size_bytes": 188252,
         "version": "0.8.1",
     },
-    "naga-29.0.3": {
+    "naga-30.0.2": {
         "name": "naga",
-        "sha256": "0dd91265cc2454558f659b3b4b9640f0ddb8cc6521277f166b8a8c181c898079",
-        "size_bytes": 842607,
-        "version": "29.0.3",
+        "sha256": "fd0dd362bf26c0ffdd143df6da66a25d287e196eff482f117771010b207ad163",
+        "size_bytes": 871207,
+        "version": "30.0.2",
+    },
+    "naga-types-30.0.2": {
+        "name": "naga-types",
+        "sha256": "14474170feb673cfb18b3565111a9869797cc1d290fb9ec969c53f5e1e231c6d",
+        "size_bytes": 12025,
+        "version": "30.0.2",
     },
     "ndk-0.8.0": {
         "name": "ndk",
@@ -4694,35 +4682,35 @@ downloads = {
         "size_bytes": 123354,
         "version": "0.4.0+wasi-0.3.0-rc-2026-01-06",
     },
-    "wasm-bindgen-0.2.122": {
+    "wasm-bindgen-0.2.130": {
         "name": "wasm-bindgen",
-        "sha256": "3ed04576f974d2b2fba0f38c51dbc5518011e38c36bf1143164be765528fd409",
-        "size_bytes": 66786,
-        "version": "0.2.122",
+        "sha256": "a0181c14ddd6c7b8b0b0132a5f1ea2f32be0d893cd3ea97b6e3b28886b8a3d1c",
+        "size_bytes": 81643,
+        "version": "0.2.130",
     },
-    "wasm-bindgen-futures-0.4.72": {
+    "wasm-bindgen-futures-0.4.80": {
         "name": "wasm-bindgen-futures",
-        "sha256": "9473dbd2991ae90b6291c3c32c30c6187ac49aa32f9905d1cce280ec1e110b0f",
-        "size_bytes": 8241,
-        "version": "0.4.72",
+        "sha256": "5e14e0327cb5368ad60ccb22d04a9827a693c95a926d8d125e9fa39e0baec501",
+        "size_bytes": 11266,
+        "version": "0.4.80",
     },
-    "wasm-bindgen-macro-0.2.122": {
+    "wasm-bindgen-macro-0.2.130": {
         "name": "wasm-bindgen-macro",
-        "sha256": "916151b09da36bd82f6615cbf3a419e2f0ba23a03c6160e8e92eb6bd4aa1dec6",
-        "size_bytes": 9295,
-        "version": "0.2.122",
+        "sha256": "6e931a02a39abdbf66966fc35902b5ed58344750a70885bed4ebb3d8eaf28ed9",
+        "size_bytes": 9626,
+        "version": "0.2.130",
     },
-    "wasm-bindgen-macro-support-0.2.122": {
+    "wasm-bindgen-macro-support-0.2.130": {
         "name": "wasm-bindgen-macro-support",
-        "sha256": "299047362ccbfce148b67ab7e73349f77748e00c8296f9542adfad2ad82c5c5e",
-        "size_bytes": 82378,
-        "version": "0.2.122",
+        "sha256": "2ca4b54280e455bd831e33a6b8e734baf432fe63fbc35c42ac14ce67a043a53a",
+        "size_bytes": 128711,
+        "version": "0.2.130",
     },
-    "wasm-bindgen-shared-0.2.122": {
+    "wasm-bindgen-shared-0.2.130": {
         "name": "wasm-bindgen-shared",
-        "sha256": "9a929b2c61f11ba3e9bc35b50c1f25cb38e0e892c0c231ae2b8cf78d5dad4437",
-        "size_bytes": 11275,
-        "version": "0.2.122",
+        "sha256": "3b1f9c3798725016c6ee5f2f57869ec0831e8bbc0ab0310a86e787e97f41389e",
+        "size_bytes": 13698,
+        "version": "0.2.130",
     },
     "wasm-encoder-0.244.0": {
         "name": "wasm-encoder",
@@ -4868,11 +4856,11 @@ downloads = {
         "size_bytes": 9727,
         "version": "0.31.11",
     },
-    "web-sys-0.3.99": {
+    "web-sys-0.3.107": {
         "name": "web-sys",
-        "sha256": "6d621441cfc37b84979402712047321980c178f299193a3589d05b99e8763436",
-        "size_bytes": 675491,
-        "version": "0.3.99",
+        "sha256": "d7d179596ff5ec0f6de4db64d54011bde6289cc49603d3a6e4ce3f329207ab88",
+        "size_bytes": 682676,
+        "version": "0.3.107",
     },
     "web-time-1.1.0": {
         "name": "web-time",
@@ -4922,59 +4910,59 @@ downloads = {
         "size_bytes": 46045,
         "version": "0.1.12",
     },
-    "wgpu-29.0.3": {
+    "wgpu-30.0.2": {
         "name": "wgpu",
-        "sha256": "bb3feacc458f7bee8bc1737149b42b6c731aa461039a4264a67bb6681646b250",
-        "size_bytes": 209309,
-        "version": "29.0.3",
+        "sha256": "146fc3d654250e6207921a66c87534c621bc886c70df83dcf466c1d66813810e",
+        "size_bytes": 231316,
+        "version": "30.0.2",
     },
-    "wgpu-core-29.0.3": {
+    "wgpu-core-30.0.2": {
         "name": "wgpu-core",
-        "sha256": "02da3ad1b568337f25513b317870960ef87073ea0945502e44b864b67a8c77b7",
-        "size_bytes": 345952,
-        "version": "29.0.3",
+        "sha256": "ad661da2ee99f208c30090b585284b2ab5b8bf2358ddf2d2215592808ec62f1a",
+        "size_bytes": 387526,
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-apple-29.0.3": {
+    "wgpu-core-deps-apple-30.0.2": {
         "name": "wgpu-core-deps-apple",
-        "sha256": "62e51b5447e144b3dbba4feb01f80f4fa21696fa0cd99afb2c3df1affd6fdb28",
-        "size_bytes": 11976,
-        "version": "29.0.3",
+        "sha256": "7d3f2f24aee039ffe9ef527300daf6b7428c58edeefdaa1700f4fa0fd754df16",
+        "size_bytes": 12403,
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-emscripten-29.0.3": {
+    "wgpu-core-deps-emscripten-30.0.2": {
         "name": "wgpu-core-deps-emscripten",
-        "sha256": "3487cd6293a963bc5c0c0396f6a2192043c50003c07f4efdccbad3d90ec9d819",
-        "size_bytes": 10698,
-        "version": "29.0.3",
+        "sha256": "55ccf093bd215ae9dc4f96df293e675513ac1f2569f8293a2911cc34ca3505d1",
+        "size_bytes": 11170,
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-wasm-29.0.3": {
+    "wgpu-core-deps-wasm-30.0.2": {
         "name": "wgpu-core-deps-wasm",
-        "sha256": "0c2f2fb042f36920771deb0b966543c5751b18f3d327760ffc90f74e20b2dcd4",
-        "size_bytes": 10720,
-        "version": "29.0.3",
+        "sha256": "b20f43aeb9962d05e61e3ccb717e2e27ba1b04e979d4ca7e361384f8ee03db56",
+        "size_bytes": 11187,
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-windows-linux-android-29.0.3": {
+    "wgpu-core-deps-windows-linux-android-30.0.2": {
         "name": "wgpu-core-deps-windows-linux-android",
-        "sha256": "1bfb01076d0aa08b0ba9bd741e178b5cc440f5abe99d9581323a4c8b5d1a1916",
-        "size_bytes": 12044,
-        "version": "29.0.3",
+        "sha256": "1331b08fa2362c5d454eccc4448e6e4f01eccfea569a00e310adbfc4415f2bdc",
+        "size_bytes": 12947,
+        "version": "30.0.2",
     },
-    "wgpu-hal-29.0.3": {
+    "wgpu-hal-30.0.2": {
         "name": "wgpu-hal",
-        "sha256": "31f8e1a9e7a8512f276f7c62e018c7fa8d60954303fed2e5750114332049193f",
-        "size_bytes": 427187,
-        "version": "29.0.3",
+        "sha256": "a57452fe453658e141aafdb09de1028afa498805fab518238ddf372a518813ff",
+        "size_bytes": 466366,
+        "version": "30.0.2",
     },
-    "wgpu-naga-bridge-29.0.3": {
+    "wgpu-naga-bridge-30.0.2": {
         "name": "wgpu-naga-bridge",
-        "sha256": "59c654c483f058800972c3645e95388a7eca31bf9fe1933bc20e036588a0be02",
-        "size_bytes": 9419,
-        "version": "29.0.3",
+        "sha256": "44a62ead68aad7cd40ac9e2cd2b8ec64f32dfbad2765f429b9fb74b8b735869f",
+        "size_bytes": 9510,
+        "version": "30.0.2",
     },
-    "wgpu-types-29.0.3": {
+    "wgpu-types-30.0.2": {
         "name": "wgpu-types",
-        "sha256": "a9bcc31518a0e9735aefebedb5f7a9ef3ed1c42549c9f4c882fa9060ceaac639",
-        "size_bytes": 127829,
-        "version": "29.0.3",
+        "sha256": "a9f6ee0bd50f5ab79fb8c25e3f33afb27126f034af4ba5909c7a0967058659e6",
+        "size_bytes": 144255,
+        "version": "30.0.2",
     },
     "which-6.0.3": {
         "name": "which",

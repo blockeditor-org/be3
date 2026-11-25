@@ -8,11 +8,11 @@ license.workspace = true
 be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-gpu-convert = { path = "../be-wasm-gpu-convert" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [lints]
 workspace = true
 
 [dev-dependencies]
 be-wasm-ops = { path = "../be-wasm-ops" }
-wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["noop", "std", "wgsl"] }
