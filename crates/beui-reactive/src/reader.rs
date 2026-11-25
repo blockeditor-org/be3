@@ -16,6 +16,7 @@ enum Held<T> {
     Signal(ReadSignal<T>),
     /// A `Source` or async memo, read in place through `Get`: `with` gives it a closure to
     /// call once with the value.
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     Lent(Stored<Box<dyn Fn(&mut dyn FnMut(&T))>>),
     Memo(Memo<T>),
     Function(Stored<Box<dyn Fn() -> T>>),
