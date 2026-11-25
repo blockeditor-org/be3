@@ -340,7 +340,14 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   and takes it back from one that stops or loses the focus; one whose lock
   the platform released gets it again only once it stops asking and asks
   anew), and every sample
-  while one shown asks for them. `OwnSurface` is a surface of the root's own,
+  while one shown asks for them. A screen the root asks with windows
+  (`screen-request.windows`: the session's, when the host says it shows the
+  editor's windows as its own, `editor-app.hosts-windows`) has the windows its
+  editor opens floated by the root (be-sdk-root's `floating`, over
+  be-sdk-window-stack): `Embedded` adopts each from the layout commit that
+  opens it and asks for it beside the screens the root asks for
+  (`Embedded::show`), and `Embedded::window_layers` names each where it floats,
+  bottom first. `OwnSurface` is a surface of the root's own,
   which it configures, draws (`fill`, or `acquire` and `present`) and names
   as a layer. `crates/be-sdk-beui-root` draws them with beui: `BeuiRoot` is
   what a root's surfaces share (the device `be3:gpu` gives it, the fonts

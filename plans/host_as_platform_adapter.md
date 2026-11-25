@@ -2093,22 +2093,26 @@ Each step lands on its own.
              - Left, under be-host too: an editor first laid out undocked and later moved into
                a dock tab's body keeps its undocked frame (`DockedTabs::key`). Host test `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`,
              beside be-host's own painting of the same.
-           - Left with them: a desktop session's window be-host's own UI opened is not
-             shown when the root starts on the same data (it is listed in the windows bar
-             only), where be-host started again restores it. Most likely since be-host's UI
-             opened it as a host window, which a root asking for no windows does not open
-             again; not confirmed.
-           - Deferred until 4g7e3 needs them, 4g7e2a's window requests and 4g7e2b/c: the
-             root asks every screen with `windows: false`, so its apps draw their windows in
-             their own views and send no `window-request`, which paints as be-host's desktop
-             does; host windows matter once program windows interleave with them (4g7e3) or
-             span displays.
-           - 4g7e2a. `open`, `close` and `raise`: the root adopts the window's screen as
-             be-host-runtime's `adopt_window` does (asked for at its size, `windows: true`),
-             floats it where its `window-placement` says (`at-pointer`, `over` its opener),
-             above its opener in the stack, and shows it as a layer of its app's; `close`
-             lets it go, `raise` brings it in front of the app's others.
-           - 4g7e2b. `begin-move`, `begin-resize`, `resize` and `place`: the window stack's
+           - 4g7e2a. Built: `open`, `close`, `raise`, `place` and `resize`. The host says
+             which editor's windows it shows as its own (`editor-app.hosts-windows`: the
+             desktop shell under `--desktop`, as be-host's own UI floats them), and the root
+             asks that session screen with windows. Each window the editor opens from it
+             (`window-request.open`) be-sdk-root's `Embedded` adopts as be-host-runtime's
+             `adopt_window` does: asked for at its size (`HostView::Window`, with windows, its
+             views anchored from where it shows) beside the screens the root asks for
+             (`Embedded::show`), floated where its placement says (at the pointer, over its
+             opener) and stacked as be-host's desktop stacks them (be-sdk-window-stack, in
+             be-sdk-root's `floating`), until it closes or its screen leaves the layout. be-root
+             draws each over the session, the last raised on top, with the children it places
+             (`Embedded::window_layers`, `Children::layers`), and paints them for drive. So a
+             desktop session's window be-host's own UI opened shows again when the root starts
+             on the same data, as be-host started again restores it. Host test
+             `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`; be-sdk-root's
+             `floating::tests`.
+             - Left: windows of a child's app (an editor placed in the session) are drawn in
+               their own views, as the root asks children without windows; and the pointer an
+               `at-pointer` window opens at is the last the main window saw.
+           - 4g7e2b. `begin-move` and `begin-resize`: the window stack's
              gestures and springs (be-sdk-window-stack's `Gesture`, `Stacked`), the pointer
              held by the root while one runs, and Super+drag on any window.
            - 4g7e2c. Levels and host placements (`window-level`, `window-placement.host`): bars

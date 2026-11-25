@@ -3002,6 +3002,8 @@ async fn open(shown: Shown, preview: bool, with: &SpawnWith) -> Result<Hosted, U
             preview: editor.preview,
             pan_and_zoom: editor.pan_and_zoom,
             shows: editor.editor,
+            // A child's windows are its own, drawn in its views: only the session's float.
+            hosts_windows: false,
         }),
         Err(why) => {
             release_app(&app);

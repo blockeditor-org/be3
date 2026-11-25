@@ -33,6 +33,8 @@ use be_sdk_app_host::{
     wire::Wire,
 };
 use be_wasm_root_api::{Shown, ShownBlock, guest::host};
+
+use crate::floating::Floating;
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
@@ -91,6 +93,9 @@ pub struct Hosted {
     pub pan_and_zoom: bool,
     /// The editor, as its app's manifest names it (`host.editor-of`'s `editor`).
     pub shows: [u8; 16],
+    /// Whether the host shows the windows it opens from its main view as its own, which the
+    /// root floats (`host.editor-of`'s `hosts-windows`).
+    pub hosts_windows: bool,
 }
 
 /// Why `Embedded::spawn_block` spawned nothing.
@@ -199,6 +204,11 @@ struct State {
     /// How each view the app anchored hangs (`frame-report.anchored`), by the screen it opened
     /// for it, as its last layout's report said: it closes once a layout no longer lists it.
     anchored: HashMap<ScreenId, Hanging>,
+    /// The screens the root asks for (`Embedded::show`), without the windows it floats.
+    asked: Vec<ScreenRequest>,
+    /// The windows the app opened from a screen asked with windows, which the root floats
+    /// (`floating`), bottom first: each asked for besides `asked`.
+    floating: Vec<Floating>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -255,6 +265,7 @@ impl Embedded {
         let name = editor.name;
         let preview = editor.preview;
         let pan_and_zoom = editor.pan_and_zoom;
+        let hosts_windows = editor.hosts_windows;
         let shows = editor.editor;
         let app = Self::spawn_app(editor.app, editor.module, spawn.surface, spawn.fonts, now);
         let editor = app
@@ -272,6 +283,7 @@ impl Embedded {
             preview,
             pan_and_zoom,
             shows,
+            hosts_windows,
         })
     }
 
@@ -350,16 +362,29 @@ impl Embedded {
     /// Asks the app for `screens` in place of those it was asked for, as when the window it
     /// shows in is resized: at once once it runs, else with the rest it is sent once it says
     /// hello.
+    /// The windows the app opened that the root floats are asked for besides them.
     pub fn show(&self, screens: Vec<ScreenRequest>) {
         let mut state = self.state.borrow_mut();
-        if state.failure.is_some() || state.run.screens == screens {
+        if state.failure.is_some() {
             return;
         }
-        state.run.screens.clone_from(&screens);
-        let send = state.run.queue([AppCall::Screens(screens).into()]);
-        state.run.pacing.need();
-        state.wire.send(send);
-        state.flush();
+        let floating: Vec<ScreenId> = state.floating.iter().map(|window| window.screen).collect();
+        state.asked = screens
+            .into_iter()
+            .filter(|screen| !floating.contains(&screen.screen))
+            .collect();
+        state.ask_screens();
+    }
+
+    /// The windows the app opened that the root floats, bottom first: each the screen it is
+    /// asked for, and the layer showing it where it floats, in the window's points, once the app
+    /// painted it.
+    pub fn window_layers(&self) -> Vec<(ScreenRequest, Layer)> {
+        let floating = self.state.borrow().floating.clone();
+        floating
+            .iter()
+            .filter_map(|window| Some((window.request(), self.layer(window.screen, window.rect.min)?)))
+            .collect()
     }
 
     /// What the app paints its screens with now, as it answers a host's `paintings` for its
@@ -456,6 +481,8 @@ impl Embedded {
             contents: HashMap::default(),
             used: HashMap::default(),
             anchored: HashMap::default(),
+            asked: Vec::new(),
+            floating: Vec::new(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -1224,6 +1251,25 @@ pub(crate) fn wants(
 }
 
 impl State {
+    /// Asks the app for the screens the root asks for and the windows it floats, unless it was
+    /// asked for those already.
+    fn ask_screens(&mut self) {
+        let screens: Vec<ScreenRequest> = self
+            .asked
+            .iter()
+            .cloned()
+            .chain(self.floating.iter().map(Floating::request))
+            .collect();
+        if self.failure.is_some() || self.run.screens == screens {
+            return;
+        }
+        self.run.screens.clone_from(&screens);
+        let send = self.run.queue([AppCall::Screens(screens).into()]);
+        self.run.pacing.need();
+        self.wire.send(send);
+        self.flush();
+    }
+
     /// Takes in the children each view placed, in place of what it placed before.
     fn place(&mut self, children: Vec<ChildPlacements>) {
         for placements in children {
@@ -1354,6 +1400,10 @@ impl State {
                 self.described.retain(|screen, _| laid_out(screen));
                 self.used.retain(|screen, _| laid_out(screen));
                 self.anchored.retain(|screen, _| laid_out(screen));
+                // A window the layout no longer lists closed (its editor did).
+                let floated = self.floating.len();
+                self.floating.retain(|window| laid_out(&window.screen));
+                let unfloated = self.floating.len() != floated;
                 // A view the layout no longer has (an anchored view that closed) places nothing.
                 let before = self.placed.len();
                 self.placed.retain(|placements| {
@@ -1366,8 +1416,18 @@ impl State {
                     self.placing = true;
                 }
                 self.run.lay_out(layout, |_| false);
+                if unfloated {
+                    self.ask_screens();
+                }
             }
             Heard::LaidOut(mut commit) => {
+                // The windows it opened, moved, raised or closed, from a screen asked with
+                // windows, which it is asked for (or no longer) at once.
+                let requests = std::mem::take(&mut commit.window_requests);
+                let screens = self.run.screens.clone();
+                if crate::floating::hear(&mut self.floating, &screens, requests) {
+                    self.ask_screens();
+                }
                 // A pick from a frame menu lets its editor open the palette for a few commits.
                 self.menu_picked.retain(|_, left| {
                     *left = left.saturating_sub(1);

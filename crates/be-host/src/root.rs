@@ -974,6 +974,9 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
             pan_and_zoom: app
                 .editor(editor.into_bytes())
                 .is_some_and(|editor| editor.capabilities.pan_and_zoom),
+            // The desktop shell's windows float on the desktop, as be-host's own UI floats them
+            // (`compositor/desktop.rs`).
+            hosts_windows: core.desktop && editor == be_block::DESKTOP_EDITOR,
         });
         root.answer_editor(id, editor);
     }

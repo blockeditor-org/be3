@@ -54,6 +54,7 @@
 
 mod children;
 mod embedded;
+mod floating;
 mod own;
 mod windows;
 
@@ -210,6 +211,17 @@ impl Embedding {
     /// answered, for the root to take in.
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Routed, String> {
         let events = input::decode(events)?;
+        // Where the pointer is in the main window, where a window an app opens at the pointer
+        // opens.
+        if window.is_none() {
+            for event in &events {
+                if let input::Input::PointerMoved(at) | input::Input::PointerButton { pos: at, .. } =
+                    &event.input
+                {
+                    floating::note_pointer(*at);
+                }
+            }
+        }
         self.dismiss_outside(window, &events);
         let lifted = self.lift();
         let mut routed = self.windows.route(window, events);
