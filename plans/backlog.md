@@ -751,6 +751,14 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   `changed`, or the stack asking again as the organization's members change),
   with a be-host-runtime test where removing the author of a block shared with
   this account drops them from an open editor's members.
+- **A failed drain waits for its timer.** A revoke then a publish on an open block
+  once hung `flush_and_send` until its 60 s limit; it no longer reproduces
+  (be-host-runtime `a_publish_after_a_revoke_lands_on_an_open_block`). One
+  mechanism would show it: a drain that ends `Drained::Failed` drains again only at
+  `OUTBOX_RETRY` (30 s, be-host-stack `retry_at`), which a driven clock never
+  reaches, and which delays a publish by 30 s in the product. Done: what makes a
+  drain fail after a revoke is known, and a failed drain drains again on a signal
+  (keys arriving, a rotation finishing) rather than only on the timer, with a test.
 
 ## 29. Loading content
 
