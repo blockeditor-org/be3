@@ -10,6 +10,8 @@ pub use serde::{Serialize, de::DeserializeOwned};
 
 pub mod guest;
 
+pub mod local;
+
 pub mod net;
 
 pub mod wire;

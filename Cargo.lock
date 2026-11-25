@@ -3406,6 +3406,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-wasm-ops-local-test"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+]
+
+[[package]]
 name = "be-wasm-panic"
 version = "0.1.0"
 

@@ -126,8 +126,21 @@ An interface whose host runs inside the guest's own worker or thread on every
 platform (the GPU device: be-wasm-gpu-shim on the web, V8 fast-API functions
 natively) is named in `local`. Its functions are plain wasm imports returning
 their results: scalars and records of them flattened into wasm arguments,
-strings and lists as pointer and length, anything else postcard. A
-`list<u8>` result is copied once, straight into a vector of the right length.
+strings and lists as pointer and length, options of those as a tag, pointer
+and length, anything else postcard. A call that would take more than 16 wasm
+arguments has its widest flat records encoded instead. A `list<u8>` result is
+copied once, straight into a vector of the right length; a `result` with
+nothing on success answers 0, or its error's encoded length plus one.
+
+Async funcs, and funcs answering a `future` or a `stream`, answer a ticket at
+once (the host's `Caller::ticket`), and the host is handed a
+`be_wasm_ops::local::Promise` or `Sender` to settle it with later. Every
+local interface with one gets a `[poll]` import taking `wait`: the host's
+`Host::settle` answers what settled since the last poll (`Settled`, each value
+encoded), waiting where it can block, and the guest's generated `settle(wait)`
+hands it to the futures and streams waiting (`Ticket`, `Items`), whose
+wakers it wakes. The host wakes the app when anything settles.
+crates/be-wasm-ops-local-test holds the tests of the generated glue.
 
 ### Network worlds
 
