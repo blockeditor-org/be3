@@ -202,8 +202,6 @@ pub(super) fn HostMenu(
             disabled={unsaved}
             on_click={|| ask_core(CoreCommand::SwitchAccount)}
         />
-        // Every one of the host's panels, as be-host's menu lists them: each shows in the
-        // session's editor.
         <ForEach value={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
                 label={shown.title().to_owned()}
