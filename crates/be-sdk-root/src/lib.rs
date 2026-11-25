@@ -62,7 +62,8 @@ pub use children::{
     framing_screen, main_screen, preview_screen, preview_screen_of,
 };
 pub use embedded::{
-    AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, tell_editor,
+    AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, set_clock,
+    tell_editor,
 };
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};

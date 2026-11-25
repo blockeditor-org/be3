@@ -49,6 +49,8 @@ pub struct HostTest {
     started: Instant,
     reported: Cell<bool>,
     space: bool,
+    /// Whether it runs the desktop (`--desktop`), which a restart as a root keeps.
+    desktop: bool,
     editors: Option<String>,
     device: Option<Device>,
 }
@@ -175,7 +177,12 @@ impl HostTest {
             .host
             .as_mut()
             .expect("the host is still open")
-            .restart_with(vec![format!("--root={app}"), "--dev-workspace".to_owned()]);
+            .restart_with(
+                [format!("--root={app}"), "--dev-workspace".to_owned()]
+                    .into_iter()
+                    .chain(self.desktop.then(|| "--desktop".to_owned()))
+                    .collect(),
+            );
         if let Err(error) = restarted {
             self.fail(&format!("the host did not restart: {error}"));
         }
@@ -271,6 +278,7 @@ impl HostTest {
         device: Option<Device>,
     ) -> Self {
         let started = Instant::now();
+        let desktop = start.arguments.iter().any(|argument| argument == "--desktop");
         let host = Driven::start(start)
             .unwrap_or_else(|error| panic!("be-host did not start: {error}{}", log_named(&error)));
         let mut test = Self {
@@ -282,6 +290,7 @@ impl HostTest {
             started,
             reported: Cell::new(false),
             space,
+            desktop,
             editors: std::env::var("HOST_TEST_APPS").ok(),
             device,
         };

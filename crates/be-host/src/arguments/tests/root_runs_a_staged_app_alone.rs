@@ -22,9 +22,14 @@ fn root_runs_a_staged_app_alone() {
         parse(&words("--root="), None, LINUX).is_err(),
         "--root= names no app"
     );
-    assert!(
-        parse(&words("--root=be3.root-testing --desktop"), None, LINUX).is_err(),
-        "the desktop is part of be-host's own UI, which a root replaces"
+    assert_eq!(
+        parse(&words("--root --desktop"), None, LINUX),
+        Ok(Arguments {
+            root: Some("be3.root".to_owned()),
+            desktop: true,
+            ..Arguments::default()
+        }),
+        "the root shows the desktop shell as its session's editor"
     );
     assert_eq!(
         parse(&words("--dev-workspace --root"), None, LINUX),

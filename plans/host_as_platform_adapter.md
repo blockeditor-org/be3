@@ -2063,6 +2063,24 @@ Each step lands on its own.
              when Tab would wrap.
        - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and
          win32 hosts' surfaces, which stay the host's.
+         - 4g7e1. Built: the desktop shell under the root. `--root` takes `--desktop` (no
+           longer refused), which makes the desktop app the session's editor, its bars shown
+           (`HostCore::run_desktop_shell`), without the desktop's OS services, which come back
+           with 4g7g (the screen lock and its power actions, notifications, the tray,
+           screenshots): the Status bar shows Quick settings' glyph where be-host's shows
+           power's. The apps the root embeds are told its host's wall clock with each frame
+           and its UTC offset as they say hello (be-sdk-root's `set_clock`, from
+           `frame-request`), so the clock reads as be-host's. Host test
+           `be_root_in_place_of_the_hosts_ui_shows_the_desktop_shell`, beside be-host's own
+           painting of the same. The root's menu button stays at the top right, its one way
+           into the host's menu.
+         - 4g7e2. App windows (`HostView::Window` views: a session the Apps panel opens, a
+           window an app opens): floated by the root as be-host's `compositor/desktop.rs`
+           floats them (be-sdk-window-stack), moved and resized by their grips and
+           Super+drag, kept on the displays' work areas.
+         - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as
+           a `Surface::Host` layer, which the host composites and routes input to, and relays
+           its status (title, icon, raised, fullscreen) to its placer.
        - 4g7f. drive's commands split as The root guest says: `tree`, `find`, `paint`,
          `settle`, `synced` and `offline` to the root as messages, the clock and the
          platform's in the host. The root describes its own tree, and grafts into it the trees

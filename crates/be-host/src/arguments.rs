@@ -81,11 +81,6 @@ pub(crate) fn parse(
             _ => return Err(format!("unknown argument {argument}")),
         }
     }
-    if parsed.root.is_some() && parsed.desktop {
-        return Err(format!(
-            "{ROOT}APP runs a root in place of be-host's own UI, which --desktop is part of"
-        ));
-    }
     if platform == Some(DRM) {
         if !linux {
             return Err(format!(

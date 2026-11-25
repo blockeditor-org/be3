@@ -1226,11 +1226,10 @@ impl State {
             holds_input: self.wire.holds_input(),
         });
         if ask == Ask::Draw {
-            // The root has no wall clock of its own yet: the frame clock stands in.
-            let micros = u64::try_from(self.now.as_micros()).unwrap_or(u64::MAX);
+            let micros = |at: Duration| u64::try_from(at.as_micros()).unwrap_or(u64::MAX);
             self.wire.app_call(AppCall::Draw {
-                now_micros: micros,
-                wall_micros: micros,
+                now_micros: micros(self.now),
+                wall_micros: micros(wall_clock_at(self.now)),
                 seen: true,
             });
             self.flush();
@@ -1518,15 +1517,15 @@ impl State {
 
     /// Tells the app what it has yet to hear of what every app is told once it runs: the fonts
     /// its root's host bundles. The root asks its apps to describe nothing, keeps the
-    /// preferences it said hello with, and has no UTC offset from its host yet, so it tells
-    /// UTC.
+    /// preferences it said hello with, and tells the UTC offset its host last gave it
+    /// (`set_clock`).
     fn tell(&mut self) {
         let fonts = Rc::clone(&self.fonts);
         let telling = Telling {
             fonts: || (*fonts).clone(),
             describing: false,
             preferences: self.run.preferences(),
-            utc_offset: 0,
+            utc_offset: CLOCK.get().2,
         };
         let told = self.run.tell(telling);
         let send = self
@@ -1814,6 +1813,31 @@ fn screen_layer(instance: u64, screen: ScreenId) -> LayerId {
         &be_lib_stable_hash::State::default(),
         ("screen", instance, screen.0),
     ))
+}
+
+thread_local! {
+    /// The host's wall clock at a time of the frame clock, and its UTC offset in seconds, as
+    /// the root's frame last said (`set_clock`).
+    static CLOCK: Cell<(Duration, Duration, i32)> =
+        const { Cell::new((Duration::ZERO, Duration::ZERO, 0)) };
+}
+
+/// Takes the host's wall clock, `wall` since the Unix epoch, at the frame clock's `now`, and
+/// its UTC offset in seconds, as the root's frame request says them (`frame-request`'s
+/// `wall-clock` and `utc-offset`): the apps it embeds are told the wall clock with each frame
+/// they draw, as be-host tells its own, and the offset as they say hello (a change of it later
+/// reaches only apps that start after).
+pub fn set_clock(now: Duration, wall: Duration, utc_offset: i32) {
+    CLOCK.set((now, wall, utc_offset));
+}
+
+/// The wall clock at the frame clock's `now`, from the last the root was told.
+fn wall_clock_at(now: Duration) -> Duration {
+    let (at, wall, _) = CLOCK.get();
+    match now.checked_sub(at) {
+        Some(since) => wall + since,
+        None => wall.saturating_sub(at - now),
+    }
 }
 
 fn millis(now: Duration) -> u64 {
