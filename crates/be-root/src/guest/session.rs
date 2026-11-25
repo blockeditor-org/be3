@@ -103,6 +103,7 @@ impl Root {
                 let mut embedding = self.embedding.borrow_mut();
                 children.release(&mut embedding);
                 embedding.remove(hosted.app.instance());
+                self.let_go_panels();
             }
             if let Some(block) = showing {
                 let round = self.session_rounds.get() + 1;
@@ -137,6 +138,7 @@ impl Root {
                     };
                     children.release(&mut embedding);
                     embedding.remove(hosted.app.instance());
+                    self.let_go_panels();
                     *state = Showing::Failed(failure);
                 }
                 None => {
@@ -230,12 +232,12 @@ impl Root {
             both(session, children).await;
         });
         first(drawn, deadline).await;
-        let session = self.session.borrow();
+        let mut session = self.session.borrow_mut();
         let Some(Session {
             state: Showing::Running(hosted),
             children,
             ..
-        }) = &*session
+        }) = &mut *session
         else {
             return Vec::new();
         };
@@ -243,7 +245,7 @@ impl Root {
             return Vec::new();
         };
         // The host panels its children place, which the root draws itself.
-        be_sdk_root::show_panels(self.settle_panels(children.panels()));
+        children.show_panels(&self.settle_panels(children.panels()));
         let mut layers = Vec::new();
         children.layers(
             &screen(hosted.editor, self.window.get()),

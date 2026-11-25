@@ -14,7 +14,6 @@ cargo_package()
 # menu's. An entry that is a package's label stages that package as an app,
 # such as a root a test runs with --root, which no host ships.
 APPS = {
-    "a_web_browser_tab_says_why_it_shows_no_page": ["browser-tab"],
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_block_added_to_my_files_from_a_slow_server_stays_in_it": ["text"],
@@ -81,6 +80,7 @@ APPS = {
     "a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret": ["text"],
     "a_tooltip_from_the_files_reaches_past_them": [],
     "a_wait_names_an_app_that_stopped_instead_of_running_out": [],
+    "a_web_browser_tab_says_why_it_shows_no_page": ["browser-tab"],
     "a_window_dragged_over_the_desktops_bars_passes_beneath_them": ["desktop"],
     "a_window_over_a_tab_docked_on_the_desktop_draws_above_it": ["desktop"],
     "adding_an_account_chooses_a_local_or_custom_server": [],

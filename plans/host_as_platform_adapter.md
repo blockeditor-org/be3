@@ -1921,15 +1921,24 @@ Each step lands on its own.
                so it draws no panel: be-root draws them itself (the user's decision).
                be-sdk-root lists each host panel child placed and not hidden
                (`Children::panels`, a `PanelPlace`), reports it shown, and places the layer
-               the root hands it there (`show_panels`, layer ids from `PANEL_LAYERS`), framed,
-               clipped and cut out as a child. be-root keeps a `BeuiSurface` per place
-               (`guest/panels.rs`), drawing Performance (`StatisticsPanel`, its own statistics
-               watch) and Menu (`HostMenu` as rows). Its menu gains Block Stack State and
-               Running Apps, asking the session's editor to show the panel
-               (`host.show-panel`, `Forwarded::show_panel`) as be-host asks its shell. Host
-               test `be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places`.
-               Left: Block Stack State and Running Apps show `PANEL_NOT_DRAWN` until the
-               host's block stack and app pool reach be3:root.
+               the root hands it there (`Children::show_panels`, layer ids from
+               `FIRST_PANEL_LAYER`), framed, clipped and cut out as a child. be-root keeps a
+               `BeuiSurface` per place (`guest/panels.rs`), drawing Performance
+               (`StatisticsPanel`, fed by one statistics and memory feed for every such panel,
+               the host's watch kept while any shows) and Menu (`HostMenu` as rows, built with
+               the root's own menu by `MenuParts`, so both follow the host's views). Its menu
+               lists every `HostPanel::ALL`, asking the session's editor to show the panel
+               (`host.show-panel`, `Forwarded::show_panel`) as be-host asks its shell; the
+               root's own statistics overlay is retired (one path, as under be-host). Panels
+               are let go with the session. Host test
+               `be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places` opens
+               the files' host menu (a Menu panel) and its Performance row.
+               - Left: Block Stack State and Running Apps show `PANEL_NOT_DRAWN` until the
+                 host's block stack and app pool reach be3:root.
+               - Left: a pick in a Menu panel leaves its popover open (be-host's closes): the
+                 root reports no answer for a panel child yet.
+               - Left: a Menu panel reports no intrinsic size, so its popover keeps its first
+                 size and its rows scroll.
              - One app crashing fails every child it runs: expected, as the pool shares one
                app per staged app. Apps may later isolate themselves by spawning more wasm
                processes (deferred, plans/deferred/backlog.md).
