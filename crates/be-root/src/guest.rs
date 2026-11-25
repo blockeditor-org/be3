@@ -1453,6 +1453,11 @@ impl frames::Guest for Root {
             let time = Duration::from_nanos(request.time);
             root.resize(Window::of(&request.window));
             root.utc_offset.set(request.utc_offset);
+            be_sdk_root::set_clock(
+                time,
+                Duration::from_nanos(request.wall_clock),
+                request.utc_offset,
+            );
             root.own(time, Duration::from_nanos(request.wall_clock))
                 .await
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
