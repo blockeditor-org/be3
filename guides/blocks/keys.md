@@ -1046,12 +1046,15 @@ who lost access. Cited from code by these names.
   retirement it never sees. It can also number a live session's operations
   differently for different participants
   (decisions/live_edits_are_ordered_by_the_server.md). The fix
-  (plans/authorship.md) is fork detection: signed log heads carried in sessions, relays and
-  commits, compared when two devices meet (`Peer::compare_log_head`, which keeps
+  (plans/authorship.md) is fork detection: signed log heads carried in sessions, relays,
+  commits and the account's own block (between one person's devices), compared when two
+  devices meet (`Peer::compare_log_head`, which keeps
   a verdict per block: guides/blocks/client.md, "Signed logs"). Each head is
-  signed with its account's key (`sign_log_head`) and compared only under the
+  signed with its account's key (`sign_log_head`) over the organization, the block, the
+  size and the root, since a block id is unique only within its organization (another
+  organization can hold a block of the same id), and compared only under the
   key the device holds as current for that account, so a server cannot plant a
-  fork. It can still hide one: by never letting two devices' heads meet, or by
+  fork, nor move a head from one organization's block to another's. It can still hide one: by never letting two devices' heads meet, or by
   answering a comparison with a proof that does not check, which the device keeps
   as a verdict of its own (`ForkKind::Misbehaved`: the server proved it
   misbehaves, not what it hides), or with a log that grows each time it is read
@@ -1173,7 +1176,11 @@ keys the granter verified that way, which every device then seals to.
   account's records of its contacts, the code and kind of each link it made
   until it is finished (`contacts::KeptLink`, kept before `create-link`, so a
   code is never lost; an invitation's goes 30 days after it was made, and past
-  `MAX_KEPT_LINKS` the oldest), and what it pins per organization: an owner-only block (guides/settings.md,
+  `MAX_KEPT_LINKS` the oldest), the head of each block's signed log one of its
+  devices verified, signed, by organization and block, for its other devices to compare
+  (`log_heads`, `Peer::trade_account_heads`: moved forward only over a head that agreed,
+  and past `KEPT_HEADS`, 512, the ones shared longest ago go), and what it pins per
+  organization: an owner-only block (guides/settings.md,
   Owner only) at the top of the personal organization, at an id derived from
   the account, made by its first device that has a record to keep
   (`be_block_client::AccountRecords`, whose connection keeps the personal

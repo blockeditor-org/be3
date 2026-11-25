@@ -369,8 +369,11 @@ taken unproven.
   answers `Disconnected`. Heads reach a device three ways: through the
   account's own block, where each device shares its heads, signed, and compares
   those its other devices shared (`Peer::trade_account_heads`, which
-  be-host-stack's worker runs as the connection comes up; at most
-  `SHARED_HEADS` shared a pass, each only moving forward, `AccountBlock::log_heads`);
+  be-host-stack's worker runs as the connection comes up, one pass at a time; at most
+  `SHARED_HEADS` shared a pass, blocks holding none first, then those shared longest ago;
+  a block's head moves forward only over one that agreed, and one no verified key signed,
+  such as one signed before a phrase change, is replaced; `AccountBlock::log_heads`, by
+  organization and block, keeps at most `KEPT_HEADS`);
   in the block's live session (`Peer::tell_log_head`, "Live sessions"); and in
   commits: each seal
   names the head its device kept, signed (`Commit::log_through`, sealed with

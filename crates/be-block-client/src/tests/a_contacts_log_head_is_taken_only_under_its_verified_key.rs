@@ -24,6 +24,7 @@ async fn a_contacts_log_head_is_taken_only_under_its_verified_key() {
         account: bo.account(),
         head: kept,
         signature: bo.keys().identity().sign_log_head(
+            ada.organization().into_bytes(),
             chat.into_bytes(),
             kept.size,
             kept.root.as_bytes(),

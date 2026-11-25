@@ -4,7 +4,8 @@ use super::*;
 /// block, even when they share no session or commit (guides/blocks/keys.md, "Forks"): each
 /// shares its heads there, signed, and compares those the others shared. The laptop shares its
 /// head before the server rewrites the log; the phone agrees with it, and the tablet, shown the
-/// rewritten log, finds the fork.
+/// rewritten log, finds the fork and leaves the laptop's head where it is, though its own is
+/// longer.
 #[tokio::test]
 async fn an_accounts_devices_compare_log_heads_through_its_block() {
     let harness = Harness::start().await;
@@ -22,17 +23,20 @@ async fn an_accounts_devices_compare_log_heads_through_its_block() {
             .unwrap();
     }
     laptop.read_log(chat, 0, 10).await.unwrap();
-    assert_eq!(
-        laptop.trade_account_heads().await.unwrap(),
-        Vec::new(),
+    assert!(
+        laptop.trade_account_heads().await.unwrap().is_empty(),
         "nothing to compare before anything is shared"
     );
+    let shared = laptop
+        .account_log_head(laptop.organization(), chat)
+        .await
+        .expect("the laptop shares its head");
+    assert_eq!(shared.size, 2);
 
     let phone = another(&harness, &laptop).await;
     phone.read_log(chat, 0, 10).await.unwrap();
-    assert_eq!(
-        phone.trade_account_heads().await.unwrap(),
-        Vec::new(),
+    assert!(
+        phone.trade_account_heads().await.unwrap().is_empty(),
         "the same head as the one shared is compared with nothing asked"
     );
 
@@ -62,13 +66,19 @@ async fn an_accounts_devices_compare_log_heads_through_its_block() {
     assert!(
         matches!(
             compared.as_slice(),
-            [(block, LogAgreement::Forked(fork))]
+            [(block, Ok(LogAgreement::Forked(fork)))]
                 if *block == chat
                     && fork.theirs.size == 2
                     && matches!(fork.from, crate::HeadFrom::Account { .. })
         ),
-        "the tablet took the head the laptop shared as agreeing: {compared:?}"
+        "the tablet, shown the rewritten log, did not find the fork in the head the laptop \
+         shared: {compared:?}"
     );
     assert!(tablet.log_fork(chat).is_some(), "the verdict is kept");
+    assert_eq!(
+        tablet.account_log_head(laptop.organization(), chat).await,
+        Some(shared),
+        "a head found forked stays as evidence, never moved forward over"
+    );
     harness.stop().await;
 }

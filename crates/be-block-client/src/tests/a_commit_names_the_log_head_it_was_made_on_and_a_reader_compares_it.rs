@@ -37,6 +37,7 @@ async fn a_commit_names_the_log_head_it_was_made_on_and_a_reader_compares_it() {
     assert_eq!((named.size, named.root), (kept.size, *kept.root.as_bytes()));
     assert!(
         laptop.keys().identity().signing().verifies_log_head(
+            laptop.organization().into_bytes(),
             block.into_bytes(),
             named.size,
             &named.root,

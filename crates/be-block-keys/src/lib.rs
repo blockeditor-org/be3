@@ -287,13 +287,20 @@ impl RecoverySecret {
             .to_vec()
     }
 
-    /// Signs the head of `block`'s signed log (its size and root) a device of the account
-    /// verified, in a domain of its own, so another device that compares it with its own knows
-    /// the account vouched for it, not the server (guides/blocks/keys.md, "Forks").
-    pub fn sign_log_head(&self, block: [u8; 16], size: u64, root: &[u8; 32]) -> Vec<u8> {
+    /// Signs the head of the signed log of `block` in `organization` (its size and root) a
+    /// device of the account verified, in a domain of its own, so another device that compares
+    /// it with its own knows the account vouched for it, not the server (guides/blocks/keys.md,
+    /// "Forks"). The organization is bound too, since a block id is unique only within one.
+    pub fn sign_log_head(
+        &self,
+        organization: [u8; 16],
+        block: [u8; 16],
+        size: u64,
+        root: &[u8; 32],
+    ) -> Vec<u8> {
         use ed25519_dalek::Signer;
         self.signing_key()
-            .sign(&log_head(block, size, root))
+            .sign(&log_head(organization, block, size, root))
             .to_bytes()
             .to_vec()
     }
@@ -407,16 +414,21 @@ impl SigningPublic {
         verify_signature(&self.0, &authored(block, bytes), signature)
     }
 
-    /// Whether `signature` is this key's `RecoverySecret::sign_log_head` over the head of
-    /// `block`'s signed log of `size` and `root`.
+    /// Whether `signature` is this key's `RecoverySecret::sign_log_head` over the head of the
+    /// signed log of `block` in `organization` of `size` and `root`.
     pub fn verifies_log_head(
         &self,
+        organization: [u8; 16],
         block: [u8; 16],
         size: u64,
         root: &[u8; 32],
         signature: &[u8],
     ) -> bool {
-        verify_signature(&self.0, &log_head(block, size, root), signature)
+        verify_signature(
+            &self.0,
+            &log_head(organization, block, size, root),
+            signature,
+        )
     }
 }
 
@@ -427,8 +439,8 @@ impl SigningPublic {
     }
 }
 
-fn log_head(block: [u8; 16], size: u64, root: &[u8; 32]) -> Vec<u8> {
-    [LOG_HEAD_INFO, &block, &size.to_be_bytes(), root].concat()
+fn log_head(organization: [u8; 16], block: [u8; 16], size: u64, root: &[u8; 32]) -> Vec<u8> {
+    [LOG_HEAD_INFO, &organization, &block, &size.to_be_bytes(), root].concat()
 }
 
 fn authored(block: [u8; 16], bytes: &[u8]) -> Vec<u8> {

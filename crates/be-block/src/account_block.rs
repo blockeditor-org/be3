@@ -38,8 +38,10 @@ pub struct AccountBlock {
     /// the new one still opens (guides/blocks/keys.md, "Contacts").
     pub retired: Map<Uuid, Bytes>,
     /// The head of each block's signed log one of the account's devices verified, signed, by
-    /// block: what its other devices compare theirs with (guides/blocks/keys.md, "Forks").
-    pub log_heads: Map<Uuid, Bytes>,
+    /// organization and block (a block id is unique only within its organization): what its
+    /// other devices compare theirs with (guides/blocks/keys.md, "Forks"). Bounded: past
+    /// `be_block_client`'s `KEPT_HEADS` the oldest shared go.
+    pub log_heads: Map<(Uuid, Uuid), Bytes>,
 }
 
 impl AccountBlock {
@@ -85,20 +87,25 @@ impl AccountBlock {
             .into()
     }
 
-    /// The heads of blocks' signed logs the account's devices shared, by block (`log_heads`).
-    pub fn shared_log_heads(&self) -> impl Iterator<Item = (Uuid, &[u8])> {
+    /// The heads of blocks' signed logs the account's devices shared, by organization and
+    /// block (`log_heads`).
+    pub fn shared_log_heads(&self) -> impl Iterator<Item = ((Uuid, Uuid), &[u8])> {
+        self.log_heads.iter().map(|(key, bytes)| (*key, &bytes[..]))
+    }
+
+    pub fn log_head(&self, organization: Uuid, block: Uuid) -> Option<&[u8]> {
         self.log_heads
-            .iter()
-            .map(|(block, bytes)| (*block, &bytes[..]))
+            .get(&(organization, block))
+            .map(|bytes| &bytes[..])
     }
 
-    pub fn log_head(&self, block: Uuid) -> Option<&[u8]> {
-        self.log_heads.get(&block).map(|bytes| &bytes[..])
-    }
-
-    pub fn set_log_head(block: Uuid, head: Option<Vec<u8>>) -> Edit {
+    pub fn set_log_head(organization: Uuid, block: Uuid, head: Option<Vec<u8>>) -> Edit {
         Self::LOG_HEADS
-            .put(ObjectId::ROOT, &block, head.map(Bytes::from).as_ref())
+            .put(
+                ObjectId::ROOT,
+                &(organization, block),
+                head.map(Bytes::from).as_ref(),
+            )
             .into()
     }
 
