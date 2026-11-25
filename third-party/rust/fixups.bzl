@@ -52,6 +52,17 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
+    # wasm-bindgen 0.2.123 and later compile every binding away on WASI targets
+    # (wasm-bindgen#5175), and the browser build is wasm32-wasip1-threads run
+    # through wasm-bindgen, so its exports and imports vanished. These overlays
+    # gate them on `target_family = "wasm"` alone, as 0.2.122 did. Refresh them
+    # with each wasm-bindgen and js-sys, until wasm-bindgen can be asked to
+    # bind a WASI module.
+    "js-sys": {
+        "overlay": {
+            "src/futures/mod.rs": "overlays/js-sys/src/futures/mod.rs",
+        },
+    },
     # The build script lists the WebGL extensions for the library to include,
     # by absolute path into the directory it ran in. That directory is the
     # build script's own action's and is gone by the time the library
@@ -104,6 +115,20 @@ FIXUPS = {
         "overlay": {
             "build.rs": "overlays/v8/build.rs",
             "src/binding.rs": "overlays/v8/src/binding.rs",
+        },
+    },
+    # Bindings on WASI targets, as for js-sys.
+    "wasm-bindgen": {
+        "overlay": {
+            "src/externref.rs": "overlays/wasm-bindgen/src/externref.rs",
+            "src/lib.rs": "overlays/wasm-bindgen/src/lib.rs",
+            "src/rt/marker.rs": "overlays/wasm-bindgen/src/rt/marker.rs",
+            "src/rt/mod.rs": "overlays/wasm-bindgen/src/rt/mod.rs",
+        },
+    },
+    "wasm-bindgen-macro-support": {
+        "overlay": {
+            "src/codegen.rs": "overlays/wasm-bindgen-macro-support/src/codegen.rs",
         },
     },
     # What the app GPU API needs of wgpu 30. wgpu-core's backend panics on a
