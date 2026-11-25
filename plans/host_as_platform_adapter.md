@@ -2178,6 +2178,10 @@ Each step lands on its own.
              carried over windows by what the pointer is over (`Over`, from a view's catcher
              under be-host), which `Catch` leaves empty: under the root it stays over the window
              it began on.
+           - Left: a program window's tab sits at about (186,186) under the root but
+             (154,154) under be-host's own UI (`be_root_lists_a_programs_window_on_the_desktop`
+             beside `the_host_lists_a_programs_window_on_the_desktop`): the desktop's dock places
+             it differently when laid out under the root; not yet looked into.
            - Left: a window's popups (menus) show only within its place, clipped by its layer,
              where under be-host they hang outside the window's view; and the pointer's shape
              a program asks for is not shown under the root, which shows its own
