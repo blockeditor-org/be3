@@ -365,7 +365,8 @@ impl DeviceInterface for Device {
             backend: wgpu::Backend::Noop,
             subgroup_min_size: 0,
             subgroup_max_size: 0,
-            transient_saves_memory: false,
+            transient_saves_memory: Some(false),
+            limit_bucket: None,
         }
     }
 
@@ -483,18 +484,20 @@ impl DeviceInterface for Device {
                     .vertex
                     .buffers
                     .iter()
-                    .map(|buffer| abi::VertexBufferLayout {
-                        array_stride: buffer.array_stride,
-                        step_mode: convert::to_abi(buffer.step_mode),
-                        attributes: buffer
-                            .attributes
-                            .iter()
-                            .map(|attribute| abi::VertexAttribute {
-                                format: convert::to_abi(attribute.format),
-                                offset: attribute.offset,
-                                shader_location: attribute.shader_location,
-                            })
-                            .collect(),
+                    .map(|buffer| {
+                        buffer.as_ref().map(|buffer| abi::VertexBufferLayout {
+                            array_stride: buffer.array_stride,
+                            step_mode: convert::to_abi(buffer.step_mode),
+                            attributes: buffer
+                                .attributes
+                                .iter()
+                                .map(|attribute| abi::VertexAttribute {
+                                    format: convert::to_abi(attribute.format),
+                                    offset: attribute.offset,
+                                    shader_location: attribute.shader_location,
+                                })
+                                .collect(),
+                        })
                     })
                     .collect(),
             },
@@ -852,6 +855,10 @@ impl QueueInterface for Queue {
     fn compact_blas(&self, _blas: &DispatchBlas) -> (Option<u64>, DispatchBlas) {
         unimplemented!("acceleration structures are not in browser WebGPU")
     }
+
+    fn present(&self, _detail: &DispatchSurfaceOutputDetail) {
+        unreachable!("an app's surfaces are its host's, presented with `present_surface`")
+    }
 }
 
 impl ShaderModuleInterface for ShaderModule {
@@ -869,7 +876,11 @@ impl TextureViewInterface for TextureView {}
 impl SamplerInterface for Sampler {}
 impl PipelineLayoutInterface for PipelineLayout {}
 impl CommandBufferInterface for CommandBuffer {}
-impl QuerySetInterface for QuerySet {}
+impl QuerySetInterface for QuerySet {
+    /// The host frees a query set when the app drops it, so destroying one
+    /// early has nothing to free sooner.
+    fn destroy(&self) {}
+}
 impl RenderBundleInterface for RenderBundle {}
 
 impl RenderPipelineInterface for RenderPipeline {
@@ -907,7 +918,10 @@ impl BufferInterface for Buffer {
     /// Copies the range out of the host's map once. A buffer mapped at creation starts
     /// zeroed instead, and a range written through `get_mapped_range_mut` goes back to the
     /// host when dropped.
-    fn get_mapped_range(&self, sub_range: Range<wgpu::BufferAddress>) -> DispatchBufferMappedRange {
+    fn get_mapped_range(
+        &self,
+        sub_range: Range<wgpu::BufferAddress>,
+    ) -> Result<DispatchBufferMappedRange, wgpu::MapRangeError> {
         let length = sub_range.end.saturating_sub(sub_range.start);
         let fresh = FRESH.with(|fresh| fresh.borrow().contains(&self.0.handle().0));
         let bytes = match fresh {
@@ -915,12 +929,12 @@ impl BufferInterface for Buffer {
             false => self.0.read_mapped(sub_range.start, length),
         };
         checked();
-        DispatchBufferMappedRange::custom(MappedRange {
+        Ok(DispatchBufferMappedRange::custom(MappedRange {
             buffer: self.0.handle(),
             offset: sub_range.start,
             bytes,
             written: false,
-        })
+        }))
     }
 
     fn unmap(&self) {
@@ -1228,13 +1242,13 @@ impl RenderPassInterface for RenderPass {
     fn set_vertex_buffer(
         &mut self,
         slot: u32,
-        buffer: &DispatchBuffer,
+        buffer: Option<&DispatchBuffer>,
         offset: wgpu::BufferAddress,
         size: Option<wgpu::BufferSize>,
     ) {
         self.0.set_vertex_buffer(
             slot,
-            &custom::<Buffer>(buffer.as_custom()).0,
+            buffer.map(|buffer| &custom::<Buffer>(buffer.as_custom()).0),
             offset,
             convert::size(size),
         );
@@ -1446,13 +1460,13 @@ impl RenderBundleEncoderInterface for RenderBundleEncoder {
     fn set_vertex_buffer(
         &mut self,
         slot: u32,
-        buffer: &DispatchBuffer,
+        buffer: Option<&DispatchBuffer>,
         offset: wgpu::BufferAddress,
         size: Option<wgpu::BufferSize>,
     ) {
         self.0.set_vertex_buffer(
             slot,
-            &custom::<Buffer>(buffer.as_custom()).0,
+            buffer.map(|buffer| &custom::<Buffer>(buffer.as_custom()).0),
             offset,
             convert::size(size),
         );
@@ -1491,11 +1505,11 @@ impl RenderBundleEncoderInterface for RenderBundleEncoder {
             .draw_indexed_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
     }
 
-    fn finish(mut self, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
-        self.finish_custom(desc)
+    fn finish(self, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
+        Box::new(self).finish_boxed(desc)
     }
 
-    fn finish_custom(&mut self, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
+    fn finish_boxed(self: Box<Self>, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
         let descriptor = abi::RenderBundleDescriptor {
             label: convert::label(desc.label),
         };

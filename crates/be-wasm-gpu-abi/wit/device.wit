@@ -381,7 +381,8 @@ interface device {
         module: borrow<shader-module>,
         entry-point: option<string>,
         constants: list<tuple<string, f64>>,
-        buffers: list<vertex-buffer-layout>,
+        /// A slot left `none` has no buffer.
+        buffers: list<option<vertex-buffer-layout>>,
     }
 
     record blend-component {
@@ -566,7 +567,7 @@ interface device {
             offset: u64,
             size: option<u64>,
         );
-        set-vertex-buffer: func(slot: u32, buffer: borrow<buffer>, offset: u64, size: option<u64>);
+        set-vertex-buffer: func(slot: u32, buffer: option<borrow<buffer>>, offset: u64, size: option<u64>);
         set-viewport: func(x: f32, y: f32, width: f32, height: f32, min-depth: f32, max-depth: f32);
         set-scissor-rect: func(x: u32, y: u32, width: u32, height: u32);
         set-blend-constant: func(color: color);
@@ -675,7 +676,7 @@ interface device {
             offset: u64,
             size: option<u64>,
         );
-        set-vertex-buffer: func(slot: u32, buffer: borrow<buffer>, offset: u64, size: option<u64>);
+        set-vertex-buffer: func(slot: u32, buffer: option<borrow<buffer>>, offset: u64, size: option<u64>);
         draw: func(vertex-count: u32, instance-count: u32, first-vertex: u32, first-instance: u32);
         draw-indexed: func(
             index-count: u32,

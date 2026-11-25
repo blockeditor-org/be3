@@ -19,7 +19,7 @@ fn the_calls_made_per_draw_take_only_wasm_values() {
     );
     assert_eq!(
         signature("[method]render-pass.set-vertex-buffer"),
-        ("u32, u32, u32, u64, u32, u64", "")
+        ("u32, u32, u32, u32, u64, u32, u64", "")
     );
     assert_eq!(
         signature("[method]render-pass.draw-indexed"),
@@ -65,7 +65,7 @@ fn the_calls_made_per_draw_take_only_wasm_values() {
     );
     assert_eq!(
         signature("[method]render-bundle-encoder.set-vertex-buffer"),
-        ("u32, u32, u32, u64, u32, u64", "")
+        ("u32, u32, u32, u32, u64, u32, u64", "")
     );
     assert_eq!(signature("create-buffer"), ("u32, u32", "u32"));
     assert_eq!(signature("take-error"), ("u32, u32", "u32"));

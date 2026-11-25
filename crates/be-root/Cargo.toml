@@ -41,7 +41,7 @@ be-wasm-root-host = { path = "../be-wasm-root-host" }
 beui-fonts = { path = "../beui-fonts" }
 beui-paint-format = { path = "../beui-paint-format" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
-wgpu = { version = "29", default-features = false, features = ["noop"] }
+wgpu = { version = "30", default-features = false, features = ["noop"] }
 
 [lints]
 workspace = true

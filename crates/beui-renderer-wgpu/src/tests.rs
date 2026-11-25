@@ -151,6 +151,7 @@ impl Target {
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
             compatible_surface: None,
         }))
         .expect("no graphics adapter is available");
@@ -344,7 +345,7 @@ impl Target {
         self.device
             .poll(wgpu::PollType::wait_indefinitely())
             .expect("the device never finished the frame");
-        let pixels = buffer.slice(..).get_mapped_range().to_vec();
+        let pixels = buffer.slice(..).get_mapped_range().unwrap().to_vec();
         Capture { pixels }
     }
 }

@@ -8,7 +8,7 @@ license.workspace = true
 be-lib-layers = { path = "../be-lib-layers" }
 beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [lints]
 workspace = true

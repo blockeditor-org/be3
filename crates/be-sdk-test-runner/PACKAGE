@@ -20,7 +20,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],
@@ -34,7 +34,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],
@@ -48,7 +48,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],
@@ -62,7 +62,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],
@@ -76,7 +76,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],
@@ -90,7 +90,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],
@@ -104,7 +104,7 @@ write_package_value("be3.cargo", {
                 "app-test-runner": [
                     "//crates/be-wasm-host:be-wasm-host",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:wgpu-30.0.2",
                 ],
             },
             "deps": [],

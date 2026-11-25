@@ -447,7 +447,7 @@ fn pipeline(
             module: shader,
             entry_point: Some("vertex"),
             compilation_options: Default::default(),
-            buffers: &[Instance::layout()],
+            buffers: &[Some(Instance::layout())],
         },
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,

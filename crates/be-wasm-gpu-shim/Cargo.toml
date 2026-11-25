@@ -22,7 +22,7 @@ web-sys = { version = "0.3", features = [
     "WorkerGlobalScope",
     "console",
 ] }
-wgpu = { version = "29", default-features = false, features = ["std", "webgl", "webgpu", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "webgl", "webgpu", "wgsl"] }
 
 [lints]
 workspace = true
