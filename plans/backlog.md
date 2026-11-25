@@ -543,6 +543,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   input. Found while fixing Ctrl+Tab between texts. Done: a
   view given the keyboard early focuses its field once it is up, shown by a
   host test that gives a text's view the keyboard before its content arrives.
+  Left: a host test has no way to hold an app's content back while the host gives its view the
+  keyboard, so the race cannot be shown yet; that needs a test hook first (delaying a
+  subregion's child placement, say). Where to start: beui-core `window/hosted.rs`
+  (`window_focused` gives back the window's kept focus, else `focus_into` its root only when the
+  focus is not already inside it) and be-app-text's `caret_when_given_the_keyboard`, which
+  focuses the field only for an empty text.
 
 ## 21. Component macro
 
