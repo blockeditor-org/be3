@@ -33,6 +33,10 @@ const STREAM_BUFFER: usize = 4096;
 /// not reading what it is sent, is disconnected too.
 pub(crate) const STREAM_BUFFER_BYTES: usize = 4 * be_block_protocol::MAX_FRAME_BYTES;
 const PUSHES: usize = 4096;
+/// Where a test holds a join of a session, after the first check of a ban and before the
+/// connection is registered (`be_lib_test_pause`, keyed by the block).
+#[cfg(test)]
+pub(crate) const JOIN_PAUSE: &str = "client::join";
 
 /// What a query, op or target needs before its handler runs. Each has one, stated in
 /// `query_rule`, `op_rule`, `target_rule` and `topic_rule` alone, and the dispatcher
@@ -1364,6 +1368,8 @@ impl Client {
                 format!("this account is barred from joining block {block}'s host"),
             ));
         }
+        #[cfg(test)]
+        be_lib_test_pause::point(JOIN_PAUSE, block.as_u128()).await;
         // Below View, a Join member (the rule admitted Join): it hears who hosts and the host
         // channel, nothing of the order, and only the lease holder hears of it.
         if connection

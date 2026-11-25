@@ -37,14 +37,15 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **Hosted channel races without tests.** Three fixes in hosted blocks 4b
-  close races that land between two awaits, which no test forces yet: an
-  admit a recheck ran beside asks for another check (`Member::Answering`'s
-  `admit`, `Hosting::snapshots`), a recheck drops a member only while it speaks
-  with the account and key it checked (`hosting::drop_checked`), both in
-  be-host-stack's hosting.rs; and be-server's participant join re-checks the
-  ban after registering (`Client::join`). Done: a test-only pause between the
-  two awaits of each, and a test that changes access or bans in it.
+- **An admit a recheck ran beside, without a test.** An admit a recheck ran
+  beside asks for another check (`Member::Answering`'s `admit`,
+  `Hosting::snapshots`, be-host-stack's hosting.rs), which no test forces: every
+  revocation a test can make there (a lowered grant, a ban) also has the server
+  take the member out of the session, and the host drops it on hearing that
+  whether or not it checks again. Done: a test held at `hosting::ANSWER_PAUSE`
+  with a change the signed logs refuse and the server does not act on (a new
+  identity key for the account), or with the server's word of the leave held
+  back.
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session

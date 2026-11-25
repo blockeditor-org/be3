@@ -61,15 +61,30 @@ enum Member {
         admit: u64,
         next: Option<Vec<u8>>,
     },
-    /// Answered: admitted once its first message on the channel opens.
-    Admitting(Box<Admitting>),
-    Admitted(Box<Admitted>),
+    /// Answered: admitted once its first message on the channel opens. Each holds the admit
+    /// that answered it, so a check of the members drops only the admission it checked.
+    Admitting(Box<Admitting>, u64),
+    Admitted(Box<Admitted>, u64),
 }
 
 /// Where a test holds an answer to a handshake, after the member was checked and before the
 /// answer is decided (`be_lib_test_pause`, keyed by the block).
 #[cfg(test)]
 pub const ANSWER_PAUSE: &str = "hosting::answer";
+
+/// Where a test holds a check of the members, once it took the members to check and before it
+/// checks one (`RECHECK_PAUSE`), and after it checked one and before it may drop it
+/// (`RECHECKED_PAUSE`).
+#[cfg(test)]
+pub const RECHECK_PAUSE: &str = "hosting::recheck";
+#[cfg(test)]
+pub const RECHECKED_PAUSE: &str = "hosting::rechecked";
+
+/// Whether a check of the members runs.
+#[cfg(test)]
+pub fn rechecking(shared: &Shared) -> bool {
+    shared.hosting.rechecking
+}
 
 /// Where `member` of `block`'s channel is: being checked (with a newer handshake waiting, or
 /// not), answered, or admitted; none when it has no channel here.
@@ -134,32 +149,22 @@ fn drop_member(shared: &mut Shared, block: Uuid, member: ClientId) {
         .channels
         .get_mut(&block)
         .and_then(|channels| channels.remove(&member));
-    if let Some(Member::Admitted(_)) = gone {
+    if let Some(Member::Admitted(..)) = gone {
         queue(shared, block, MemberNews::Left(member));
     }
 }
 
-/// Drops `member`'s channel on `block` as `drop_member` does, only while it still speaks as
-/// `account` with `public`: one admitted again since under the same client stays.
-fn drop_checked(
-    shared: &mut Shared,
-    block: Uuid,
-    member: ClientId,
-    account: Uuid,
-    public: &be_block_keys::RecoveryPublic,
-) {
+/// Drops `member`'s channel on `block` as `drop_member` does, only while it is still the
+/// admission `admit` answered: one admitted again since under the same client stays, even
+/// with the same account and key, since it was checked as it was admitted.
+fn drop_checked(shared: &mut Shared, block: Uuid, member: ClientId, admit: u64) {
     let same = match shared
         .hosting
         .channels
         .get(&block)
         .and_then(|channels| channels.get(&member))
     {
-        Some(Member::Admitted(admitted)) => {
-            admitted.account == account && admitted.public == *public
-        }
-        Some(Member::Admitting(admitting)) => {
-            admitting.account() == account && admitting.public() == *public
-        }
+        Some(Member::Admitted(_, current) | Member::Admitting(_, current)) => *current == admit,
         Some(Member::Answering { .. }) | None => false,
     };
     if same {
@@ -268,7 +273,7 @@ fn restart(shared: &Arc<Mutex<Shared>>, block: Uuid) {
         .into_iter()
         .flatten()
         .filter_map(|(member, held)| match held {
-            Member::Admitted(admitted) => Some(joined(*member, admitted)),
+            Member::Admitted(admitted, _) => Some(joined(*member, admitted)),
             _ => None,
         })
         .collect();
@@ -294,7 +299,7 @@ pub fn tell(
         .get_mut(&block)
         .and_then(|channels| channels.get_mut(&said.member))
     {
-        Some(Member::Admitted(admitted)) => admitted.channel.seal(&said.payload),
+        Some(Member::Admitted(admitted, _)) => admitted.channel.seal(&said.payload),
         _ => return,
     };
     drop(held);
@@ -393,10 +398,10 @@ fn hosted(
             );
             return;
         }
-        Some(Member::Admitting(admitting)) => match admitting.confirm(payload) {
+        Some(Member::Admitting(admitting, admit)) => match admitting.confirm(payload) {
             Ok((admitted, said)) => {
                 let news = joined(from, &admitted);
-                channels.insert(from, Member::Admitted(Box::new(admitted)));
+                channels.insert(from, Member::Admitted(Box::new(admitted), admit));
                 queue(held, block, news);
                 if !said.is_empty() {
                     self::said(held, block, from, said);
@@ -406,9 +411,9 @@ fn hosted(
             // Not the member's first message on the channel: a new handshake, taken below.
             Err(_) => {}
         },
-        Some(Member::Admitted(mut admitted)) => match admitted.channel.open(payload) {
+        Some(Member::Admitted(mut admitted, admit)) => match admitted.channel.open(payload) {
             Ok(said) => {
-                channels.insert(from, Member::Admitted(admitted));
+                channels.insert(from, Member::Admitted(admitted, admit));
                 self::said(held, block, from, said);
                 return;
             }
@@ -469,7 +474,7 @@ fn answer(
                 Some(next) => Ok(next),
                 None => match admitted {
                     Ok((admitting, reply)) => {
-                        channels.insert(from, Member::Admitting(Box::new(admitting)));
+                        channels.insert(from, Member::Admitting(Box::new(admitting), admit));
                         Err((reply, missed))
                     }
                     Err(_) => {
@@ -513,10 +518,15 @@ pub fn recheck(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tas
     tasks.spawn(async move {
         loop {
             let members = checked_members(&shared);
-            for (block, member, account, public) in members {
+            for (block, member, account, public, admit) in members {
+                #[cfg(test)]
+                be_lib_test_pause::point(RECHECK_PAUSE, block.as_u128()).await;
                 // Unreachable, the member stays until the logs can be read.
-                if let Ok(None) = peer.still_admits(block, account, &public).await {
-                    drop_checked(&mut lock(&shared), block, member, account, &public);
+                let admits = peer.still_admits(block, account, &public).await;
+                #[cfg(test)]
+                be_lib_test_pause::point(RECHECKED_PAUSE, block.as_u128()).await;
+                if let Ok(None) = admits {
+                    drop_checked(&mut lock(&shared), block, member, admit);
                 }
             }
             let mut held = lock(&shared);
@@ -532,10 +542,11 @@ pub fn recheck(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tas
     });
 }
 
-/// The members to check again: each with its account and the key it spoke with.
+/// The members to check again: each with its account, the key it spoke with and the admit that
+/// answered it.
 fn checked_members(
     shared: &Arc<Mutex<Shared>>,
-) -> Vec<(Uuid, ClientId, Uuid, be_block_keys::RecoveryPublic)> {
+) -> Vec<(Uuid, ClientId, Uuid, be_block_keys::RecoveryPublic, u64)> {
     let mut held = lock(shared);
     held.hosting.snapshots += 1;
     held.hosting
@@ -545,12 +556,16 @@ fn checked_members(
             channels
                 .iter()
                 .filter_map(move |(member, held)| match held {
-                    Member::Admitted(admitted) => {
-                        Some((*block, *member, admitted.account, admitted.public))
+                    Member::Admitted(admitted, admit) => {
+                        Some((*block, *member, admitted.account, admitted.public, *admit))
                     }
-                    Member::Admitting(admitting) => {
-                        Some((*block, *member, admitting.account(), admitting.public()))
-                    }
+                    Member::Admitting(admitting, admit) => Some((
+                        *block,
+                        *member,
+                        admitting.account(),
+                        admitting.public(),
+                        *admit,
+                    )),
                     Member::Answering { .. } => None,
                 })
         })
