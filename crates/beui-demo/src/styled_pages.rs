@@ -2739,6 +2739,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog with a field" code={vec![RenameDialog::SOURCE]}>
                 <RenameDialog />
             </Sample>
+            <Sample title="Dialog showing a code once" code={vec![OnceDialog::SOURCE]}>
+                <OnceDialog />
+            </Sample>
             <Sample title="Dialog with busy and nested actions" code={vec![InviteDialog::SOURCE]}>
                 <InviteDialog />
             </Sample>
@@ -2936,6 +2939,39 @@ fn RenameDialog() -> NodeId {
                     clearable=true
                     @test_id={"demo.rename.field"}
                 />
+            </Dialog>
+        </List>
+    }
+}
+
+/// A dialog that shows what cannot be had again (a code shown once): a stray press on its scrim
+/// leaves it open, and it closes from Done, its close button, Escape or back.
+#[sample]
+#[component]
+fn OnceDialog() -> NodeId {
+    let dialog = create_signal(false);
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <Button
+                    @test_id={"demo.once.open"}
+                    label="Show code…"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || dialog.set(true)}
+                />
+            </List>
+            <Dialog
+                open={dialog}
+                title="Recovery code"
+                width=DIALOG_WIDTH
+                id="demo.once"
+                actions={vec![DialogAction::cancel("Done")]}
+                dismiss_on_outside_press=false
+                on_dismiss={move || dialog.set(false)}
+            >
+                <Text style=TextStyle::PARAGRAPH @test_id={"demo.once.code"}>
+                    "4512-8830-1197. It is shown only once: a press outside leaves it open."
+                </Text>
             </Dialog>
         </List>
     }

@@ -66,6 +66,10 @@ impl<const N: usize> Decode<[u8; N]> for Bytes {
     }
 }
 
+/// A result whose value is a fixed-length id held as an array (`Bytes`) and whose error is
+/// plain: what a call answering an id (a new block's) answers.
+pub type FallibleBytes = Fallible<Bytes, Plain>;
+
 impl<T, S: Encode<T>> Encode<Vec<T>> for List<S> {
     fn serialize<Z: Serializer>(value: &Vec<T>, serializer: Z) -> Result<Z::Ok, Z::Error> {
         serializer.collect_seq(value.iter().map(Encoded::<S, T>::new))

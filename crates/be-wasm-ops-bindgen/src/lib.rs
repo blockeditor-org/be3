@@ -309,6 +309,7 @@ impl Generator {
             methods: BTreeMap::new(),
             package: None,
         };
+        generator.byte_lists_have_encodings()?;
         let world = generator.resolve.worlds[world].clone();
         generator.package = world.package;
         let interfaces = |items: &wit_parser::IndexMap<_, WorldItem>| {
@@ -888,6 +889,39 @@ impl Generator {
             Some(ty) => self.ty(ty),
             None => Ok(quote!(())),
         }
+    }
+
+    /// Refuses a `with` that puts an array in place of a `list<u8>` (an id as its bytes) with no
+    /// `encodings` entry: a Rust array is a tuple on the wire, not the list the WIT says.
+    fn byte_lists_have_encodings(&self) -> Result<(), String> {
+        for (name, mapped) in &self.options.with {
+            if !matches!(mapped, syn::Type::Array(_)) || self.options.encodings.contains_key(name) {
+                continue;
+            }
+            let byte_list = self
+                .resolve
+                .types
+                .iter()
+                .filter(|(_, def)| def.name.as_deref() == Some(name.as_str()))
+                .any(|(_, def)| {
+                    let mut kind = &def.kind;
+                    loop {
+                        match kind {
+                            TypeDefKind::List(Type::U8) => return true,
+                            TypeDefKind::Type(Type::Id(next)) => {
+                                kind = &self.resolve.types[*next].kind;
+                            }
+                            _ => return false,
+                        }
+                    }
+                });
+            if byte_list {
+                return Err(format!(
+                    "`{name}` is a list<u8> mapped onto an array, which goes on the wire as a tuple: give it an encoding, `encodings: {{\"{name}\": ::be_wasm_ops::wire::Bytes}}`"
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn encoding_of(&self, ty: &Type) -> Option<TokenStream> {

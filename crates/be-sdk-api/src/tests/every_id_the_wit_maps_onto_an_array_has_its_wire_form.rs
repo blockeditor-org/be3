@@ -44,6 +44,34 @@ where
 
 #[test]
 fn every_id_the_wit_maps_onto_an_array_has_its_wire_form() {
+    // be3:ui's `block-ref` is a `list<u8>` mapped onto `uuid::Uuid` (`uses:` takes be3:ui's
+    // types as they are, so the world above has it mapped too): a uuid encodes as the list does.
+    let block = uuid::Uuid::from_u128(4);
+    assert_eq!(
+        crate::ops::encode(&block),
+        crate::ops::encode(&block.as_bytes().to_vec()),
+        "a block-ref is on the wire as a list of its bytes"
+    );
+    // A clip item as the WIT describes it, its refs a list of byte lists.
+    #[derive(serde::Serialize)]
+    struct ClipItemAsWit {
+        format: String,
+        data: Vec<u8>,
+        refs: Vec<Vec<u8>>,
+    }
+    let clip = be_lib_ui_types::ClipItem {
+        refs: vec![block],
+        ..be_lib_ui_types::ClipItem::text("named")
+    };
+    assert_eq!(
+        crate::ops::encode(&clip),
+        crate::ops::encode(&ClipItemAsWit {
+            format: clip.format.clone(),
+            data: clip.data.clone(),
+            refs: vec![block.as_bytes().to_vec()],
+        }),
+        "a clip item's refs are on the wire as the WIT's lists"
+    );
     agrees::<_, generated::app::blocks::SearchHit>(crate::SearchHit {
         block_id: [1; 16],
         key: "row".to_owned(),

@@ -78,7 +78,7 @@ const SCREEN: ScreenId = ScreenId(1);
 pub struct AskedPreview {
     pub block: [u8; 16],
     pub commit: [u8; 32],
-    pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>, be_sdk_api::ops::wire::Fallible<be_sdk_api::ops::wire::Bytes, be_sdk_api::ops::wire::Plain>>,
+    pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>, be_sdk_api::ops::wire::FallibleBytes>,
 }
 
 /// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
@@ -148,7 +148,7 @@ pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     /// Each preview's `opened` the test has not answered yet.
     // Each preview's `opened` with its reply, by op, as the comment above says.
     #[allow(clippy::type_complexity)]
-    preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>, be_sdk_api::ops::wire::Fallible<be_sdk_api::ops::wire::Bytes, be_sdk_api::ops::wire::Plain>>)>,
+    preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>, be_sdk_api::ops::wire::FallibleBytes>)>,
     /// The commits of the previews the editor dropped.
     closed_previews: Vec<[u8; 32]>,
     fetches: crate::fetches::Fetches,
