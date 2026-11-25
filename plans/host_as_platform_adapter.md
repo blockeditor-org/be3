@@ -1862,10 +1862,14 @@ Each step lands on its own.
                and Escape in its placer still takes a frame back. A web view is its editor's
                own: the host's `Forwarded` fails it as be-host-runtime does
                (`drive_web_views`), so its editor says why in its place, and the root says
-               nothing of the child, as be-host. Neither be-host nor the root shows that
-               message in a browser tab yet: its editor hears the failure on the wire, but
-               its page shows nothing (not yet understood). Host test
-               `be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone`.
+               nothing of the child, as be-host. A browser tab's page showed nothing under
+               either: its address bar, joined to the workspace's dock as a band, measured
+               4096 points tall (be-sdk-beui's `MeasuredBar` laid it out in a 4096 point
+               room, which its band surface's scroll filled across), so the band covered the
+               page. It now measures the bar at its natural size. Host tests
+               `be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone`,
+               `a_web_browser_tab_says_why_it_shows_no_page` and
+               `be_root_in_place_of_the_hosts_ui_says_why_a_web_browser_tab_shows_no_page`.
              - 4g7b3k. Built: creations. A creation child (`ChildContent::Creation`) is a
                dialog the root opens like a picker: the host opens the template's editor in
                it (`EditorRegistry::creation_app`, `InstanceRole::Creation`) and steps it

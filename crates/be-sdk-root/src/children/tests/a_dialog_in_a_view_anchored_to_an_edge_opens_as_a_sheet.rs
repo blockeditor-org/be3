@@ -50,6 +50,9 @@ fn a_dialog_in_a_view_anchored_to_an_edge_opens_as_a_sheet() {
         Shown::Dialog(dialog) => dialog.sheet,
         Shown::Block(_) => panic!("a picker is a dialog"),
     };
-    assert!(sheet_of(&picker(10)), "in the sheet's view it opens as a sheet");
+    assert!(
+        sheet_of(&picker(10)),
+        "in the sheet's view it opens as a sheet"
+    );
     assert!(!sheet_of(&picker(11)), "in the popover's view it does not");
 }
