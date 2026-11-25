@@ -85,6 +85,8 @@ Landed on 2026-11-24:
 - `headless-noise`: a headless runtime reads only the modules of apps with a host component
 - `signed-logs-6`, `signed-logs-7`: content edits announce nothing, only log entries do; apps' sign/verify services removed; decision recorded, plans/signed_logs.md and plans/chat.md retired
 - `hosted-blocks-5`: the share dialog was already built; step removed from the plan
+- `host-adapter-4g7e3a`: the desktop host runs under be-root and its windows reach the desktop; be-root wakes its host when an app wants a frame after the root's frame was done
+- `pure-guests-1`, `pure-guests-2`: pure guests' few WASI calls are answered natively and on the web, held to RFC 7539's vectors; the pure guests build in the guests' wasip1 plan (opt-level 3, pending the user)
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
