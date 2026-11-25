@@ -148,20 +148,33 @@ fn line_look(
     if let Some((_, marker_end)) = list {
         content = marker_end.min(end);
     }
-    let content = match content > lead || continues {
+    // A list's code line's spaces up to its fence's column are the list's, as a continuation
+    // line's are, so they go in its marker, unseen, and its code lines up with its fence.
+    let listed_code = code_block && lists > 0;
+    let content = match content > lead || continues || listed_code {
         true => skip_spaces(source, content, end),
         false => content,
     };
     // A code line's spaces past its fence's column are its code's own indentation.
     let content = match block.filter(|_| list.is_none()) {
         Some(block) => {
-            let fence = blocks[block].start;
+            // A block in a list item can start at the end of the line before it.
+            let fence = blocks[block].start
+                + source[blocks[block].start..]
+                    .iter()
+                    .take_while(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n' | b'>'))
+                    .count();
             let column = fence - memchr::memrchr(b'\n', &source[..fence]).map_or(0, |at| at + 1);
-            content.min((start + column).max(at))
+            // Past the quote's marks; without any, `at` is past the line's spaces.
+            let prefix = match quote_marks {
+                0 => start,
+                _ => at,
+            };
+            content.min((start + column).max(prefix))
         }
         None => content,
     };
-    let marker = match content > lead || (continues && content > start) {
+    let marker = match content > lead || ((continues || listed_code) && content > start) {
         true => start..content,
         false => start..start,
     };
