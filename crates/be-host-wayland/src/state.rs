@@ -105,6 +105,8 @@ pub enum ServerEvent {
     Menu(WindowId, beui::Vec2),
     Minimized(WindowId),
     Rang(WindowId),
+    /// Something the compositor runs stopped for good, said for the person.
+    Failed(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

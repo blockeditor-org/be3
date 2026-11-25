@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",
@@ -45,6 +46,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",
@@ -71,6 +73,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",
@@ -97,6 +100,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",
@@ -123,6 +127,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",
@@ -149,6 +154,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",
@@ -175,6 +181,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-host:beui-host",

@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::{Host, Replicas, in_process, started};
 
+mod a_module_that_keeps_stopping_stops_for_good_and_says_so;
 mod a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits;
 mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
 mod a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_edits;

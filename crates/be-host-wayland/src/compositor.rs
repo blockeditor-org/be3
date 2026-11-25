@@ -417,6 +417,7 @@ impl Compositor {
                 ServerEvent::Menu(id, at) => windows.ask_menu(id, at),
                 ServerEvent::Minimized(id) => windows.minimize(id),
                 ServerEvent::Rang(id) => windows.ring(id),
+                ServerEvent::Failed(problem) => self.fail(problem),
                 ServerEvent::Unmapped(id) => {
                     windows.forget(id);
                     windows.open(id);

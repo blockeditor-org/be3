@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",
@@ -31,6 +32,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",
@@ -45,6 +47,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",
@@ -59,6 +62,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",
@@ -73,6 +77,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",
@@ -87,6 +92,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",
@@ -101,6 +107,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-failure-budget:be-lib-failure-budget",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-host:be-wasm-host",

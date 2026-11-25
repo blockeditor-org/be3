@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use be_lib_failure_budget::{Failed, FailureBudget};
 use be_block_client::{ClientError, Clock, Peer};
 use be_block_store::ObjectStore;
 
@@ -221,7 +222,7 @@ struct Module {
     hello: bool,
     failure: Option<String>,
     generation: u64,
-    restarts: usize,
+    failures: FailureBudget,
 }
 
 impl Module {
@@ -263,6 +264,8 @@ pub struct Modules {
     notify: Arc<Notify>,
     backlog: VecDeque<(usize, Heard)>,
     restarted: Vec<usize>,
+    /// Why each module that stopped for good stopped, for the host to tell the person.
+    stopped: Vec<String>,
     routes: HashMap<Uuid, usize>,
     described: HashSet<Uuid>,
     clock: Clock,
@@ -273,7 +276,9 @@ pub struct Modules {
     kinds_changed: fn(),
 }
 
-const RESTART_LIMIT: usize = 8;
+/// A module that stops this many times within the window is not started again.
+pub(crate) const RESTARTS: usize = 8;
+const RESTART_WINDOW: Duration = Duration::from_secs(60);
 
 const CLAIMED_BYTES: usize = 64 * 1024;
 
@@ -455,12 +460,13 @@ impl Modules {
                     hello: false,
                     failure: None,
                     generation: 0,
-                    restarts: 0,
+                    failures: FailureBudget::new(RESTARTS, RESTART_WINDOW),
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
             backlog: VecDeque::new(),
             restarted: Vec::new(),
+            stopped: Vec::new(),
             routes: HashMap::new(),
             described: HashSet::new(),
             clock,
@@ -737,13 +743,15 @@ impl Modules {
 
     fn restart(&mut self, module: usize) {
         self.backlog.retain(|(from, _)| *from != module);
+        let now = Duration::from_millis(self.now());
         let held = &mut self.modules[module];
-        held.restarts += 1;
-        if held.restarts > RESTART_LIMIT {
-            eprintln!(
-                "the type module {} stopped {RESTART_LIMIT} times and is not started again",
+        if held.failures.fail(now) == Failed::Stop {
+            let stopped = format!(
+                "The type module {} stopped {RESTARTS} times in a minute and is not started again, so blocks of its types cannot be opened until be-host restarts.",
                 held.source.name
             );
+            eprintln!("{stopped}");
+            self.stopped.push(stopped);
             return;
         }
         self.launch(module);
@@ -754,6 +762,11 @@ impl Modules {
 
     pub fn take_restarted(&mut self) -> Vec<usize> {
         std::mem::take(&mut self.restarted)
+    }
+
+    /// Why each module that stopped for good since this was last asked stopped.
+    pub fn take_stopped(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.stopped)
     }
 
     pub fn hold_clock(&mut self, at: Option<Instant>) {
