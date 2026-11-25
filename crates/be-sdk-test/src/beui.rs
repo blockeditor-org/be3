@@ -1839,8 +1839,8 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         })
     }
 
-    /// What the editor's replica announced to the block's other members once the server held an
-    /// edit (`LiveEdit::announcements`): the block, the text and the accounts it mentions.
+    /// What the editor's log entries announced to the block's other members once the server took
+    /// them (`Along::announcement`): the block, the text and the accounts it mentions.
     pub fn take_announced(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
         self.store.take_notified()
     }

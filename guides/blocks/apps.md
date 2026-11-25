@@ -127,9 +127,8 @@ or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking
   something is sending);
 - one the order passed over (based before a barrier) fails, until the editor
   lets it go, and so does one the server refused as this account may not edit
-  the block (`submitted.refused`): the replica stops showing it, what it
-  announces is never sent, and what is typed after goes on to be refused in
-  turn;
+  the block (`submitted.refused`): the replica stops showing it, and what is
+  typed after goes on to be refused in turn;
 - in a commit kept in this device's outbox (`publish-outcome.kept`), until the
   host says it `drained`, naming the head a drain published (the outbox
   publishes in order, so every commit kept up to it drained, and one kept after
@@ -150,9 +149,6 @@ one it did leaves what is sent after alone. One opened on what this device
 numbered offline (`opening.journal-kept`) adds its own edits it replays; a
 carried edit is settled by its journal sequence when the journal holds it (by
 its bytes only if it has any).
-
-The same list carries what each edit announces (`LiveEdit::announcements`, guides/type_modules.md,
-"Announcements"): they go to the host with the submission holding the edit.
 
 What is not kept:
 - A host or type module that restarts loses its list of edits. The host opens

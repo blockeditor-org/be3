@@ -17,7 +17,7 @@ mod announcements;
 mod sqlite;
 
 use announcements::Waiting;
-pub(crate) use announcements::{Announcing, Made, Until};
+pub(crate) use announcements::{Announcing, Made};
 
 type Backend = sqlite::SqliteRefs;
 

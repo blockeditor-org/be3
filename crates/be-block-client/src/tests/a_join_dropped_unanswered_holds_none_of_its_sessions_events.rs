@@ -52,7 +52,7 @@ async fn a_join_dropped_unanswered_holds_none_of_its_sessions_events() {
         payload: b"an edit".to_vec(),
     };
     let Ok(peer::Submitted::Server(answer)) = phone
-        .submit(block, BUILD, submission, true, Vec::new())
+        .submit(block, BUILD, submission, true)
         .await
     else {
         panic!("an online submission goes to the server");

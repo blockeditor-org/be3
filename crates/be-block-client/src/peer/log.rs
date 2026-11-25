@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::{Drained, Peer};
 use crate::{
     ClientError,
-    refs::{Appending, KeptLogHead, Op, RefusedEntry, Until},
+    refs::{Appending, KeptLogHead, Op, RefusedEntry},
 };
 
 /// Where an entry `Peer::append` made went.
@@ -321,7 +321,7 @@ impl<S: ObjectStore> Peer<S> {
                         .filter_map(|(_, appending)| appending.announces.clone())
                         .collect();
                     if !announced.is_empty() {
-                        self.refs.add_announcements(block, Until::Held, announced)?;
+                        self.refs.add_announcements(block, announced)?;
                     }
                     self.refs.remove(&sequences)?;
                     outcomes.extend(batch.iter().zip(logged).map(|((_, appending), logged)| {

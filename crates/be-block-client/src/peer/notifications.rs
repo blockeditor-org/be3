@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{Peer, locked};
 use crate::{
     ClientError,
-    refs::{Announcing, Made, Until},
+    refs::{Announcing, Made},
 };
 
 /// What a notification's sender wrote, sealed under the block's data key, with the
@@ -113,22 +113,6 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    /// Keeps announcements of edits of `block` the server already holds (a follower's, once the
-    /// owner accepted them) for `send_announcements`; one whose key this device knows is not
-    /// kept again.
-    pub async fn announce_held(
-        &self,
-        block: Uuid,
-        announcements: Vec<Announcement>,
-    ) -> Result<(), ClientError> {
-        let key = self.sealing_key(block).await?;
-        let made = announcements
-            .into_iter()
-            .map(|announcement| self.made(key, announcement))
-            .collect::<Result<Vec<_>, ClientError>>()?;
-        Ok(self.refs.add_announcements(block, Until::Held, made)?)
-    }
-
     /// An announcement as this device keeps it, its text sealed under `key`.
     pub(super) fn made(&self, key: Uuid, announcement: Announcement) -> Result<Made, ClientError> {
         Ok(Made {
@@ -142,7 +126,7 @@ impl<S: ObjectStore> Peer<S> {
         })
     }
 
-    /// Sends what every edit the server now holds announces, once: one notification per block,
+    /// Sends what every log entry the server now holds announces, once: one notification per block,
     /// the text of one alone or, for several (a drained outbox), the newest's `several` with
     /// `{count}` replaced by how many, mentioning everyone they mention. While the server cannot
     /// be reached they wait for the next call; one it refuses (past its rate) is dropped, since

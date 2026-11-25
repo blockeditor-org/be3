@@ -4,7 +4,7 @@ use be_block_protocol::{BlockSummary, EscrowKey, JournalBase, JournalEntry, KeyS
 use be_block_store::Hash;
 use uuid::Uuid;
 
-use super::super::announcements::{Made, Until, Waiting};
+use super::super::announcements::{Made, Waiting};
 use super::*;
 
 fn commit(seed: &[u8]) -> CommitId {
@@ -208,16 +208,10 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             received: some.then_some(1_000),
             payload: vec![10],
         });
-        for until in [
-            Until::Submitted,
-            Until::Journal(5),
-            Until::Commit(commit(b"kept")),
-            Until::Held,
-            Until::Sent,
-        ] {
+        for sent in [false, true] {
             reads_back(&Waiting {
                 order: 11,
-                until,
+                sent,
                 made: Made {
                     key: "key".to_owned(),
                     sealed: vec![12],

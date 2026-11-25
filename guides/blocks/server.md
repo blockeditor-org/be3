@@ -1256,7 +1256,7 @@ text's length reaches the push service.
   the sealed bytes repeat, and the sealed bytes), encrypted to the device (be-lib-web-push, which
   devices open with too). It goes at high urgency only to whom it mentions.
   The keys a call names (at most `be_block_protocol::MAX_TOLD_KEYS`, digests of what its
-  edits announce, `be_block_protocol::told_key`, so the server sees no content) are kept per
+  entries announce, `be_block_protocol::told_key`, so the server sees no content) are kept per
   organization, block and account (`told_keys`, forgotten with the block or the member), and a
   call whose keys were all told before is answered without a push (`ServerStore::tell`), so a
   device that sent one and never heard the answer can send it again. Only the newest

@@ -2,14 +2,13 @@
 //! order since its last seal, sealed with the block's key, kept on the server and in this
 //! device's refs database.
 
-use be_block_content::Announcement;
 use be_block_protocol::{Journal, JournalBase, JournalEntry};
 use be_block_session::Submission;
 use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
 use super::{Peer, locked};
-use crate::{ClientError, connection::Answer, refs::Until};
+use crate::{ClientError, connection::Answer};
 
 /// Where a submission went: to the server's order, answered once it numbered it, or numbered
 /// at once in this device's own order while offline.
@@ -22,54 +21,25 @@ impl<S: ObjectStore> Peer<S> {
     /// Seals `submission`'s payload and hands it to the block's order: the server's when
     /// `online`, which every participant hears as `Event::Sequenced`, otherwise this device's
     /// own (`Refs::number_offline`), whose entry the caller delivers to the replica.
-    /// `announcements` go once the server holds the edit: at once when it answers, or offline
-    /// beside the entry until a commit of this device holds it (`rebase_journal`).
     pub async fn submit(
         &self,
         block: Uuid,
         tag: Hash,
         submission: Submission,
         online: bool,
-        announcements: Vec<Announcement>,
     ) -> Result<Submitted, ClientError> {
         let key = self.sealing_key(block).await?;
         let submission = Submission {
             payload: self.commits.vault().seal(key, &submission.payload)?,
             ..submission
         };
-        let made = announcements
-            .into_iter()
-            .map(|announcement| self.made(key, announcement))
-            .collect::<Result<Vec<_>, _>>()?;
         if !online {
             let entry = self.refs.number_offline(block, tag, submission)?;
-            self.refs
-                .add_announcements(block, Until::Journal(entry.sequence), made)?;
             return Ok(Submitted::Offline(self.open_entry(block, entry)?));
         }
-        self.refs.add_announcements(block, Until::Submitted, made)?;
         Ok(Submitted::Server(
             self.connection().submit(block, submission),
         ))
-    }
-
-    /// The server numbered the submissions holding the announcements `keys` name.
-    pub fn submitted_held(
-        &self,
-        block: Uuid,
-        keys: &std::collections::HashSet<String>,
-    ) -> Result<(), ClientError> {
-        Ok(self.refs.submitted_held(block, keys)?)
-    }
-
-    /// The server refused the submissions holding the announcements `keys` name, as this
-    /// account may not edit the block: they are never sent.
-    pub fn submitted_refused(
-        &self,
-        block: Uuid,
-        keys: &std::collections::HashSet<String>,
-    ) -> Result<(), ClientError> {
-        Ok(self.refs.submitted_refused(block, keys)?)
     }
 
     /// Keeps an entry the server's order numbered (sealed, as it arrived) in this device's
@@ -87,10 +57,7 @@ impl<S: ObjectStore> Peer<S> {
     /// it. With `trim`, the server's too, with no new commit: a publish of `base`'s commit on
     /// itself, which the server takes only from the session's lease holder while that commit is
     /// the head (a seal that publishes a commit carries its base with it instead,
-    /// `Write::seals_journal`). What the journal's entries up to the base announce goes with
-    /// `base`'s commit when this device sealed it (`own`), sent once the server holds it; the
-    /// rest is dropped.
-    #[allow(clippy::too_many_arguments)]
+    /// `Write::seals_journal`).
     pub async fn rebase_journal(
         &self,
         block: Uuid,
@@ -98,18 +65,14 @@ impl<S: ObjectStore> Peer<S> {
         run: u64,
         base: JournalBase,
         trim: bool,
-        own: bool,
     ) -> Result<Option<Answer<()>>, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = JournalBase {
             state: self.commits.vault().seal(key, &base.state)?,
             ..base
         };
-        let (commit, sequence) = (sealed.commit, sealed.sequence);
+        let commit = sealed.commit;
         self.refs.rebase_journal(block, tag, sealed.clone())?;
-        let kept = commit.is_some_and(|commit| self.pending_commits(block).contains(&commit));
-        self.refs
-            .journal_rebased(block, commit, sequence, own, kept)?;
         let Some(head) = commit.filter(|_| trim) else {
             return Ok(None);
         };

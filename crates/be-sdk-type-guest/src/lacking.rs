@@ -1,6 +1,5 @@
 //! What the server lacks of the edits made on this device, for editors that show what is still
-//! sending (`ToEditor::Lacking`) and for announcing them (`LiveEdit::announcements`). The replica
-//! adds each edit as it makes it and drops it once the server holds it: a submission the server
+//! sending (`ToEditor::Lacking`). The replica adds each edit as it makes it and drops it once the server holds it: a submission the server
 //! numbered, or a commit published to it. Entries outlive
 //! the replica: a replica reopened, or opened again after its editors closed, carries on with what
 //! the last one lacked.
@@ -8,7 +7,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use be_block_commit::CommitId;
-use be_block_content::Announcement;
 use be_sdk_type_api::{EditorId, KeptCommits};
 
 use crate::editor::{Lacked, ToEditor};
@@ -47,8 +45,6 @@ pub(crate) struct Entry {
     /// The sequence it had in the order, once it had one: how a replayed journal entry is told
     /// from another with the same (or no) bytes.
     sequence: Option<u64>,
-    /// What the edit announces, until it goes with the submission holding it.
-    announcements: Vec<Announcement>,
 }
 
 #[derive(Default)]
@@ -121,21 +117,15 @@ pub(crate) struct Lacking {
 }
 
 impl Lacking {
-    /// Adds an edit made here, with what it announces.
-    pub(crate) fn add(&mut self, mut operation: Vec<u8>, announcements: Vec<Announcement>) {
+    /// Adds an edit made here.
+    pub(crate) fn add(&mut self, mut operation: Vec<u8>) {
         if operation.len() > LARGEST_KEPT {
             operation = Vec::new();
         }
         // An edit carried from the replica before, made again here (the host replays what it
         // kept), is followed as this one.
         self.journaled(&operation, None);
-        self.push(
-            operation,
-            Until::Unsettled(None),
-            false,
-            None,
-            announcements,
-        );
+        self.push(operation, Until::Unsettled(None), false, None);
     }
 
     fn push(
@@ -144,7 +134,6 @@ impl Lacking {
         until: Until,
         failed: bool,
         sequence: Option<u64>,
-        announcements: Vec<Announcement>,
     ) {
         self.next += 1;
         let sequence = match until {
@@ -157,7 +146,6 @@ impl Lacking {
             until,
             failed,
             sequence,
-            announcements,
         });
         self.changed = true;
     }
@@ -175,7 +163,7 @@ impl Lacking {
             if operation.len() > LARGEST_KEPT {
                 operation = Vec::new();
             }
-            self.push(operation, until, false, None, Vec::new());
+            self.push(operation, until, false, None);
         }
     }
 
@@ -187,13 +175,12 @@ impl Lacking {
             counter: None,
             sequence,
         };
-        self.push(operation, until, false, None, Vec::new());
+        self.push(operation, until, false, None);
     }
 
     /// The server's journal holds `operation` at `sequence`, or this replica made it again: one
     /// edit carried from before with that sequence, or else with those bytes (when it has any),
-    /// is followed no longer. Held by the server's journal, what it announces is announced; made
-    /// again, the new edit announces it.
+    /// is followed no longer.
     pub(crate) fn journaled(&mut self, operation: &[u8], sequence: Option<u64>) {
         let named = |entry: &Entry| {
             entry.until == Until::Carried
@@ -206,10 +193,8 @@ impl Lacking {
         }
     }
 
-    /// The next `count` edits not yet submitted go as the submission `counter`: answers what
-    /// they announce, which the host keeps from here on.
-    pub(crate) fn submitted(&mut self, counter: u64, count: u64) -> Vec<Announcement> {
-        let mut taken = Vec::new();
+    /// The next `count` edits not yet submitted go as the submission `counter`.
+    pub(crate) fn submitted(&mut self, counter: u64, count: u64) {
         let mut left = count;
         for entry in &mut self.entries {
             if left == 0 {
@@ -217,11 +202,9 @@ impl Lacking {
             }
             if entry.until == Until::Unsettled(None) {
                 entry.until = Until::Unsettled(Some(counter));
-                taken.append(&mut entry.announcements);
                 left -= 1;
             }
         }
-        taken
     }
 
     /// What was submitted and not numbered goes again in new submissions.
@@ -264,7 +247,7 @@ impl Lacking {
         if operation.len() > LARGEST_KEPT {
             operation = Vec::new();
         }
-        self.push(operation, Until::Dropped, true, None, Vec::new());
+        self.push(operation, Until::Dropped, true, None);
     }
 
     /// The order passed over the submission `counter`: its edits fail.
@@ -430,13 +413,7 @@ impl Lacking {
         self.refused.extend(carried.refused);
         self.kept.extend(carried.kept);
         for entry in carried.entries {
-            self.push(
-                entry.operation,
-                entry.until,
-                entry.failed,
-                entry.sequence,
-                entry.announcements,
-            );
+            self.push(entry.operation, entry.until, entry.failed, entry.sequence);
         }
         for editor in carried.followers {
             self.follow(editor);

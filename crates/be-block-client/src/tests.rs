@@ -1088,7 +1088,7 @@ async fn submitted(peer: &Peer<MemoryStore>, block: Uuid, counter: u64) {
         payload: format!("edit {counter}").into_bytes(),
     };
     let Ok(peer::Submitted::Server(answer)) = peer
-        .submit(block, BUILD, submission, true, Vec::new())
+        .submit(block, BUILD, submission, true)
         .await
     else {
         panic!("an online submission goes to the server");

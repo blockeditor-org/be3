@@ -72,7 +72,6 @@ async fn a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected() {
                 parts: Vec::new(),
             },
             true,
-            false,
         )
         .await
         .unwrap()

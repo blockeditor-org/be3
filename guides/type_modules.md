@@ -662,67 +662,40 @@ order: presence and channel messages. The rules an agent most needs:
 
 ## Announcements
 
-An edit made on this device can tell the block's members who are not connected
-about itself once the server holds it. (An entry of a signed log announces
-itself with what goes along with it instead: "Signed logs", above; chat's
-messages do.) The type names what it tells with `LiveEdit::announcements`,
-asked as the edit is made, of content that holds it:
+An entry appended to a signed log can tell the block's members who are not
+connected about itself once the server holds it, with what goes along with it
+(`Along::announcement`, "Signed logs", above; chat's messages do):
 `be_block_content::Announcement`'s text, the accounts it mentions, a `key`
-naming what it announces, unique in the block and the same when the edit is
-made again, and `several`, the text for several sent together with `{count}`
-for how many. The notification is tied to the edit, never to an editor or a
-replica:
+naming what it announces, unique in the block and the same when the entry is
+appended again, and `several`, the text for several sent together with
+`{count}` for how many. Content edits announce nothing.
 
-- The replica keeps the announcements with the edit in its lacking list
-  (guides/blocks/apps.md, "Sending"), whether an editor follows or not (with
-  none, the list is only kept: nothing is told). The replica hands them to the
-  host with the `submit` holding the edit, and from there the host keeps them
-  durably, the text sealed under the block's key, in the refs database
-  (`be-block-client/src/refs/announcements.rs`): until the server answers the
-  submission; offline, beside the entry this device numbered, then, when
-  the journal starts from a commit this device sealed (one of
-  the last 16 its replicas published or kept, which `Replicas` remembers per
-  block, or one in its outbox), beside that commit while the outbox keeps it.
-  A rebase from anyone else's commit drops what waits in the journal: the edit
-  never reached the server.
-- The host sends one once the server holds its edit: the submission answered,
-  or the commit published or settled by the drain (`Peer::settle`), so it goes
-  with no replica or type module open, and after a restart. A commit the
-  server refuses drops what it announces, and so does setting the block's
-  commits aside (`move_to_unsent`) or giving one up (`abandon`): a message
-  shown "Not sent" tells nobody (sent again, it is a new edit). Forgetting a
-  block, or losing access to it, forgets its announcements.
-- `Peer::send_announcements` sends what is held, after a submission the server
-  took, a rebase and at the end of each outbox drain; it sends
-  nothing while one drains, so what a drain publishes goes together. It marks
-  each sent before it calls `notify`, putting them back only when the server
-  cannot be reached, so a crash costs a notification rather than repeating
-  one. `notify` names their keys, and the server pushes nothing for a call
-  whose keys it has all told before: a device stopped after the server took
-  the call but before it heard the answer sends it again on its next start,
-  and the members hear it at most once. What waits together on one block is one notification: the text of one,
+- The announcement waits in the outbox with its entry (`Peer::append`). Once
+  the server takes the entry, the host keeps it durably, the text sealed under
+  the block's key, in the refs database
+  (`be-block-client/src/refs/announcements.rs`), whether a replica is open then
+  or not. An entry the server refuses tells nobody. Forgetting a block, or
+  losing access to it, forgets its announcements.
+- `Peer::send_announcements` sends what is held, after an append the server
+  took and at the end of each outbox drain; it sends nothing while one drains,
+  so what a drain sends goes together. It marks each sent before it calls
+  `notify`, putting them back only when the server cannot be reached, so a
+  crash costs a notification rather than repeating one. `notify` names their
+  keys, and the server pushes nothing for a call whose keys it has all told
+  before: a device stopped after the server took the call but before it heard
+  the answer sends it again on its next start, and the members hear it at most
+  once. What waits together on one block is one notification: the text of one,
   or the newest's `several`, mentioning everyone they mention. The server
   allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
   it refuses is dropped, never reported: it was about then.
-- A key is announced once: one held, kept with a commit or sent is not kept
-  again (the host remembers the last 256 sent per block), so an edit a host
-  replays into a restarted replica (guides/blocks/host.md), which announces it
-  again, is not sent again, and a replayed journal entry announces nothing.
-  One still waiting in the journal is replaced by the edit made again.
+- A key is announced once: one held or sent is not kept again (the host
+  remembers the last 256 sent per block).
 
-What is not covered: a replica that closes before it submits an edit tells
-nobody (the edit is lost too); and a submission the server took whose answer
-was lost to a crash stays waiting on this device and is never sent (the server
-holds the edit, but nothing tells this device so).
-
-Tests: be-host-stack's `a_chat_message_*` (for what a chat message's entry
-announces: through `Peer::notify`, the server's recipient selection and a Web
-Push service on loopback whose device key is the P-256 generator, so a test
-opens each push and checks its text) and chat's editor tests over
-be-sdk-test's store. That store keeps announcements as a
-simpler host: one device, so every rebase is on its own commit; every
-announced key remembered, with no cap; and announcements of a refused kept
-commit dropped by block.
+Tests: be-host-stack's `a_chat_message_*` (through `Peer::notify`, the
+server's recipient selection and a Web Push service on loopback whose device
+key is the P-256 generator, so a test opens each push and checks its text) and
+chat's editor tests over be-sdk-test's store, which keeps announcements as a
+simpler host: one device, every announced key remembered, with no cap.
 
 ## Editors are endpoints
 

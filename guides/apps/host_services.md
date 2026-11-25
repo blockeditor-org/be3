@@ -146,12 +146,11 @@ Notes on particular calls:
   stashes what it showed under the restore, which the order takes as a
   barrier; history never prunes a stash.
 - Notifications to a block's members who have no connection open
-  (guides/blocks/server.md, "Notifications") are not an editor's to send: an
-  edit announces itself. The block type names what each edit made on this
-  device tells them (`LiveEdit::announcements`: chat's sends tell the message's
-  body, mentioning the author of the message it replies to), and the host
-  sends it once the server holds the edit, whether an editor or replica is open
-  then or not (guides/type_modules.md, "Announcements"). The host cuts the
+  (guides/blocks/server.md, "Notifications") go with a signed log's entry:
+  an append names what it tells them (`Along::announcement`: chat's sends tell
+  the message's body, mentioning the author of the message it replies to), and
+  the host sends it once the server holds the entry, whether an editor or
+  replica is open then or not (guides/type_modules.md, "Announcements"). The host cuts the
   text to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the
   block's key with the organization, the block, the sender and the time, so
   the server reads none of it; the device that shows it names the sender (whom

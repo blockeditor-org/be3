@@ -311,8 +311,8 @@ the connection a stopping stack closed.
   `kept_submissions`): the same id and payload, so if the first copy reaches the
   server too, late, from a connection of the process that crashed, the server's
   id check (`journal::submit`) answers it held rather than number the edit
-  twice. It waits until every edit the kept submission holds is given again, so
-  their announcements go with it, and goes under its id only if they encode to
+  twice. It waits until every edit the kept submission holds is given again,
+  and goes under its id only if they encode to
   its payload again; otherwise they go as a new submission. One the order
   numbers meanwhile takes the edits it holds out of what waits. When the order
   restarts, the submissions made before it are passed over: the replica drops
@@ -357,7 +357,7 @@ the connection a stopping stack closed.
   (guides/blocks/apps.md, "Sending"). What it takes meanwhile (an editor
   attached before the access changed, or the host's own edits) the server
   refuses (`PermissionDenied`): the host answers the submission `refused`,
-  drops what it announces (`Peer::submitted_refused`), and the replica gives
+  and the replica gives
   the edit up, shown as not sent until its editor lets it go.
   The discard marks the block (`refs::Dropped`), until a join's `may-edit`
   says this account may edit it again (`Peer::join_session`): a listing that
