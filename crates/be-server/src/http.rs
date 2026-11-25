@@ -9,6 +9,9 @@
 //! - `POST …/http`: the long-poll fallback, posts carrying frames (`posts`);
 //! - anything else: a websocket upgrade, handed to tokio-tungstenite (`socket`).
 //!
+//! A connection whose answer makes no progress for `IDLE_TIMEOUT` (a client that stopped
+//! reading it) is given up (`stalled`).
+//!
 //! Paths are matched by their end, since the server is reached below whatever path a proxy
 //! mounts it at.
 
@@ -52,6 +55,7 @@ use crate::{
 
 mod auth;
 mod s3;
+pub(crate) mod stalled;
 
 const PATH_SUFFIX: &str = "/http";
 /// Where a one-shot call is posted: a greeting and one call that needs no sign-in, answered and
@@ -208,7 +212,10 @@ pub(crate) async fn serve(
         .max_header_size(MAX_HEAD_BYTES)
         .max_headers(MAX_HEADERS)
         .title_case_headers(true)
-        .serve_connection(TokioIo::new(stream), service)
+        .serve_connection(
+            TokioIo::new(stalled::WriteDeadline::new(stream, IDLE_TIMEOUT)),
+            service,
+        )
         .with_upgrades();
     let first = async {
         tokio::select! {

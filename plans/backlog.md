@@ -690,20 +690,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   reader that knows a block only through a reference sees its new summary
   without reconnecting.
 
-- **A deadline on writing an answer.** hyper writes an answer for as long as
-  the client takes to read it, so a client that never reads a large S3 object
-  (up to `MAX_OBJECT_BYTES`) or a long-poll answer holds its connection and
-  place until the client goes. Done: `http::serve` gives up on a connection
-  whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
-  where a client that stops reading a GetObject answer is disconnected.
-
-- **Following a log past one page on reconnect, tested.** `Replicas::follow_logs`
-  reads an open replica's log on from its kept head a page at a time as the
-  device connects, but no test appends more than one server page
-  (`MAX_PAGE_ENTRIES`) while the device is away. Done: a be-host-stack test
-  appends past a page offline and the open chat shows every entry once it
-  reconnects.
-
 - **Imported history in a re-export.** An export carries only a block's own
   log entries (`Peer::export_log`), and `transfer::decode` refuses an entry
   written in another block, so exporting a chat with imported history drops
@@ -711,15 +697,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   own run, each entry naming the block it was written in and verifying
   there, and an import of it shows that history again, with a
   be-block-client test exporting and importing a chat twice.
-
-- **One bad log entry refuses its whole batch.** `Peer::send_appends` sends
-  a block's waiting entries in batches (`ENTRIES_PER_SEND`), and the server
-  refuses an append whole, so one entry it would refuse (over a limit, a
-  redaction it will not take) refuses every entry sent with it, each then kept
-  as refused (`Drained::NotAppended`). Done: the entries a refused batch held
-  go again one at a time, or the server names the entry it refused and takes
-  the rest, with a be-block-client test where one bad entry among good ones
-  leaves only it refused.
 
 ## 27. Unread counts
 
