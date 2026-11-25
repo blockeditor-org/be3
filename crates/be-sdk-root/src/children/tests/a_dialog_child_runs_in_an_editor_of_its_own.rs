@@ -8,7 +8,7 @@ fn a_dialog_child_runs_in_an_editor_of_its_own() {
     form.content = ChildContent::Rename([5; 16]);
     let child = wanted(form.clone());
     assert!(
-        matches!(&child.shown, Shown::Dialog(content) if *content == be_wasm_ops::encode(&form.content))
+        matches!(&child.shown, Shown::Dialog(dialog) if dialog.content == be_wasm_ops::encode(&form.content) && !dialog.sheet)
     );
     assert_eq!(child.block, None);
 

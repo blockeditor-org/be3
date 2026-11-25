@@ -67,7 +67,8 @@ frame's layers are drawn, moves the keyboard into the child's layer, or out of
 the placer's screen until the child shows (`Children::keyboard`), while
 nothing outside the editor took it meanwhile. Placers hear
 `child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
-active child or Escape in its placer takes it back (`Children::revoke`).
+active child takes it back (`Children::revoke`); an Escape the child leaves to
+its placer does not, so the keyboard stays where it is.
 
 A child that takes its placer's frame (below), the first that could in the
 placer's content view and only once it shows its screen, is asked for a screen

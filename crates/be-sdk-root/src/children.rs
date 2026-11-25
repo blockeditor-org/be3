@@ -23,8 +23,8 @@
 //! the root moves it at the settle that first carries the ask (`keyboard`), as be-host does,
 //! never waiting on the child's app: keys are never held (decisions/keys_are_never_held.md).
 //! Each placer above a child the keyboard goes into hears so (`focused_into`, `child-focused`).
-//! A press anywhere but in an active child, or Escape in its placer's view, takes it back
-//! (`revoke`).
+//! A press anywhere but in an active child takes it back (`revoke`); an Escape it leaves to its
+//! placer does not.
 //!
 //! An active or live child placed without a frame of its own in a view that has one takes that
 //! frame over, as under be-host (guides/apps/children.md, A child that takes the frame): it is
@@ -79,15 +79,15 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
     DockUpdate, EditorInstanceId, Fonts, FrameChrome, FrameSpec, HostTransform, MenuItem,
-    ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId,
-    ViewPlacement, ViewportMetrics,
+    ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2,
+    ViewAnchor, ViewId, ViewPlacement, ViewportMetrics,
     app::{EditorEvent, MenuChoice},
     shell_types::{ChildMenuChoice, MenuSet, ShellMessage},
 };
 use be_sdk_app_host::docks::{DockedChild, Docks};
 use be_wasm_root_api::{
-    OpenedIn, PlacedContent, Shown, ShownBlock, ShownChild, ShownPreview, ViewRect, ViewSize,
-    guest::host,
+    OpenedIn, PlacedContent, Shown, ShownBlock, ShownChild, ShownDialog, ShownPreview, ViewRect,
+    ViewSize, guest::host,
 };
 use uuid::Uuid;
 
@@ -719,7 +719,11 @@ impl Child {
             ),
             // A dialog an app runs for its placer, as be-host runs it in place of the child.
             ChildContent::Picker { .. } | ChildContent::Rename(_) | ChildContent::Export { .. } => {
-                (Shown::Dialog(be_wasm_ops::encode(&placement.content)), None)
+                let dialog = ShownDialog {
+                    content: be_wasm_ops::encode(&placement.content),
+                    sheet: false,
+                };
+                (Shown::Dialog(dialog), None)
             }
             _ => return None,
         };
@@ -740,6 +744,15 @@ impl Child {
         })
     }
 
+    /// It, a dialog, opened as a sheet (`shown-dialog.sheet`).
+    fn in_sheet(mut self) -> Self {
+        if let Shown::Dialog(dialog) = &mut self.shown {
+            dialog.sheet = true;
+            self.shared = Editor::new(None, self.shown.clone(), Showing::Opening);
+        }
+        self
+    }
+
     /// Where it is placed.
     fn place(&self) -> PlaceKey {
         (self.editor, self.view, self.child)
@@ -756,7 +769,11 @@ impl Child {
                 key.extend(shown.view_block.iter().flatten());
                 key
             }
-            Shown::Dialog(content) => content.clone(),
+            Shown::Dialog(dialog) => {
+                let mut key = dialog.content.clone();
+                key.push(u8::from(dialog.sheet));
+                key
+            }
         };
         (self.editor, self.view, self.child, shows)
     }
@@ -1188,6 +1205,12 @@ impl Children {
             .collect();
         let mut placed = parent.placed();
         placed.retain(|placements| ours(placements.instance));
+        let sheets: Vec<(EditorInstanceId, ViewId)> = parent
+            .anchored()
+            .into_iter()
+            .filter(|view| matches!(view.placement.anchor, ViewAnchor::Edge(_)))
+            .map(|view| (view.editor, view.view))
+            .collect();
         let mut wanted = Vec::new();
         let mut asking: HashMap<EditorInstanceId, (u64, ChildId)> = HashMap::default();
         let mut docked = docked_children(&placed);
@@ -1222,6 +1245,12 @@ impl Children {
                     }
                     continue;
                 }
+                // A web view is its editor's own, which says in its place that it fails, as
+                // under be-host (be-host-runtime's `drive_web_views`, through the host's
+                // `Forwarded`): the root shows nothing of it and says nothing of it.
+                if matches!(placement.content, ChildContent::WebView(_)) {
+                    continue;
+                }
                 let occluders = occluders_of(placements, index);
                 match Child::placed(
                     placements.instance,
@@ -1230,6 +1259,11 @@ impl Children {
                     in_view(placement, placements.view),
                     occluders,
                 ) {
+                    // A dialog placed in a view anchored to an edge of its owner's opens as a
+                    // sheet, as under be-host.
+                    Some(child) if sheets.contains(&(placements.instance, placements.view)) => {
+                        wanted.push(child.in_sheet())
+                    }
                     Some(child) => wanted.push(child),
                     None => self.unshown.push((
                         (placements.instance, placements.view),
@@ -1706,11 +1740,12 @@ impl Children {
         }
     }
 
-    /// Takes back active children, as be-host does: a pointer's press anywhere but in the child
-    /// (in its placer's view or outside it, on the root's own surfaces too), or Escape in its
-    /// placer's view. Each leaves the input to its placer, which hears it is no longer active
-    /// with the next `settle`. A child taking its placer's frame over gives it back the same
-    /// way, and so does every child of that view that could take it, as be-host's
+    /// Takes back active children: a pointer's press anywhere but in the child (in its placer's
+    /// view or outside it, on the root's own surfaces too). An Escape the child leaves to its
+    /// placer takes nothing back: the keyboard stays where it is. Each leaves the input to its
+    /// placer, which hears it is no longer active with the next `settle`. A child taking its
+    /// placer's frame over gives it back on such a press, or Escape in its placer's view, and
+    /// so does every child of that view that could take it, as be-host's
     /// `revoke_frame_child` does, so the frame goes to none of its siblings. Their own
     /// children's likewise.
     pub fn revoke(&mut self, pressed: &[Pressed]) {
@@ -1726,14 +1761,16 @@ impl Children {
                 .iter()
                 .find(|(_, editor, view)| (*editor, *view) == (child.editor, child.view))
                 .map(|(layer, ..)| *layer);
-            let taken = pressed.iter().any(|press| match press.escape {
-                true => Some(press.layer) == placer,
-                false => !child.holds(press.layer),
-            });
-            if taken && active {
+            let outside = pressed
+                .iter()
+                .any(|press| !press.escape && !child.holds(press.layer));
+            let escaped = pressed
+                .iter()
+                .any(|press| press.escape && Some(press.layer) == placer);
+            if outside && active {
                 self.revoked.insert((child.editor, child.view, child.child));
             }
-            if taken && child.framing {
+            if (outside || escaped) && child.framing {
                 frames_back.push((child.editor, child.view));
             }
         }
