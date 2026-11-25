@@ -24,7 +24,7 @@ fn the_menu_key_opens_a_dock_tabs_menu_beneath_the_tab() {
     ] {
         harness.key(key, modifiers);
         harness.frame(Vec::new());
-        let row = text_within(harness.document(), dock, "Pop out into a window")
+        let row = find_text(harness.document(), dock, "Pop out into a window", Match::Exact)
             .unwrap_or_else(|| panic!("{key:?} opens the focused tab's menu"));
         let row = harness.rect(row);
         assert!(
@@ -33,12 +33,12 @@ fn the_menu_key_opens_a_dock_tabs_menu_beneath_the_tab() {
         );
         harness.key(Key::Escape, Modifiers::NONE);
         harness.frame(Vec::new());
-        assert!(text_within(harness.document(), dock, "Pop out into a window").is_none());
+        assert!(find_text(harness.document(), dock, "Pop out into a window", Match::Exact).is_none());
     }
 
     harness.key(Key::ContextMenu, Modifiers::NONE);
     harness.frame(Vec::new());
-    let close = text_within(harness.document(), dock, "Close tab").expect("the menu is open");
+    let close = find_text(harness.document(), dock, "Close tab", Match::Exact).expect("the menu is open");
     harness.click(harness.center(close));
     harness.frame(Vec::new());
     assert!(

@@ -5,7 +5,7 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::native::Document;
-use be_sdk_beui::beui::{Key, Modifiers, NodeId, Vec2};
+use be_sdk_beui::beui::{Key, Modifiers, Vec2};
 use be_sdk_beui::{
     BlockInfo, BlockParent, DesktopBarWatch, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor,
     PowerAvailability, PowerWatch,
@@ -235,7 +235,7 @@ impl Harness {
         let document = self.editor.document();
         document
             .root()
-            .is_some_and(|root| text_within(&document, root, words))
+            .is_some_and(|root| find_text(&document, root, words, Match::Contains).is_some())
     }
 }
 
@@ -258,17 +258,6 @@ fn turns_within(document: &Document, tile: &str) -> Option<u8> {
         .find(|(name, _)| *name == "rotate")?;
     let quarters = rotate.parse::<f32>().ok()? / std::f32::consts::FRAC_PI_2;
     Some(quarters.round() as u8 % 4)
-}
-
-fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
-    document
-        .arena
-        .kind_of(id)
-        .is_some_and(|node| document.text(node).contains(words))
-        || document
-            .children(id)
-            .into_iter()
-            .any(|child| text_within(&document, child, words))
 }
 
 fn mode(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {

@@ -53,5 +53,5 @@ pub use store::ContentStore;
 /// What a test drives and reads its program through (`Gui`) and paints it with
 /// (`Snapshots`), for both `BeuiTest` and `DocumentTest`.
 pub mod prelude {
-    pub use beui_host::native::testing::{Gui, Snapshots, Target};
+    pub use beui_host::native::testing::{Gui, Match, Snapshots, Target, find_text};
 }

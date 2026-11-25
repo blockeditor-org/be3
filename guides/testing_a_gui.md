@@ -41,6 +41,12 @@ An id counts only on a node in the tree: a copy hidden by a `Show`, a dock panel
 closed overlay does not. Two nodes in the tree with one id fail any test that asks for it, so a
 control drawn in two places gives each copy its own id.
 
+What has no id of its own (a menu's row, a dock tab's title) a test finds by its text with
+`find_text(document, root, text, Match::Exact)` or `Match::Contains` (beui's
+`native::testing`, in be-sdk-test's prelude), which finds only text that is laid out. beui's
+tests and the space layer's share their dock and pan-zoom fixtures there too (`windowed_dock`,
+`dock_tab`, `PanZoomStage`, `build_node`).
+
 ## 3. Write the test
 
 Tests live in the editor's crate, one test per file under `src/tests/`

@@ -116,8 +116,8 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
     assert!(
-        text_within(&document, root, "Access").is_some()
-            && text_within(&document, root, "Rename").is_none(),
+        find_text(&document, root, "Access", Match::Contains).is_some()
+            && find_text(&document, root, "Rename", Match::Contains).is_none(),
         "before the block hands its menu over, the dock bar offers only the workspace's part of it"
     );
     drop(document);
@@ -165,7 +165,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     tap(&mut fixture, "dock.menu");
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
-    let rename = text_within(&document, root, "Rename").expect("the dock's menu lists Rename");
+    let rename = find_text(&document, root, "Rename", Match::Contains).expect("the dock's menu lists Rename");
     let at = document
         .node_rect(rename)
         .expect("the row is laid out")

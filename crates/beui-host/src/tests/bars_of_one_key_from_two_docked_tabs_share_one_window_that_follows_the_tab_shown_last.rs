@@ -51,7 +51,7 @@ fn pick(harness: &mut Harness, grip: &str, row: &str) {
     harness.click(harness.center(harness.find(grip)));
     harness.frame(Vec::new());
     let root = harness.document().root().expect("the document has a root");
-    let row = text_within(harness.document(), root, row).expect("the grip opens its menu");
+    let row = find_text(harness.document(), root, row, Match::Exact).expect("the grip opens its menu");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
     harness.frame(Vec::new());

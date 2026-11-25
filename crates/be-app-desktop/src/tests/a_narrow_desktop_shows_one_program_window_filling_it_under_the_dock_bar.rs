@@ -42,7 +42,7 @@ fn a_narrow_desktop_shows_one_program_window_filling_it_under_the_dock_bar() {
     let document = fixture.test.document();
     let title = document
         .root()
-        .and_then(|root| text_within(&document, root, &format!("Kate \u{2014} {LONG}")))
+        .and_then(|root| find_text(&document, root, &format!("Kate \u{2014} {LONG}"), Match::Contains))
         .and_then(|title| document.node_rect(title))
         .expect("the bar names the window");
     drop(document);

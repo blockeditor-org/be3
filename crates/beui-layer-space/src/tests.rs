@@ -514,109 +514,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui_host::Color32;
-use beui_host::dock;
-use beui_host::dock_host;
 use beui_host::native::{
-    Document, Program, RendererInfo, Setup, Simulation, Waker, WindowSize, build, context,
+    Document, Program, RendererInfo, Setup, Simulation, Waker, WindowSize, context,
 };
-use beui_host::primitives::{Canvas, CanvasItem, Frame, Interactive};
+use beui_host::native::testing::{PanZoomStage, build_node, dock_tab, windowed_dock};
+use beui_host::primitives::{Frame, Interactive};
 use beui_host::reactive::*;
-use beui_host::{styled, unstyled};
-
-// A copy of `build_node` in beui-host's src/tests.rs, whose own tests use it.
-pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
-    build(|| {
-        let content = view();
-        view! {
-            <beui_view::primitives::Root clear_color={Color32::BLACK}>
-                {content}
-            </beui_view::primitives::Root>
-        }
-    })
-}
-// A copy of `text_within` in beui-host's src/tests.rs, whose own tests use it.
-pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
-    if document
-        .arena
-        .kind_of(root)
-        .is_some_and(|node| document.text(node) == text)
-        && document.node_rect(root).is_some()
-    {
-        return Some(root);
-    }
-    document
-        .children(root)
-        .into_iter()
-        .find_map(|child| text_within(document, child, text))
-}
-// A copy of `dock_tab` in beui-host's src/tests.rs, whose own tests use it.
-pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId {
-    text_within(document, dock, title).unwrap_or_else(|| panic!("the dock shows {title}"))
-}
-// A copy of `windowed_dock` in beui-host's src/tests.rs, whose own tests use it.
-pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
-    let dock = NodeRef::new();
-    let document = build_node(move || {
-        let layout = dock::DockingLayout::<u64>::new();
-        view! {
-            <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
-                <dock::Docking layout>
-                    <dock::DockSplit id="split">
-                        <dock::DockPane id="left">
-                            <dock::DockTab id=1u64 title="Tab 1">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                        <dock::DockPane id="right">
-                            <dock::DockTab id=2u64 title="Tab 2">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockSplit>
-                    <dock::DockWindow
-                        id="first"
-                        rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
-                    >
-                        <dock::DockPane id="third">
-                            <dock::DockTab id=3u64 title="Tab 3">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockWindow>
-                    <dock::DockWindow
-                        id="second"
-                        rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
-                    >
-                        <dock::DockPane id="fourth">
-                            <dock::DockTab id=4u64 title="Tab 4">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockWindow>
-                </dock::Docking>
-            </dock_host::styled::DockHost>
-        }
-    });
-    (document, dock.get())
-}
-// A copy of `PanZoomStage` in beui-host's src/tests.rs, whose own tests use it.
-#[component]
-pub(crate) fn PanZoomStage(
-    #[prop(default = unstyled::PanZoomView::IDENTITY)] view: beui_host::reactive::Binding<
-        unstyled::PanZoomView,
-    >,
-) -> NodeId {
-    view! {
-        <unstyled::PanZoom @test_id="stage" view>|handle: unstyled::PanZoomHandle| {
-            let unstyled::PanZoomHandle { view, .. } = handle;
-            view! {
-                <Canvas view>
-                    <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
-                </Canvas>
-            }
-        }</unstyled::PanZoom>
-    }
-}
+use beui_host::styled;
 
 pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 

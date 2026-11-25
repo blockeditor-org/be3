@@ -49,7 +49,7 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
         .api::<unstyled::TextInputApi>(search)
         .toolbar(harness.document())
         .expect("tapping the selection shows the search box's toolbar");
-    assert!(text_within(harness.document(), toolbar, "Copy").is_some());
+    assert!(find_text(harness.document(), toolbar, "Copy", Match::Exact).is_some());
     assert!(
         harness
             .document()

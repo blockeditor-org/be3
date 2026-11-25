@@ -307,26 +307,11 @@ fn paint_every_page(size: Vec2, suffix: &str) {
 fn text_x(test: &DocumentTest, text: &str) -> f32 {
     let document = test.document();
     let root = document.root().expect("the test built a root");
-    find_text(document, root, text)
+    find_text(document, root, text, Match::Exact)
         .and_then(|node| document.node_rect(node))
         .unwrap_or_else(|| panic!("{text} is shown"))
         .center()
         .x
-}
-
-fn find_text(document: &Document, id: NodeId, text: &str) -> Option<NodeId> {
-    let here = document.node_rect(id).is_some()
-        && document
-            .arena
-            .kind_of(id)
-            .is_some_and(|node| document.text(node) == text);
-    if here {
-        return Some(id);
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| find_text(document, child, text))
 }
 
 fn menu_shows(test: &DocumentTest, text: &str) -> bool {

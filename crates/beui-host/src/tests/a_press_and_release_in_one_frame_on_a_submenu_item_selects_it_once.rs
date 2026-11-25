@@ -36,7 +36,7 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
             .layers()
             .iter()
             .filter_map(|layer| layer.overlay)
-            .find_map(|overlay| text_within(document, overlay.id(), label))
+            .find_map(|overlay| find_text(document, overlay.id(), label, Match::Exact))
             .unwrap_or_else(|| panic!("the menu shows {label}"))
     };
     let profiles = find(&harness, "Profiles");
