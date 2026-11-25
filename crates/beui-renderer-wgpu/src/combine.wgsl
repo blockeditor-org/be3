@@ -46,8 +46,7 @@ fn compose(input: Full) -> @location(0) vec4<f32> {
         || input.uv.x > region.z || input.uv.y > region.w {
         return untouched;
     }
-    let spread = textureSampleLevel(blurred, scene_sampler, clamp(input.uv, region.xy, region.zw), 0.0);
-    let sampled = mix(untouched, spread, combine.params.z);
+    let sampled = textureSampleLevel(blurred, scene_sampler, input.uv, 0.0);
     if sampled.a <= 0.0 {
         return vec4<f32>(0.0);
     }

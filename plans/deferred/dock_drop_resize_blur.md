@@ -11,9 +11,9 @@ present at the new configure serial; guides/apps/runtime.md), then unblur it.
 
 What it needs:
 - **A blur on a subtree.** Today beui's blur is the filter pass over the whole frame
-  (`Context::apply_filter`, `Group::Filter`, a dual Kawase chain:
-  decisions/beui_filter_blur_is_dual_kawase.md), used by the inspector. A pane needs it on one
-  subtree, drawn offscreen and blurred, with damage widened by the chain's known reach. The HTML
+  (`Context::apply_filter`, `Group::Filter`, Vello's Gaussian blur:
+  decisions/beui_filter_blur_is_vellos_gaussian.md), used by the inspector. A pane needs it on one
+  subtree, drawn offscreen and blurred, with damage widened by the blur's reach of 3σ. The HTML
   core can use CSS `filter: blur()`.
 - **A signal that the panel has redrawn at its new size**, so the unblur waits on it rather than
   on a timer. Panels drawn by beui alone have redrawn by the next frame.

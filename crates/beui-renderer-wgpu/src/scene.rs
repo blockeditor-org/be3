@@ -7,7 +7,7 @@ use std::rc::Rc;
 use be_lib_stable_hash::HashMap;
 use beui_core::draw::Turn;
 use beui_types::{Image, ImageId};
-use beui_vello::vello_common::kurbo::{Affine, BezPath, Rect, Stroke};
+use beui_vello::vello_common::kurbo::{Affine, BezPath, Rect, Shape, Stroke};
 use beui_vello::vello_common::paint::{ImageSource, PaintType, TextureRegion, Tint};
 use beui_vello::vello_common::peniko::{BlendMode, Fill};
 use beui_vello::{Canvas, Fade};
@@ -18,6 +18,8 @@ use crate::Space;
 /// The coverage glyph atlas, the colour glyph atlas, and the first of the images.
 const COVERAGE: TextureId = TextureId(1);
 const COLOURS: TextureId = TextureId(2);
+/// A filter's scene, which Vello blurs (`blur`).
+const FILTERED: TextureId = TextureId(3);
 const PICTURES: u64 = 16;
 
 /// A shape placed in its space's pixels: a display list's entry, kept while the display is.
@@ -139,8 +141,12 @@ impl Textures {
         }
     }
 
-    pub(crate) fn bindings(&self) -> TextureBindings {
+    /// The bindings of the frame's textures, and of the filter scene `filtered` blurs.
+    pub(crate) fn bindings(&self, filtered: Option<&wgpu::TextureView>) -> TextureBindings {
         let mut bindings = TextureBindings::new();
+        if let Some(view) = filtered {
+            bindings.insert(FILTERED, view.clone());
+        }
         if let Some(view) = &self.coverage {
             bindings.insert(COVERAGE, view.clone());
         }
@@ -152,6 +158,36 @@ impl Textures {
         }
         bindings
     }
+}
+
+/// A filter's scene, `size` pixels, blurred by `sigma` within `region`: the blur takes nothing
+/// from outside the region, clamping at its edges.
+pub(crate) fn blur(scene: &mut Scene, size: (u32, u32), region: [f32; 4], sigma: f32) {
+    use beui_vello::vello_common::filter_effects::{EdgeMode, Filter, FilterPrimitive};
+    let region = beui_vello::rect(region);
+    scene.set_transform(Affine::IDENTITY);
+    scene.push_layer(
+        Some(&region.to_path(beui_vello::TOLERANCE)),
+        None,
+        None,
+        None,
+        Some(Filter::from_primitive(FilterPrimitive::gaussian_blur(
+            sigma,
+            EdgeMode::Duplicate,
+        ))),
+    );
+    let mut canvas = Gpu(scene);
+    beui_vello::image(
+        &mut canvas,
+        [0.0, 0.0, size.0 as f32, size.1 as f32],
+        ImageSource::external_texture(FILTERED, TextureRegion::Full, true),
+        [size.0 as f32, size.1 as f32],
+        [255; 4],
+        0.0,
+        false,
+        Affine::IDENTITY,
+    );
+    canvas.0.pop_layer();
 }
 
 /// vello_gpu's scene as the canvas beui's shapes are drawn on.
