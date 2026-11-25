@@ -17,15 +17,19 @@ fn be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop() {
         ..Options::default()
     });
     host.open_test_window("Test window");
-    host.wait(" #desktop.windows.");
+    // Titled once the program says its title.
+    host.wait("Button \"Be tool wayland window — Test window\"");
     host.run(&["settle"]);
+    // The windows bar only: drive's settle does not wait for a program's first frame, so the
+    // window's own content may still be arriving.
+    host.crop("0,676,1100,44");
     host.snapshot("the_host_lists_a_programs_window_on_the_desktop");
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
     host.open_test_window("Test window");
     host.wait(" #desktop.windows.");
-    host.run(&["pause", "2000"]);
     host.run(&["settle"]);
+    host.crop("0,676,1100,44");
     host.snapshot("be_root_lists_a_programs_window_on_the_desktop");
     host.close();
 }

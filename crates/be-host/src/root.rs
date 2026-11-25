@@ -160,6 +160,9 @@ struct RootShell {
     tree: be_sdk_app_host::accessibility::Graft,
     /// Whether the root was last asked for its tree (`frame-request.describe`).
     describing: bool,
+    /// Whether the last frame was hurried (`Context::hurried`), as be-host's own UI keeps it:
+    /// the block stack seals what its blocks owe at once, and `busy` waits for that.
+    hurried: bool,
 }
 
 /// Grafts the tree the root's frame answered (`frame-done.accessibility`) under the window's,
@@ -255,6 +258,7 @@ impl RootShell {
                 beui::native::accessibility::next_document_id(),
             ),
             describing: false,
+            hurried: false,
         }
     }
 
@@ -472,7 +476,20 @@ impl beui::native::Program for RootShell {
         let now = context.now();
         let origin = *self.time_origin.get_or_insert(now);
         let time = now.saturating_duration_since(origin);
+        self.hurried = context.hurried();
+        if self.hurried {
+            be_host_stack::seal_owed();
+        }
+        // The desktop host before the core, as be-host's own UI steps them (`Shell::update`): a
+        // window it took in this frame is in the list the core publishes in it.
+        if self.core.desktop {
+            Host::before(context, rect, &mut self.document);
+        }
         self.core.frame();
+        // Programs own their windows' input while the session's editor shows, as be-host's own
+        // UI says while it shows the organization's screen.
+        let owned = self.core.desktop && self.core.root_session.is_some();
+        be_host_desktop::desktop_host::configure(|desktop| desktop.owned = owned);
         // The apps be-host runs itself (an artifact's exporter making it again, its blocks' host
         // components) start and are asked for their frames as be-host's own window asks them,
         // once it laid out (`on_interacted`, `on_laid_out`): the root's apps are the root's.
@@ -484,9 +501,6 @@ impl beui::native::Program for RootShell {
         beui::native::enter(&mut self.document, be_host_base::host::deliver);
         self.deliver_input(origin);
         self.frame(context, time, rect);
-        if self.core.desktop {
-            Host::before(context, rect, &mut self.document);
-        }
         self.document.show(context, rect);
         if self.core.desktop {
             Host::after(context, &mut self.document);
@@ -527,7 +541,7 @@ impl beui::native::Program for RootShell {
     fn busy(&self) -> Vec<String> {
         let mut busy = match self.core.error.is_some() {
             true => Vec::new(),
-            false => self.core.busy(false),
+            false => self.core.busy(self.hurried),
         };
         busy.extend(be_host_runtime::busy());
         if self.core.root_session_pending {
@@ -600,11 +614,14 @@ impl beui::native::Program for RootShell {
     }
 
     fn exiting(&mut self) {
-        // Stops the root and every instance it spawned.
+        // Stops the root and every instance it spawned first, which draw on the window's device
+        // and are served by the host; then the desktop host and be-host's own apps, as be-host's
+        // own UI stops them (`Shell::exiting`).
         self.root = None;
         if self.core.desktop {
             Host::exiting();
         }
+        be_host_runtime::exiting();
     }
 }
 
@@ -1578,7 +1595,7 @@ fn open_editor(
     // The session's own editor is the shell, as be-host's own UI makes it (`set_shell`): what
     // only the shell hears (be3:desktop's windows, contacts, the screen's input) is its.
     if block.is_some() && block == core.root_session {
-        forwarded.set_shell(Some(instance));
+        forwarded.set_shell(instance);
     }
     let frames = match &artifact {
         Some((_, exporter, data)) => forwarded.open_artifact(

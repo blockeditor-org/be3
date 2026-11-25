@@ -2132,10 +2132,8 @@ Each step lands on its own.
              windows bar lists it and the desktop opens it in a tab, under be-host and the root.
              - Left, for 4g7e3b and 4g7e3d: under the root the tab shows nothing of the window,
                and both are named by the program (its app id) rather than its window's title.
-             - Left: be-host closed with a program window open stops without answering drive's
-               `close`; the tests stop their programs first.
-             - Left: under the root the desktop with a program's window needs a short pause
-               before its painting settles where be-host's settles at once.
+             - Left, under 4g7e3c: programs own their windows' input while the session shows
+               (`DesktopSettings::owned`), but the root's router routes none to them yet.
            - 4g7e3b. The root places a window child as a `Surface::Host` layer at its place,
              which be-host composites from the compositor's texture of it and configures to
              its place's size; `drive paint` paints it as the placeholder it paints for a
@@ -2152,6 +2150,9 @@ Each step lands on its own.
            - 4g7e3d. Each window's status to its placer (`child-status`'s title, icon,
              group, raised, rung, minimized, fullscreen, notice), which the host keeps
              (`DesktopHost::window_status`), and closing a window from its tab.
+           - 4g7e3e. be-host closed with a program window open (under its own UI or the
+             root) answers drive's `close`: it stops without answering today ("the program
+             stopped before it answered"), so a host test stops its programs first.
        - 4g7f. Built, before 4g7e2, whose tests press windows by name: drive's `tree`,
          `find` and presses by name read the root's accessibility tree. While be-host asks
          for it (`frame-request.describe`, set as be-host-runtime's `describe` says: a driver

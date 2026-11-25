@@ -174,11 +174,7 @@ impl HostTest {
     /// does: what be-host's own UI made, the root shows. Start the host with
     /// [`Options::previews`], since the root's apps draw on the window's device.
     pub fn restart_as_root(&mut self, app: &str) {
-        // The test's programs end first, each window gone from the desktop before it closes.
-        if !self.programs.is_empty() {
-            self.stop_programs();
-            self.run(&["pause", "500"]);
-        }
+        self.end_programs();
         self.run(&["settle"]);
         self.steps.push(format!("restart --root={app}"));
         let restarted = self
@@ -565,6 +561,10 @@ impl HostTest {
     /// compositor, as `drive exec` runs a program: with the variables the host gives programs
     /// (`drive env`), under `--desktop` only. It runs until the host closes it or the test ends.
     pub fn open_test_window(&mut self, title: &str) {
+        assert!(
+            self.desktop,
+            "a test window runs only in the desktop's compositor: start the host with Options::desktop"
+        );
         self.steps
             .push(format!("exec $WAYLAND_TEST_WINDOW {title}"));
         let environment = self.run(&["env"]);
@@ -589,8 +589,8 @@ impl HostTest {
     /// Closes the host once it has settled, so nothing is left unsaved for it to ask about, and
     /// fails unless it exits cleanly.
     pub fn close(mut self) {
+        self.end_programs();
         self.run(&["settle"]);
-        self.stop_programs();
         self.steps.push("close".to_owned());
         let host = self.host.take().expect("the host is still open");
         if let Err(error) = host.close() {
@@ -663,6 +663,16 @@ impl HostTest {
 }
 
 impl HostTest {
+    /// Ends the test's programs, before the host closes or restarts, once each window is gone
+    /// from the desktop, so the host does not close while it changes.
+    fn end_programs(&mut self) {
+        if self.programs.is_empty() {
+            return;
+        }
+        self.stop_programs();
+        self.run(&["wait", " #desktop.windows.none"]);
+    }
+
     fn stop_programs(&mut self) {
         for mut program in self.programs.drain(..) {
             let _ = program.kill();
