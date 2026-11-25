@@ -535,6 +535,7 @@ fn plain_text(value: &str) -> TextAreaState {
     state
 }
 
+#[allow(clippy::single_range_in_vec_init)] // a list of ranges, which here holds one
 fn selects_all(state: TextAreaState) -> bool {
     let length = text_of(state).len();
     length == 0 || state.selection_ranges() == [0..length]

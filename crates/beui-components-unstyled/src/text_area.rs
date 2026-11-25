@@ -1168,7 +1168,7 @@ fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
             .state
             .schema()
             .html()
-            .map(|html| html.from_html(&String::from_utf8_lossy(&pasted.data))),
+            .map(|html| html.read_html(&String::from_utf8_lossy(&pasted.data))),
         _ => TextFragment::of(&pasted),
     };
     let Some(fragment) = fragment else {
