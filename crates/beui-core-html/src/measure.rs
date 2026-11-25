@@ -61,13 +61,16 @@ impl TextGeometry {
     }
 }
 
+/// What is measured of each node watched, one signal a node, as `watch` keeps it.
+type Watched<T> = RefCell<HashMap<NodeId, OwnedSignal<Option<T>>>>;
+
 thread_local! {
-    static RECTS: RefCell<HashMap<NodeId, OwnedSignal<Option<Measured>>>> = RefCell::default();
-    static TEXTS: RefCell<HashMap<NodeId, OwnedSignal<Option<TextGeometry>>>> = RefCell::default();
+    static RECTS: Watched<Measured> = RefCell::default();
+    static TEXTS: Watched<TextGeometry> = RefCell::default();
 }
 
 fn watch<T: 'static>(
-    store: &'static std::thread::LocalKey<RefCell<HashMap<NodeId, OwnedSignal<Option<T>>>>>,
+    store: &'static std::thread::LocalKey<Watched<T>>,
     node: NodeId,
 ) -> ReadSignal<Option<T>> {
     let held = store.with(|held| held.borrow().get(&node).map(|signal| signal.handle()));
@@ -100,7 +103,7 @@ pub(crate) fn watched() -> bool {
 }
 
 fn publish<T: Clone + PartialEq + 'static>(
-    store: &'static std::thread::LocalKey<RefCell<HashMap<NodeId, OwnedSignal<Option<T>>>>>,
+    store: &'static std::thread::LocalKey<Watched<T>>,
     read: impl Fn(NodeId) -> Option<T>,
 ) -> bool {
     let held: Vec<(NodeId, Signal<Option<T>>)> = store.with(|held| {
