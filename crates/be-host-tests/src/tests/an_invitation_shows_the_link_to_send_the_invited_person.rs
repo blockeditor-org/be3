@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn an_invitation_shows_the_link_to_send_the_invited_person() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");

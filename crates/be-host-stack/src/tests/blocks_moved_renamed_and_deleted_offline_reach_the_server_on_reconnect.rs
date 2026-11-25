@@ -4,7 +4,6 @@ use super::*;
 fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
     let mut harness = Harness::start();
     harness.connect();
-    let address = harness.address();
     let (folder, inside, note) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     ask_for(vec![
         Query::Roots,
@@ -64,7 +63,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         (seen(shared) == expected).then_some(())
     });
 
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and sent the queued changes", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

@@ -7,7 +7,7 @@ use super::*;
 fn a_chat_message_refused_as_the_outbox_drains_shows_as_not_sent_in_the_open_chat() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

@@ -5,7 +5,7 @@ use super::*;
 /// the block stays in My files, on this device and everywhere once it reconnects.
 #[test]
 fn an_offline_device_refuses_to_move_a_block_into_a_folder_it_never_opened() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

@@ -5,7 +5,7 @@ use super::*;
 /// warning to administrators.
 #[test]
 fn the_members_dialog_warns_of_a_member_no_invitation_signed_in() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let joiner = server.account("Joiner");
     let mut host = HostTest::device(&dev);

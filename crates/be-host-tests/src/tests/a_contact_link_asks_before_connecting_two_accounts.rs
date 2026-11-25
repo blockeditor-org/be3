@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_contact_link_asks_before_connecting_two_accounts() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let ada = server.account("Ada");
     let mut host = HostTest::device(&dev);

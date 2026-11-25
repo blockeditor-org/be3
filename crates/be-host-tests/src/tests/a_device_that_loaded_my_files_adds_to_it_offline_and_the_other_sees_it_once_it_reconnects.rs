@@ -4,7 +4,7 @@ use super::*;
 /// content and can add to it offline.
 #[test]
 fn a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

@@ -4,7 +4,7 @@ use super::*;
 fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     let harness = Harness::start();
     let guest = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "guest@example.com",
         "Guest",

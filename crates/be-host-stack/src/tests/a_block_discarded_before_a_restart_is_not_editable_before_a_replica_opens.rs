@@ -7,7 +7,7 @@ use super::*;
 fn a_block_discarded_before_a_restart_is_not_editable_before_a_replica_opens() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

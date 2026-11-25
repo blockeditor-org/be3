@@ -43,7 +43,6 @@ fn workspace(name: &str) -> Uuid {
 fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
     let mut harness = Harness::start();
     harness.connect();
-    let address = harness.address();
     let team = workspace("Team");
     wait_until("knew the folder's type", |_| {
         is_known(WorkspaceContent::CONTENT_TYPE)
@@ -66,7 +65,7 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
     // catch-up on reconnecting can.
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
-    harness.start_server(&address);
+    harness.start_server();
     let other = Device::online(&harness);
     let quinces = Uuid::new_v4();
     other.runtime.block_on(async {
@@ -87,7 +86,7 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
     wait_until("noticed the server was gone again", |shared| {
         !shared.connected
     });
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected", |shared| shared.connected);
     finds("quinces", None, &[quinces]);
@@ -108,7 +107,7 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
     wait_until("noticed the server was gone a third time", |shared| {
         !shared.connected
     });
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0 && shared.search.indexed()

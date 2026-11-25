@@ -7,7 +7,7 @@ fn an_invitation_code_opened_as_a_contact_link_is_refused() {
     let harness = Harness::start();
     let url = harness.url.clone();
     let guest = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &url,
         "guest@example.com",
         "Guest",

@@ -7,7 +7,7 @@ use be_block_graph::BlockParent;
 fn a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

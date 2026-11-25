@@ -5,6 +5,9 @@ use std::{error::Error, net::TcpListener as StdTcpListener, path::PathBuf, threa
 
 use tokio::net::TcpListener;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod testing;
+
 pub struct EmbeddedServer {
     pub url: String,
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,

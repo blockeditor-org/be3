@@ -25,7 +25,7 @@ fn count(host: &mut HostTest) -> String {
 /// count that moves shows a component started.
 #[test]
 fn keep_hosting_outlives_the_editor_until_stop() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

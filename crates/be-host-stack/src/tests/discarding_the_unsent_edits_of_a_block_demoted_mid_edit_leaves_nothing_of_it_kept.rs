@@ -9,7 +9,7 @@ use super::*;
 fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

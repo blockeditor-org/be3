@@ -9,10 +9,21 @@ use beui_paint_format::Painting;
 use beui_paint_snapshot::Snapshot;
 
 mod player;
-mod server;
 
 pub use player::Player;
-pub use server::{Account, Server};
+pub use be_host_server::testing::{Account, Server};
+
+/// A test's own server, on the test's clock: its devices' clocks start at the test's moment,
+/// so the server's does too, since it stamps when it took each edit, which a device reads
+/// against when the edit was made.
+pub fn server() -> Server {
+    Server::with(be_host_server::testing::Options {
+        starts_at: Some(
+            i64::try_from(beui_core::timer::TEST_WALL_CLOCK.as_millis()).unwrap_or(i64::MAX),
+        ),
+        ..be_host_server::testing::Options::default()
+    })
+}
 
 /// How long `wait_still` moves the clock on between two looks, and how many it takes.
 const STILL_STEP: u32 = 100;

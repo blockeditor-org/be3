@@ -4,7 +4,6 @@ use super::*;
 fn a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains() {
     let mut harness = Harness::pushing();
     let room = ChatRoom::start(&harness, &[]);
-    let address = harness.address();
 
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
@@ -22,7 +21,7 @@ fn a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_dr
         shared.waiting > 0
     });
 
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and drained the outbox", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

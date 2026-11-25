@@ -30,7 +30,7 @@ pub mod revisions;
 pub mod search;
 mod seen;
 pub mod terminal_host;
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub mod testing;
 pub mod types;
 pub mod unread;

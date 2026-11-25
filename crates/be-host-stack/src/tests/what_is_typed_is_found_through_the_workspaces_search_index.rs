@@ -51,7 +51,6 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
 fn what_is_typed_is_found_through_the_workspaces_search_index() {
     let mut harness = Harness::relayed();
     harness.connect();
-    let address = harness.address();
     let workspace = Uuid::new_v4();
     create(
         workspace,
@@ -121,7 +120,7 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     type_text(bananas, 0, "grapes ");
     flush();
     finds("grapes", &[bananas]);
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected to the restarted server", |shared| {
         shared.connected && shared.waiting == 0
