@@ -168,8 +168,9 @@ pub struct Children {
     /// host is told them.
     unshown: Vec<((EditorInstanceId, ViewId), ShownChild)>,
     /// The host panels placed (`ChildContent::Host`), which the root draws itself
-    /// (`Children::panels`, `show_panels`).
-    panels: Vec<(PanelPlace, ChildPlacement)>,
+    /// (`Children::panels`), each with the layer of the root's own surface showing it, its top
+    /// left at its surface's origin, once the root handed it (`Children::show_panels`).
+    panels: Vec<(PanelPlace, ChildPlacement, Option<Layer>)>,
     /// What the host was told last of each view's children (`host.show-children`).
     told: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>,
     /// The children placed active that were taken back (`revoke`): they are passive until placed
@@ -975,20 +976,6 @@ impl PanelPlace {
     }
 }
 
-thread_local! {
-    /// The layers showing the host panels placed (`PanelPlace::key`), each with its top left at
-    /// its surface's origin, as the root last showed them (`show_panels`).
-    static PANEL_LAYERS: RefCell<HashMap<(EditorInstanceId, ViewId, ChildId), Layer>> =
-        RefCell::default();
-}
-
-/// The layers of the root's own surfaces that show the host panels placed (`Children::panels`),
-/// each by its place, its top left at its surface's origin: what `Children::layers` places
-/// where each is placed.
-pub fn show_panels(layers: Vec<((EditorInstanceId, ViewId, ChildId), Layer)>) {
-    PANEL_LAYERS.with_borrow_mut(|panels| *panels = layers.into_iter().collect());
-}
-
 /// Whether `shown` is an artifact's settings (`ChildContent::ArtifactSettings`), a dialog its
 /// editor runs in its settings view.
 fn settings_dialog(shown: &Shown) -> bool {
@@ -1198,7 +1185,7 @@ impl Children {
                         raster,
                     };
                     self.panels
-                        .push((place, in_view(placement, placements.view)));
+                        .push((place, in_view(placement, placements.view), None));
                     self.unshown.push((
                         (placements.instance, placements.view),
                         ShownChild {
@@ -2013,11 +2000,27 @@ impl Children {
     /// The host panels placed, any number of levels deep, which the root draws itself and shows
     /// through `show_panels`.
     pub fn panels(&self) -> Vec<PanelPlace> {
-        let mut panels: Vec<PanelPlace> = self.panels.iter().map(|(place, _)| *place).collect();
+        let mut panels: Vec<PanelPlace> = self.panels.iter().map(|(place, ..)| *place).collect();
         for child in &self.shown {
             panels.extend(child.editor.nested.borrow().panels());
         }
         panels
+    }
+
+    /// Hands each host panel placed (`panels`), any number of levels deep, the layer of the
+    /// root's own surface showing it, by its place (`PanelPlace::key`), its top left at its
+    /// surface's origin: what `layers` places where it is placed. One handed none shows
+    /// nothing.
+    pub fn show_panels(&mut self, layers: &[((EditorInstanceId, ViewId, ChildId), Layer)]) {
+        for (place, _, shown) in &mut self.panels {
+            *shown = layers
+                .iter()
+                .find(|(key, _)| *key == place.key())
+                .map(|(_, layer)| layer.clone());
+        }
+        for child in &self.shown {
+            child.editor.nested.borrow_mut().show_panels(layers);
+        }
     }
 
     /// The layers showing the views `parent`'s editor `only` (every editor's of it with none)
@@ -2185,13 +2188,11 @@ impl Children {
         }
         // The host panels placed here, each the root's own surface (`show_panels`), placed
         // as a child is: at its place, within its clip, taking the presses where it is.
-        for (place, placement) in &self.panels {
+        for (place, placement, handed) in &self.panels {
             if !placed_in(place.editor, place.view) {
                 continue;
             }
-            let Some(mut shown_panel) =
-                PANEL_LAYERS.with_borrow(|panels| panels.get(&place.key()).cloned())
-            else {
+            let Some(mut shown_panel) = handed.clone() else {
                 continue;
             };
             let to_placer = placed_transform(placement, be_lib_geometry::vec2(1.0, 1.0));

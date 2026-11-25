@@ -398,8 +398,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   triangle on a stand-in device, and be-host's host test with `--root`. be-root
   (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md) is the root be-host is to
   run in place of its own UI, worded and laid out as be-host's own (its `src/ui`) and filling
-  the window it is told of: the lock card and the statistics panel with its memory graph as a
-  person sees them, the toasts and the slow save's toast,
+  the window it is told of: the lock card and the host's panels its session places (the
+  Performance panel with its memory graph) as a person sees them, the toasts and the slow save's toast,
   the question of keeping display settings, the block stack's onboarding and its dialogs, which
   a menu at the window's top right opens as be-host's organization menu does, its entries
   following `core-view`'s organization, role and status fields; its own tests run it
