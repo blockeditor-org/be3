@@ -170,6 +170,7 @@ members = [
     "crates/be-type-workspace",
     "crates/be-wasm-dylink",
     "crates/be-wasm-gpu-abi",
+    "crates/be-wasm-gpu-convert",
     "crates/be-wasm-gpu-guest",
     "crates/be-wasm-gpu-host",
     "crates/be-wasm-gpu-shim",

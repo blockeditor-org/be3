@@ -20,16 +20,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
         "linux-arm64": {
             "binaries": {},
@@ -37,16 +32,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
         "linux-x86_64": {
             "binaries": {},
@@ -54,16 +44,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
         "macos-arm64": {
             "binaries": {},
@@ -71,16 +56,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
         "macos-x86_64": {
             "binaries": {},
@@ -88,16 +68,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
         "wasi": {
             "binaries": {},
@@ -117,21 +92,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
-            ],
-            "examples": {},
-            "features": [
-                "wgpu",
-            ],
-            "test_deps": [],
-            "test_features": [],
-        },
-        "wasm32": {
-            "binaries": {},
-            "deps": [
-                "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
             "features": [],
@@ -144,12 +104,9 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
             "test_features": [],
         },
@@ -159,16 +116,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
         "windows-x86_64": {
             "binaries": {},
@@ -176,16 +128,11 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},
-            "features": [
-                "wgpu",
-            ],
+            "features": [],
             "test_deps": [],
-            "test_features": [
-                "wgpu",
-            ],
+            "test_features": [],
         },
     },
     "profile_flags": [],

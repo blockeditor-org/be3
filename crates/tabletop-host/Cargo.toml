@@ -9,10 +9,11 @@ be-wasm-pure-wasi = { path = "../be-wasm-pure-wasi" }
 bincode = "1"
 tabletop-api = { path = "../tabletop-api" }
 uuid = { version = "1", features = ["serde", "v4"] }
-wasmi = { version = "1.1", default-features = false, features = ["std"] }
+# simd: a game is built for wasm32-wasip1 with the guests, which take simd128.
+wasmi = { version = "1.1", default-features = false, features = ["simd", "std"] }
 
 [dev-dependencies]
-wasmi = { version = "1.1", default-features = false, features = ["std", "wat"] }
+wasmi = { version = "1.1", default-features = false, features = ["simd", "std", "wat"] }
 
 [lints]
 workspace = true

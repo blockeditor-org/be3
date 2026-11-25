@@ -23,8 +23,6 @@ use uuid::Uuid;
 
 pub mod editor;
 mod effect;
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-mod entropy;
 mod file;
 pub mod holds;
 mod lacking;
@@ -87,7 +85,7 @@ pub struct Registration {
     open: fn(Opened) -> Box<dyn AnyReplica>,
     plain: fn(Opened) -> Box<dyn AnyReplica>,
     /// The type's default content and its description, which `Module::types` fills
-    /// `info` with once `start` has seeded the module's entropy.
+    /// `info` with once `start` has run.
     blank: fn() -> (Vec<u8>, Description),
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
@@ -1049,17 +1047,7 @@ impl replicas::Guest for Module {
         }
     }
 
-    fn start(&self, entropy: Vec<u8>) -> LocalFuture<Vec<TypeInfo>> {
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        {
-            let mut seed = [0u8; 32];
-            for (held, byte) in seed.iter_mut().zip(entropy) {
-                *held = byte;
-            }
-            entropy::seed(seed);
-        }
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        let _ = entropy;
+    fn start(&self) -> LocalFuture<Vec<TypeInfo>> {
         if !self.shared.started.replace(true) {
             let module = self.clone();
             ops::spawn(async move {

@@ -15,6 +15,7 @@ mod tests;
 use std::{cell::RefCell, collections::HashMap};
 
 use be_wasm_gpu_abi::{device as abi, guest::device as gpu};
+use be_wasm_gpu_convert::Convert;
 
 thread_local! {
     static SURFACES: RefCell<HashMap<u32, gpu::Surface>> = RefCell::new(HashMap::new());
@@ -108,8 +109,8 @@ fn described(texture: gpu::Texture) -> Result<wgpu::Texture, String> {
         },
         mip_level_count: info.mip_level_count,
         sample_count: info.sample_count,
-        dimension: wgpu::TextureDimension::from(info.dimension),
-        format: wgpu::TextureFormat::from(info.format),
+        dimension: info.dimension.convert(),
+        format: info.format.convert(),
         usage: wgpu::TextureUsages::from_bits_truncate(info.usage),
         view_formats: &[],
     };

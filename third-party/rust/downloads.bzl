@@ -4640,12 +4640,6 @@ downloads = {
         "size_bytes": 69961,
         "version": "1.29.1",
     },
-    "uuid-rng-internal-1.29.1": {
-        "name": "uuid-rng-internal",
-        "sha256": "fa8259b508bb76483829802a813dcaeeb8c3962f394e4c3eced87cf01ca79cd5",
-        "size_bytes": 1825,
-        "version": "1.29.1",
-    },
     "v8-152.2.0": {
         "name": "v8",
         "sha256": "a10fe1a92da5c32c7c7f838ce36c0ccfcfd5edf0865b58bdde820aa64cea9888",

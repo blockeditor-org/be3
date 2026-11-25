@@ -2471,10 +2471,8 @@ dependencies = [
  "be-sdk-type-api",
  "be-wasm-guest-abi",
  "be-wasm-ops",
- "getrandom 0.4.2",
  "pollster",
  "postcard",
- "rand_chacha 0.9.0",
  "serde",
  "serde_bytes",
  "uuid",
@@ -3215,6 +3213,13 @@ dependencies = [
  "be-wasm-ops",
  "be-wasm-ops-bindgen",
  "serde",
+]
+
+[[package]]
+name = "be-wasm-gpu-convert"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-gpu-abi",
  "wgpu",
 ]
 
@@ -3223,6 +3228,7 @@ name = "be-wasm-gpu-guest"
 version = "0.1.0"
 dependencies = [
  "be-wasm-gpu-abi",
+ "be-wasm-gpu-convert",
  "wgpu",
 ]
 
@@ -3231,6 +3237,7 @@ name = "be-wasm-gpu-host"
 version = "0.1.0"
 dependencies = [
  "be-wasm-gpu-abi",
+ "be-wasm-gpu-convert",
  "be-wasm-guest-abi",
  "be-wasm-ops",
  "wgpu",
@@ -11283,17 +11290,7 @@ dependencies = [
  "getrandom 0.4.2",
  "js-sys",
  "serde_core",
- "uuid-rng-internal",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "uuid-rng-internal"
-version = "1.29.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa8259b508bb76483829802a813dcaeeb8c3962f394e4c3eced87cf01ca79cd5"
-dependencies = [
- "getrandom 0.4.2",
 ]
 
 [[package]]

@@ -3,8 +3,8 @@
 ## Discovery and staging
 
 The build stages every `be-app-*` crate beside be-host: its module built for
-`wasm32-wasip1`, single-threaded (decisions/guests_are_single_threaded.md), with the app profile (apps link wgpu with real
-backends, pure guests only with the custom one), its manifest as
+`wasm32-wasip1`, single-threaded (decisions/guests_are_single_threaded.md), with the app profile (apps link wgpu with only its `custom`
+backend, and a pure guest links no wgpu), its manifest as
 `<app id>.app.json`, its type module, its worker modules under
 `workers/<app id>/` (guides/adding_an_app.md, Workers) and the shared libraries
 (guides/app_libraries.md), only as `.wasm`: the host compiles each module as
@@ -408,8 +408,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   as be-wasm-root-host's run the fixture. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
-  be-wasm-root-testing, which draws no UI, is a pure guest in the `wasm32`
-  plan.
+  be-wasm-root-testing, which draws no UI, is a pure guest (`pure_guest_crate`), built in the
+  same plan.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

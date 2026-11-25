@@ -1,5 +1,3 @@
-#[cfg(feature = "wgpu")]
-mod convert;
 #[cfg(test)]
 mod tests;
 

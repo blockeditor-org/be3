@@ -191,9 +191,10 @@ interface replicas {
         drained: async func(refused: bool, commits: list<commit-id>);
     }
 
-    /// Seeds the module's entropy, starts its clock and lists its types, each with
-    /// its blank content and that content's description.
-    start: async func(entropy: list<u8>) -> list<type-info>;
+    /// Starts the module's clock and lists its types, each with its blank content
+    /// and that content's description. Its randomness is its host's
+    /// (guides/app_libraries.md, Pure guests).
+    start: async func() -> list<type-info>;
 
     /// Content bytes (none for the type's default) with a journal of this
     /// build replayed on top, for a reader outside the session. It reads no

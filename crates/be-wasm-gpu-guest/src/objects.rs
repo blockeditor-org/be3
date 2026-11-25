@@ -9,6 +9,7 @@ use core::{
 use std::{cell::RefCell, collections::HashSet, sync::Arc};
 
 use be_wasm_gpu_abi::{device as abi, guest::device as gpu};
+use be_wasm_gpu_convert::Convert;
 use wgpu::custom::*;
 
 use crate::convert::{self, custom};
@@ -271,7 +272,7 @@ impl Future for Compiling {
             Some(messages) => Poll::Ready(wgpu::CompilationInfo {
                 messages: messages
                     .iter()
-                    .map(wgpu::CompilationMessage::from)
+                    .map(Convert::convert)
                     .collect(),
             }),
             None => {

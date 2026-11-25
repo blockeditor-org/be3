@@ -15,6 +15,7 @@ use std::pin::{Pin, pin};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
+use be_wasm_gpu_convert::Convert;
 use be_wasm_gpu_abi::device as abi;
 use settling::Settling;
 use tables::Table;
@@ -342,7 +343,7 @@ fn texel_copy_texture(
             y: info.origin.y,
             z: info.origin.z,
         },
-        aspect: wgpu::TextureAspect::from(info.aspect),
+        aspect: Convert::<wgpu::TextureAspect>::convert(info.aspect),
     }
 }
 

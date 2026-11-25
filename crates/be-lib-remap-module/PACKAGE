@@ -69,7 +69,7 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
+        "wasi-guest": {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-remap:be-lib-remap",

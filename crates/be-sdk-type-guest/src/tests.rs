@@ -918,7 +918,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             MembershipChange::Joined(JoinedParticipant { tag, may_edit }),
         );
         self.to(device, |host| {
-            be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
+            be_sdk_type_api::embed::exports::replicas::start(host)
         });
         self.settle();
         let (journal, local, sealed_head) = self.journal_on(local);

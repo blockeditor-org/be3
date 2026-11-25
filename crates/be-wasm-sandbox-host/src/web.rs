@@ -236,7 +236,7 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
                 WebGuest::start_module(&module.compiled.module, memory, wake, Arc::clone(&waiting))
             }),
         Source::App(staged) => {
-            WebGuest::start(&staged.url, Some(EXTENSION), wake, Arc::clone(&waiting))
+            WebGuest::start(&staged.url, EXTENSION, wake, Arc::clone(&waiting))
         }
     }
     .map_err(|error| format!("{} could not start: {error}", config.name))?;

@@ -113,17 +113,6 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
-            "binaries": {},
-            "deps": [
-                "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
-                "//third-party/rust:serde-1.0.228",
-            ],
-            "examples": {},
-            "features": [],
-            "test_deps": [],
-            "test_features": [],
-        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

@@ -1,3 +1,4 @@
+use be_wasm_gpu_convert::TryConvert;
 use be_wasm_gpu_abi::device as abi;
 
 use crate::objects::{
@@ -8,8 +9,10 @@ fn unsupported(name: &str, value: &dyn core::fmt::Debug) -> ! {
     panic!("the app gpu abi does not support {name} {value:?}")
 }
 
-pub(crate) fn to_abi<A: TryFrom<W>, W: Copy + core::fmt::Debug>(value: W) -> A {
-    A::try_from(value).unwrap_or_else(|_| unsupported(core::any::type_name::<W>(), &value))
+pub(crate) fn to_abi<A, W: TryConvert<A> + Copy + core::fmt::Debug>(value: W) -> A {
+    value
+        .try_convert()
+        .unwrap_or_else(|_| unsupported(core::any::type_name::<W>(), &value))
 }
 
 pub(crate) fn constants(options: &wgpu::PipelineCompilationOptions<'_>) -> Vec<(String, f64)> {

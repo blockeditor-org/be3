@@ -123,17 +123,6 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
-            "binaries": {},
-            "deps": [
-                "//third-party/rust:memchr-2.8.3",
-                "//third-party/rust:serde-1.0.228",
-            ],
-            "examples": {},
-            "features": [],
-            "test_deps": [],
-            "test_features": [],
-        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

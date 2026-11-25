@@ -52,10 +52,6 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
-    # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
-    # type-module library seeds a generator from its host and is getrandom's
-    # custom backend (crates/be-sdk-type-guest/src/entropy.rs).
-    "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
     # The build script lists the WebGL extensions for the library to include,
     # by absolute path into the directory it ran in. That directory is the
     # build script's own action's and is gone by the time the library

@@ -432,6 +432,9 @@ pub struct Settling {
 
 impl Guest for Settling {
     fn start(waker: Waker, _: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        // A line to its log through a pure guest's WASI (guides/app_libraries.md, Pure guests),
+        // so every run of it on the page or natively has that host answer `fd_write`.
+        eprintln!("the testing root started");
         let frames = Frames::default();
         Ok(Self {
             spinning: Rc::clone(&frames.spinning),

@@ -1,0 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# The gpu ABI's types as wgpu's and back, apart from the ABI so that a pure guest has the ABI
+# without wgpu.
+cargo_crate(test = False)

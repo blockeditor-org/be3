@@ -59,11 +59,22 @@ The browser's gpu shim keeps its own `wasm32-bindgen` plan: it is wasm-bindgen c
    guests (be-wasm-host's `a_pure_guest_is_answered_its_few_wasi_calls_from_its_seed`,
    `..._may_not_import_more_of_wasi_than_it_is_answered`, tabletop-host's
    `a_game_may_import_a_pure_guests_wasi_and_no_more`); the type modules themselves are built
-   for wasip1 by step 2, whose tests run them so. Still to do in step 2: the type host seeds each
-   module through its host (`Host::with_seed`, `guest.js`'s `seed`) instead of `replicas.start`'s
-   entropy, since on wasip1 getrandom reads `random_get`, and be-sdk-type-guest's own generator
-   and the getrandom fixup go.
+   for wasip1 by step 2, whose tests run them so.
 2. Move the pure guests into `wasi-guest` in `crates/be-tool-buck/src/plan.rs`, move
    `wasm32_module` to the wasip1 platform in `buck/wasm/defs.bzl`, delete the `wasm32` plan and
    platform, and run `./scripts/buckify`. Update guides/buck2.md, guides/app_libraries.md
    (Pure guests) and guides/apps/runtime.md.
+   Built: every pure guest is in `wasi-guest` and `pure_guest_crate` (was `wasm32_crate`) links
+   its `:module` there; the `wasm32` plan and platform are gone. 57 first-party and 49
+   third-party crates the two plans shared now compile once. On wasip1 getrandom and std's hash
+   keys read `random_get`, so be-block-type-host seeds each module through its host
+   (`Host::with_seed`, `WebGuest::start_pure`) and `replicas.start` takes no entropy;
+   be-sdk-type-guest's generator and the getrandom fixup are gone. Of the four crates whose
+   features differed, `vault` and `store` add no import and no size (the dev type modules came out
+   about 1% smaller), but be-wasm-gpu-abi's `wgpu` linked wgpu, and with it wasm-bindgen, into
+   be-wasm-root-testing, so the conversions moved to `crates/be-wasm-gpu-convert` (traits
+   `Convert`/`TryConvert`, since neither side's types are its own). Games take simd128 with the
+   guests, so tabletop-host's wasmi has its `simd` feature, with relaxed SIMD off. Open: release
+   builds compiled os:none crates (the pure guests) at opt-level `s` and WASI ones at 3
+   (decisions/shipped_bundle_size_settings.md); in one plan the pure guests now take 3, which
+   awaits the owner's choice.

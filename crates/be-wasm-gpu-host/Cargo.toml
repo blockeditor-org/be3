@@ -5,7 +5,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi", features = ["wgpu"] }
+be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
+be-wasm-gpu-convert = { path = "../be-wasm-gpu-convert" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
