@@ -89,16 +89,10 @@ const CARRIED_CLIENTS: u64 = 0b11 << 62;
 const SHOWN_BEFORE_KEPT: usize = 4;
 
 const DIVERGED: &str = "the session runs a different version of this block's type";
-const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
 pub(crate) const UNCERTAIN_EDIT: &str = "an edit kept while this device was away may have \
      been sent already and was not sent again: the session no longer records whether it landed";
 pub(crate) const STALE_EDIT: &str = "an edit kept while this device was away was not sent: the session \
      started over from its saved content meanwhile, so what the edit changed is gone";
-
-/// Whether `operation` already holds an arrival stamp (`LiveEdit::arrival`).
-fn claims_arrival<C: LiveEdit>(operation: &mut C::Op) -> bool {
-    C::arrival(operation).is_some_and(|slot| slot.is_some())
-}
 
 pub(crate) struct Opened {
     pub(crate) replica: ReplicaId,
@@ -1914,7 +1908,7 @@ where
         &mut self,
         gesture: GestureId,
         serial: u64,
-        mut operation: C::Op,
+        operation: C::Op,
         origin: Option<EditorId>,
         record: bool,
         at: u64,
@@ -1922,11 +1916,6 @@ where
         if self.diverged {
             self.error(DIVERGED);
             return false;
-        }
-        if claims_arrival::<C>(&mut operation) {
-            self.error(CLAIMED_ARRIVAL);
-            self.reproject();
-            return true;
         }
         // Its gesture ended here: what it moved is gone, so the edit applies as nothing. Its
         // editor, which showed it before hearing, is told what holds now.
@@ -3331,7 +3320,7 @@ where
                 }
                 match entry {
                     Entry::Operation(payload) if op.base >= op.floor => {
-                        if let Some(operation) = self.stamped(&payload, op.received) {
+                        if let Some(operation) = self.operation(&payload) {
                             let bytes = match &payload {
                                 Payload::Inline(bytes) => bytes.clone(),
                                 Payload::Part(_) => Vec::new(),
@@ -3418,16 +3407,6 @@ where
             self.own_numbered.retain(|(at, _)| *at > sequence);
         }
         self.log.clear();
-    }
-
-    /// The operation `payload` carries, with its arrival stamped as the order took it: every
-    /// replica stamps alike, whatever the sender wrote there.
-    fn stamped(&self, payload: &Payload, received: Option<i64>) -> Option<C::Op> {
-        let mut operation = self.operation(payload)?;
-        if let Some(slot) = C::arrival(&mut operation) {
-            *slot = received;
-        }
-        Some(operation)
     }
 
     fn log_operation(&mut self, sequence: u64, operation: C::Op, mine: bool) {
@@ -3589,7 +3568,7 @@ where
             .part()
             .is_none_or(|part| part.length() <= LARGEST_PART);
         let operation = match op.base >= op.floor && readable {
-            true => self.stamped(&payload, op.received),
+            true => self.operation(&payload),
             false => None,
         };
         let Some(operation) = operation else {
@@ -3968,19 +3947,12 @@ where
         self.journal(Journaled::Replaced, None);
     }
 
-    fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
+    fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
         self.edited_since.get_or_insert(self.now);
         self.last_edit = Some(self.now);
         if self.diverged {
             self.error(DIVERGED);
             return false;
-        }
-        // Only the order stamps an arrival: taken from the editor and shown as it was, so it is
-        // never submitted.
-        if claims_arrival::<C>(&mut operation) {
-            self.error(CLAIMED_ARRIVAL);
-            self.reproject();
-            return true;
         }
         // Made while a tentative layer is held: it goes beneath the layer, which stays on top.
         if !self.tentative.is_empty() {
@@ -5687,11 +5659,7 @@ pub(crate) fn replay<C: LiveEdit + Default>(
         }
         match ordered {
             Entry::Operation(Payload::Inline(bytes)) => {
-                let mut operation =
-                    C::decode_operation(&bytes).map_err(|error| error.to_string())?;
-                if let Some(slot) = C::arrival(&mut operation) {
-                    *slot = entry.received;
-                }
+                let operation = C::decode_operation(&bytes).map_err(|error| error.to_string())?;
                 content.apply(&operation);
             }
             // Only a replica reads an operation's part, or a reload's commit.

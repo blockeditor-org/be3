@@ -88,9 +88,6 @@ interface types {
         /// The type merges by parts (`replicas.merge-parts`) rather than whole bytes
         /// (`replicas.merge3`). Only a type with `first-part` does.
         merges-parts: bool,
-        /// The stored form read whole decodes to the content (`be_block::BlockContent::WHOLE_BYTES`),
-        /// so a copy of its bytes loses nothing.
-        whole-bytes: bool,
         /// The type keeps a signed log beside its content (plans/signed_logs.md):
         /// its replicas read it with `host.read-log`, hear it with
         /// `replica.logged`, append with `host.append`, and fold it into what

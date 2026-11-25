@@ -146,7 +146,6 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
                 .map(|(key, stamped)| {
                     let mut entry = vec![
                         raw(key),
-                        Stored::from(stamped.stamp.rank),
                         Stored::from(stamped.stamp.time),
                         uuid(stamped.stamp.origin),
                     ];
@@ -338,14 +337,13 @@ impl Loading {
                     .filter_map(|entry| {
                         let mut entry = entry.into_array().ok()?.into_iter();
                         let key = encode(&entry.next()?);
-                        let rank = u64::try_from(int(&entry.next()?)?).ok()?;
                         let time = u64::try_from(int(&entry.next()?)?).ok()?;
                         let origin = as_uuid(&entry.next()?)?;
                         let value = entry.next().map(|value| encode(&value));
                         Some((
                             key,
                             Stamped {
-                                stamp: Stamp { rank, time, origin },
+                                stamp: Stamp { time, origin },
                                 value,
                             },
                         ))

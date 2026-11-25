@@ -40,7 +40,6 @@ mod a_peer_edit_under_local_edits_touches_only_what_either_changed;
 mod a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh;
 mod a_property_only_a_newer_build_knows_survives_an_older_build_saving;
 mod a_range_someone_split_meanwhile_does_not_move;
-mod a_ranked_write_is_replaced_only_by_one_ranked_as_high_live_and_in_a_merge;
 mod a_register_that_cannot_read_without_one_of_its_fields_is_reported;
 mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_card;
 mod a_renamed_property_still_reads_its_old_name;
@@ -313,7 +312,6 @@ struct View {
 
 fn stamp(time: u64, origin: u128) -> Stamp {
     Stamp {
-        rank: 0,
         time,
         origin: uuid::Uuid::from_u128(origin),
     }

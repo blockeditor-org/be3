@@ -9,7 +9,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;
 use be_block_store::Manifest;
-use be_block_type_host::{Kind, Merged};
+use be_block_type_host::Merged;
 use be_sdk_type_api::{Change, ClientId, Description};
 use std::sync::Mutex;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
@@ -69,17 +69,6 @@ pub(crate) enum Reach<'a> {
 }
 
 impl Reach<'_> {
-    pub(crate) async fn kind(&mut self, content_type: Uuid) -> Option<Kind> {
-        match self {
-            Reach::Here(replicas) => replicas.modules.kind(content_type).await,
-            Reach::Loop(calls) => calls
-                .call(move |replicas, _| Box::pin(replicas.modules.kind(content_type)))
-                .await
-                .ok()
-                .flatten(),
-        }
-    }
-
     pub(crate) async fn apply(
         &mut self,
         ctx: Ctx<'_>,

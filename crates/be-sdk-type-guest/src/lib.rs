@@ -122,7 +122,6 @@ impl Registration {
                 plain: Plain::None,
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
-                whole_bytes: C::WHOLE_BYTES,
                 log: false,
                 blank: Vec::new(),
                 blank_description: Description::default(),

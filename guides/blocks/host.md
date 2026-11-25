@@ -863,10 +863,8 @@ read the head alone). An open replica that does not answer exports what was
 last saved, as readers outside its session see it, not its unsaved state. A type with a signed
 log carries it too, opened with each entry's signature (`Peer::export_log`;
 guides/type_modules.md, "Signed logs"), which verifies against the original
-block wherever the file is imported; an import keeps the entries in the file
-and does not append them to the new block yet (plans/signed_logs.md, step 5).
-A type whose bytes do not carry all its parts is refused for a block that has
-parts after its first (guides/type_modules.md, "Whole bytes").
+block wherever the file is imported; an import keeps them as the new block's
+read-only history (guides/type_modules.md, "Imports").
 
 `import-blocks(parent)` takes any file: non-`.block` files go to
 `be_host_stack::import_file`, which picks a type the way `be sync` does

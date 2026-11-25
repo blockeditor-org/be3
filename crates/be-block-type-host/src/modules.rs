@@ -29,8 +29,6 @@ pub struct Kind {
     /// Loads only its first part (`be_block_content::Loads::FirstPart`): `Kind::load`.
     pub first_part: bool,
     pub merges_parts: bool,
-    /// The stored form read whole decodes to the content (`BlockContent::WHOLE_BYTES`).
-    pub whole_bytes: bool,
     /// Keeps a signed log beside its content (`type-info.log`): an export carries it.
     pub log: bool,
     pub blank: Vec<u8>,
@@ -667,7 +665,6 @@ impl Modules {
                 plain: info.plain,
                 first_part: info.first_part,
                 merges_parts: info.merges_parts,
-                whole_bytes: info.whole_bytes,
                 log: info.log,
                 blank: info.blank,
                 described: info.blank_description,
