@@ -4,6 +4,11 @@ use be_sdk_beui::beui::Pos2;
 use be_sdk_beui::{ChildStatus, EditorCapabilities, InteractionMode, ResizeMode, Vec2, ViewId};
 
 pub(super) fn report(editor: &mut BeuiTest<CanvasRoot>, size: Option<Vec2>) {
+    report_as(editor, size, ResizeMode::Both);
+}
+
+/// Reports every child placed with `size` and `resize`.
+pub(super) fn report_as(editor: &mut BeuiTest<CanvasRoot>, size: Option<Vec2>, resize: ResizeMode) {
     editor.report_children(|placement| ChildStatus {
         instance: be_sdk_beui::EditorInstanceId(0),
         view: ViewId::MAIN,
@@ -13,7 +18,7 @@ pub(super) fn report(editor: &mut BeuiTest<CanvasRoot>, size: Option<Vec2>) {
         active: false,
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),
-        resize: ResizeMode::Both,
+        resize,
         error: None,
         menu: Vec::new(),
         creation: None,
@@ -57,7 +62,7 @@ pub(super) fn dropped() -> BeuiTest<CanvasRoot> {
     editor
 }
 
-fn shows(card: &CanvasEntity) -> Vec2 {
+pub(super) fn shows(card: &CanvasEntity) -> Vec2 {
     let content = crate::geometry::direct_editor_layout(card)
         .expect("a direct editor has a layout")
         .content
@@ -65,7 +70,7 @@ fn shows(card: &CanvasEntity) -> Vec2 {
     Vec2::new(content.x / card.scale, content.y / card.scale)
 }
 
-fn redo(editor: &mut BeuiTest<CanvasRoot>) {
+pub(super) fn redo(editor: &mut BeuiTest<CanvasRoot>) {
     let block = editor.block_id().expect("the canvas has a block");
     editor.host().redo(block);
     editor.run();

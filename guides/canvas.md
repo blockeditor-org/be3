@@ -44,9 +44,11 @@ style is its own field, so concurrent restyles of different fields merge.
   to fit 640x480 (`fit_to_child`). The host tells no size until the child's
   editor has drawn a frame (then 420x240 if it told none), so the fit lands on
   the size it tells. The cards of one add, paste or drop are added in one undo
-  group (`Adding`) that their fits join, committed once every card is fitted or
-  at the canvas's next other write, so the add is one undo step; a size told
-  after the group ended (an undo or redo commits it) leaves the card as it is.
+  group (`Adding`) that the first size each card takes joins, whatever its
+  resize mode (an image's card is sized, not fitted), committed once every card
+  has it or at the canvas's next other write, so the add is one undo step. A
+  first size told after the canvas wrote something else is a step of its own; one
+  told after an undo or redo ended the group is not written.
   An empty canvas tells 420x240 as its own size; one with content, its
   content's bounds.
 - Edits go through `InfiniteCanvasOperation` and `Canvas::edit_in`. A profile

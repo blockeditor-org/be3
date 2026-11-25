@@ -506,15 +506,17 @@ struct Placeholder {
 }
 
 /// Cards added together (one block, a paste of several, a drop of files) and the undo group
-/// they were added in, which their first fits join, so the add is one undo step however late
-/// their children tell their sizes. It is the canvas's own group unless the add went into a
-/// gesture of the canvas's already open (`own`). It is committed once every card is fitted or
-/// at the canvas's next other write, and kept as one step if the canvas closes first (the host
-/// commits an undo group its editor leaves open); a card fitted after that keeps the size it
-/// has rather than make a step of its own.
+/// they were added in, which the first size each card's child tells joins, whatever its resize
+/// mode, so the add is one undo step however late they tell (`write_first_size`). It is the
+/// canvas's own group unless the add went into a gesture of the canvas's already open (`own`).
+/// It is committed once every card has its size or at the canvas's next other write
+/// (`committed`), and kept as one step if the canvas closes first (the host commits an undo
+/// group its editor leaves open). A size told after the canvas committed it is a step of its
+/// own; one told after an undo or redo ended it is not written.
 struct Adding {
     group: ContentGesture,
     own: bool,
+    committed: bool,
     waiting: HashSet<Uuid>,
 }
 
@@ -1102,59 +1104,76 @@ impl CanvasState {
 
     /// Commits the undo groups of the cards added since the last write (`Adding`).
     fn commit_adding(&self) {
-        let adding = std::mem::take(&mut *self.cells.value().adding.borrow_mut());
         let content = self.content();
-        for adding in adding {
-            if adding.own && content.gesture_open(adding.group) {
-                content.commit_gesture(adding.group);
+        let cells = self.cells.value();
+        let groups: Vec<ContentGesture> = {
+            let mut adding = cells.adding.borrow_mut();
+            let groups = adding
+                .iter()
+                .filter(|adding| adding.own && !adding.committed)
+                .map(|adding| adding.group)
+                .collect();
+            for adding in adding.iter_mut() {
+                adding.committed = true;
+            }
+            adding.retain(|adding| !adding.waiting.is_empty());
+            groups
+        };
+        for group in groups {
+            if content.gesture_open(group) {
+                content.commit_gesture(group);
             }
         }
     }
 
-    /// Writes a new card's first fit in the group it was added in, while that is open, and
-    /// commits the group once its last card is fitted. Whether it was written.
-    fn write_first_fit(&self, fitted: CanvasEntity) -> bool {
-        let id = fitted.id;
-        let content = self.content();
-        let cells = self.cells.value();
-        let Some(at) = cells
+    fn waits_for_size(&self, id: Uuid) -> bool {
+        self.cells
+            .value()
             .adding
             .borrow()
             .iter()
-            .position(|adding| adding.waiting.contains(&id))
-        else {
-            return false;
-        };
-        let (group, own) = {
-            let adding = &cells.adding.borrow()[at];
-            (adding.group, adding.own)
-        };
-        if !content.gesture_open(group) {
-            // An undo or redo ended it.
-            cells.adding.borrow_mut().remove(at);
-            return false;
-        }
-        if let Some(edit) = self.edit_of(&[InfiniteCanvasOperation::Update {
-            entities: vec![fitted],
-        }]) {
-            content.operate_in(group, edit);
-        }
-        let done = {
+            .any(|adding| adding.waiting.contains(&id))
+    }
+
+    /// Takes the first size the child of a card waiting in `Adding` told, as `sized`, or
+    /// `None` where the card already has it, and writes it where `Adding` says. The group is
+    /// committed once its last card has its size.
+    fn write_first_size(&self, id: Uuid, sized: Option<CanvasEntity>) {
+        let content = self.content();
+        let cells = self.cells.value();
+        let (group, own, committed, done) = {
             let mut adding = cells.adding.borrow_mut();
-            let Some(at) = adding.iter().position(|adding| adding.group == group) else {
-                return true;
+            let Some(at) = adding
+                .iter()
+                .position(|adding| adding.waiting.contains(&id))
+            else {
+                return;
             };
             adding[at].waiting.remove(&id);
-            adding[at]
-                .waiting
-                .is_empty()
-                .then(|| adding.remove(at))
-                .is_some()
+            let held = &adding[at];
+            let found = (held.group, held.own, held.committed, held.waiting.is_empty());
+            if found.3 {
+                adding.remove(at);
+            }
+            found
         };
-        if done && own && content.gesture_open(group) {
+        let open = !committed && content.gesture_open(group);
+        if let Some(sized) = sized
+            && let Some(edit) = self.edit_of(&[InfiniteCanvasOperation::Update {
+                entities: vec![sized],
+            }])
+        {
+            match (open, committed || !own) {
+                (true, _) => content.operate_in(group, edit),
+                // The canvas wrote something else first: a step of its own.
+                (false, true) => self.write_keeping_adds(edit),
+                // An undo or redo ended the add's step.
+                (false, false) => {}
+            }
+        }
+        if done && open && own {
             content.commit_gesture(group);
         }
-        true
     }
 
     pub(crate) fn with_stroke<R>(&self, change: impl FnOnce(&mut Option<Stroke>) -> R) -> R {
@@ -1180,6 +1199,16 @@ impl CanvasState {
     /// fitting its children, which their own fits may still join.
     fn write_keeping_adds(&self, edit: Edit) {
         let content = self.content();
+        // An undo or redo committed the group a stroke writes in: the rest of it is a group of
+        // its own, still one step.
+        let writing = &self.cells.value().writing;
+        if let Some(group) = writing.get()
+            && !content.gesture_open(group)
+        {
+            // Ending it sends nothing: it lets the projection forget it.
+            content.commit_gesture(group);
+            writing.set(Some(content.begin_gesture()));
+        }
         let cells = self.cells.value();
         match cells.holding.get().or(cells.writing.get()) {
             Some(gesture) => content.operate_in(gesture, edit),
@@ -2974,6 +3003,7 @@ impl CanvasState {
         cells.adding.borrow_mut().push(Adding {
             group,
             own,
+            committed: false,
             waiting: ids.clone(),
         });
         self.selection.set(ids);
@@ -3648,8 +3678,7 @@ impl CanvasState {
                         {
                             held.fitted = true;
                         }
-                        // Fitted in the step that added it, or not at all.
-                        self.write_first_fit(fitted);
+                        self.write_first_size(entity.id, Some(fitted));
                     }
                     continue;
                 }
@@ -3679,20 +3708,28 @@ impl CanvasState {
                     false => intrinsic_size.y,
                 },
             );
-            if (entity.transform.size.x - desired.x).abs() < 0.01
+            let unchanged = (entity.transform.size.x - desired.x).abs() < 0.01
                 && (entity.transform.size.y - desired.y).abs() < 0.01
-                && entity.transform.rotation == 0.0
-            {
+                && entity.transform.rotation == 0.0;
+            let updated = (!unchanged).then(|| {
+                let bounds = entity_bounds(&entity);
+                let mut updated = entity.clone();
+                updated.transform.size = desired;
+                updated.transform.rotation = 0.0;
+                updated.transform.center = CanvasPoint::new(
+                    bounds.min.x + desired.x * 0.5,
+                    bounds.min.y + desired.y * 0.5,
+                );
+                updated
+            });
+            // A card just added takes its first size in the add's step, whatever its resize.
+            if self.waits_for_size(entity.id) {
+                self.write_first_size(entity.id, updated);
                 continue;
             }
-            let bounds = entity_bounds(&entity);
-            let mut updated = entity.clone();
-            updated.transform.size = desired;
-            updated.transform.rotation = 0.0;
-            updated.transform.center = CanvasPoint::new(
-                bounds.min.x + desired.x * 0.5,
-                bounds.min.y + desired.y * 0.5,
-            );
+            let Some(updated) = updated else {
+                continue;
+            };
             before.push(entity);
             after.push(updated);
         }

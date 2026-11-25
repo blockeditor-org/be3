@@ -209,7 +209,8 @@ fn CanvasPreview(editor: Editor) -> NodeId {
     }
 }
 
-/// The size an empty canvas asks for where it is placed: what it holds has no size yet.
+/// The size an empty canvas asks for where it is placed: what it holds has no size yet. The
+/// same as be-host's `DEFAULT_EDITOR_SIZE` for an editor that tells none.
 const EMPTY_SIZE: Vec2 = Vec2::new(420.0, 240.0);
 
 /// Tells the size of what the canvas holds, which a placer fits its card to and zooms its

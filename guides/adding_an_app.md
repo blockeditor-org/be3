@@ -125,14 +125,22 @@ wrote and leaves no history. Each `begin_*` returns a `ContentGesture`, and the
 gesture's edits go through `operate_in(gesture, edit)`; `operate` makes an edit
 outside any gesture; an edit through a handle whose gesture is not open (it
 ended, or began before the content arrived or while the block was not editable)
-is dropped. An editor may hold several gestures at once (a second
+is dropped, except in an undo group an undo or redo committed (below), which is
+written outside any gesture. An editor may hold several gestures at once (a second
 finger, a second controller), each ending on its own. `break_step` ends the
 editor's burst of quick edits so its next edit starts a step of its own, and
-leaves open gestures alone. The host cancels every gesture still open when the
-instance closes, so a gesture held open until something is decided (the
-canvas's new text, kept only once written in) ends with its editor.
+leaves open gestures alone. When the instance closes, the host commits every
+undo group still open, kept as one step since its edits were written as they
+were made, and cancels every tentative gesture, which leaves no trace: only
+tentative edits are undone by closing, so write what may yet be called off in a
+tentative gesture, or not until it is decided. The canvas's new text box is a
+known gap (plans/backlog.md, Canvas): it is written at once in the group its
+typing joins and dropped if editing ends with it empty, so closing while it is
+still empty keeps an empty Text entity.
 
-The replica may end a gesture itself: an undo while a tentative gesture is held
+An undo or redo commits the open undo groups first, each a step of its own, and
+`gesture_open` then answers no for them; the editor ends them as it would anyway.
+The replica may also end a gesture itself: an undo while a tentative gesture is held
 cancels it, as do a replacement of the content and a session restart that drops
 what it moved. The projection then cancels the gesture for the editor, drops what
 it makes in it after, and runs `ContentProjection::on_gesture_ended(run)` with
