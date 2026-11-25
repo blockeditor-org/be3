@@ -163,7 +163,12 @@ closes. A press closes what be-sdk-app-host's `anchored::dismissed_by_press`
 says, as be-host's compositor does, where each view takes presses
 (`frame-report.floating`), told to the app as `input-batch.dismissed`.
 
-Creations, artifact settings, host panels, web views and program windows
+Host panels are the root's to draw: be-sdk-root lists each placed
+(`Children::panels`, a `PanelPlace` each) and the root shows a layer of its
+own in each place (`show_panels`), framed and cut out like a child's.
+be-root draws Performance and Menu as be-host does and says the others are
+not drawn yet. Its menu asks the session's editor to show one
+(`host.show-panel`), as be-host asks its shell. Web views and program windows
 (plans/host_as_platform_adapter.md, 4g7b3g) are not there yet: a child of
 another kind the placer hears is unavailable.
 
@@ -339,8 +344,9 @@ nothing but its `Docking`.
 
 ## Program windows and host panels
 
-The host's debugging panels (`HostPanel`) are drawn by the host but placed by
-the workspace as dock windows holding `SubregionContent::Host(panel)`.
+The host's debugging panels (`HostPanel`) are drawn by the host (under a
+root, by the root; see Under a root) but placed by the workspace as dock
+windows holding `SubregionContent::Host(panel)`.
 
 Program windows are placed the same way. On Linux the host is a Wayland
 compositor (guides/desktop/wayland.md); `editor.watch::<WindowsWatch>()` lists
