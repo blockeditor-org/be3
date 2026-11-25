@@ -569,7 +569,11 @@ impl beui::native::Program for RootShell {
         if every_sample {
             context.want_every_sample(WindowId::MAIN);
         }
-        if self.stopped.borrow().is_some() {
+        // The core closes the window once the session it was asked to end has ended (its
+        // programs' windows closed first, `close_requested`), as be-host's own frame closes it.
+        // What else it asks of the window the root asks itself.
+        let closing = be_host_base::host::finish().close;
+        if self.stopped.borrow().is_some() || closing {
             context.close_window();
             return;
         }
