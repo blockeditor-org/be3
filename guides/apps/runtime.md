@@ -387,7 +387,12 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   down owes its hello or its going and wants a frame by `FRAME_TIMEOUT`; one
   that runs and draws owes a frame due or in flight, and wants one at once
   while one is due or it animates, or when its pacing says; one with no
-  surface or that closed wants and owes nothing. be-sdk-root-testing is a
+  surface or that closed wants and owes nothing. What an app says after the
+  frame that answered was done (a `FrameNeeded` heard later in the same step)
+  that `frame-done` never carried: be-root compares `Embedding::wants` after
+  every step with what its last frame told and wakes its host when its apps
+  want a frame sooner or owe one (`Root::stepped`), else the host sleeps with
+  the frame owed. be-sdk-root-testing is a
   root built on it, which fills its own surface with `ROOT_COLOR` and draws a
   strip over it with beui, a line of text in styled components, under the
   triangle's screen, its host's notices as styled `Toasts` over
