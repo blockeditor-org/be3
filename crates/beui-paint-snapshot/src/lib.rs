@@ -15,7 +15,7 @@ pub use compare::{Difference, difference, frame_difference};
 pub use fingerprint::fingerprint;
 pub use format::{Snapshot, Texture};
 pub use highlight::{Highlight, highlight};
-pub use painting::{Native, Painting};
+pub use painting::Painting;
 
 #[cfg(test)]
 mod tests;
