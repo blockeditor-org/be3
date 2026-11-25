@@ -33,17 +33,22 @@ fn a_reader_outside_the_session_replays_a_journal_whose_base_and_edit_go_by_part
     assert_eq!(prose(&sim.content(0)), expected);
 
     let journal = sim.journal.clone().expect("a journal");
-    let mut parts: Vec<be_block_store::PartRef> = crate::wire::BaseState::decode(&journal.base.state)
-        .and_then(|state| state.part)
-        .into_iter()
-        .collect();
+    let mut parts: Vec<be_block_store::PartRef> =
+        crate::wire::BaseState::decode(&journal.base.state)
+            .and_then(|state| state.part)
+            .into_iter()
+            .collect();
     parts.extend(journal.entries.iter().filter_map(|entry| {
         match crate::wire::Submitted::decode(&entry.payload)?.entry {
             crate::wire::Entry::Operation(be_block_session::Payload::Part(part)) => Some(part),
             _ => None,
         }
     }));
-    assert_eq!(parts.len(), 2, "the base's state and the long edit go by parts");
+    assert_eq!(
+        parts.len(),
+        2,
+        "the base's state and the long edit go by parts"
+    );
     let stored: HashMap<be_block_store::PartRef, Vec<u8>> = parts
         .iter()
         .map(|part| {

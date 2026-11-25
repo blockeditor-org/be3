@@ -5650,12 +5650,14 @@ pub(crate) fn replay<C: LiveEdit + Default>(
             return Err("the journal's base state goes by a part too large to read".into());
         }
         // A part longer than `LARGEST_PART` is passed over unread, as every replica does.
-        let needed = state.part.into_iter().chain(applied.iter().filter_map(|payload| {
-            match payload {
-                Payload::Part(part) if part.length() <= LARGEST_PART => Some(*part),
-                _ => None,
-            }
-        }));
+        let needed =
+            state
+                .part
+                .into_iter()
+                .chain(applied.iter().filter_map(|payload| match payload {
+                    Payload::Part(part) if part.length() <= LARGEST_PART => Some(*part),
+                    _ => None,
+                }));
         let mut read = HashMap::new();
         for part in needed {
             if !read.contains_key(&part) {

@@ -109,9 +109,11 @@ fn a_recheck_drops_only_the_admission_it_checked() {
         |_| {},
     );
     flush_and_send();
-    viewer
-        .runtime
-        .block_on(be_lib_test_pause::reached(crate::hosting::RECHECK_PAUSE, key, 1));
+    viewer.runtime.block_on(be_lib_test_pause::reached(
+        crate::hosting::RECHECK_PAUSE,
+        key,
+        1,
+    ));
 
     // Revoked, the server takes the viewer out; the check finds it no longer let in.
     set_access(
@@ -125,9 +127,11 @@ fn a_recheck_drops_only_the_admission_it_checked() {
         events.contains(&MemberEvent::Left(member))
     });
     be_lib_test_pause::release(crate::hosting::RECHECK_PAUSE, key);
-    viewer
-        .runtime
-        .block_on(be_lib_test_pause::reached(crate::hosting::RECHECKED_PAUSE, key, 1));
+    viewer.runtime.block_on(be_lib_test_pause::reached(
+        crate::hosting::RECHECKED_PAUSE,
+        key,
+        1,
+    ));
 
     // Let in again, it joins and is admitted again under the same client, account and key
     // before the check acts on what it found.

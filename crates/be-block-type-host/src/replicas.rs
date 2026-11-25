@@ -5391,7 +5391,8 @@ impl<H: Host> Replicas<H> {
                     }
                     // Its scopes hold no block, so nothing reaches past what they were handed.
                     Some(types::Under::Check(read)) => {
-                        self.modules.call(module, |connection| read.refuse(connection));
+                        self.modules
+                            .call(module, |connection| read.refuse(connection));
                     }
                     Some(types::Under::Error(message)) => {
                         H::report(ctx.1, None, format!("a type module: {message}"));

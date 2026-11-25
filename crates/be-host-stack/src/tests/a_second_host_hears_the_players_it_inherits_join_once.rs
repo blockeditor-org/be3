@@ -76,7 +76,12 @@ fn a_second_host_hears_the_players_it_inherits_join_once() {
     );
     flush();
     set_access(block, first.account(), be_block_graph::Access::Edit, |_| {});
-    set_access(block, player.account(), be_block_graph::Access::Join, |_| {});
+    set_access(
+        block,
+        player.account(),
+        be_block_graph::Access::Join,
+        |_| {},
+    );
     flush_and_send();
     assert_eq!(status().error, None);
     let mut first_events = join_as_editor(&first, block, true);
@@ -202,9 +207,8 @@ fn a_second_host_hears_the_players_it_inherits_join_once() {
         account: player.account().into_bytes(),
         level: be_sdk_api::AccessLevel::Join,
     });
-    let heard = take_member_events_until("heard the player", block, |events| {
-        events.contains(&joined)
-    });
+    let heard =
+        take_member_events_until("heard the player", block, |events| events.contains(&joined));
     assert_eq!(
         heard,
         vec![

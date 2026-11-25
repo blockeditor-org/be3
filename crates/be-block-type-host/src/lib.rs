@@ -15,8 +15,8 @@ pub mod transfer;
 
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
-    Checked, Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Unchecked, Source, Under, in_process, is_known, kind_of,
-    known, known_revision, plain_of, started, tag_of,
+    Checked, Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Unchecked, Under, in_process,
+    is_known, kind_of, known, known_revision, plain_of, started, tag_of,
 };
 pub use replicas::{
     Ctx, EARLY_OPEN, HOST_EDITOR, LOG_SEARCHED, LogChange, LogSearched, Merged, NotSearched, Owing,

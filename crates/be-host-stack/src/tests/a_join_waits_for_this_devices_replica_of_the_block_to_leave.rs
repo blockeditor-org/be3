@@ -112,18 +112,21 @@ fn a_join_waits_for_this_devices_replica_of_the_block_to_leave() {
     });
     want_channel(Owner::Editor(1), Some(block));
     flush();
-    wait_until("the join waits, and the replica stays in the session", |shared| {
-        assert!(
-            crate::joining::unjoined(shared, block),
-            "the join waits while the replica is open"
-        );
-        assert_eq!(
-            shared.session_hosts.get(&block),
-            Some(&Some(false)),
-            "the replica is still in the session"
-        );
-        true
-    });
+    wait_until(
+        "the join waits, and the replica stays in the session",
+        |shared| {
+            assert!(
+                crate::joining::unjoined(shared, block),
+                "the join waits while the replica is open"
+            );
+            assert_eq!(
+                shared.session_hosts.get(&block),
+                Some(&Some(false)),
+                "the replica is still in the session"
+            );
+            true
+        },
+    );
 
     close(block);
     let (member, mut admitted) = admit(&host, &mut events, block);
@@ -134,7 +137,10 @@ fn a_join_waits_for_this_devices_replica_of_the_block_to_leave() {
     let said = host.runtime.block_on(async {
         let (from, payload) = next_hosted(&mut events, block).await;
         assert_eq!(from, member);
-        admitted.channel.open(&payload).expect("in order, and sealed")
+        admitted
+            .channel
+            .open(&payload)
+            .expect("in order, and sealed")
     });
     assert_eq!(said, b"here");
 }

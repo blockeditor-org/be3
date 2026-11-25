@@ -38,5 +38,10 @@ fn replay_outside_a_session_refuses_a_journal_holding_a_restart() {
     let unread = be_block_content::PartReader::new(|_, _, _| {
         Box::pin(std::future::ready(Err("no part is read".to_owned())))
     });
-    assert!(pollster::block_on(crate::replica::replay::<ProseContent>(None, journal, unread)).is_err());
+    assert!(
+        pollster::block_on(crate::replica::replay::<ProseContent>(
+            None, journal, unread
+        ))
+        .is_err()
+    );
 }

@@ -30,7 +30,10 @@ async fn a_ban_made_after_a_joins_first_check_is_caught_once_it_registers() {
     owner.claim(world).await.expect("claiming failed");
     let key = world.as_u128();
 
-    for (joiner, kind) in [(&mut viewer, "a participant"), (&mut player, "a Join member")] {
+    for (joiner, kind) in [
+        (&mut viewer, "a participant"),
+        (&mut player, "a Join member"),
+    ] {
         let account = joiner.id();
         be_lib_test_pause::hold(JOIN_PAUSE, key);
         let ban = async {
@@ -39,8 +42,7 @@ async fn a_ban_made_after_a_joins_first_check_is_caught_once_it_registers() {
             be_lib_test_pause::release(JOIN_PAUSE, key);
             banned
         };
-        let (joined, banned) =
-            futures_util::future::join(joiner.join_as_member(world), ban).await;
+        let (joined, banned) = futures_util::future::join(joiner.join_as_member(world), ban).await;
         assert!(banned.is_ok(), "{banned:?}");
         assert!(
             refused_as(&joined, ErrorCode::PermissionDenied),

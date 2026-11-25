@@ -2724,7 +2724,9 @@ impl TestClient {
         use be_block_keys::{Ban, Record};
         let me = self.account.expect("signed in");
         let log = decode_steps(self.access_log(Some(block)).await.unwrap_or_default());
-        let authority = self.authority(block, &log, be_block_keys::Level::Edit).await;
+        let authority = self
+            .authority(block, &log, be_block_keys::Level::Edit)
+            .await;
         let signed = be_block_keys::Entry::sign(
             &test_secret(me),
             me.into_bytes(),

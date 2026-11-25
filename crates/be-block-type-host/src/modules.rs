@@ -290,8 +290,7 @@ fn failed(content_type: Uuid, failure: Failure) -> String {
 }
 
 /// What a module refused a stateless request's `read-part` of a part outside it is told.
-pub const OUTSIDE_REQUEST: &str =
-    "a stateless request reads only the parts of what it was handed";
+pub const OUTSIDE_REQUEST: &str = "a stateless request reads only the parts of what it was handed";
 
 /// The parts a stateless request may read with `read-part`: those of the `loaded` content it
 /// was handed, or for one handed a block's journal (`replay`), those sealed under that block's

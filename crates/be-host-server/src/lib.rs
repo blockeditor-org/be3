@@ -68,13 +68,8 @@ pub fn start_embedded_server_at(
                 let shutdown = async {
                     let _ = shutdown_receiver.await;
                 };
-                if let Err(error) = be_server::serve_with_config(
-                    listener,
-                    data_dir,
-                    config,
-                    shutdown,
-                )
-                .await
+                if let Err(error) =
+                    be_server::serve_with_config(listener, data_dir, config, shutdown).await
                 {
                     panic!("embedded block server stopped: {error}");
                 }
