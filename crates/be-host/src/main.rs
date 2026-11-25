@@ -1186,6 +1186,7 @@ impl HostCore {
 
     /// Makes the desktop shell the session's editor, its bars shown, without the desktop's OS
     /// services, which `run_as_desktop` starts too.
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_desktop_shell(&mut self) {
         self.desktop = true;
         be_host_runtime::run_as_desktop();
