@@ -1,7 +1,7 @@
 use super::*;
 
-/// A hosted block played end to end (guides/blocks/hosted.md): Dev's laptop has a gem hunt
-/// open, so its host component runs and hosts the world; Ada, given a Join link, opens it in
+/// A hosted block played end to end (guides/blocks/hosted.md): Dev's laptop has a practice gem
+/// hunt open (its gems always lie in the same cells), so its host component runs and hosts it; Ada, given a Join link, opens it in
 /// be-host as a Join member, sees only what the host tells her, and digs by asking it. The
 /// host writes her dig to the block, which Dev's editor shows, and tells her what she dug up.
 #[test]
@@ -26,7 +26,12 @@ fn a_player_digs_through_the_editor_that_hosts_the_hunt() {
     laptop.click("Button \"Close tab\"");
     laptop.gone("Button \"Close tab\"");
     laptop.click("Tab \"Files\"");
-    add_to_my_files(&mut laptop, "Gem Hunt");
+    // A practice hunt, named for its type as any new hunt is.
+    open_add_to_my_files(&mut laptop);
+    choose_type(&mut laptop, "Practice gem hunt");
+    laptop.wait("TextInput \"Name\" value=\"Gem Hunt\" focused");
+    laptop.key("Enter");
+    laptop.wait("TreeItem \"Gem Hunt\"");
     laptop.wait("\"0 of 6 gems found.\"");
     hosts(&mut laptop, true);
 
@@ -55,8 +60,8 @@ fn a_player_digs_through_the_editor_that_hosts_the_hunt() {
     phone.key("Enter");
     phone.wait("#host.share-link.opened");
     phone.key("Escape");
-    phone.pause(500);
-    phone.gone("\"Nothing has been shared with you\"");
+    phone.gone("#host.share-link.opened");
+    // A Join member holds no key to the block's name, so it is listed by its type.
     phone.click("TreeItem \"Gem Hunt\"");
     phone.wait("\"0 of 6 gems found. You found 0.\"");
     // Only the host may read the world: Ada's editor has no world of its own to show.
@@ -64,18 +69,13 @@ fn a_player_digs_through_the_editor_that_hosts_the_hunt() {
     phone.synced();
     phone.snapshot("a_player_digs_through_the_editor_that_hosts_the_hunt");
 
-    // She digs the top left cell. The host writes the dig to the block, where Dev's editor
-    // reads it, and tells her what she dug up.
+    // She digs the top left cell, which hides a gem. The host writes the dig to the block,
+    // where Dev's editor reads it, and tells her what she dug up.
     phone.click("Button \"Dig row 1, column 1\"");
+    laptop.wait("\"1 of 6 gems found.\"");
+    phone.wait("\"1 of 6 gems found. You found 1.\"");
     phone.gone("Button \"Dig row 1, column 1\"");
-    laptop.gone("Button \"Dig row 1, column 1\"");
-    // The cell held a gem or it did not; both sides count the same.
-    let found = match phone.tree().contains("\"1 of 6 gems found. You found 1.\"") {
-        true => 1,
-        false => 0,
-    };
-    phone.wait(&format!("\"{found} of 6 gems found. You found {found}.\""));
-    laptop.wait(&format!("\"{found} of 6 gems found.\""));
+    phone.snapshot("a_players_dig_shows_the_gem_her_host_told_her_of");
 
     phone.close();
     laptop.close();

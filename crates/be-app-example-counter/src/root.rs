@@ -36,16 +36,6 @@ pub struct CounterHost;
 
 #[component]
 impl be_sdk_beui::BeuiRoot for CounterHost {
-    #[component]
-    fn View(editor: Editor) -> Root {
-        let _ = editor;
-        view! {
-            <Root>
-                <be_sdk_beui::beui::styled::Frame />
-            </Root>
-        }
-    }
-
     fn host(editor: Editor) {
         let counter = editor.block_content::<CounterContent>();
         let added = std::cell::Cell::new(false);

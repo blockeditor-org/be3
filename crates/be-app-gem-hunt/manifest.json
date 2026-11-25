@@ -9,7 +9,8 @@
       "display_name": "Gem Hunt",
       "icon": "",
       "templates": {
-        "main": {}
+        "main": {},
+        "practice": { "name": "Practice gem hunt" }
       },
       "views": [
         "Main"
