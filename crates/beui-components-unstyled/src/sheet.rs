@@ -23,7 +23,9 @@ use crate::scroll::{Scroll, ScrollApi, ScrollStyle, fade_edges};
 use accesskit::Role;
 
 use super::back_slide::BACK_DRAG_SHARE;
-use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
+use beui_view::components::overlay::Overlay;
+use beui_view::types::layer::LayerEdge;
+use beui_view::types::{Dismiss, LayerPolicy, OverlayAnchor, Placement, Pos2};
 use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -598,14 +600,17 @@ pub fn ModalSheet(
 ) -> NodeId {
     let shown = open.clone();
     let outside = on_outside.unwrap_or(on_close);
+    // How far the sheet is up, from 0 to 1 at its lowest stop: the scrim fades with it.
+    let presence = create_signal(0.0_f32);
     view! {
-        <Modal
-            open
-            scrim
-            placement=ModalPlacement::Sheet
-            motion=ModalMotion::Reported
-            on_dismiss={on_close}
-        >|modal: ModalHandle|
+        <Overlay
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            open={open}
+            placement=Placement::Edge(LayerEdge::Bottom)
+            scrim={move || scrim.get().scale_alpha(presence.get())}
+            policy=LayerPolicy::BlocksAll
+            on_dismiss={move |_: Dismiss| on_close.call(())}
+        >||
             <ModalSheetBody
                 open={shown.clone()}
                 rest
@@ -616,13 +621,13 @@ pub fn ModalSheet(
                 style
                 grip={move |handle: SheetGripHandle| grip.call(handle)}
                 panel
-                on_presence={modal.presence}
+                on_presence={move |at: f32| presence.set(at)}
                 on_close={on_close}
                 on_outside={outside}
             >
                 {content.call()}
             </ModalSheetBody>
-        </Modal>
+        </Overlay>
     }
 }
 

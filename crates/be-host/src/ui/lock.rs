@@ -144,7 +144,7 @@ pub(crate) fn LockScreen(
         on_submit.call(typed);
     });
     view! {
-        <Modal open scrim=Scrim::Opaque placement=ModalPlacement::Fill level=LayerLevel::Lock>|| {
+        <Modal open scrim=Scrim::Opaque level=LayerLevel::Lock>|| {
             let focused = create_memo(move || open.get() && !busy.get());
             let submit = submit.clone();
             let id = id.clone();
