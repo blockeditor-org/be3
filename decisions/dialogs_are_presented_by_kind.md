@@ -16,7 +16,9 @@ is presented follows from what it is:
 4. Host-level layers with no origin. The lock screen is no window: it is a security boundary
    that never moves, docks or is covered, a full-window `Modal` at `LayerLevel::Lock`.
    Reauthentication, onboarding, adding a device and sync errors are confirmations or large
-   forms of the host window, centred on it.
+   forms of the host window, centred on it. Reauthentication needs no lock-level layer: no local secret is
+   typed into it (it signs in through the browser), so nothing beneath it is exposed while it
+   shows.
 5. Program dialogs (Wayland and X): windows centred on their parent.
 6. The command palette: a blocking window at the top centre of its window (`WindowAnchor::Top`).
 
