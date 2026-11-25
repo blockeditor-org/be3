@@ -814,7 +814,12 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   ephemeral-static and static-static Diffie-Hellman lets either end make), and
   the server keeps the contact as its sender, so every device still checks the
   contact may hand that key over (`KeyBook::sender_may`) rather than trusting
-  it as the account's own. The
+  it as the account's own. Such a row, sealed again as from the contact's
+  newest key, opens only on a device whose record of the contact already holds
+  that key, so on others once they refresh their contacts. The server shows
+  the device every row sealed to the account (`recovery-key`), in every
+  organization and whether or not it may still view the block, since the move
+  drops every row not sealed again. The
   account's block's keys are among those rows, so the new phrase reads its
   history; and in the same write the block starts a new key epoch whose scope
   key is sealed to the new phrase alone (`AccountRecords::epoch_for`, a

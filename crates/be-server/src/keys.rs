@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::{
     ServerError,
     blocks::{Visibility, visibility},
-    store::{Identity, ServerStore, decode_role, is_member_of, parse_uuid, recovery_key_of},
+    store::{Identity, ServerStore, is_member_of, parse_uuid, recovery_key_of},
 };
 
 pub fn encode_kind(kind: KeyKind) -> &'static str {
@@ -1490,89 +1490,44 @@ impl ServerStore {
         .await
     }
 
+    /// `account`'s recovery key, and every key sealed to it, in every organization that holds
+    /// one, whether or not the account may still view the key's block or is still a member:
+    /// a new phrase seals again all of them (`set_recovery_key`), and drops none it was not
+    /// shown.
     pub async fn recovery_key(
         &self,
         account: Uuid,
     ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
-        let (public, memberships) = {
-            self.with_database(move |_, database| {
-                let public = recovery_key_of(database, account)?;
-                let mut statement = database.prepare(
-                    "SELECT memberships.organization_id, memberships.role, agents.bound_to
-                     FROM memberships
-                     LEFT JOIN agents ON agents.account_id = memberships.account_id
-                        AND agents.organization_id = memberships.organization_id
-                     WHERE memberships.account_id = ?1",
-                )?;
-                let rows = statement.query_map([account.to_string()], |row| {
+        self.with_database(move |_, database| {
+            let public = recovery_key_of(database, account)?;
+            let mut statement = database.prepare(
+                "SELECT organization_id, key_id, sender, sealed FROM wrapped_keys
+                 WHERE wrapped_by = ?1 ORDER BY organization_id, key_id",
+            )?;
+            let rows = statement.query_map(
+                [encode_wrapped_by(WrappedBy::Account(account))],
+                |row| {
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
-                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Vec<u8>>(3)?,
                     ))
-                })?;
-                let mut memberships = Vec::new();
-                for row in rows {
-                    let (organization, role, bound) = row?;
-                    memberships.push(Identity {
-                        account,
-                        organization: parse_uuid(&organization)?,
-                        role: decode_role(&role)?,
-                        bound: bound.as_deref().map(parse_uuid).transpose()?,
-                    });
-                }
-                Ok((public, memberships))
-            })
-            .await?
-        };
-        let mut sealed = Vec::new();
-        for identity in memberships {
-            let found = self
-                .with_graph(identity.organization, move |_, graph, database| {
-                    let seen = visibility(identity);
-                    let mut statement = database.prepare(
-                        "SELECT wrapped_keys.key_id, keys.block_id, wrapped_keys.sender,
-                                wrapped_keys.sealed
-                         FROM wrapped_keys JOIN keys
-                            ON keys.organization_id = wrapped_keys.organization_id
-                            AND keys.id = wrapped_keys.key_id
-                         WHERE wrapped_keys.wrapped_by = ?1 AND wrapped_keys.organization_id = ?2",
-                    )?;
-                    let rows = statement.query_map(
-                        params![
-                            encode_wrapped_by(WrappedBy::Account(account)),
-                            identity.organization.to_string()
-                        ],
-                        |row| {
-                            Ok((
-                                row.get::<_, String>(0)?,
-                                row.get::<_, String>(1)?,
-                                row.get::<_, String>(2)?,
-                                row.get::<_, Vec<u8>>(3)?,
-                            ))
-                        },
-                    )?;
-                    let mut found = Vec::new();
-                    for row in rows {
-                        let (key, block, sender, bytes) = row?;
-                        let block = parse_uuid(&block)?;
-                        if seen.can_view(graph, block)
-                            || (block == identity.organization && seen.administrator())
-                        {
-                            found.push(SealedKey {
-                                organization: identity.organization,
-                                key: parse_uuid(&key)?,
-                                sender: parse_uuid(&sender)?,
-                                sealed: bytes,
-                            });
-                        }
-                    }
-                    Ok(found)
-                })
-                .await?;
-            sealed.extend(found);
-        }
-        Ok((public, sealed))
+                },
+            )?;
+            let mut sealed = Vec::new();
+            for row in rows {
+                let (organization, key, sender, bytes) = row?;
+                sealed.push(SealedKey {
+                    organization: parse_uuid(&organization)?,
+                    key: parse_uuid(&key)?,
+                    sender: parse_uuid(&sender)?,
+                    sealed: bytes,
+                });
+            }
+            Ok((public, sealed))
+        })
+        .await
     }
 
     /// Every access log `account` signed a record in, at its head (`recovery-key`'s `logs`).
