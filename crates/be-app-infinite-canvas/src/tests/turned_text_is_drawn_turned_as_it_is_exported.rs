@@ -74,7 +74,7 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
             .expect("the SVG is text"),
     ];
     let [svg] = copied.as_slice() else {
-        panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
+        panic!("Copy puts one SVG on the clipboard, put {copied:?}");
     };
     let turns = "transform=\"rotate(28.65 ";
     let texts: Vec<&str> = svg

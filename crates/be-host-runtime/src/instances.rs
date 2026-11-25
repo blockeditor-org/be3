@@ -1131,7 +1131,12 @@ impl Instances {
             match &message {
                 Outbound::App(AppCall::Input(batch))
                     if !self.announced.contains(&batch.screen)
-                        && !self.is_anchored_screen(batch.screen) => {}
+                        && !self.is_anchored_screen(batch.screen) =>
+                {
+                    // The replay that made the batch counted its modifiers as heard, and the
+                    // app heard none of them: the next input that gets through sends them.
+                    self.heard.forget();
+                }
                 _ => allowed.push(message),
             }
         }
@@ -3829,8 +3834,17 @@ impl Instances {
             screens.iter().map(|screen| screen.screen).collect(),
         );
         let mut messages = Vec::new();
-        for screen in self.entries.values().flat_map(|entry| entry.screens.values()) {
+        for screen in self
+            .entries
+            .values_mut()
+            .flat_map(|entry| entry.screens.values_mut())
+        {
             let id = screen.request.screen;
+            if self.announced.contains(&id) && !before.contains(&id) {
+                // Presses made before the screen was announced were dropped (`gate`), so the app
+                // never saw a Down for them: it must not see an Up without one.
+                screen.input.forget_presses();
+            }
             if self.announced.contains(&id) && !before.contains(&id) && screen.input.focused() {
                 let mut batch = be_sdk_api::InputBatch::new(id, false);
                 batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));

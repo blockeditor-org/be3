@@ -24,8 +24,11 @@ ask also ends when its child is no longer placed, its app fails, or the editor's
 
 No queue is left. Input for a screen the host asked a running app for but has not announced
 to it yet is dropped (be-host-runtime's `Instances::gate`), as for an app that is not running
-(`forward_view`, which keeps only `Input::Focus`): the user decided that a screen not
-announced yet gets nothing special. Where the keyboard is stays state: when the host announces
+(`forward_view`, which keeps only `Input::Focus`): the user decided ("do nothing
+special") that a screen not announced yet gets nothing special, so input made in the frame
+before a view is announced is lost: keys, presses and modifier changes alike (the modifiers it
+held are forgotten, so the next input that gets through sends them, and the screen's pressed
+buttons are forgotten when it is announced). Where the keyboard is stays state: when the host announces
 a screen that has the keyboard, it tells the app so (`Instances::announce`), which is also how
 a restarted app's focused view hears it has the keyboard. Keys typed right after "Add notes",
 before the text app has the notes' screen, reach nothing; typing once the notes are up does.

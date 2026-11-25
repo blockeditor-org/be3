@@ -86,6 +86,11 @@ impl InputForwarder {
         self.replay.focused()
     }
 
+    /// Counts no pointer button as held, as for an app that has heard none go down.
+    pub(super) fn forget_presses(&mut self) {
+        self.replay.forget_presses();
+    }
+
     pub(super) fn forward(
         &mut self,
         input: &beui::ForwardedInput,

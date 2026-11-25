@@ -209,8 +209,9 @@ makes changes, comparing fingerprints rather than content (a blob's
 projection holds only its header), and renames it when the exporter's
 `Made` says so. Its settings show in the `ArtifactSettings` view inside a
 `DialogBody` with Cancel and Apply; the host stores them only on Apply, and
-asks for a regeneration then. An export draws in fixed colours, never the
-viewer's theme, so every device makes the same artifact.
+asks for a regeneration then. An export draws in no device's theme while it is made: a
+theme is a setting the exporter stores (set from the host's when the dialog
+opens), so every device makes the same artifact.
 
 ## View state
 

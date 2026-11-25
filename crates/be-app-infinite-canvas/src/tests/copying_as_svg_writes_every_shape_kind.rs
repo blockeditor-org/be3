@@ -76,7 +76,7 @@ fn copying_as_svg_writes_every_shape_kind() {
             .expect("the SVG is text"),
     ];
     let [svg] = copied.as_slice() else {
-        panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
+        panic!("Copy puts one SVG on the clipboard, put {copied:?}");
     };
     assert_eq!(svg, EXPECTED, "the SVG changed:\n{svg}");
 }

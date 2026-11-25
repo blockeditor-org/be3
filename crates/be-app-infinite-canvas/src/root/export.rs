@@ -16,7 +16,7 @@ use be_sdk_beui::beui::{
     Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
     Stroke, TextAlign, TextLayout, Vec2, native::line_height, pos2, reactive::Painter,
 };
-use be_sdk_beui::{Editor, ExportSettings, ExporterOf, Made};
+use be_sdk_beui::{Editor, ExportSettings, ExporterOf, Made, ThemeKind};
 use be_type_infinite_canvas::{
     CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTextWeight,
 };
@@ -53,6 +53,10 @@ pub(crate) struct ImageExport {
     pub(crate) background: bool,
     /// The items drawn: every item for none, or what one frame frames.
     pub(crate) items: Vec<Uuid>,
+    /// The theme the export draws in: the host's when the Export dialog opened. It is stored
+    /// with the settings, never read from the device making the export, so an artifact made
+    /// again on any device that shows it has the same bytes.
+    pub(crate) theme: ThemeKind,
 }
 
 impl Default for ImageExport {
@@ -61,6 +65,7 @@ impl Default for ImageExport {
             scale: 2.0,
             background: true,
             items: Vec::new(),
+            theme: ThemeKind::Dark,
         }
     }
 }
@@ -298,23 +303,25 @@ impl CanvasReader {
 }
 
 /// The scene `settings` draws of the canvas `editor` reads, with the images it shows, in the
-/// theme the host has the app show (`host_preferences`), so an export looks as the canvas does.
-/// An artifact is made without a document, so this reads the host's preferences rather than a
-/// view's theme.
+/// theme the settings store. Reading the theme of whoever makes the export would make devices
+/// with different themes keep writing the same artifact again, so the theme is part of the
+/// settings, set once from the host's when the dialog opens.
 fn scenes(editor: Editor) -> impl Fn(&ImageExport) -> Ready<(Scene, Images)> {
     let reader = CanvasReader::new(editor);
     move |settings: &ImageExport| {
-        let theme = Theme::of(be_sdk_beui::host_preferences().theme);
+        let theme = Theme::of(settings.theme);
         let scene = Scene::of(&reader, theme, &settings.items)?;
         let images = images_of(editor, &scene)?;
         Ok((scene, images))
     }
 }
 
-/// The settings an export from the open canvas starts from: what is selected.
+/// The settings an export from the open canvas starts from: what is selected, in the theme the
+/// host shows now.
 fn selected(editor: Editor) -> ImageExport {
     ImageExport {
         items: super::state::selection_of(editor.block_id()),
+        theme: be_sdk_beui::host_preferences().theme,
         ..ImageExport::default()
     }
 }
