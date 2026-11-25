@@ -371,12 +371,15 @@ pub async fn invitation(
     token: String,
     code: be_block_keys::InviteCode,
 ) -> Result<Invited, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    let (link, card) = be_block_client::contacts::open_link(
-        &connection,
-        &code,
-        be_block_client::contacts::Expected::Invitation,
-    )
+    let code = &code;
+    let (link, card) = read_signed_in(&server_url, &token, |link| async move {
+        be_block_client::contacts::open_link(
+            &link.connection,
+            code,
+            be_block_client::contacts::Expected::Invitation,
+        )
+        .await
+    })
     .await?;
     let organization_name = link.organization_name.clone();
     Ok(Invited {
