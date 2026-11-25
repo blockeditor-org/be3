@@ -18,7 +18,7 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
     );
     assert_eq!(first.opened, vec![0, 1], "each child placed is opened");
     assert!(first.gone.is_empty());
-    let kept = Rc::clone(&first.kept[0].shared);
+    let kept = Rc::clone(&first.kept[0].editor);
 
     // Placed again at another place, the first keeps its editor; the second is placed no
     // longer and goes.
@@ -32,13 +32,13 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
         second.opened.is_empty(),
         "a child placed again is not opened again"
     );
-    assert!(Rc::ptr_eq(&second.kept[0].shared, &kept));
+    assert!(Rc::ptr_eq(&second.kept[0].editor, &kept));
     assert_eq!(second.kept[0].placement.rect, moved);
     assert_eq!(second.gone.len(), 1);
     assert_eq!(second.gone[0].child, ChildId(8));
 
-    // Placed naming another editor for the same block, it is another editor: a twin of its
-    // own, since the place it held the block's editor in goes with this.
+    // Placed naming another editor for the same block, it is another editor, opened anew in
+    // place of the one it had.
     let mut named = placed(moved, ChildMode::Live);
     if let ChildContent::Block { editor, .. } = &mut named.content {
         *editor = Some([3; 16]);
@@ -55,7 +55,7 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
     );
     assert!(refused.opened.is_empty());
     assert!(matches!(
-        &*refused.kept[0].shared.showing.borrow(),
+        &*refused.kept[0].editor.showing.borrow(),
         Showing::Failed(why) if why == ALREADY_OPEN_ABOVE
     ));
 

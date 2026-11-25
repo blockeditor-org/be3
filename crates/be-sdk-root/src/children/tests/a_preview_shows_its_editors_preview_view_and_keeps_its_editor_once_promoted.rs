@@ -35,7 +35,7 @@ fn a_preview_shows_its_editors_preview_view_and_keeps_its_editor_once_promoted()
     assert_eq!(child.shown_preview(), ShownPreview::View);
     assert!(!child.takes_input(&HashSet::default()));
     // One whose editor draws no preview shows its label, which its placer draws.
-    *child.shared.showing.borrow_mut() = Showing::Label;
+    *child.editor.showing.borrow_mut() = Showing::Label;
     assert_eq!(child.shown_preview(), ShownPreview::Label);
     // A child placed in a preview view is a preview too, as under be-host, unless hidden.
     let live = placed(place, ChildMode::Live);
@@ -68,7 +68,7 @@ fn a_preview_shows_its_editors_preview_view_and_keeps_its_editor_once_promoted()
 
     // One shown as its label is opened afresh once promoted, since no editor runs for it.
     let labelled = wanted(placed(place, ChildMode::Preview));
-    *labelled.shared.showing.borrow_mut() = Showing::Label;
+    *labelled.editor.showing.borrow_mut() = Showing::Label;
     let promoted = reconcile(
         vec![labelled],
         vec![wanted(placed(place, ChildMode::Active))],
