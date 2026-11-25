@@ -26,7 +26,7 @@ fn a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported() {
         alpha: 255,
     };
     assert_eq!(instances.backdrop(INSTANCE), None, "nothing reported yet");
-    report(&mut instances, ViewId::MAIN, Some(surface.clone()));
+    report(&mut instances, ViewId::MAIN, Some(surface));
 
     let role = InstanceRole::Editor(
         Uuid::nil(),
