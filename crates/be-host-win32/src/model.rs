@@ -233,7 +233,7 @@ impl Model {
             ids.get(&handle)
                 .copied()
                 .or_else(|| popup_of.get(&handle).copied())
-                .or_else(|| index.get(handle).and_then(|window| root(window)))
+                .or_else(|| index.get(handle).and_then(&root))
         });
         if focused != self.foreground {
             if let Some(id) = focused {
@@ -316,7 +316,7 @@ impl Model {
             }
             let owner = index.visible_owner(window);
             let parent = owner
-                .and_then(|owner| root(owner))
+                .and_then(&root)
                 .filter(|parent| *parent != id);
             windows.push(Entry {
                 id,

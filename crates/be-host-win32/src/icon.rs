@@ -6,10 +6,10 @@ pub fn from_bgra(width: u32, height: u32, bgra: &[u8], mask: Option<&[u8]>) -> O
         return None;
     }
     let bgra = &bgra[..pixels * 4];
-    let has_alpha = bgra.chunks_exact(4).any(|pixel| pixel[3] != 0);
+    let has_alpha = bgra.as_chunks::<4>().0.iter().any(|pixel| pixel[3] != 0);
     let mask = mask.filter(|mask| mask.len() >= pixels * 4);
     let rgba = bgra
-        .chunks_exact(4)
+        .as_chunks::<4>().0.iter()
         .enumerate()
         .flat_map(|(index, pixel)| {
             let alpha = match (has_alpha, mask) {
@@ -28,7 +28,7 @@ pub fn from_bgra(width: u32, height: u32, bgra: &[u8], mask: Option<&[u8]>) -> O
 }
 
 pub fn unpremultiply(image: &mut Image) {
-    for pixel in image.rgba.chunks_exact_mut(4) {
+    for pixel in image.rgba.as_chunks_mut::<4>().0 {
         let alpha = u32::from(pixel[3]);
         if alpha == 0 || alpha == 255 {
             continue;
