@@ -683,12 +683,17 @@ pub fn ask<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
     answered(client::server::read(caller, organization, query, follow))
 }
 
-async fn answered<T: FromPage + Send>(
+// Not an `async fn`: the future it returns must be `'static` whatever `T` borrows, which an
+// `async fn`'s does not promise (clippy's manual_async_fn would drop the bound).
+#[allow(clippy::manual_async_fn)]
+fn answered<T: FromPage + Send>(
     pending: impl Future<Output = Result<Result<Page, Error>, be_wasm_ops::OpError>> + Send + 'static,
-) -> Result<Result<T, Error>, be_wasm_ops::OpError> {
-    Ok(pending
-        .await?
-        .and_then(|page| T::from_page(page).ok_or_else(unexpected)))
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
+    async move {
+        Ok(pending
+            .await?
+            .and_then(|page| T::from_page(page).ok_or_else(unexpected)))
+    }
 }
 
 /// Writes one op in `organization` (`server.write`), answered as the case `T` it makes.

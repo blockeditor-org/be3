@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Wake};
+use std::task::{Context, Wake};
 
 use beui_core::program::Waker;
 use beui_reactive::LocalFuture;
