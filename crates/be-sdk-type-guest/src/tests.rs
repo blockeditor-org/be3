@@ -1759,7 +1759,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 if let Some(undo) = &status.undo {
                     self.devices[device].history = (undo.can_undo, undo.can_redo);
-                    self.devices[device].undo = undo.clone();
+                    self.devices[device].undo = *undo;
                 }
                 self.devices[device].status = status;
             }

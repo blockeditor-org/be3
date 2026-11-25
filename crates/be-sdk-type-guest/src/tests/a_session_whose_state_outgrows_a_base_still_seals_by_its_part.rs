@@ -33,7 +33,7 @@ fn a_session_whose_state_outgrows_a_base_still_seals_by_its_part() {
         1,
         "the base names the part its state goes by"
     );
-    let part = be_block_store::PartRef::from(sim.base_parts[0].clone());
+    let part = sim.base_parts[0].clone();
     assert!(
         part.length() > 128,
         "the state is past what a base carries: {}",

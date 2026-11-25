@@ -78,7 +78,7 @@ impl BlockContent for Shelf {
                     .map(|part| part.reference)
                     .collect()
             })
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
         if saved.len() != shelf.segments.len() {
             return Err(ContentError::Malformed("shelf parts"));
         }
