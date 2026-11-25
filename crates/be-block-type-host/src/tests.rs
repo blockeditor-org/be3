@@ -50,6 +50,8 @@ mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
 mod an_edit_made_offline_after_joining_a_session_another_device_numbered_is_taken;
 mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_made_while_a_restarted_replica_rejoins_is_given_it_once;
+mod an_edit_made_while_a_restarted_replica_rejoins_reaches_it_once_the_device_goes_offline;
+mod an_edit_made_while_a_restarted_replica_rejoins_waits_on_through_a_second_restart;
 mod an_edit_numbered_offline_after_a_seal_survives_joining;
 mod an_edit_numbered_offline_before_a_restart_survives_the_first_join_online;
 mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
@@ -985,4 +987,102 @@ async fn rejoin_held_before_its_own_entry(
     replicas.pump((peer, shared)).await;
     assert!(replicas.joining(), "the rejoin's answer is held");
     (block, said)
+}
+
+/// Adds `by` to the open counter `block` as `editor`.
+fn add_to_counter(replicas: &mut Replicas<Quiet>, block: Uuid, editor: EditorId, by: i64) {
+    use be_block_content::LiveEdit;
+    use be_sdk_type_guest::editor::FromEditor;
+    use be_type_example_counter::{Counter, CounterContent};
+    replicas.relay_from_editor(
+        block,
+        editor,
+        FromEditor::Operate {
+            gesture: None,
+            operation: CounterContent::encode_operation(&Counter::add(by)),
+        }
+        .encode(),
+        std::time::Instant::now(),
+    );
+}
+
+/// What the open counter `block` shows: its module answers it after everything sent it before.
+async fn counted(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) -> i64 {
+    use be_type_example_counter::CounterContent;
+    let bytes = replicas
+        .content((peer, shared), block)
+        .await
+        .expect("the counter is open");
+    CounterContent::decode(&bytes)
+        .expect("the counter decodes")
+        .root()
+        .value()
+}
+
+/// A counter its editor 7 added 1 to, which a seal keeps, and then 2, which the order holds past
+/// that seal: the block.
+async fn counter_with_an_edit_past_its_seal(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> Uuid {
+    use be_type_example_counter::CounterContent;
+    let block = peer
+        .create::<CounterContent>(BlockParent::Root)
+        .await
+        .expect("the counter is made");
+    replicas
+        .open((peer, shared), block, CounterContent::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    replicas.pump((peer, shared)).await;
+    replicas.attach(block, 7, true);
+    add_to_counter(replicas, block, 7, 1);
+    step_until_replicas(peer, shared, replicas, "journaled the first edit", |replicas, _| {
+        replicas
+            .status(block)
+            .is_some_and(|status| status.taken >= 1 && status.journaled)
+    })
+    .await;
+    let before = replicas.status(block).and_then(|status| status.head);
+    replicas.seal_later(block, true);
+    step_until_replicas(peer, shared, replicas, "sealed the first edit", |replicas, _| {
+        replicas
+            .status(block)
+            .is_some_and(|status| status.head != before)
+    })
+    .await;
+    add_to_counter(replicas, block, 7, 2);
+    step_until_replicas(peer, shared, replicas, "journaled the second edit", |replicas, _| {
+        replicas
+            .status(block)
+            .is_some_and(|status| status.taken >= 2 && status.journaled)
+    })
+    .await;
+    block
+}
+
+/// Restarts the counter's module while every join's answer is held, and adds 4 to `block` once
+/// the replica opened again waits for its rejoin's.
+async fn add_while_a_restarted_replica_rejoins(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) {
+    use be_type_example_counter::CounterContent;
+    replicas.hold_rejoins(true);
+    replicas.modules.restart_type(CounterContent::CONTENT_TYPE);
+    replicas.pump((peer, shared)).await;
+    assert!(replicas.joining(), "the replica opened again rejoins");
+    add_to_counter(replicas, block, 7, 4);
+    step_until_replicas(peer, shared, replicas, "held the rejoin's answer", |replicas, _| {
+        replicas.rejoin_parked(block)
+    })
+    .await;
 }

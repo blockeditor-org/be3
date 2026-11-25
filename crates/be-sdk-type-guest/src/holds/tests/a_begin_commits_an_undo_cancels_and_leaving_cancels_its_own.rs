@@ -23,6 +23,8 @@ fn a_begin_commits_an_undo_cancels_and_leaving_cancels_its_own() {
     gesture(&mut holds, 1, Gesture::Commit);
     let undo = holds.undo();
     assert!(undo.undone && undo.counted.is_empty() && undo.ended.is_empty());
+    // Spent on the layer, the undo itself is neither counted nor kept to give again.
+    assert_eq!(undo.this, This::Ended);
     assert_eq!(undo.voided, [named(2, 0)]);
     assert_eq!(undo.released.len(), 4);
     // The voided gesture stays open: what its editor sends before it hears is held, and none

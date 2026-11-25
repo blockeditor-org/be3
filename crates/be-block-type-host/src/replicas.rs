@@ -532,6 +532,9 @@ enum ChangeSent {
     Sent(usize, OpId),
     /// Kept under its serial (`Replayed::Change::withheld`).
     Withheld(ReplicaId, u64),
+    /// An undo spent cancelling a held tentative layer of a `withheld` replica, which had none
+    /// of it: made, and sent nowhere.
+    Spent,
 }
 
 #[derive(Clone, Copy)]
@@ -683,6 +686,30 @@ fn resend(
         pending.insert((module, sent), (replica, request));
         if let Some(answer) = answer {
             replies.insert((module, sent), answer);
+        }
+    }
+}
+
+/// Holds the changes `open` keeps to give a `withheld` replica: each sent to the module that
+/// stopped goes again as a new op once given, so its answer, if one waits in `waiting`, waits
+/// under a serial meanwhile (`Replayed::Change::withheld`), and the old op is forgotten, so it
+/// never names another reply.
+fn hold_changes(open: &mut Open, waiting: &mut HashMap<OpId, Waiting>) {
+    for replayed in &mut open.replay {
+        if let Replayed::Change {
+            op: op @ Some(_),
+            withheld,
+            ..
+        } = replayed
+        {
+            let answer = op.take().and_then(|sent| waiting.remove(&sent));
+            if withheld.is_none() {
+                open.withheld_serial += 1;
+                *withheld = Some(open.withheld_serial);
+            }
+            if let (Some(answer), Some(serial)) = (answer, *withheld) {
+                open.withheld_answers.insert(serial, answer);
+            }
         }
     }
 }
@@ -1216,6 +1243,10 @@ pub struct Replicas<H: Host> {
     entries_given: Vec<(Uuid, u64)>,
     leaving: Vec<Uuid>,
     rejoins: u64,
+    /// Holds every join's answer, as a replica still settling holds its own (`settling`), until
+    /// let go: a test's window between a join and its answer.
+    #[cfg(test)]
+    holding_rejoins: bool,
     /// Blocks opened here while their creation waited in the outbox: they join their session
     /// once it is sent (`created`).
     uncreated: HashSet<Uuid>,
@@ -1289,6 +1320,8 @@ impl<H: Host> Replicas<H> {
             entries_given: Vec::new(),
             leaving: Vec::new(),
             rejoins: 0,
+            #[cfg(test)]
+            holding_rejoins: false,
             uncreated: HashSet::new(),
             holding: HashSet::new(),
             publishes: HashMap::new(),
@@ -2254,6 +2287,22 @@ impl<H: Host> Replicas<H> {
         Some(kept_edits(open).0.restarts)
     }
 
+    /// Holds every join's answer from here on, until `hold_rejoins(false)` lets them go on the
+    /// next pump.
+    #[cfg(test)]
+    pub(crate) fn hold_rejoins(&mut self, holding: bool) {
+        self.holding_rejoins = holding;
+    }
+
+    /// Whether a join's answer for `block`'s replica is held (`hold`).
+    #[cfg(test)]
+    pub(crate) fn rejoin_parked(&self, block: Uuid) -> bool {
+        self.blocks
+            .get(&block)
+            .and_then(|replica| self.open.get(replica))
+            .is_some_and(|open| open.held.is_some())
+    }
+
     /// Of `block`'s open replica: how many of its submissions are unanswered, the restarts of
     /// the order it reported, and the `through` of each submission it keeps (`Open::submissions`).
     #[cfg(test)]
@@ -2555,9 +2604,9 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    /// Sends `replayed` to the replica's module without keeping it to give again.
-    /// Gives a `withheld` replica the local edits kept for it once its rejoin failed, so no
-    /// join opens it on the server's journal: as a module restarted offline is given them.
+    /// Gives a `withheld` replica the local edits kept for it once no join will open it on the
+    /// server's journal (its rejoin failed, or the device went offline): as a module restarted
+    /// offline is given them.
     fn give_withheld(&mut self, replica: ReplicaId) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -2590,6 +2639,7 @@ impl<H: Host> Replicas<H> {
         answer_withheld(&mut self.replies, module, open);
     }
 
+    /// Sends `replayed` to the replica's module without keeping it to give again.
     fn send_only(&mut self, replica: ReplicaId, replayed: &Replayed) {
         let Some(open) = self.open.get(&replica) else {
             return;
@@ -2965,10 +3015,18 @@ impl<H: Host> Replicas<H> {
         };
         let open = self.open.get_mut(&replica)?;
         // An undo while a tentative layer is held cancels the layer, as its replica does once
-        // its module has it.
+        // its module has it, and is spent on it: neither counted nor kept (`Holds::undo`), so a
+        // module given the edits again, the layer's not among them, never undoes the edit
+        // before it. A replica `withheld` was given none of the layer, so it is sent nothing.
         if undo {
             let took = open.holds.undo();
             open.took(&took);
+            if took.undone {
+                return Some(match op {
+                    Some(op) => ChangeSent::Sent(module, op),
+                    None => ChangeSent::Spent,
+                });
+            }
         }
         open.sent += 1;
         open.edits_changed = true;
@@ -3034,6 +3092,9 @@ impl<H: Host> Replicas<H> {
                     .get_mut(&replica)?
                     .withheld_answers
                     .insert(serial, answer);
+            }
+            ChangeSent::Spent => {
+                let _ = answer.send(Outcome::returned(&true));
             }
         }
         Some(answered)
@@ -4634,6 +4695,9 @@ impl<H: Host> Replicas<H> {
             open.early.clear();
             let block = open.block;
             self.make_up_session(replica);
+            // No join will open it on the server's journal now: a replica opened again after
+            // its module restarted is given the edits it waited for, as one restarted offline is.
+            self.give_withheld(replica);
             // Reconnecting reopens the replica from its head, so what it owns is committed here
             // first, rather than at its next pause.
             self.seal_later(block, false);
@@ -4766,6 +4830,10 @@ impl<H: Host> Replicas<H> {
     /// without merging (`merge_diverged` merges it once a drain sends it), so neither holds a
     /// rejoin.
     fn settling(&self, replica: ReplicaId) -> bool {
+        #[cfg(test)]
+        if self.holding_rejoins {
+            return true;
+        }
         self.open.get(&replica).is_some_and(|open| {
             open.publishing > 0
                 || open.submitting > 0
@@ -4954,6 +5022,8 @@ impl<H: Host> Replicas<H> {
         // (decisions/journaled_edits_reach_the_outbox_before_a_join.md). What the session said
         // meanwhile is not its own.
         if letting_go {
+            // It seals as it closes: what it waited for since its module restarted goes first.
+            self.give_withheld(replica);
             return self.close_if_asked(replica);
         }
         // What its made-up session sealed while the join was on its way is a commit the server
@@ -5123,12 +5193,18 @@ impl<H: Host> Replicas<H> {
             // and only then given its edits: one still on its way to the server when the
             // module stopped would otherwise be made again before the order shows it.
             let rejoins = !open.made_up && !open.joining;
-            open.withheld = rejoins;
+            // Stopped again while a rejoin after its last restart is on its way, it waits for that
+            // rejoin as it did, which gives it everything once it is answered.
+            open.withheld |= rejoins;
+            let withheld = open.withheld;
+            if withheld {
+                hold_changes(open, &mut waiting);
+            }
             let mut none = Vec::new();
             let (replies, pending, replay, departed) = (
                 &mut self.replies,
                 &mut self.asked,
-                match rejoins {
+                match withheld {
                     true => &mut none,
                     false => &mut open.replay,
                 },
@@ -5164,7 +5240,7 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             open.handle = handle;
-            if !rejoins {
+            if !withheld {
                 answer_withheld(&mut self.replies, module, open);
             }
             self.handles.insert((module, handle.op()), replica);
