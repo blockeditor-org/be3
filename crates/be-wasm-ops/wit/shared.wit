@@ -5,11 +5,11 @@ package be3:shared@0.1.0;
 /// the package that hands it out, a number named `<thing>-id`. The aliases
 /// tell a reader what a uuid means; the shapes stay the two below.
 interface ids {
-    /// A uuid, as its 16 bytes.
-    type uuid = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+    /// A uuid: a list of exactly its 16 bytes.
+    type uuid = list<u8>;
 
-    /// A SHA-256 hash, as its 32 bytes.
-    type hash = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+    /// A SHA-256 hash: a list of exactly its 32 bytes.
+    type hash = list<u8>;
 
     type block-id = uuid;
 

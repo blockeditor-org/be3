@@ -49,6 +49,23 @@ impl Decode<Vec<u8>> for Bytes {
     }
 }
 
+/// A fixed-length id (a uuid, a hash) a world keeps as an array, on the wire as the WIT's
+/// `list<u8>` is: its bytes, length first.
+impl<const N: usize> Encode<[u8; N]> for Bytes {
+    fn serialize<S: Serializer>(value: &[u8; N], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(value)
+    }
+}
+
+impl<const N: usize> Decode<[u8; N]> for Bytes {
+    fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<[u8; N], D::Error> {
+        let bytes = serde_bytes::ByteBuf::deserialize(deserializer)?;
+        <[u8; N]>::try_from(bytes.as_slice()).map_err(|_| {
+            serde::de::Error::invalid_length(bytes.len(), &format!("{N} bytes").as_str())
+        })
+    }
+}
+
 impl<T, S: Encode<T>> Encode<Vec<T>> for List<S> {
     fn serialize<Z: Serializer>(value: &Vec<T>, serializer: Z) -> Result<Z::Ok, Z::Error> {
         serializer.collect_seq(value.iter().map(Encoded::<S, T>::new))

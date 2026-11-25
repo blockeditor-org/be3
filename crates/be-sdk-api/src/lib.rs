@@ -24,6 +24,7 @@ be_wasm_ops_bindgen::generate!({
         "web-view-id": crate::WebViewId,
         "view-id": crate::ViewId,
     },
+    encodings: {"uuid": ::be_wasm_ops::wire::Bytes, "hash": ::be_wasm_ops::wire::Bytes},
     copy: [
         "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "view-id",
     ],

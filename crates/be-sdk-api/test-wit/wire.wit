@@ -1,0 +1,7 @@
+package be3:app-wire@0.1.0;
+
+/// The apps world's blocks interface alone, which a test generates with its ids unmapped to
+/// check their wire form against the crate's own (`every_id_the_wit_maps_onto_an_array_has_its_wire_form`).
+world wire {
+    import be3:app/blocks@0.1.0;
+}

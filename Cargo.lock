@@ -2378,6 +2378,7 @@ dependencies = [
 name = "be-sdk-manifest"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-ops",
  "be-wasm-ops-bindgen",
  "serde",
  "serde_json",

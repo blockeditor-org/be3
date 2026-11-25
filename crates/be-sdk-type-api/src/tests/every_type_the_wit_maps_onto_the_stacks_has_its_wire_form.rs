@@ -18,6 +18,12 @@ fn every_type_the_wit_maps_onto_the_stacks_has_its_wire_form() {
     let hash = |n: u8| Hash::from_bytes([n; 32]);
     let commit = |n: u8| CommitId::from_hash(hash(n));
 
+    // The WIT's ids are a `list<u8>` of their bytes, length first, as the stack's id types
+    // encode (a `Vec<u8>` encodes as the list does).
+    agrees::<_, Vec<u8>>(id(1), false);
+    agrees::<_, Vec<u8>>(hash(1), false);
+    agrees::<_, Vec<u8>>(commit(1), false);
+    agrees::<_, Vec<u8>>(crate::SessionTag([7; 32]), false);
     agrees::<_, wit::SessionTag>(crate::SessionTag([7; 32]), false);
 
     let entry = JournalEntry {

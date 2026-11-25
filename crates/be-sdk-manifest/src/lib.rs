@@ -6,6 +6,7 @@ be_wasm_ops_bindgen::generate!({
     world: "manifest",
     deps: ["../be-wasm-ops/wit"],
     with: {"uuid": [u8; 16], "rgb": [u8; 3]},
+    encodings: {"uuid": ::be_wasm_ops::wire::Bytes},
     copy: ["uuid", "rgb"],
     default: [
         "interaction-mode", "pan-mode", "editor-capabilities", "resize-mode", "child-operations",
