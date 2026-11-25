@@ -8,7 +8,10 @@ const PHONE: Vec2 = Vec2::new(360.0, 700.0);
 fn the_demo_top_bar_fits_a_phone_wide_window() {
     let mut test = demo(PHONE);
     test.frame(Vec::new());
-    assert!(!test.shown("demo.theme"), "no select on a phone-wide window");
+    assert!(
+        !test.shown("demo.theme"),
+        "no select on a phone-wide window"
+    );
     for id in [
         "demo.toolbar",
         "demo.bar.pin.demo.inspector",
@@ -25,5 +28,8 @@ fn the_demo_top_bar_fits_a_phone_wide_window() {
 
     test.click("demo.bar.menu");
     test.frame(Vec::new());
-    assert!(test.shown("demo.bar.menu.demo.theme"), "the theme choice is under More");
+    assert!(
+        test.shown("demo.bar.menu.demo.theme"),
+        "the theme choice is under More"
+    );
 }

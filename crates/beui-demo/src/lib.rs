@@ -760,7 +760,10 @@ fn DemoToolbar(pages: Pages) -> NodeId {
     let program_layer = use_preference_layer(PreferenceSource::Program);
     let theme = create_memo(move || program_layer.get().theme);
     let choose = move |theme: Option<ThemeKind>| {
-        program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
+        program_layer.set(PreferenceLayer {
+            theme,
+            ..program_layer.get_untracked()
+        });
     };
     let selected_theme = create_memo(move || Some(theme.get()));
     let narrow = narrower_than(NARROW_WIDTH);
@@ -778,11 +781,16 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             .radio(create_memo(move || theme.get() == kind))
             .detached()
     };
-    let themes: Vec<Action> = std::iter::once(theme_choice("demo.theme.system".to_owned(), "System", None))
-        .chain(ThemeKind::ALL.iter().map(|kind| {
-            theme_choice(format!("demo.theme.{}", kind.name().to_lowercase()), kind.name(), Some(*kind))
-        }))
-        .collect();
+    let themes: Vec<Action> =
+        std::iter::once(theme_choice("demo.theme.system".to_owned(), "System", None))
+            .chain(ThemeKind::ALL.iter().map(|kind| {
+                theme_choice(
+                    format!("demo.theme.{}", kind.name().to_lowercase()),
+                    kind.name(),
+                    Some(*kind),
+                )
+            }))
+            .collect();
     let menu = move || {
         let mut menu = vec![MenuNode::action(&inspector), MenuNode::action(&reset)];
         if narrow.get() {
