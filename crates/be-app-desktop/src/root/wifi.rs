@@ -413,8 +413,8 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
         password.set(String::new());
         editor.act(move || desktop::wifi::request(request).detach());
     };
-    let submitted = join.clone();
-    let typed = join.clone();
+    let submitted = join;
+    let typed = join;
     view! {
         <List spacing=SPACING @test_id={"desktop.wifi.hidden"}>
             <TextInput

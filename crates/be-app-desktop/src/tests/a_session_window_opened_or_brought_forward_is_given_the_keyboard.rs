@@ -28,7 +28,7 @@ fn a_session_window_opened_or_brought_forward_is_given_the_keyboard() {
         fixture.settle();
         fixture
             .test
-            .click(&format!("desktop.apps.sessions.{session}"));
+            .click(format!("desktop.apps.sessions.{session}"));
         fixture.settle();
         let child = child_of(&fixture, *session);
         assert_eq!(

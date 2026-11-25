@@ -4,13 +4,13 @@ use super::*;
 
 fn hide(fixture: &mut Fixture, window: u64) {
     fixture.test.click_with(
-        &format!("desktop.windows.{window}"),
+        format!("desktop.windows.{window}"),
         PointerButton::Secondary,
     );
     fixture.settle();
     fixture
         .test
-        .click(&format!("desktop.windows.{window}.visibility"));
+        .click(format!("desktop.windows.{window}.visibility"));
     fixture.settle();
 }
 

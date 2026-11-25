@@ -151,7 +151,7 @@ fn day_events(editor: Editor, block: Memo<Option<Uuid>>, day: Memo<Date>) -> Mem
                             _ => None,
                         })
                         .unwrap_or_else(|| UNTITLED.to_owned());
-                    day.contains(starts).then(|| DayEvent {
+                    day.contains(starts).then_some(DayEvent {
                         starts: *starts,
                         title,
                     })

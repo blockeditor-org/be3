@@ -115,13 +115,13 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     fixture.settle();
 
     fixture.test.click_with(
-        &format!("desktop.windows.block.{block}"),
+        format!("desktop.windows.block.{block}"),
         PointerButton::Secondary,
     );
     fixture.settle();
     fixture
         .test
-        .click(&format!("desktop.windows.block.{block}.close"));
+        .click(format!("desktop.windows.block.{block}.close"));
     fixture.settle();
     assert!(
         !fixture

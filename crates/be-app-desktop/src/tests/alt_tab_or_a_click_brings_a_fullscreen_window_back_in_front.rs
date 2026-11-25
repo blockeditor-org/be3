@@ -9,7 +9,7 @@ fn windows(fixture: &mut Fixture, focused: u64) {
         fullscreen: Some(SCREEN),
         ..host_window(1, focused == 1)
     };
-    fixture.show_windows(&vec![calculator, host_window(2, focused == 2)]);
+    fixture.show_windows(&[calculator, host_window(2, focused == 2)]);
     fixture.settle();
 }
 
