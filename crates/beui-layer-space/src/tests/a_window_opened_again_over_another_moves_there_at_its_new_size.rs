@@ -25,7 +25,7 @@ fn a_window_opened_again_over_another_moves_there_at_its_new_size() {
         level: beui_types::WindowLevel::Normal,
     });
     let incoming = send(&mut space, now, []);
-    let main = main(&space).clone();
+    let main = *main(&space);
     let panel = space.panel(window).unwrap();
     assert_eq!(
         panel.size, size,
