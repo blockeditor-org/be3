@@ -1783,7 +1783,13 @@ impl ScrollApi {
     pub fn velocity(&self) -> f32 {
         self.0
             .try_value()
-            .and_then(|motion| motion.momentum.try_borrow().ok().map(|momentum| momentum.velocity))
+            .and_then(|motion| {
+                motion
+                    .momentum
+                    .try_borrow()
+                    .ok()
+                    .map(|momentum| momentum.velocity)
+            })
             .unwrap_or(0.0)
     }
 

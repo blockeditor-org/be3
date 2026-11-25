@@ -74,7 +74,9 @@ pub struct GlideApi {
 
 impl GlideApi {
     fn show(self) {
-        let Some(displacement) = self.state.try_with(|state| state.motion.get().displacement())
+        let Some(displacement) = self
+            .state
+            .try_with(|state| state.motion.get().displacement())
         else {
             return;
         };

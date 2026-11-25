@@ -14,8 +14,8 @@ pub use crate::actions::{
     active_actions_from, add_to_menu, menu_action, menu_scope, tidy_menu,
 };
 pub use crate::animation::{
-    Animation, AnimationFrame, Easing, Fling, Motion, Spring, SpringMotion, Velocity, create_animation, motion,
-    tween,
+    Animation, AnimationFrame, Easing, Fling, Motion, Spring, SpringMotion, Velocity,
+    create_animation, motion, tween,
 };
 pub use crate::colors::{color_scheme, define_colors, resolve_color};
 pub use crate::component_ref::ComponentRef;

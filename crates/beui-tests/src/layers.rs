@@ -75,13 +75,13 @@ pub fn NarrowToastFixture() -> NodeId {
             <List spacing=Space::None>
                 <Text>{report}</Text>
                 <Toasts
-                anchor={area}
-                toasts={toasts}
-                on_dismiss={move |id: u64| toasts.update(|toasts| toasts.retain(|toast| toast.id != id))}
-                on_action={move |(id, key): (u64, String)| {
-                    chosen.set(key);
-                    toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
-                }}
+                    anchor={area}
+                    toasts={toasts}
+                    on_dismiss={move |id: u64| toasts.update(|toasts| toasts.retain(|toast| toast.id != id))}
+                    on_action={move |(id, key): (u64, String)| {
+                        chosen.set(key);
+                        toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
+                    }}
                 />
             </List>
         </Frame>

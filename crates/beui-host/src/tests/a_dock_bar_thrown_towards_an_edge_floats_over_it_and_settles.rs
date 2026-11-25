@@ -53,7 +53,9 @@ fn a_dock_bar_thrown_towards_an_edge_floats_over_it_and_settles() {
         .windows(2)
         .filter(|pair| (pair[0] - rest) * (pair[1] - rest) < 0.0)
         .count();
-    let beyond = lefts.iter().fold(0.0_f32, |most, left| most.max(left - rest));
+    let beyond = lefts
+        .iter()
+        .fold(0.0_f32, |most, left| most.max(left - rest));
     assert!(
         passes == 1 && beyond > 1.0,
         "it swings past where it lands once, by {beyond}, and lands there on the way back \

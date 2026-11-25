@@ -7,7 +7,7 @@ use crate::reactive::Painter;
 use crate::{CanvasView, FontId};
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
-mod a_back_gesture_asks_a_dialogs_owner_and_it_goes_at_once_when_closed;
+mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
 mod a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back;
 mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
@@ -205,7 +205,6 @@ mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_first_fit_moves_on_when_the_child_it_shows_grows_too_wide;
 mod a_first_fit_sized_by_its_row_shows_its_first_child_again_when_the_row_widens;
 mod a_fitted_sheet_taller_than_half_the_screen_stops_at_the_middle_and_scrolls;
-mod content_flung_past_a_sheets_top_carries_the_sheet_down_with_it;
 mod a_fixed_child_that_shrinks_gives_way_inside_a_shrinking_row;
 mod a_fixed_half_of_a_dock_keeps_its_width_when_the_dock_resizes;
 mod a_fixed_lists_carried_row_holding_the_focus_stays_read_in_its_slot;
@@ -782,6 +781,7 @@ mod closing_the_on_screen_keyboard_repaints_the_window_it_was_in;
 mod closing_the_tab_that_holds_a_nested_dock_closes_its_tabs_wherever_they_went;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod component_children_keep_their_owner_when_rendered_later;
+mod content_flung_past_a_sheets_top_carries_the_sheet_down_with_it;
 mod content_past_the_windows_edge_is_cut_off;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
@@ -2758,6 +2758,7 @@ use crate::native::Document;
 use crate::primitives::Interactive;
 use crate::unstyled::Scroll;
 use beui::WHEEL_LATCH_TIMEOUT;
+use beui::input::{BackEdge, BackGesture};
 
 fn nested() -> Document {
     build_node(move || {

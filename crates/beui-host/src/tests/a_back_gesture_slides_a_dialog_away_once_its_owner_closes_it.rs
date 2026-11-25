@@ -1,9 +1,4 @@
 use super::*;
-use crate::primitives::List;
-use crate::primitives::Text;
-use crate::reactive::*;
-use crate::styled::*;
-use beui::input::{BackEdge, BackGesture};
 
 #[test]
 fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
@@ -64,7 +59,11 @@ fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
     harness.frame(vec![Input::Back(BackGesture::Cancelled)]);
     harness.settle();
     assert_eq!(harness.rect(body.get()), resting);
-    assert_eq!(dismissed.get_untracked(), 0, "a cancelled back asks nothing");
+    assert_eq!(
+        dismissed.get_untracked(),
+        0,
+        "a cancelled back asks nothing"
+    );
 
     harness.frame(vec![
         Input::Back(BackGesture::Started {

@@ -112,11 +112,7 @@ pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: Space) -> Node
         content,
     } = handle;
     view! {
-        <ModalSheet
-            open={open}
-            fit=true
-            on_close={on_close}
-        >||
+        <ModalSheet open={open} fit=true on_close={on_close}>||
             <Frame padding>{content.call()}</Frame>
         </ModalSheet>
     }

@@ -33,8 +33,8 @@ use beui_view::types::Direction;
 use beui_view::types::Extent;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{
-    BackGesture, CursorIcon, DragGesture, PointerInput, PointerPress, PointerStage, Vec2,
-    Velocity, pos2, vec2,
+    BackGesture, CursorIcon, DragGesture, PointerInput, PointerPress, PointerStage, Vec2, Velocity,
+    pos2, vec2,
 };
 use beui_view::types::{Key, KeyPress};
 
