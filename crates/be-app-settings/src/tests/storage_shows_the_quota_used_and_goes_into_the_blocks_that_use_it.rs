@@ -57,7 +57,7 @@ fn storage_shows_the_quota_used_and_goes_into_the_blocks_that_use_it() {
         "a block's children are listed only once it is gone into"
     );
 
-    storage.click(&format!("settings.storage.block.{work}"));
+    storage.click(format!("settings.storage.block.{work}"));
     for inside in [photos, notes, work] {
         assert!(
             storage.shown(&format!("settings.storage.block.{inside}")),
