@@ -4,7 +4,7 @@ use super::*;
 fn what_was_read_is_read_again_once_a_notice_names_it() {
     let (named, other, session) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let mut cache = Cache {
-        owned: Some(vec![named]),
+        roots: Some(vec![(named, Settings::CONTENT_TYPE, Uuid::new_v4())]),
         ..Cache::default()
     };
     cache.settings.insert(named, Settings::default());
@@ -20,14 +20,14 @@ fn what_was_read_is_read_again_once_a_notice_names_it() {
         "a changed block is read again"
     );
     assert!(cache.settings.contains_key(&other), "the others are kept");
-    assert!(cache.owned.is_some() && cache.editors.contains_key(&session));
+    assert!(cache.roots.is_some() && cache.editors.contains_key(&session));
 
     cache.heard(&be_host_stack::Changes {
         graph: true,
         ..be_host_stack::Changes::default()
     });
     assert!(
-        cache.owned.is_none(),
+        cache.roots.is_none(),
         "the roots are read again from a changed graph"
     );
     assert!(

@@ -27,7 +27,7 @@ mod panes;
 mod preferences;
 #[cfg(target_arch = "wasm32")]
 mod previews;
-pub mod root_settings;
+pub use be_block::root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
 mod screens;

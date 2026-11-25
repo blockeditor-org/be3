@@ -43,11 +43,11 @@ impl SettingsGraph for Graph {
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        parent: BlockParent,
+        under: Option<Uuid>,
         owner_only: bool,
     ) -> Uuid {
         self.contents.borrow_mut().push((block, content));
-        if parent == BlockParent::Root {
+        if under.is_none() {
             *self.settings.borrow_mut() = Some(block);
         }
         self.created

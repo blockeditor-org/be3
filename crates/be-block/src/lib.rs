@@ -10,6 +10,7 @@ pub mod display_settings;
 pub mod organization;
 pub mod profile;
 pub mod resolution;
+pub mod root_settings;
 pub mod settings;
 pub mod workspace_settings;
 
