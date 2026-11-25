@@ -5,6 +5,7 @@ use beui_host::native::testing::Target;
 use super::*;
 
 #[test]
+#[allow(clippy::single_range_in_vec_init)] // a list of ranges, which here holds one
 fn double_clicking_either_end_of_a_word_in_a_text_input_selects_it() {
     let document = build(|| {
         view! {
