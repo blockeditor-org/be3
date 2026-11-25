@@ -185,7 +185,9 @@ for drawing and for the pointer, but not the children inside it.
 
 - **Passive** (default): the editor keeps every click. Promoting it to
   `ChildMode::Active` (a double-click, an Edit button) hands it input; the
-  host takes that away on a click outside or Escape. A promotion made during a
+  host takes that away on a click outside. An Escape the placer does not
+  handle takes back only the frame the child took over, keeping it active and
+  the keyboard where it is, under be-host as under a root. A promotion made during a
   press that began over the child replays that press in the child from where
   it went down (`be-host/src/compositor/app_view/handoff.rs`); a press already
   released is replayed only within half a second.
