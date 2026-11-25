@@ -19,9 +19,9 @@ pub struct KeyBook {
     account: Uuid,
     organization: Uuid,
     identity: RecoverySecret,
-    /// The identity secrets the account replaced with new phrases (`AccountBlock::retired`),
-    /// which a key a contact sealed to an old key opens with (`retire`).
-    retired: Mutex<Vec<RecoverySecret>>,
+    /// The identity secrets the account replaced with new phrases, and the contacts that may
+    /// still seal to them (`retire`).
+    retired: Mutex<Retired>,
     ring: Keyring,
     /// The escrow secrets this device holds, by escrow key id: X25519 secrets, never content
     /// keys, so kept out of `ring`, where an object whose header named one would open with it.
@@ -58,6 +58,19 @@ struct Opened {
     through_server: bool,
     /// Whether it opened through an owner-only block's key (`owner_only_covers`).
     under_owner_only: bool,
+}
+
+/// The identity secrets the account replaced with new phrases (`AccountBlock::retired`), which
+/// a key a contact sealed to an old key opens with, and what opened so, to be sealed again.
+#[derive(Default)]
+struct Retired {
+    secrets: Vec<RecoverySecret>,
+    /// The contacts that may still hold a key this account replaced
+    /// (`crate::contacts::OwnContact::holds`): a retired secret opens only what they seal.
+    behind: HashSet<Uuid>,
+    /// Keys opened with a retired secret, sealed again to the current one from this account, for
+    /// `Peer::refresh_keys` to write (`take_resealed`), by key.
+    resealed: HashMap<Uuid, be_block_protocol::SealedKey>,
 }
 
 /// Which block each content key is a key of, and the access log root each block's keys carry
@@ -874,24 +887,61 @@ impl KeyBook {
     }
 
     /// Takes `retired`, the identity secrets the account's block keeps from its earlier
-    /// phrases, so a key a contact sealed to one of those keys opens (`open_sealed`).
-    pub fn retire(&self, retired: Vec<RecoverySecret>) {
-        *self.retired.lock().unwrap() = retired;
+    /// phrases, so a key one of `behind`, the contacts that may still hold one of those keys
+    /// (`crate::contacts::OwnContact::holds`), sealed to it opens (`open_sealed`).
+    pub fn retire(&self, retired: Vec<RecoverySecret>, behind: HashSet<Uuid>) {
+        let mut held = self.retired.lock().unwrap();
+        held.secrets = retired;
+        held.behind = behind;
     }
 
-    /// `sealed`, a key `from` sealed to this account, opened with the current identity secret
-    /// or one the account retired: a contact that had not yet followed the account's new phrase
-    /// sealed it to the old key.
-    fn open_sealed(&self, from: &Party, key: &[u8], sealed: &[u8]) -> Option<Vec<u8>> {
+    /// `sealed`, a key `from` sealed to this account, opened with the current identity secret,
+    /// or one the account retired when `from` may not have followed the account's new phrase
+    /// (`crate::contacts::open_by_any`); and whether a retired one opened it.
+    fn open_sealed(&self, from: &Party, key: &[u8], sealed: &[u8]) -> Option<(Vec<u8>, bool)> {
         let to = self.account.into_bytes();
-        if let Ok(plain) = self.identity.open_from(from, to, key, sealed) {
-            return Some(plain);
-        }
-        self.retired
-            .lock()
-            .unwrap()
-            .iter()
-            .find_map(|secret| secret.open_from(from, to, key, sealed).ok())
+        let retired = self.retired.lock().unwrap();
+        let behind = retired.behind.contains(&Uuid::from_bytes(from.account));
+        let (plain, secret) =
+            crate::contacts::open_by_any(&self.identity, &retired.secrets, behind, |secret| {
+                secret.open_from(from, to, key, sealed)
+            })
+            .ok()?;
+        let by_retired = !std::ptr::eq(secret, &self.identity);
+        Some((plain, by_retired))
+    }
+
+    /// Keeps `plain`, which `wrap` sealed to a retired secret, sealed again to the current one
+    /// from this account, as `crate::contacts::reseal_from` does, so the account can one day
+    /// drop the secret (`take_resealed`).
+    fn reseal(&self, wrap: &WrappedKey, plain: &[u8]) {
+        let mine = Party {
+            account: self.account.into_bytes(),
+            public: self.identity.public(),
+        };
+        let Ok(sealed) =
+            self.identity
+                .seal_for(self.account.into_bytes(), &mine, wrap.key.as_bytes(), plain)
+        else {
+            return;
+        };
+        self.retired.lock().unwrap().resealed.insert(
+            wrap.key,
+            be_block_protocol::SealedKey {
+                organization: self.organization,
+                key: wrap.key,
+                sender: self.account,
+                sealed,
+            },
+        );
+    }
+
+    /// The keys opened with a retired secret since last asked, sealed again to the current one
+    /// (`PutKeys::Reseal`).
+    pub fn take_resealed(&self) -> Vec<be_block_protocol::SealedKey> {
+        std::mem::take(&mut self.retired.lock().unwrap().resealed)
+            .into_values()
+            .collect()
     }
 
     pub fn ring(&self) -> &Keyring {
@@ -1680,7 +1730,8 @@ impl KeyBook {
 
     fn unwrap(&self, wrap: &WrappedKey, row: Option<KeyRow>, vouched: bool) -> Option<Opened> {
         let block = row.map(|row| row.block);
-        let bytes = match wrap.wrapped_by {
+        // What opened, and whether a retired secret opened it, which `reseal` then seals again.
+        let (bytes, by_retired) = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
                 if !self.accepts(wrap.sender, block, vouched) {
                     return None;
@@ -1707,7 +1758,7 @@ impl KeyBook {
                         account: wrap.sender.into_bytes(),
                         public,
                     };
-                    let plain = self.open_sealed(&from, wrap.key.as_bytes(), &wrap.sealed)?;
+                    let (plain, _) = self.open_sealed(&from, wrap.key.as_bytes(), &wrap.sealed)?;
                     self.hold_escrowed(wrap, row?, &plain, false);
                     return None;
                 };
@@ -1715,7 +1766,8 @@ impl KeyBook {
                     account: wrap.sender.into_bytes(),
                     public,
                 };
-                let plain = self.open_sealed(&sender, wrap.key.as_bytes(), &wrap.sealed)?;
+                let (plain, retired) =
+                    self.open_sealed(&sender, wrap.key.as_bytes(), &wrap.sealed)?;
                 if self.contact(wrap.sender).is_some()
                     && !self.sender_may(
                         wrap.sender,
@@ -1727,7 +1779,7 @@ impl KeyBook {
                 {
                     return None;
                 }
-                plain
+                (plain, retired)
             }
             WrappedBy::Account(_) => return None,
             // Opened only from a member the organization's log names, with the keys it names,
@@ -1773,7 +1825,11 @@ impl KeyBook {
                 return Some(opened);
             }
         };
-        self.opened(row, &bytes, vouched)
+        let opened = self.opened(row, &bytes, vouched)?;
+        if by_retired {
+            self.reseal(wrap, &bytes);
+        }
+        Some(opened)
     }
 
     /// Whether the server holds `key`, or may: a key of the organization's settings block,

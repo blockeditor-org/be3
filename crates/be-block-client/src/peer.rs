@@ -1319,6 +1319,7 @@ impl<S: ObjectStore> Peer<S> {
             opened += self.keys.absorb(KeySet::default());
         }
         self.settle_escrowed().await;
+        self.reseal_retired().await;
         // Each scope's log, once, so a write offline later is judged by what was kept of it
         // (`Peer::outdated`) rather than refused.
         if !self.local {
