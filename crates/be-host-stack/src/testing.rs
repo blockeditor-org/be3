@@ -69,6 +69,10 @@ impl Harness {
         // nothing counts into these from here on but this test's.
         #[cfg(test)]
         crate::version::forget_counts();
+        // Notices and the account's reads are one per process and outlive a stack, so a
+        // previous test's would otherwise show in this one.
+        be_host_base::notices::clear();
+        crate::unread::forget();
         let directory = std::env::temp_dir().join(format!("be3-test-stack-{}", Uuid::new_v4()));
         let SignIn {
             url,

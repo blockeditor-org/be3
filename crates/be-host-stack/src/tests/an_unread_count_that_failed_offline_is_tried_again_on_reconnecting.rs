@@ -10,7 +10,6 @@ fn loads() -> u64 {
 /// tried again while nothing moves, but it is once the device connects again.
 #[test]
 fn an_unread_count_that_failed_offline_is_tried_again_on_reconnecting() {
-    crate::unread::forget();
     let mut harness = Harness::start();
     harness.connect();
     // The chat type's module, which picks places and counts, is started as a chat opens.
@@ -72,5 +71,4 @@ fn an_unread_count_that_failed_offline_is_tried_again_on_reconnecting() {
     wait_until("tried the chat's head again once connected", |shared| {
         shared.counting.made.0 > offline
     });
-    crate::unread::forget();
 }
