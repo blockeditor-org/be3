@@ -61,7 +61,7 @@ fn recorded(buck2: &Path, mut arguments: Vec<String>, quiet: bool) -> Result<(i3
     let (status, output) = retrying(buck2, &arguments, quiet, false, None)?;
     if !named {
         let context = be_lib_build_record::Context::here(&command, String::new(), status == 0);
-        be_lib_build_record::report(&repository(), &events, &context);
+        be_lib_build_record::report(repository(), &events, &context);
     }
     Ok((status, output))
 }
