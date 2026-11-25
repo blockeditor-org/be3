@@ -55,7 +55,7 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
         refs.log_fork(block),
         Some(LogFork {
             dismissed: true,
-            ..first
+            ..first.clone()
         }),
         "dismissing keeps the verdict, marked so"
     );
