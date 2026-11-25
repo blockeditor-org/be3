@@ -54,6 +54,7 @@ pub struct Drawn {
 pub struct HeadlessApp {
     core: Core,
     module: Rc<Module>,
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     access: HashMap<EditorInstanceId, fn(&dyn Instance) -> &dyn Parts>,
 }
 
