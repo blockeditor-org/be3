@@ -1746,13 +1746,23 @@ impl Refs {
 
     /// Every block's kept verdict (`log_fork`).
     pub fn log_forks(&self) -> Vec<LogFork> {
-        self.state.lock().unwrap().log_forks.values().cloned().collect()
+        self.state
+            .lock()
+            .unwrap()
+            .log_forks
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Marks `block`'s verdict dismissed, if one is kept: whether it was.
     pub fn dismiss_fork(&self, block: Uuid) -> Result<bool, StoreError> {
         let mut state = self.state.lock().unwrap();
-        let Some(mut fork) = state.log_forks.get(&block).cloned().filter(|fork| !fork.dismissed)
+        let Some(mut fork) = state
+            .log_forks
+            .get(&block)
+            .cloned()
+            .filter(|fork| !fork.dismissed)
         else {
             return Ok(false);
         };

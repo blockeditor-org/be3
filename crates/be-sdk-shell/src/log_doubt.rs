@@ -2,11 +2,11 @@
 //! `BlockInfo::log_doubt`): what it found, with Details and Dismiss. Writing stays allowed: the
 //! bar warns, it does not lock the block.
 
-use be_sdk_beui::{LogDoubt, LogDoubtKind, LogDoubtSource};
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::icons::ICON_TRIANGLE_ALERT;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::{LogDoubt, LogDoubtKind, LogDoubtSource};
 
 use super::panel::TabInfo;
 use super::workspace::Workspace;
@@ -80,9 +80,18 @@ pub(crate) fn LogDoubtBar(
                 @test_id={"workspace.log-doubt"}
             >
                 <List spacing=Space::Xs>
-                    <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=SPACING>
+                    <List
+                        direction=Direction::Horizontal
+                        wrap=true
+                        align=Align::Center
+                        spacing=SPACING
+                    >
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text size=TextSize::Xs color=TextColor::Warning align=TextAlign::Center>
+                            <Text
+                                size=TextSize::Xs
+                                color=TextColor::Warning
+                                align=TextAlign::Center
+                            >
                                 <Icon glyph=ICON_TRIANGLE_ALERT />
                             </Text>
                             <ListItem shrink=1.0>

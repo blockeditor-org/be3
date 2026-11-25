@@ -38,9 +38,9 @@ fn a_block_whose_history_another_device_was_shown_differently_says_so_above_it()
         ),
         "Details says where the other history came from"
     );
-    fixture.test.snapshot(
-        "a_block_whose_history_another_device_was_shown_differently_says_so_above_it",
-    );
+    fixture
+        .test
+        .snapshot("a_block_whose_history_another_device_was_shown_differently_says_so_above_it");
 
     fixture.test.take_block_commands();
     fixture.click_text("Dismiss");

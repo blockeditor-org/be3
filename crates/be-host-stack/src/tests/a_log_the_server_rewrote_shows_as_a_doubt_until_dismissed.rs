@@ -49,7 +49,9 @@ fn a_log_the_server_rewrote_shows_as_a_doubt_until_dismissed() {
         attachments: Vec::new(),
     };
     for body in ["Pizza", "Tacos"] {
-        let (_, message) = editor.mirror.append(said(body).encode(), Default::default());
+        let (_, message) = editor
+            .mirror
+            .append(said(body).encode(), Default::default());
         editor.send(message);
     }
     editor.until("heard both messages", |editor| editor.messages().len() == 2);
@@ -57,7 +59,9 @@ fn a_log_the_server_rewrote_shows_as_a_doubt_until_dismissed() {
 
     // The server forgets the log and keeps another in its place.
     rewrite(&harness, chat, 3);
-    let (_, message) = editor.mirror.append(said("Sushi").encode(), Default::default());
+    let (_, message) = editor
+        .mirror
+        .append(said("Sushi").encode(), Default::default());
     editor.send(message);
     wait_until("the rewritten log left a doubt on the chat", |held| {
         held.log_doubts.contains_key(&chat)
@@ -73,8 +77,7 @@ fn a_log_the_server_rewrote_shows_as_a_doubt_until_dismissed() {
     assert_eq!(doubt.ours, 2, "it names the head this device kept");
 
     // Told again as the connection comes back: the verdict is kept.
-    let address = harness.address();
-    reconnect(&mut harness, &address);
+    reconnect(&mut harness);
     wait_until("the doubt is told after reconnecting", |held| {
         held.log_doubts.contains_key(&chat)
     });
@@ -84,7 +87,7 @@ fn a_log_the_server_rewrote_shows_as_a_doubt_until_dismissed() {
         held.log_doubts.is_empty()
     });
     assert_eq!(told(), None);
-    reconnect(&mut harness, &address);
+    reconnect(&mut harness);
     assert!(
         crate::with_seen(|seen| seen.log_doubts.is_empty()) == Some(true),
         "a dismissed doubt stays hidden after reconnecting"
@@ -93,7 +96,9 @@ fn a_log_the_server_rewrote_shows_as_a_doubt_until_dismissed() {
     // The server rewrites the log again: a verdict against another head shows, so dismissing
     // never hides what the server does next.
     rewrite(&harness, chat, 5);
-    let (_, message) = editor.mirror.append(said("Ramen").encode(), Default::default());
+    let (_, message) = editor
+        .mirror
+        .append(said("Ramen").encode(), Default::default());
     editor.send(message);
     wait_until("the new fork brings the doubt back", |held| {
         held.log_doubts.contains_key(&chat)
@@ -104,8 +109,7 @@ fn a_log_the_server_rewrote_shows_as_a_doubt_until_dismissed() {
 /// The server forgets `block`'s log and keeps `entries` made-up ones in its place.
 fn rewrite(harness: &Harness, block: Uuid, entries: usize) {
     let database =
-        be_block_sqlite_schema::open(harness.directory.join("server").join("metadata.sqlite"))
-            .unwrap();
+        be_block_sqlite_schema::open(harness.server.directory().join("metadata.sqlite")).unwrap();
     be_server::log::forget(&database, harness.organization, block).unwrap();
     let entries = (0..entries)
         .map(|index| be_block_protocol::NewEntry {
@@ -126,10 +130,10 @@ fn rewrite(harness: &Harness, block: Uuid, entries: usize) {
 }
 
 /// Drops the connection and makes it again, as the worker does after the server comes back.
-fn reconnect(harness: &mut Harness, address: &str) {
+fn reconnect(harness: &mut Harness) {
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
-    harness.start_server(address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected", |shared| shared.connected);
 }

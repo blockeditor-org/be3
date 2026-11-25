@@ -180,7 +180,9 @@ pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
 }
 
 /// What an app is told of a kept verdict on a block's signed log, none once dismissed.
-pub(crate) fn log_doubt_of(fork: &be_block_client::LogFork) -> Option<be_sdk_api::blocks::LogDoubt> {
+pub(crate) fn log_doubt_of(
+    fork: &be_block_client::LogFork,
+) -> Option<be_sdk_api::blocks::LogDoubt> {
     use be_block_client::{ForkKind, HeadFrom};
     use be_sdk_api::blocks::{LogDoubt, LogDoubtKind, LogDoubtSource};
     if fork.dismissed {
@@ -205,9 +207,7 @@ pub(crate) fn log_doubt_of(fork: &be_block_client::LogFork) -> Option<be_sdk_api
 }
 
 /// Each block's verdict this device kept and the person has not dismissed.
-pub(crate) fn log_doubts(
-    peer: &Peer<Store>,
-) -> imbl::OrdMap<Uuid, be_sdk_api::blocks::LogDoubt> {
+pub(crate) fn log_doubts(peer: &Peer<Store>) -> imbl::OrdMap<Uuid, be_sdk_api::blocks::LogDoubt> {
     peer.log_forks()
         .iter()
         .filter_map(|fork| Some((fork.block, log_doubt_of(fork)?)))

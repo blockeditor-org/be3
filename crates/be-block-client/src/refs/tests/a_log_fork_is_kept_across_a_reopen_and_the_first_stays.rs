@@ -46,7 +46,11 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
     }
 
     let refs = RefsDb::open(&path).unwrap().scope(scope.clone()).unwrap();
-    assert_eq!(refs.log_fork(block), Some(first.clone()), "the verdict outlives a restart");
+    assert_eq!(
+        refs.log_fork(block),
+        Some(first.clone()),
+        "the verdict outlives a restart"
+    );
     assert!(refs.dismiss_fork(block).unwrap());
     assert!(!refs.dismiss_fork(block).unwrap(), "dismissed once");
     drop(refs);
@@ -74,7 +78,10 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
         kind: ForkKind::Misbehaved,
         ..first.clone()
     };
-    assert!(refs.found_fork(misbehaved.clone()).unwrap(), "another kind shows");
+    assert!(
+        refs.found_fork(misbehaved.clone()).unwrap(),
+        "another kind shows"
+    );
     assert_eq!(refs.log_fork(block), Some(misbehaved.clone()));
     assert!(refs.dismiss_fork(block).unwrap());
     let other_head = LogFork {
