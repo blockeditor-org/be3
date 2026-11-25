@@ -55,7 +55,8 @@ target_platform(
 
 # Target platforms for WebAssembly. The constraints are the ones
 # prelude//rust:cargo_package.bzl maps to its platform names, "wasi" and
-# "wasm32", which are what buck/cargo's plans are keyed by.
+# "wasm32" (os:none, now only wasm32_bindgen below), which are what buck/cargo's
+# plans are keyed by.
 target_platform(
     name = "wasi",
     constraint_values = [

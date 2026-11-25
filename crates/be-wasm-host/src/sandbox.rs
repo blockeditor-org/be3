@@ -173,8 +173,9 @@ pub struct Config {
 
 /// What an instance runs.
 pub enum Source {
-    /// A module compiled from bytes, given only the transport.
-    Module(Module),
+    /// A module compiled from bytes, given only the transport and a pure guest's WASI, its
+    /// randomness drawn from `seed` (`Host::with_seed`), which its spawner chooses.
+    Module { module: Module, seed: [u8; 32] },
     /// A staged app.
     App(Staged),
 }
@@ -226,7 +227,7 @@ pub struct Instance {
 pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, String> {
     let waiting = Arc::new(AtomicBool::new(false));
     let host = match &source {
-        Source::Module(_) => Host::pure()?,
+        Source::Module { seed, .. } => Host::pure()?.with_seed(*seed),
         Source::App(_) => match config.display {
             Some((device, queue)) => Host::new(device, queue)?,
             None => Host::on_demand(|| Err(NO_DISPLAY.to_owned()))?,
@@ -235,7 +236,7 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
     let channel = host.with_memory_limit(config.memory_limit).spawn(
         config.name,
         move |host| match source {
-            Source::Module(module) => {
+            Source::Module { module, .. } => {
                 App::new(host, Code::Compiled(module.compiled), &no_library).map(Presenting)
             }
             Source::App(staged) => staged.load(host).map(Presenting),

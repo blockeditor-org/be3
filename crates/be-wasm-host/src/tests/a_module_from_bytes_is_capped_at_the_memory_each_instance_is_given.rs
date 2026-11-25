@@ -15,7 +15,10 @@ fn a_module_from_bytes_is_capped_at_the_memory_each_instance_is_given() {
         display: None,
     };
     let mut instance =
-        sandbox::spawn(sandbox::Source::Module(module.clone()), config, wake).unwrap();
+        sandbox::spawn(sandbox::Source::Module {
+            module: module.clone(),
+            seed: [0; 32],
+        }, config, wake).unwrap();
     instance
         .send(vec![be_wasm_guest_echo::GROW.to_vec()])
         .unwrap();

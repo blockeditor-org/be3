@@ -11,7 +11,10 @@ fn a_next_asked_of_frames_already_sent_is_answered_in_the_call() {
             .await
             .unwrap()
             .expect("the echo guest compiles");
-        let instance = guest::sandbox::Instance::new(Source::Module(module), config());
+        let instance = guest::sandbox::Instance::new(Source::Module(FromBytes {
+                    module: module,
+                    seed: [0; 32],
+                }), config());
         instance.send(vec![b"hello".to_vec()]).await.unwrap();
         instance
     });

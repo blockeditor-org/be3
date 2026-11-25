@@ -10,7 +10,7 @@ use be_wasm_host::{Stored, library_file_name};
 use be_wasm_ops::{Incoming, Side};
 use be_wasm_sandbox_api::{
     embed, guest,
-    sandbox::{Config, Source, StagedModule},
+    sandbox::{Config, FromBytes, Source, StagedModule},
 };
 
 use super::*;

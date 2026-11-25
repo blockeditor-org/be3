@@ -199,9 +199,10 @@ The linker drops what the replica never calls, so those cost no size and import 
 moving every pure guest from `wasm32-unknown-unknown` into the plan took the dev type modules
 about 1% smaller (November 2026: chat 4,283,048 to 4,220,554 bytes, checklist 3,802,354 to
 3,756,188, text 3,912,275 to 3,868,138), and the smallest guests grew by what wasip1's std
-formats and reads (the echo guest 36,186 to 88,468). A pure guest may not link wgpu, which on
-wasm32 links wasm-bindgen: the ABI's wgpu conversions are `crates/be-wasm-gpu-convert`, apart
-from `crates/be-wasm-gpu-abi`. What a type module uses, and why:
+formats and reads (the echo guest 36,186 to 88,468). A pure guest may not link wgpu: its `web`
+feature, which be-wasm-gpu-guest turns on and the guests' plan unifies, links wasm-bindgen.
+So the ABI's wgpu conversions are `crates/be-wasm-gpu-convert`, apart from
+`crates/be-wasm-gpu-abi`. What a type module uses, and why:
 
 | crate | type modules use it for |
 |---|---|

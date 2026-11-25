@@ -25,13 +25,19 @@ fn a_module_from_bytes_compiles_once_and_each_instance_runs_on_its_own() {
         display: None,
     };
     let mut one = sandbox::spawn(
-        sandbox::Source::Module(first.clone()),
+        sandbox::Source::Module {
+            module: first.clone(),
+            seed: [0; 32],
+        },
         config("one"),
         Arc::clone(&wake),
     )
     .unwrap();
     let mut two = sandbox::spawn(
-        sandbox::Source::Module(second.clone()),
+        sandbox::Source::Module {
+            module: second.clone(),
+            seed: [0; 32],
+        },
         config("two"),
         Arc::clone(&wake),
     )
