@@ -246,7 +246,7 @@ impl SchemaHtml for Basic {
         html::write(fragment)
     }
 
-    fn from_html(&self, html: &str) -> TextFragment {
+    fn read_html(&self, html: &str) -> TextFragment {
         html::read(html)
     }
 }
