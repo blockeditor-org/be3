@@ -66,6 +66,7 @@ mod a_copy_put_in_a_childs_place_is_made_before_the_answer;
 mod a_copy_whose_source_is_gone_puts_the_source_back;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_data_directory_another_process_holds_is_refused;
+mod an_acceptance_over_the_accounts_bound_says_so_in_the_hosts_words;
 #[cfg(not(target_os = "android"))]
 mod a_debug_print_shows_no_phrase_or_invite_link;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
