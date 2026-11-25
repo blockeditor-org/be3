@@ -99,6 +99,8 @@ Landed on 2026-11-24:
 - `authorship-1`: steps 1–3 of the authorship plan: signed log heads compared across devices through sessions, relays and commits; forks and misbehaviour kept as verdicts.
 - `dialogs-dock-5`: dialog plan steps 4c–5b: dialogs as hosted windows anchored in the dock, hidden under the lock, with the review fixes.
 - `clippy-mechanical`: clippy's mechanical fixes across the workspace's crates.
+- `host-adapter-4g7e3c`: the root hands program windows their input; a composited window let go of loses the keyboard; router scales deltas to a zoomed surface.
+- `beui-vello-3`: Vello (vello_gpu, vello_common) linked into the beui app library (+1.2% library size).
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
