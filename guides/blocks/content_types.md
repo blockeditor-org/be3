@@ -62,14 +62,10 @@ A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
 first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
-replica's editors are sent. Most such types (a file, an index) have an `encode` that is the whole
-content anyway, so a copy through bytes loses nothing. A type whose `encode` leaves parts out
-sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`; no type does
-now, plans/signed_logs.md step 6): its `decode(encode())` is a view with no part
-behind it, and saving it writes the first part alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts ,
-and Duplicate, export, `be` transfer, version control's re-listing and revision preview or
-restore refuse such a block when it has parts after its first; only `from_stored`, `parts` and
-`MergeParts` carry them. Its editors read the rest by range
+replica's editors are sent. Its stored form read whole must still decode to
+the content (a file's and an index's do), since Duplicate, export, `be` transfer, version control
+and revision restore copy a block through its bytes; only
+`from_stored`, `parts` and `MergeParts` carry the parts themselves. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
@@ -93,14 +89,9 @@ conflict, never undo; `next(time, origin)` stamps past what it replaces, so a
 slow clock still overwrites what it read; view state uses them), `Text`,
 `RichText` (text plus marks, `be_lib_sequence::marks`) or `Series<T>` (an
 append-friendly list of registers stored like a `Vec<T>`, so a register can
-become a series without losing data). A `Stamp` orders by rank, then time,
-then origin. A plain write keeps the rank it was stamped after, so the last
-write wins; one stamped `ranked(n)` is replaced only by one ranked as high or
-higher, live or in a merge, so a lower-ranked write is a no-op whatever its
-clock says (a key holding `()` at a rank is a number that only rises; no type
-ranks writes now, plans/signed_logs.md step 6). For a number, `Count` adds what each
-side adds; for a value, `LatestMap`, ranked when an older write must never
-replace a newer one.
+become a series without losing data). A `Stamp` orders by time, then
+origin, so the last write wins. For a number, `Count` adds what each side
+adds; for a value, `LatestMap`.
 
 How the model works:
 

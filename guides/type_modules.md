@@ -409,15 +409,6 @@ every entry is its own and verified) and be-sdk-type-guest's `Sim`. Tests:
 `what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps` and
 `only_the_types_own_app_writes_in_its_blocks_log`.
 
-### Whole bytes
-
-`type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the
-stored form read whole decodes to the content, so the host copies such a block through its
-bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
-restore. A type that loads only its first part and keeps parts its first part cannot rebuild sets
-it false (none does now; plans/signed_logs.md, step 6), and the host refuses those paths for a block that has parts after
-its first (`Peer::has_later_parts`).
-
 ### Merging by parts
 
 Outside a session (`Replicas::merge`, which `merge_diverged` and version
@@ -556,14 +547,9 @@ order: presence and channel messages. The rules an agent most needs:
   the operations that count to the end of `replay` as ordinary ones, and drops
   the rest.
 - **Arrival time.** The server stamps each entry with when it took it
-  (`received`), and every replica fills the operation's stamp slot
-  (`LiveEdit::arrival`) from it as it applies the entry, so the stamp is the
-  order's, the same on every replica, journal and replay, whatever the sender
-  wrote there. A replica refuses an edit made with the slot filled
-  (`CLAIMED_ARRIVAL`). Entries a device numbered offline have no time: content
-  then shows none, never one the edit claims. Undo goes through the same check,
-  so an inverse operation leaves the stamp off. Types that keep no arrival time
-  leave the hook at its default and are unchanged.
+  (`received`); an entry a device numbered offline has none. Content never
+  holds an arrival: records that need the server's time are a signed log's
+  entries (`LogItem::arrival`).
 - **Sealing.** The lease holder commits at pauses: `QUIET_INTERVAL` (30 s) after
   the last edit, at most `COMMIT_INTERVAL` (5 min) after it started owing, once
   the order since the last seal passes `JOURNAL_BYTES` (1 MiB, an operation's

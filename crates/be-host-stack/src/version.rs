@@ -2276,17 +2276,6 @@ async fn relist(
         graph.get(parent).map(|node| node.content_type)
     })
     .ok_or("Version control can only put a block somewhere it knows.")?;
-    // Whole bytes carry only the first part of a type that keeps parts after it (chat's closed
-    // segments), so a place of that kind cannot be rewritten from bytes yet.
-    if context
-        .replicas
-        .kind(content_type)
-        .await
-        .is_some_and(|kind| !kind.whole_bytes)
-        && context.peer.has_later_parts(parent).await.map_err(failed)?
-    {
-        return Err("That place keeps parts that version control cannot carry yet.".into());
-    }
     let change = be_sdk_type_api::Change::Child(change);
     let ctx = (context.peer, context.shared);
     for _ in 0..8 {

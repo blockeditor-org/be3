@@ -135,30 +135,22 @@ pub async fn collect<S: ObjectStore>(
     }
     let summaries: Vec<BlockSummary> = found.iter().map(|(summary, _)| summary.clone()).collect();
     peer.learn(&summaries).await?;
-    // Per type, once: whether its bytes drop parts after the first (chat's closed segments),
-    // and whether it keeps a signed log.
-    let mut kinds: HashMap<Uuid, (bool, bool)> = HashMap::new();
+    // Per type, once: whether it keeps a signed log.
+    let mut kinds: HashMap<Uuid, bool> = HashMap::new();
     let mut blocks = Vec::with_capacity(found.len());
     for (summary, parent) in found {
-        let (partial, logged) = match kinds.get(&summary.content_type) {
+        let logged = match kinds.get(&summary.content_type) {
             Some(kind) => *kind,
             None => {
                 let kind = open
                     .modules()
                     .kind(summary.content_type)
                     .await
-                    .map_or((false, false), |kind| (!kind.whole_bytes, kind.log));
+                    .is_some_and(|kind| kind.log);
                 kinds.insert(summary.content_type, kind);
                 kind
             }
         };
-        // A block file carries bytes, which drop the parts after the first.
-        if partial && peer.has_later_parts(summary.id).await? {
-            return Err(ClientError::Encoding(format!(
-                "block {} keeps parts after its first, which a block file does not carry yet",
-                summary.id
-            )));
-        }
         // A type with a signed log carries it, opened, each entry with its author's signature
         // in the block it was written in (`Peer::verify_exported`).
         let log = match logged {

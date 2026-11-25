@@ -4444,30 +4444,6 @@ async fn apply(
                     .settle(to);
                 return false;
             }
-            // Some types keep parts that their bytes cannot carry (`WHOLE_BYTES` is false: chat's
-            // closed segments), and a copy through bytes would drop them: refuse until a copy of
-            // parts exists.
-            if replicas
-                .modules
-                .kind(content_type)
-                .await
-                .is_some_and(|kind| !kind.whole_bytes)
-                && peer.has_later_parts(from).await.unwrap_or(false)
-            {
-                record(
-                    shared,
-                    ClientError::Encoding(
-                        "this block keeps parts after its first, which a copy does not carry yet"
-                            .to_string(),
-                    ),
-                );
-                shared
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .graph
-                    .settle(to);
-                return false;
-            }
             let created = peer
                 .keep_creation(to, content_type, BlockParent::Detached, &metadata, false)
                 .await;

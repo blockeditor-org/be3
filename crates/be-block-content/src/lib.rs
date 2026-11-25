@@ -77,13 +77,6 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 
     const LOADS: Loads = Loads::Whole;
 
-    /// Whether the stored form read whole decodes to the content, so a copy through bytes (a
-    /// duplicate, an export, a revision restore, a transfer) loses nothing. A file's does, though
-    /// its `encode()` may leave its payload unloaded. False for a type whose stored form has parts
-    /// that decoding it cannot rebuild (chat's closed segments): those refuse such a copy when the
-    /// block has parts after its first.
-    const WHOLE_BYTES: bool = true;
-
     const FROZEN: bool = false;
 
     fn schema() -> String {
@@ -267,24 +260,6 @@ pub trait LiveEdit: BlockContent {
     fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
         let _ = operation;
         Vec::new()
-    }
-
-    /// Where `operation` keeps when the server took it (milliseconds since the Unix epoch by
-    /// the server's clock), or none for an operation that keeps no such time, as for every
-    /// operation of content that keeps none. An operation holding other operations exposes one
-    /// slot at most, or the replica could not check them all: such content refuses an edit
-    /// whose operations would need more.
-    ///
-    /// Only the owner fills the slot: the replica refuses an edit made on a device with it
-    /// filled, and the owner drops a participant's operation with it filled, so only the
-    /// owner's stamp is ever held. The owner fills it on a participant's operation as it
-    /// sequences it, then relays and saves it stamped. Some operations stay unstamped, their
-    /// arrival unknown: the owner's own, one that travels as a part, and one that stamping
-    /// would make too large to relay inline. Content shows no time for those, never a time
-    /// the edit claims.
-    fn arrival(operation: &mut Self::Op) -> Option<&mut Option<i64>> {
-        let _ = operation;
-        None
     }
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {

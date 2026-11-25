@@ -45,7 +45,6 @@ impl Guest for Talker {
                     plain: Plain::None,
                     first_part: false,
                     merges_parts: false,
-                    whole_bytes: true,
                     log: false,
                     blank: Vec::new(),
                     blank_description: Description::default(),
