@@ -110,7 +110,7 @@ impl Surfaces {
                     placement.width,
                     placement.height,
                     format,
-                    &views(format),
+                    view(format),
                 );
                 self.fresh.insert(placement.surface);
             }
@@ -176,14 +176,11 @@ impl Surfaces {
     }
 }
 
-/// The views a surface of `format` may be drawn through: also its non-sRGB view, for renderers
+/// The other view a surface of `format` may be drawn through: its non-sRGB view, for renderers
 /// that encode sRGB themselves (Vello).
-fn views(format: wgpu::TextureFormat) -> Vec<wgpu::TextureFormat> {
+fn view(format: wgpu::TextureFormat) -> Option<wgpu::TextureFormat> {
     let linear = format.remove_srgb_suffix();
-    match linear == format {
-        true => Vec::new(),
-        false => vec![linear],
-    }
+    (linear != format).then_some(linear)
 }
 
 fn format(format: SurfaceFormat) -> wgpu::TextureFormat {

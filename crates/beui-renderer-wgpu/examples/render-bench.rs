@@ -16,7 +16,7 @@ use beui_core::document::Document;
 use beui_core::filter::Filter;
 use beui_core::node::SpaceId;
 use beui_core::painter::{Painter, Zoom};
-use beui_renderer_wgpu::{Renderer, Repaint, Resources, wgpu_color_in};
+use beui_renderer_wgpu::{Lost, Renderer, Repaint, Resources, wgpu_color_in};
 use beui_types::geometry::Region;
 use beui_types::{Color32, FillRule, FontId, NodeId, Path, Rect, Stroke, pos2, vec2};
 
@@ -115,6 +115,7 @@ struct Gpu {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    lost: Lost,
     timestamps: Option<Timestamps>,
 }
 
@@ -142,10 +143,12 @@ impl Gpu {
         }))
         .expect("the adapter did not provide a device");
         let timestamps = timed.then(|| Timestamps::new(&device, &queue));
+        let lost = Lost::watch(&device);
         Self {
             adapter,
             device,
             queue,
+            lost,
             timestamps,
         }
     }
@@ -238,7 +241,7 @@ struct Bench {
 
 impl Bench {
     fn new(gpu: Gpu) -> Self {
-        let renderer = Renderer::new(&Resources::new(&gpu.device, FORMAT, &gpu.setup().lost));
+        let renderer = Renderer::new(&Resources::new(&gpu.device, FORMAT, &gpu.lost));
         let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("renderer bench target"),
             size: wgpu::Extent3d {

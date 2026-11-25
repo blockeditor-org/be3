@@ -732,10 +732,10 @@ interface device {
         width: u32,
         height: u32,
         format: texture-format,
-        /// The other formats its textures may be viewed as, as a WebGPU
-        /// canvas's `viewFormats`: only `format` with or without its sRGB
-        /// suffix.
-        view-formats: list<texture-format>,
+        /// The other format its textures may be viewed as, as in a WebGPU
+        /// canvas's `viewFormats`: `format` with or without its sRGB suffix.
+        /// One at most, so the record stays flat values.
+        view-format: option<texture-format>,
     }
 
     /// One place the host shows the app, named by the id the host gave it.
