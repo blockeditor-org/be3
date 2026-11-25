@@ -488,7 +488,7 @@ impl Element for OverlayNode {
             .window
             .as_ref()
             .filter(|window| doc.hosts_window(window));
-        let shown_in = self.shown_in.filter(|window| doc.shows_in(*window));
+        let shown_in = self.shown_in.and_then(|window| doc.shown_window(window));
         let painter = &painter.ctx().window_painter(match (real, shown_in) {
             (Some(window), _) => window.id,
             (None, Some(window)) => window,
@@ -503,9 +503,9 @@ impl Element for OverlayNode {
                 .ctx()
                 .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
             self.placed_in = None;
-            let outer = doc.swap_window_viewport(Some((window.id, rect)));
-            crate::layout::layout(doc, painter, content, rect, out);
-            doc.swap_window_viewport(outer);
+            doc.laying_out_window(window.id, rect, |doc| {
+                crate::layout::layout(doc, painter, content, rect, out);
+            });
             return;
         }
         let outer = shown_in.map(|window| {
