@@ -206,8 +206,9 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         // One read's answer and waker, shared only between this future and the reply handler just
         // below.
         #[allow(clippy::type_complexity)]
-        let answer: Rc<RefCell<(Option<Result<Vec<u8>, String>>, Option<std::task::Waker>)>> =
-            Rc::default();
+        let answer: Rc<
+            RefCell<(Option<Result<Vec<u8>, String>>, Option<std::task::Waker>)>,
+        > = Rc::default();
         let answered = Rc::clone(&answer);
         self.0.reads.borrow_mut().insert(
             token,

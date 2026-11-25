@@ -76,7 +76,8 @@ struct UnreadFns {
 type PlacesFn = fn(&[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String>;
 
 /// How much of content is unread from a place, as `UnreadFns::count` counts it.
-type CountFn = fn(Content, Option<&[u8]>, &[be_block_content::LogItem], Uuid) -> Result<u32, String>;
+type CountFn =
+    fn(Content, Option<&[u8]>, &[be_block_content::LogItem], Uuid) -> Result<u32, String>;
 
 /// Content handed to a stateless request: as a host loads a commit, or whole bytes.
 pub enum Content<'a> {

@@ -56,11 +56,7 @@ fn describe(tree: &DockTree) -> String {
                 SplitSize::First(points) => format!("{points:.0}pt<"),
                 SplitSize::Second(points) => format!(">{points:.0}pt"),
             };
-            format!(
-                "({} {between}{size} {})",
-                describe(first),
-                describe(second)
-            )
+            format!("({} {between}{size} {})", describe(first), describe(second))
         }
     }
 }

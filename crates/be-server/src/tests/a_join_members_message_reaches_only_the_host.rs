@@ -118,7 +118,9 @@ async fn a_join_members_message_reaches_only_the_host() {
         );
     }
 
-    let sent = first.send_to_host(world, None, b"move north".to_vec()).await;
+    let sent = first
+        .send_to_host(world, None, b"move north".to_vec())
+        .await;
     assert!(sent.is_ok(), "{sent:?}");
     assert_eq!(
         heard(&mut owner, world).await,
@@ -183,7 +185,9 @@ async fn a_join_members_message_reaches_only_the_host() {
         ),
         (
             "the host sent to itself",
-            owner.send_to_host(world, Some(host), b"psst".to_vec()).await,
+            owner
+                .send_to_host(world, Some(host), b"psst".to_vec())
+                .await,
         ),
         (
             "the host sent to no one",
