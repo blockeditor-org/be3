@@ -96,6 +96,7 @@ APPS = {
     "be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it": ["infinite-canvas", "example-pan-zoom", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_canvas": ["checklist", "infinite-canvas", "//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input": ["desktop", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop": ["desktop", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette": ["infinite-canvas", "text", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates": ["infinite-canvas", "checklist", "//crates/be-root"],

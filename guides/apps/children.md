@@ -177,7 +177,10 @@ Program windows are the host's to draw: be-sdk-root shows each placed
 (`child-content.window`) as a `Surface::Host` layer of its window at its place,
 framed and cut out like a panel, whose pixels are the window's logical pixels,
 so its size is the size the host configures the window to (be-host's
-`RootShell`, guides/desktop.md). Its placer hears it unavailable until the root
+`RootShell`, guides/desktop.md). What the router delivers to that layer the
+root hands its host with its frame (`Embedding::take_host_input`,
+`frame-done.host-input`), in the window's logical pixels, for the host to hand
+the program. Its placer hears it unavailable until the root
 relays the window's status (plans/host_as_platform_adapter.md, 4g7e3d). Web
 views (4g7b3g) are not there yet: a child of another kind the placer hears is
 unavailable.

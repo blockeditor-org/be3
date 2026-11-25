@@ -103,6 +103,9 @@ pub struct Embedding {
     /// The trees of the root's own surfaces, by surface, with the serial of the surface each
     /// is of, as `describe` last grafted them.
     own_trees: be_lib_stable_hash::HashMap<u32, (u64, be_sdk_app_host::accessibility::Graft)>,
+    /// What was routed to surfaces the host owns (`Surface::Host`: program windows) since it
+    /// was last taken (`take_host_input`), in order.
+    host_input: Vec<Delivery>,
 }
 
 /// An anchored view that asks for the keyboard, as be-host gives it: to the child placed in it,
@@ -165,6 +168,7 @@ impl Embedding {
             carried: None,
             keyed: Vec::new(),
             own_trees: Default::default(),
+            host_input: Vec::new(),
         }
     }
 
@@ -548,6 +552,32 @@ impl Embedding {
         self.windows.focused(window)
     }
 
+    /// What was routed to the surfaces the host owns since the last call (`Surface::Host`
+    /// layers: program windows), for the host to hand them (`frame-done`'s `host-input`): each
+    /// run of one surface's, in order.
+    pub fn take_host_input(&mut self) -> Vec<be_wasm_root_api::HostInput> {
+        let delivered = std::mem::take(&mut self.host_input);
+        delivered
+            .chunk_by(|left, right| left.surface == right.surface)
+            .filter_map(|run| {
+                let Surface::Host(surface) = run[0].surface else {
+                    return None;
+                };
+                let events: Vec<input::Timed> = run
+                    .iter()
+                    .map(|delivery| input::Timed {
+                        input: delivery.input.clone(),
+                        time: delivery.time,
+                    })
+                    .collect();
+                Some(be_wasm_root_api::HostInput {
+                    surface,
+                    events: input::encode(&events),
+                })
+            })
+            .collect()
+    }
+
     /// Moves the keyboard in `window` to the layer `target`, or takes it from every layer there
     /// (`Windows::focus`): a dialog of the root's own takes it once drawn, and gives it back to
     /// the layer that had it once it closes. An app whose screen lost or got it hears so; what
@@ -764,9 +794,13 @@ impl Embedding {
     }
 
     /// Sends each app what is for its screens, and answers the rest.
-    fn forward(&self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
+    fn forward(&mut self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
         let mut own = Vec::new();
         for delivery in deliveries {
+            if let Surface::Host(_) = delivery.surface {
+                self.host_input.push(delivery);
+                continue;
+            }
             let Some((instance, surface)) = app_surface(delivery.surface) else {
                 own.push(delivery);
                 continue;

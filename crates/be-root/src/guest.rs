@@ -1728,6 +1728,7 @@ impl frames::Guest for Root {
                 every_sample: requests.every_sample,
                 cursor: requests.cursor.name().to_owned(),
                 pointer_locked: requests.pointer_locked,
+                host_input: embedding.take_host_input(),
             }
         })
     }
