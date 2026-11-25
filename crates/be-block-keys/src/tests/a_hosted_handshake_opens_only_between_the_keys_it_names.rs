@@ -1,6 +1,6 @@
 use super::*;
 
-/// The Noise IK handshake of a hosted block's channel (plans/hosted_blocks.md): a joiner that
+/// The Noise IK handshake of a hosted block's channel (guides/blocks/hosted.md): a joiner that
 /// knows the host's static key reaches only the holder of it, which learns the joiner's static
 /// key and what it sent; both split the same keys. Under another prologue (another block or
 /// head), to another key, or answered by anyone but the host, it opens nothing; and the channel

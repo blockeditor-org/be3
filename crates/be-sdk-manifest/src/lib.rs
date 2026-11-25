@@ -51,7 +51,7 @@ pub struct AppManifest {
 
 /// A host component: a component of the app's wasm with no frame, which the host opens on a
 /// block of the type it `edits`, attached to the replica as an editor with Edit is, with no
-/// view and no input. It is how a hosted block's host runs (plans/hosted_blocks.md), in
+/// view and no input. It is how a hosted block's host runs (guides/blocks/hosted.md), in
 /// be-host or headless in `be` (guides/apps/runtime.md, "Headless").
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostManifest {
@@ -60,7 +60,7 @@ pub struct HostManifest {
     /// The block type it runs on.
     pub edits: [u8; 16],
     /// The levels a block of the type is shared at, each named and said in a line for what
-    /// it adds for the type's stored content (plans/hosted_blocks.md, "The share dialog"):
+    /// it adds for the type's stored content (guides/blocks/hosted.md, "The share dialog"):
     /// Join always. The dialog lists them by level, whatever order they are written in. Only
     /// a type of the app's own: on another's, a host could rename that type's levels.
     pub levels: Vec<OfferedLevel>,

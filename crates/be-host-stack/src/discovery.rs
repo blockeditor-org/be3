@@ -333,7 +333,7 @@ pub fn manifests() -> Vec<Arc<AppManifest>> {
 
 /// The levels a block of `content_type` is shared at when it is hosted: an app's manifest names
 /// a host component that runs on it (guides/apps/host_services.md, "Host components"), with the
-/// levels it offers (plans/hosted_blocks.md, "The share dialog"). Empty for a type no host
+/// levels it offers (guides/blocks/hosted.md, "The share dialog"). Empty for a type no host
 /// component runs on.
 pub fn offered_levels(content_type: Uuid) -> Vec<be_sdk_manifest::OfferedLevel> {
     apps()

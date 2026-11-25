@@ -5,7 +5,7 @@ use be_block_keys::Level;
 use be_block_protocol::MemberKind;
 
 /// Access from a block above counts on both sides of a hosted block's channel
-/// (plans/hosted_blocks.md): an editor whose Edit comes from the workspace the world lies in may
+/// (guides/blocks/hosted.md): an editor whose Edit comes from the workspace the world lies in may
 /// host it, a Join member checks that Edit in the workspace's log, by the world's signed parent
 /// records, and a member who views the workspace is admitted with View, which holds Join.
 #[tokio::test]

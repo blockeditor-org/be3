@@ -150,24 +150,24 @@ interface blocks {
         set-parent(block-location),
         define(define-command),
         /// Sends a member of the block's host channel `payload`, sealed on its
-        /// channel (plans/hosted_blocks.md, "Hosting"). Only a host component
+        /// channel (guides/blocks/hosted.md, "Hosting"). Only a host component
         /// of the block, while this device hosts it, and only to a member it
         /// heard join (`member-event.joined`).
         tell-member(member-said),
         /// Sends the block's host `payload`, sealed on this device's channel to
-        /// it (plans/hosted_blocks.md, "Hosting"). Only an editor opened as a
+        /// it (guides/blocks/hosted.md, "Hosting"). Only an editor opened as a
         /// Join member (`opening-kind.join`), and only while the channel is
         /// open (`channel-event.open`): what is told while it is not is lost.
         tell-host(list<u8>),
         /// Keeps this device hosting the block after its last editor here
-        /// closes (`true`), or no longer (plans/hosted_blocks.md, "Hosting"):
+        /// closes (`true`), or no longer (guides/blocks/hosted.md, "Hosting"):
         /// the shell lists it among what this device hosts, with Stop. Kept in
         /// memory only, so quitting the host stops it.
         keep-hosting(bool),
     }
 
     /// Whether this device hosts an editor's block: runs its host component
-    /// (plans/hosted_blocks.md, "Hosting"), and whether it keeps hosting it
+    /// (guides/blocks/hosted.md, "Hosting"), and whether it keeps hosting it
     /// once its editors here close (`block-command.keep-hosting`).
     enum hosting-here {
         no,
@@ -176,7 +176,7 @@ interface blocks {
     }
 
     /// The host channel of the block an editor opened as a Join member
-    /// (`opening-kind.join`; plans/hosted_blocks.md, "Hosting"): what the host
+    /// (`opening-kind.join`; guides/blocks/hosted.md, "Hosting"): what the host
     /// says on it, and whether it is open.
     variant channel-event {
         /// A host answered: the channel is open to the account that hosts.
@@ -190,7 +190,7 @@ interface blocks {
     }
 
     /// A member of the host channel of the block a host component runs on came,
-    /// spoke or went (plans/hosted_blocks.md, "Hosting"). The host admits a
+    /// spoke or went (guides/blocks/hosted.md, "Hosting"). The host admits a
     /// member once the signed logs give its account Join or above and it proves
     /// its key; one whose access ends, or that leaves, goes.
     variant member-event {

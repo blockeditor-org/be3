@@ -19,7 +19,7 @@ fn count(host: &mut HostTest) -> String {
 }
 
 /// Keep hosting, from the frame menu, keeps a block's host component running on this device
-/// after its editor closes (plans/hosted_blocks.md, "Hosting"), through a reconnect, until the
+/// after its editor closes (guides/blocks/hosted.md, "Hosting"), through a reconnect, until the
 /// host menu's Stop. Which device hosts shows in the other's frame menu, which offers Keep
 /// hosting only where it hosts; the counter's host component adds one as it starts, so a
 /// count that moves shows a component started.

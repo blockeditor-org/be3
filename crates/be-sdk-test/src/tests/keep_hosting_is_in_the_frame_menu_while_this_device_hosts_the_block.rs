@@ -21,7 +21,7 @@ impl BeuiRoot for HostedRoot {
 }
 
 /// The frame menu, and the palette, offer Keep hosting only while this device hosts the block
-/// (plans/hosted_blocks.md, "Hosting"), ticked once it keeps hosting it, and picking it asks the
+/// (guides/blocks/hosted.md, "Hosting"), ticked once it keeps hosting it, and picking it asks the
 /// host to keep hosting, or to stop keeping it.
 #[test]
 fn keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block() {

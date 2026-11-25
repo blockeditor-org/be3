@@ -1,4 +1,4 @@
-//! The private channel between a hosted block's host and a member (plans/hosted_blocks.md,
+//! The private channel between a hosted block's host and a member (guides/blocks/hosted.md,
 //! "The channel"): a Noise IK handshake (Noise Protocol Framework, revision 34) between the two
 //! accounts' X25519 identity keys, then messages sealed under the keys it splits into.
 //!

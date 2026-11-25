@@ -1,7 +1,7 @@
 use super::*;
 
 /// A host component that stops and starts again at once, its release's rejoin still on its way
-/// as the new one starts, ends up hosting (plans/hosted_blocks.md, step 4d2): the rejoin drops
+/// as the new one starts, ends up hosting (guides/blocks/hosted.md, "Who hosts"): the rejoin drops
 /// whatever claim the device had, the join's answer says no one hosts, and as a component runs
 /// on the block the device claims again.
 #[test]

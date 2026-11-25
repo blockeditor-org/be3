@@ -1,4 +1,4 @@
-//! The host's side of a hosted block's channel on this device (plans/hosted_blocks.md,
+//! The host's side of a hosted block's channel on this device (guides/blocks/hosted.md,
 //! "Hosting"): while this device's replica holds a block's lease, the members that speak on its
 //! host channel are admitted here (`Peer::admit`, then `Admitting::confirm` once their first
 //! message opens), and the host component running on the block hears them come, speak and go
@@ -197,7 +197,7 @@ fn stop_hosting(held: &mut Shared, block: Uuid) -> bool {
     held.seen.hosted.remove(&block).is_some()
 }
 
-/// A host component starts on `block`: it claims the session's lease (plans/hosted_blocks.md,
+/// A host component starts on `block`: it claims the session's lease (guides/blocks/hosted.md,
 /// step 4d2), so this device hosts it, and hears every member already admitted. That it hosts
 /// comes as every change of host does, on the session's events (`heard`), in order with a
 /// claim another device makes after it; the answer only records the claim. Refused (it left

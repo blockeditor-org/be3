@@ -60,6 +60,7 @@ APPS = {
     "a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it": ["infinite-canvas", "example-pan-zoom"],
     "a_pen_draws_a_line_on_a_canvas_with_the_pen_tool": ["infinite-canvas"],
     "a_personal_organization_can_create_an_agent": [],
+    "a_player_digs_through_the_editor_that_hosts_the_hunt": ["gem-hunt", "settings"],
     "a_popup_a_joined_demo_tab_places_over_its_own_window_opens_over_that_tab": ["example-beui-gallery"],
     "a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck": ["infinite-canvas", "presentation", "text"],
     "a_press_outside_a_menu_and_its_submenu_closes_both_and_reaches_what_it_landed_on": ["example-block-debug", "text"],

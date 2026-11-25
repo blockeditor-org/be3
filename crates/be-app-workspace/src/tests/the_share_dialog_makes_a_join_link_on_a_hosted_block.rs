@@ -6,7 +6,7 @@ use be_type_workspace::FolderContent;
 use super::*;
 
 /// A hosted block's dialog offers its type's levels by their names, each said in a line, and
-/// a share link grants Join unless the person chooses more (plans/hosted_blocks.md, "The share
+/// a share link grants Join unless the person chooses more (guides/blocks/hosted.md, "The share
 /// dialog"): a game's Join game, Host and Manage. It says who is hosting the world now.
 /// Someone invited by a contact link starts at Join too.
 #[test]

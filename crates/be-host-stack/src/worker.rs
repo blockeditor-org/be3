@@ -285,7 +285,7 @@ pub(super) enum Command {
         access: Access,
         reply: DoneReply,
     },
-    /// Bars `account` from joining `block`'s host (`Peer::ban`; plans/hosted_blocks.md).
+    /// Bars `account` from joining `block`'s host (`Peer::ban`; guides/blocks/hosted.md).
     Ban {
         block: Uuid,
         account: Uuid,

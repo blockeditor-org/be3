@@ -449,7 +449,7 @@ counts and records nothing: `reserve-uploads` did before it signed.
   account (`SessionRegistry::host`): the lease holder only by a claim
   (`Membership::claimed_holder`), never the first editor the lease falls to
   with none, since a device claims as its host component starts
-  (plans/hosted_blocks.md, step 4d2); the lease, who seals, is unchanged. Every
+  (guides/blocks/hosted.md, "Who hosts"); the lease, who seals, is unchanged. Every
   member hears a change of host, its claimant too, so a claim reaches the device
   that made it in order with any claim after it; only a joiner learns the host
   from its join's answer instead. Each change carries the index of the
@@ -460,7 +460,7 @@ counts and records nothing: `reserve-uploads` did before it signed.
   claim would otherwise hear itself named host again). `query.log` then proves the host to a
   reader below Edit, and `query.access` names it to a manager as who hosts the
   block now (`access-list.host`, the share dialog's line on a hosted block).
-- **Join members** (plans/hosted_blocks.md): a caller below `View` joins as one
+- **Join members** (guides/blocks/hosted.md): a caller below `View` joins as one
   (`joined-session.joined-as`, `member-kind.join`). It is in no membership, so
   no participant learns of it; it hears only `session-event.host` and what the
   holder sends it, and the holder alone hears it come and go
@@ -552,7 +552,7 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   may not watch it or join its session. Anyone can give themselves
   `KnowExists` on any id by listing it in their own block's references, so it
   never grants more than that summary.
-- `Join` (plans/hosted_blocks.md) is granted like any level and, like
+- `Join` (guides/blocks/hosted.md) is granted like any level and, like
   `KnowExists`, reaches only its own block: its member reads the same summary
   (the block is listed in its `Shared`), is served no keys or objects, joins
   the block's session as a Join member (below, "Live sessions") and is served

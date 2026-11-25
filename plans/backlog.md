@@ -43,6 +43,13 @@ Fixed items are removed as they land.
   (`read-part`) and hand its bytes to `replay`. Done when such a reader sees the journal's
   edits.
 
+- **Hosted channel paths without tests.** Nothing tests a Join member's send
+  held back by `slow-down` and sent again, a join that waits for a replica of
+  the block to leave, a host that answers the newest of two handshakes a member
+  sent while the first was checked, or what a second host's component hears of
+  the players it inherits (guides/blocks/hosted.md). Done: a be-host-stack test
+  of each.
+
 - **Hosted channel races without tests.** Three fixes in hosted blocks 4b
   close races that land between two awaits, which no test forces yet: an
   admit a recheck ran beside asks for another check (`Member::Answering`'s

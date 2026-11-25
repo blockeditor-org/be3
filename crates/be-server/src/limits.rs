@@ -78,7 +78,7 @@ pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// leaves room for both.
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
 /// Messages one account sends a session's lease holder on its host channel a second, on
-/// average, across all its connections (`session-send.host`; plans/hosted_blocks.md): a Join
+/// average, across all its connections (`session-send.host`; guides/blocks/hosted.md): a Join
 /// member admitted by a link is no contact of the host, so the server keeps it from flooding
 /// one. The holder's own sends are not limited.
 pub const HOST_MESSAGES_PER_SECOND: f64 = 30.0;

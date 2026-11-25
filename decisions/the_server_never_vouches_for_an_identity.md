@@ -26,7 +26,7 @@ its word:
 - **Edit over View.** They hold the same keys, so a server granted View can
   write.
 - **The host lease.** Which editor hosts a hosted block
-  (plans/hosted_blocks.md): devices check that the host has Edit, but not
+  (guides/blocks/hosted.md): devices check that the host has Edit, but not
   which editor the server picked.
 - **Freshness.** Which log head and key epoch are newest, short of a fork
   (guides/blocks/keys.md, "Accepted limits").
@@ -41,7 +41,7 @@ matter.
 ## Rejected
 
 - The server vouching for a host or a player in a hosted block
-  (plans/hosted_blocks.md): it could make up a host and read every player's
+  (guides/blocks/hosted.md): it could make up a host and read every player's
   moves, or a player and see the world.
 - Grants as server rows that devices seal to: the server could name any real
   contact as granted (guides/blocks/keys.md, "What the server can and cannot

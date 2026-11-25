@@ -70,6 +70,9 @@ guides/type_modules.md.
   conflicts as data, scopes and local ids.
 - guides/blocks/keys.md: keys and their scopes, rotation, escrow, identity and
   pairing, contacts, and what the server can and cannot do.
+- guides/blocks/hosted.md: hosted blocks: the Join level, the levels a share
+  dialog offers, the host channel, who hosts and when, banning, and the gem
+  hunt, the first hosted type.
 - guides/blocks/workspaces.md: organizations, workspaces and the files pane,
   device profiles and settings the host applies (block settings are
   guides/settings.md), sessions and view state.

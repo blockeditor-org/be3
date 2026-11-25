@@ -20,7 +20,7 @@ fn host_heard_by(member: &Member, block: Uuid) -> Option<Uuid> {
 
 /// A device whose replica of a hosted block is open (an editor, a child, a preview) holds the
 /// session's lease, and seals, but hosts it only once a host component starts and claims it
-/// (plans/hosted_blocks.md, step 4d2): until then the server tells members no one hosts. A
+/// (guides/blocks/hosted.md, "Who hosts"): until then the server tells members no one hosts. A
 /// component that stops gives the claim up while the replica stays open, and once another
 /// editor's device claims after it, it hosts no longer.
 #[test]

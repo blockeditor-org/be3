@@ -76,7 +76,7 @@ pub enum Record {
     /// An account granted itself access through an open share link: signed with the link's key,
     /// which only a holder of the code has, and endorsed by the account's own keys.
     Opened(Opened),
-    /// An account may not join the hosted block's host (plans/hosted_blocks.md, "Hosting"), as a
+    /// An account may not join the hosted block's host (guides/blocks/hosted.md, "Hosting"), as a
     /// member with Edit or above barred it: until a grant to it signed after this lifts the ban.
     /// It takes no access away, so it lowers no one and never binds an editor.
     Ban(Ban),
@@ -217,7 +217,7 @@ pub enum Level {
     #[default]
     None,
     KnowExists,
-    /// May connect to the block's host (plans/hosted_blocks.md); sealed nothing.
+    /// May connect to the block's host (guides/blocks/hosted.md); sealed nothing.
     Join,
     View,
     Edit,

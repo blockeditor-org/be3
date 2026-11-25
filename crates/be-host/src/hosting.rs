@@ -1,5 +1,5 @@
 //! Runs a hosted block's host component on this device while it hosts the block
-//! (plans/hosted_blocks.md, "Hosting"): an editor of the block open here, this account allowed
+//! (guides/blocks/hosted.md, "Hosting"): an editor of the block open here, this account allowed
 //! to edit it, and no other device hosting its session (`be_host_stack::may_host`). Starting the
 //! component claims the session's lease (`be_host_stack::restart_host`), which makes this device
 //! the host; if another device claims after it, this one stops its own. When the host leaves,

@@ -1,4 +1,4 @@
-//! A Join member's side of a hosted block's channel on this device (plans/hosted_blocks.md,
+//! A Join member's side of a hosted block's channel on this device (guides/blocks/hosted.md,
 //! "Hosting"): while an editor is open on a block its account may only join
 //! (`opening-kind.join`), this device joins the block's session as a Join member, handshakes
 //! with the account the server names as holding the lease (`Peer::join_host`), and keeps the

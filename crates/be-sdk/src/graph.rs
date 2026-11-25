@@ -158,11 +158,13 @@ impl BlockInfo {
         !self.access.can_view()
     }
 
+    /// Whether the block opens. One this account may only join opens as a Join member, with
+    /// no content (guides/blocks/hosted.md, "Access"), so it is reached, named by its type.
     pub fn reach(&self) -> be_sdk_ui::Reach {
-        match (self.no_access(), self.locked) {
-            (true, _) => be_sdk_ui::Reach::NoAccess,
-            (false, true) => be_sdk_ui::Reach::Locked,
-            (false, false) => be_sdk_ui::Reach::Open,
+        match (self.access.can_join(), self.locked) {
+            (false, _) => be_sdk_ui::Reach::NoAccess,
+            (true, true) => be_sdk_ui::Reach::Locked,
+            (true, false) => be_sdk_ui::Reach::Open,
         }
     }
 

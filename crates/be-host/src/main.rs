@@ -712,7 +712,7 @@ struct HostCore {
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
-    /// The host components this device runs (plans/hosted_blocks.md, "Hosting").
+    /// The host components this device runs (guides/blocks/hosted.md, "Hosting").
     hosts: hosting::Hosts,
     editors: compositor::OwnedEditors,
 

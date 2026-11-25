@@ -12,7 +12,7 @@ fn queued_until(
 }
 
 /// While this device holds a hosted block's lease, a member that speaks on its host channel is
-/// admitted once the handshake and its first message check (plans/hosted_blocks.md, "Hosting"):
+/// admitted once the handshake and its first message check (guides/blocks/hosted.md, "Hosting"):
 /// the host component hears it join with its account and level, and what it says; what the
 /// component tells it reaches it sealed on its channel; and once its grant is revoked it goes.
 #[test]

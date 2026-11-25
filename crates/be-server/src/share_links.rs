@@ -340,7 +340,7 @@ impl ServerStore {
         self.with_graph(organization, move |store, graph, database| {
             let found = stored(database, link)?.ok_or_else(not_found)?;
             let role = store.may_open(graph, database, caller, &found)?;
-            // A Join link carries no key (plans/hosted_blocks.md): its opener reads nothing
+            // A Join link carries no key (guides/blocks/hosted.md): its opener reads nothing
             // stored. Any other carries the block's own scope key, which the opener seals to
             // itself.
             let carried = match (found.access, key) {

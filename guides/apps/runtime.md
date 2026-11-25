@@ -698,7 +698,7 @@ it signs be-host-stack in as the account `be` signs in as (`session::stack_confi
 the block's replica open (`be_host_stack::open`) so the device is in its session, and runs
 one `Headless` for as long as it runs, until Ctrl-C. Whenever no other device hosts the block
 (`be_host_stack::may_host`) it starts the type's host component, which claims the lease
-(`restart_host`, plans/hosted_blocks.md, step 4d2); while another device hosts it, it closes
+(`restart_host`, guides/blocks/hosted.md, "Who hosts"); while another device hosts it, it closes
 the component and stands by; it says which as the server names who hosts, and refuses a block
 the account may not edit. It sleeps until the stack, the app or a stop wakes it
 (`hosting::wake`); the first Ctrl-C stops it, closing the component, and a second exits at

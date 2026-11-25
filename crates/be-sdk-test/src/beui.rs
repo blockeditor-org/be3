@@ -169,6 +169,10 @@ enum Kind {
     Rename(Uuid),
     /// The Export dialog of a block (`BeuiTest::export`).
     Export,
+    /// An editor opened as a Join member of its block (`BeuiTest::joined`).
+    Join(Uuid),
+    /// A host component on its block (`BeuiTest::hosting`), given no screen.
+    Host(Uuid),
 }
 
 thread_local! {
@@ -204,6 +208,26 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             Adopted::Editor(editor, Some(Box::new(view))),
             Vec::new(),
         )
+    }
+
+    /// A test of the editor opened as a Join member of `block` (`opening-kind.join`;
+    /// guides/apps/host_services.md, "Host components"): given no content, only the block's
+    /// host channel, which `hear_channel` speaks on and `take_block_commands` reads
+    /// (`BlockCommand::TellHost`).
+    pub fn joined(block: Uuid) -> Self {
+        let editor = OwnedEditor::new(EditorHost::default(), block);
+        Self::open(Kind::Join(block), Adopted::Editor(editor, None), Vec::new())
+    }
+
+    /// A test of the app's host component on `block` (`opening-kind.host`), with an
+    /// `EditorHost` that may edit: never given a screen, it runs on each step as be-host runs
+    /// it. `hear_member` tells it of its channel's members, and `take_block_commands` reads
+    /// what it tells them (`BlockCommand::TellMember`).
+    pub fn hosting(block: Uuid) -> Self {
+        let host = EditorHost::default();
+        host.set_editable(true);
+        let editor = OwnedEditor::new(host, block);
+        Self::open(Kind::Host(block), Adopted::Editor(editor, None), Vec::new())
     }
 
     pub fn preview(editor: OwnedEditor) -> Self {
@@ -356,6 +380,20 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                     host_palette: host.host_palette(),
                 })
             }
+            Kind::Join(block) => OpeningKind::Join(be_sdk_api::OpenJoin {
+                block_id: block.into_bytes(),
+                block_type: block_type.into_bytes(),
+                page_origin: host.page_origin(),
+                host_palette: host.host_palette(),
+            }),
+            Kind::Host(block) => {
+                store.own(block, block_type);
+                OpeningKind::Host(be_sdk_api::OpenHost {
+                    block_id: block.into_bytes(),
+                    block_type: block_type.into_bytes(),
+                    editable: host.editable(),
+                })
+            }
             Kind::Creation => OpeningKind::Creation(OpenCreation {
                 template: template.clone(),
             }),
@@ -406,7 +444,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             kind: opening_kind,
         };
         let frame = match &kind {
-            Kind::Frame(_) => Some(be_sdk_api::FrameSpec {
+            Kind::Frame(_) | Kind::Join(_) => Some(be_sdk_api::FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content: None,
                 top_bar: TopBar::Hidden,
@@ -513,6 +551,11 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         test.wire.open(open);
         let frames = test.wire.take_outbound();
         test.deliver(Inbound::Frames(frames));
+        if matches!(kind, Kind::Host(_)) {
+            // A host component is never given a screen.
+            test.run();
+            return test;
+        }
         test.place();
         test.run();
         // The editor's view has the keyboard, as one a person just opened would: an app holds
@@ -568,7 +611,9 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
 
     pub fn block_id(&self) -> Option<Uuid> {
         match self.kind {
-            Kind::Frame(block) | Kind::Preview(block) => Some(block),
+            Kind::Frame(block) | Kind::Preview(block) | Kind::Join(block) | Kind::Host(block) => {
+                Some(block)
+            }
             Kind::Creation | Kind::Settings | Kind::Picker | Kind::Rename(_) | Kind::Export => None,
         }
     }
@@ -985,6 +1030,20 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     /// (`editor-event.hosting`).
     pub fn set_hosting(&mut self, hosting: be_sdk_api::blocks::HostingHere) {
         self.tell(vec![EditorEvent::Hosting(hosting)]);
+        self.run();
+    }
+
+    /// Tells a Join editor (`BeuiTest::joined`) of its block's host channel, as be-host does
+    /// (`editor-event.channel`).
+    pub fn hear_channel(&mut self, event: be_sdk_api::blocks::ChannelEvent) {
+        self.tell(vec![EditorEvent::Channel(event)]);
+        self.run();
+    }
+
+    /// Tells a host component (`BeuiTest::hosting`) that a member of its block's host channel
+    /// came, spoke or went, as be-host does (`editor-event.member`).
+    pub fn hear_member(&mut self, event: be_sdk_api::blocks::MemberEvent) {
+        self.tell(vec![EditorEvent::Member(event)]);
         self.run();
     }
 
@@ -2050,9 +2109,13 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         match self.kind {
             Kind::Preview(_) => View::PREVIEW,
             Kind::Settings => View::ARTIFACT_SETTINGS,
-            Kind::Frame(_) | Kind::Creation | Kind::Picker | Kind::Rename(_) | Kind::Export => {
-                View::MAIN
-            }
+            Kind::Frame(_)
+            | Kind::Creation
+            | Kind::Picker
+            | Kind::Rename(_)
+            | Kind::Export
+            | Kind::Join(_)
+            | Kind::Host(_) => View::MAIN,
         }
     }
 
@@ -2414,13 +2477,17 @@ fn capabilities<A: AppEditor>() -> be_sdk_manifest::EditorCapabilities {
     let manifest =
         be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
     let editor = A::EDITORS[0];
-    let (_, document) = manifest
-        .editors
-        .0
-        .iter()
-        .find(|(name, _)| *name == editor)
-        .unwrap_or_else(|| panic!("the app's manifest names no editor {editor:?}"));
-    document.capabilities.clone()
+    match manifest.editors.0.iter().find(|(name, _)| *name == editor) {
+        Some((_, document)) => document.capabilities.clone(),
+        // A host component is no editor: it has no frame to be capable of anything in.
+        None if is_host(&manifest, editor) => be_sdk_manifest::EditorCapabilities::default(),
+        None => panic!("the app's manifest names no editor {editor:?}"),
+    }
+}
+
+/// Whether `manifest` names `name` among its host components.
+fn is_host(manifest: &be_sdk_manifest::ManifestDocument, name: &str) -> bool {
+    manifest.hosts.0.iter().any(|(host, _)| host == name)
 }
 
 /// The deepest the host zooms the editor `A`: its manifest's `max_zoom`, or be-host's default.
@@ -2430,6 +2497,7 @@ fn max_zoom<A: AppEditor>() -> f32 {
         be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
     let zooms: Vec<f32> = A::EDITORS
         .iter()
+        .filter(|editor| !is_host(&manifest, editor))
         .map(|editor| {
             let (_, document) = manifest
                 .editors
@@ -2443,7 +2511,10 @@ fn max_zoom<A: AppEditor>() -> f32 {
                 .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32)
         })
         .collect();
-    let first = zooms[0];
+    let Some(&first) = zooms.first() else {
+        // A host component's root, which is never zoomed.
+        return MAXIMUM_ZOOM;
+    };
     assert!(
         zooms.iter().all(|zoom| *zoom == first),
         "the editors {:?} share a root but not a max_zoom",

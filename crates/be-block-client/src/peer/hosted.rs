@@ -1,4 +1,4 @@
-//! The two sides of a hosted block's private channel (plans/hosted_blocks.md, "The channel"):
+//! The two sides of a hosted block's private channel (guides/blocks/hosted.md, "The channel"):
 //! a member checks that the account the server names as the block's host may host it, then
 //! opens a Noise IK handshake to that account's identity key (`be_block_keys::noise`); the host
 //! checks the member's grant names the key it spoke with before it answers, and counts the
@@ -214,7 +214,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Whether a member the host admitted to `block`'s channel as `account`, speaking with the
     /// identity key `public`, may stay: the level the signed logs give it now, as `admit`
     /// checks it, or none once a revocation, a ban or a new key ends it. What a host checks its
-    /// admitted members by again on each access change (plans/hosted_blocks.md, "Hosting").
+    /// admitted members by again on each access change (guides/blocks/hosted.md, "Hosting").
     pub async fn still_admits(
         &self,
         block: Uuid,
@@ -245,7 +245,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(held.filter(|(level, _)| *level >= Level::Edit || !checked.banned.contains(&account)))
     }
 
-    /// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"): signs a
+    /// Bars `account` from joining `block`'s host (guides/blocks/hosted.md, "Hosting"): signs a
     /// ban record into the block's log, which this account may do with Edit or above (from the
     /// log or from outside it). A host refuses the account at the handshake and the server at
     /// joining, until a grant to it signed after the ban lifts it. A ban binds no editor.

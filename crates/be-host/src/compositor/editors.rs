@@ -1335,7 +1335,9 @@ fn BlockFrameBody(
     let resolution = create_memo(move || {
         any.track();
         let access = editors.access(block, nesting.access);
-        if !access.can_view() {
+        // A block this account may only join opens its editor as a Join member, with no
+        // content (guides/blocks/hosted.md).
+        if !access.can_join() {
             return Resolution::NoAccess;
         }
         let Some(handle) = editors.handle(key) else {

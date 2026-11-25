@@ -66,7 +66,7 @@ pub fn wake() {
 /// Hosts `block`, of `block_type`, as the device `client` (`be BLOCK host`, guides/apps/runtime.md,
 /// "Headless"), on a block stack the caller started, until `stop` answers true: holds the block's
 /// replica open, so this device is in its session, starts the type's host component whenever
-/// no one hosts it (starting claims the lease, plans/hosted_blocks.md, step 4d2), and stops it,
+/// no one hosts it (starting claims the lease, guides/blocks/hosted.md, "Who hosts"), and stops it,
 /// standing by, while another device does. It refuses a block this account may not edit, as a
 /// claim of it would be refused. `told` hears what the server says of who hosts it, each time
 /// that changes. It sleeps until woken: by the stack handing over a change, by the app, or by

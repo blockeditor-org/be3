@@ -1,7 +1,7 @@
 use super::*;
 
 /// A block asked to join its session again as it closes (a host component's release, after its
-/// editor closed, plans/hosted_blocks.md, step 4d2) starts no join, which would hold up the
+/// editor closed, guides/blocks/hosted.md, "Who hosts") starts no join, which would hold up the
 /// close and so the block opening again: it closes, and leaving drops any claim it made.
 #[test]
 fn a_closing_block_is_not_joined_again_and_closes() {

@@ -2311,7 +2311,7 @@ pub fn in_use() -> Vec<String> {
     })
 }
 
-/// What hosted blocks need of the runtime (plans/hosted_blocks.md, "Hosting"): each block an
+/// What hosted blocks need of the runtime (guides/blocks/hosted.md, "Hosting"): each block an
 /// editor shows, with its type, and each host component running, by its app, instance and
 /// block.
 pub fn editing_and_hosting() -> (Vec<EditorBlock>, Vec<(String, EditorInstanceId, Uuid)>) {

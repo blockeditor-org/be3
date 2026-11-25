@@ -25,7 +25,7 @@ pub trait Instance: std::any::Any {
         self.connect(block_id);
     }
 
-    /// Opens on `block_id` as a Join member (`opening-kind.join`; plans/hosted_blocks.md,
+    /// Opens on `block_id` as a Join member (`opening-kind.join`; guides/blocks/hosted.md,
     /// "Hosting"): connected as `connect` does, but given no content, only the block's host
     /// channel (`EditorHost::joined`, `EditorHost::take_channel_events`).
     fn connect_join(&mut self, block_id: Uuid) {

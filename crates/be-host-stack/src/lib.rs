@@ -1201,7 +1201,7 @@ pub fn detach(block: Uuid, editor: u64) {
 }
 
 /// What the host component running on `block` has yet to hear of its host channel's members
-/// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
+/// (guides/blocks/hosted.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
 pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
     let Some((events, upto)) = with_seen(|seen| {
         let (news, last) = seen.member_news.of(block)?;
@@ -1216,7 +1216,7 @@ pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
 }
 
 /// What the Join editors of `block` have yet to hear of its host channel
-/// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `channel-event`s.
+/// (guides/blocks/hosted.md, "Hosting"), taken: the runtime passes it on as `channel-event`s.
 pub fn take_channel_events(block: Uuid) -> Vec<be_sdk_api::blocks::ChannelEvent> {
     let Some((events, upto)) = with_seen(|seen| {
         let (news, last) = seen.channel_news.of(block)?;
@@ -1253,8 +1253,8 @@ pub fn restart_host(block: Uuid) {
 /// A host component stopped on `block`: if this device claimed its session since its replica
 /// last joined it, and the replica stays open (a preview, a child), the replica joins the
 /// session again, which drops the claim, so another device may host and this one is never
-/// named host again by that claim once a later claimant goes (plans/hosted_blocks.md, step
-/// 4d2). A replica that closes drops it anyway.
+/// named host again by that claim once a later claimant goes (guides/blocks/hosted.md, "Who
+/// hosts"). A replica that closes drops it anyway.
 pub fn release_host(block: Uuid) {
     send(Command::ReleaseHost(block));
 }
@@ -2468,7 +2468,7 @@ pub fn set_access(
     });
 }
 
-/// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"); `reply`
+/// Bars `account` from joining `block`'s host (guides/blocks/hosted.md, "Hosting"); `reply`
 /// hears whether the server took it. A member of what this device hosts that it bars goes.
 pub fn ban(block: Uuid, account: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
     send(Command::Ban {

@@ -1,7 +1,7 @@
 use super::*;
 
 /// A hosted block's players carry on with the next host once the first closes the world
-/// (plans/hosted_blocks.md, step 4): two devices of one account have the counter open, the
+/// (guides/blocks/hosted.md, "Hosting"): two devices of one account have the counter open, the
 /// first hosting it, and two players reach it as raw peers through a Join link, each answered
 /// by the host as it handshakes. Once the first device closes its editor its lease
 /// goes, the second device's component claims it, and both players hear the new host and are
