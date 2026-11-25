@@ -5210,10 +5210,51 @@ async fn read_trees(
     }
 }
 
+/// Numbers the reads of one thing a task reads whole and stores (the account's mutes, the offers
+/// to it, its notices): two reads in flight answer in either order, so an answer is stored only
+/// when none asked after it was stored first, and the older never overwrites the newer.
+#[derive(Clone, Default)]
+pub(super) struct Reads(std::rc::Rc<std::cell::Cell<(u64, u64)>>);
+
+/// One read `Reads::ask` numbered.
+pub(super) struct Read {
+    reads: Reads,
+    number: u64,
+}
+
+impl Reads {
+    /// Numbers a read asked now, after every one asked before.
+    pub(super) fn ask(&self) -> Read {
+        let (asked, stored) = self.0.get();
+        self.0.set((asked + 1, stored));
+        Read {
+            reads: self.clone(),
+            number: asked + 1,
+        }
+    }
+}
+
+impl Read {
+    /// Whether its answer is to be stored: no read asked after it has been. Once it says so, an
+    /// older read's no longer is.
+    pub(super) fn stores(&self) -> bool {
+        let (asked, stored) = self.reads.0.get();
+        if self.number <= stored {
+            return false;
+        }
+        self.reads.0.set((asked, self.number));
+        true
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
     contacts: Arc<tokio::sync::Mutex<()>>,
+    /// The reads of the account's mutes, the offers to it and its notices (`Reads`).
+    mutes_read: Reads,
+    offers_read: Reads,
+    notices_read: Reads,
     outbox: std::rc::Rc<std::cell::RefCell<Outbox>>,
     /// Counts the drains of the outbox that ended, for what waits on one (`sent`).
     drained: std::rc::Rc<tokio::sync::watch::Sender<u64>>,
@@ -5247,6 +5288,9 @@ impl Tasks {
             Self {
                 finished,
                 contacts,
+                mutes_read: Reads::default(),
+                offers_read: Reads::default(),
+                notices_read: Reads::default(),
                 outbox,
                 drained: std::rc::Rc::new(tokio::sync::watch::Sender::new(0)),
                 storage: Default::default(),
@@ -5433,9 +5477,11 @@ impl Tasks {
 
     /// Reads every block the account muted into `Shared::mutes`.
     fn mutes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        let (peer, shared, asked) = (Arc::clone(peer), Arc::clone(shared), self.mutes_read.ask());
         self.spawn(async move {
-            if let Ok(read) = peer.mutes().await {
+            if let Ok(read) = peer.mutes().await
+                && asked.stores()
+            {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 held.mutes =
                     crate::Part::new(Some(read.iter().map(|row| (row.block, row.mode)).collect()));
@@ -5456,8 +5502,11 @@ impl Tasks {
     /// changed (which an offer made or withdrawn tells), and after this host accepts one.
     fn owner_offers(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), self.clone());
+        let asked = self.offers_read.ask();
         self.spawn(async move {
-            if let Ok(offers) = peer.owner_offers().await {
+            if let Ok(offers) = peer.owner_offers().await
+                && asked.stores()
+            {
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -5472,9 +5521,11 @@ impl Tasks {
     /// Reads the account's notices and shows them (`be_host_base::notices::account_notices`):
     /// for an account with no email, what it would otherwise be mailed.
     fn account_notices(&self, peer: &Arc<Peer<Store>>) {
-        let peer = Arc::clone(peer);
+        let (peer, asked) = (Arc::clone(peer), self.notices_read.ask());
         self.spawn(async move {
-            if let Ok(mailbox) = be_block_client::contacts::mailbox(&peer.connection()).await {
+            if let Ok(mailbox) = be_block_client::contacts::mailbox(&peer.connection()).await
+                && asked.stores()
+            {
                 crate::seen::notice(crate::seen::Notice::Account(crate::accounts::notices(
                     mailbox,
                 )));
