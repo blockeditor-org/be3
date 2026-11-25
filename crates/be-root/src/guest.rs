@@ -58,6 +58,7 @@ mod lock;
 mod menu;
 mod notices;
 mod onboarding;
+mod panels;
 mod session;
 mod statistics;
 
@@ -66,6 +67,7 @@ use lock::*;
 use menu::*;
 use notices::*;
 use onboarding::*;
+use panels::*;
 use session::*;
 use statistics::*;
 
@@ -145,6 +147,12 @@ struct Root {
     asked: Rc<Cell<Option<Asked>>>,
     /// Its panel of the host's statistics, while it is open.
     statistics: Rc<RefCell<Option<BeuiSurface>>>,
+    /// The host panels its apps place, each drawn on a surface of its own (`settle_panels`).
+    panels: Rc<RefCell<Vec<PanelSurface>>>,
+    /// How many panel surfaces it made: the next is numbered past them.
+    panels_made: Rc<Cell<u32>>,
+    /// The host panel its menu asked the session's editor to show, done with the next frame.
+    panel_asked: Rc<Cell<Option<be_sdk_api::HostPanel>>>,
     /// The statistics that panel shows, which the host's answers set.
     shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
     /// The memory over time that panel graphs, which the host's answers set.
@@ -374,6 +382,9 @@ impl Root {
             dialog: Rc::default(),
             asked: Rc::default(),
             statistics: Rc::default(),
+            panels: Rc::default(),
+            panels_made: Rc::default(),
+            panel_asked: Rc::default(),
             shown_statistics: Rc::default(),
             shown_memory: Rc::default(),
             statistics_opened: Rc::default(),
@@ -481,6 +492,8 @@ impl Root {
         let wakes = self.waker.clone();
         let wanted = Rc::clone(&self.wanted);
         let statistics_asked = Rc::clone(&self.statistics_asked);
+        let panel_asked = Rc::clone(&self.panel_asked);
+        let wakes_panel = self.waker.clone();
         let menu_shows = Rc::clone(&self.menu_shows);
         let core = self.core.borrow().clone();
         let menu = BeuiSurface::new(
@@ -498,6 +511,10 @@ impl Root {
                     statistics_asked.set(true);
                     wakes_too.wake();
                 });
+                let panel = Callback::new(move |shown: be_sdk_api::HostPanel| {
+                    panel_asked.set(Some(shown));
+                    wakes_panel.wake();
+                });
                 let core = create_signal(core);
                 let saving = create_signal(SavingState {
                     generation: 0,
@@ -509,7 +526,13 @@ impl Root {
                 menu_shows.set(Some((core, saving)));
                 view! {
                     <Root clear_color=ColorRole::None>
-                        <HostMenu core={core} saving={saving} want={want} statistics={statistics} />
+                        <HostMenu
+                            core={core}
+                            saving={saving}
+                            want={want}
+                            statistics={statistics}
+                            panel={panel}
+                        />
                     </Root>
                 }
             },
@@ -810,6 +833,7 @@ impl Root {
         if let Some(statistics) = &mut *self.statistics.borrow_mut() {
             statistics.input(own);
         }
+        self.panels_heard(own);
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.input(own);
         }
@@ -1544,6 +1568,9 @@ impl frames::Guest for Root {
             if root.statistics_asked.take() {
                 root.toggle_statistics();
             }
+            if let Some(panel) = root.panel_asked.take() {
+                root.show_panel(panel);
+            }
             if let Some(toasts) = &mut *root.toasts.borrow_mut() {
                 toasts.frame().expect("the root draws its toasts with beui");
             }
@@ -1743,6 +1770,7 @@ impl frames::Guest for Root {
             let next = wants
                 .next
                 .into_iter()
+                .chain(root.panels_next())
                 .chain(documents)
                 .chain(dialog)
                 .chain(statistics)
@@ -1850,8 +1878,10 @@ impl paintings::Guest for Root {
             None => None,
         };
         let session = self.session_screens();
+        let panels = self.panels_painted();
         let mut screens: Vec<_> = own
             .into_iter()
+            .chain(panels)
             .chain(notice)
             .chain(menu)
             .chain(accounts)
