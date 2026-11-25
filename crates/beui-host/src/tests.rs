@@ -276,11 +276,14 @@ mod a_headless_window_fills_its_screen_when_the_program_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_hidden_tabs_content_taking_the_keyboard_late_leaves_the_tab_shown_in_its_place;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
+mod a_hosted_dock_dialog_closes_its_window_while_locked;
 mod a_hosted_dock_dialog_is_a_window_of_its_own_beside_its_tab_that_its_host_moves;
+mod a_hosted_dock_dialog_turned_into_a_sheet_opens_no_window;
 mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
 mod a_hosted_dock_window_opens_over_the_spot_it_has_in_the_dock;
 mod a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_reports;
 mod a_hosted_dock_windows_grip_asks_its_host_to_resize_it;
+mod a_hosted_modal_dock_dialog_keeps_the_focus_and_gives_it_back_to_its_tab;
 mod a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own;
 mod a_hosts_report_of_a_windows_size_and_place_reaches_the_program;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
@@ -2665,8 +2668,11 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
     }
 }
 
+use crate::LayerLevel;
+use crate::dock::{DockDialog, DockPane, DockTab};
 use crate::native::Document;
 use crate::primitives::Interactive;
+use crate::styled::{Modal, Scrim};
 use crate::unstyled::Scroll;
 use crate::{WindowAnchor, WindowId, WindowPlacement, WindowRequest};
 use beui::WHEEL_LATCH_TIMEOUT;
@@ -3451,3 +3457,87 @@ fn assert_hovered_not_pointed(rows: &Menu, what: &str) {
 }
 
 const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 100);
+
+struct Dock {
+    harness: Harness,
+    window: WindowId,
+    at: Pos2,
+    pressed: Signal<u32>,
+    open: Signal<bool>,
+    locked: Signal<bool>,
+}
+fn hosted_dock(size: Vec2) -> Dock {
+    let pressed = create_signal(0_u32);
+    let open = create_signal(true);
+    let locked = create_signal(false);
+    let document = build_node(move || {
+        let dialogs = create_memo(move || match open.get() {
+            true => vec![2u64],
+            false => Vec::new(),
+        });
+        view! {
+            <List spacing=0.0>
+                <ListItem grow=1.0>
+                    <dock_host::styled::DockHost>
+                        <dock::Docking>
+                            <DockPane id="main">
+                                <DockTab id=1u64 title="Page">
+                                    <List spacing=0.0>
+                                        <Button @test_id="page.button" label="Under the dialog" />
+                                        <ListItem grow=1.0>
+                                            <Interactive
+                                                @test_id="page"
+                                                on_press={move |_: PointerPress| pressed.update(|n| *n += 1)}
+                                            >
+                                                <Frame />
+                                            </Interactive>
+                                        </ListItem>
+                                    </List>
+                                </DockTab>
+                            </DockPane>
+                            <ForEach value={dialogs}>|id: u64|
+                                <DockDialog
+                                    id
+                                    parent=1u64
+                                    title="Dialog"
+                                    modal=true
+                                    size={vec2(240.0, 80.0)}
+                                    on_close={move || open.set(false)}
+                                >
+                                    <Button @test_id="dialog.button" label="Inside" />
+                                </DockDialog>
+                            </ForEach>
+                        </dock::Docking>
+                    </dock_host::styled::DockHost>
+                </ListItem>
+                <Modal open={locked} scrim=Scrim::Opaque level=LayerLevel::Lock>||
+                    <Frame />
+                </Modal>
+            </List>
+        }
+    });
+    let mut harness = Harness::hosting_windows(document, size);
+    for _ in 0..4 {
+        harness.frame(Vec::new());
+    }
+    let opened = harness.take_window_requests();
+    let (window, at) = opened
+        .iter()
+        .find_map(|request| match request {
+            WindowRequest::Open {
+                window,
+                placement: WindowPlacement::Over { window: over, at },
+                ..
+            } if *over == WindowId::MAIN => Some((*window, *at)),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("the dialog opens a window of its own: {opened:?}"));
+    Dock {
+        harness,
+        window,
+        at,
+        pressed,
+        open,
+        locked,
+    }
+}

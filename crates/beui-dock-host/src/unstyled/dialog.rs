@@ -505,7 +505,10 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         >|window: WindowHandle| {
             hosted_window.set(Some(window));
             view! {
-                <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
+                <Interactive
+                    @node_ref=&frame
+                    on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                >
                     {face()}
                 </Interactive>
             }
