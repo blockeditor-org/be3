@@ -513,7 +513,7 @@ fn resolved(
     queue.submit([encoder.finish()]);
     read_back(device, &destination)
         .as_chunks::<8>().0.iter()
-        .map(|value| u64::from_le_bytes(value.try_into().unwrap()))
+        .map(|value| u64::from_le_bytes(*value))
         .collect()
 }
 

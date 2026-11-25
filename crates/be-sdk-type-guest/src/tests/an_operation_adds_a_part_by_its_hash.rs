@@ -68,7 +68,7 @@ impl BlockContent for Shelf {
 
     fn from_stored(stored: &be_block_content::Stored) -> Result<Self, ContentError> {
         let mut shelf = Self::decode(&stored.bytes)?;
-        let saved = stored
+        let saved: Vec<_> = stored
             .root
             .as_ref()
             .map(|root| {
