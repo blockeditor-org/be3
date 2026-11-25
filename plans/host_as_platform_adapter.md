@@ -1593,8 +1593,6 @@ Each step lands on its own.
            above paints the workspace app's frame.
 
            Left for later:
-           - grafting the app's accessibility tree, which needs the root to describe its own
-             tree to the host first (4g7f's `tree` and `find`);
            - building `core-view` only when the stack or one of the core's areas changed
              (`stack_changes`, the areas' own state), rather than each frame, and comparing it
              with the last view handed (`root/block_stack.rs`'s `view`).
@@ -2081,10 +2079,25 @@ Each step lands on its own.
          - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as
            a `Surface::Host` layer, which the host composites and routes input to, and relays
            its status (title, icon, raised, fullscreen) to its placer.
-       - 4g7f. drive's commands split as The root guest says: `tree`, `find`, `paint`,
-         `settle`, `synced` and `offline` to the root as messages, the clock and the
-         platform's in the host. The root describes its own tree, and grafts into it the trees
-         of the apps it embeds (be-sdk-app-host's `Graft`).
+       - 4g7f. Built, before 4g7e2, whose tests press windows by name: drive's `tree`,
+         `find` and presses by name read the root's accessibility tree. While be-host asks
+         for it (`frame-request.describe`, set as be-host-runtime's `describe` says: a driver
+         or a screen reader), the root asks its apps to describe their screens
+         (`set_describing`) and answers its whole tree (`frame-done.accessibility`, an AccessKit
+         `TreeUpdate`): a window whose children are what each layer drawn last shows, in
+         z-order (`Embedding::describe`), each grafted in a document of its own
+         (be-sdk-app-host's `Graft`): its own surfaces' documents (`BeuiSurface::describe`) and
+         the screens its apps described, placed by their layers. be-host grafts that tree under
+         its window as it grafts an app's screen (`root.rs`'s `publish_tree`). `paint`,
+         `settle`, `synced` and `offline` already reached the root (its paintings, `owed`, the
+         host's block stack). Host test
+         `be_root_in_place_of_the_hosts_ui_names_what_it_shows_to_drive`.
+         - Left: accessibility actions on the root's nodes (a screen reader's press, focus,
+           a value set) do not reach the root: be-host drops them (drive presses by name at
+           the point the tree says, which the root hears as input); the root would route each
+           back to its surface's document or its app's screen (`Graft::app_node`).
+         - Left: a layer's turn (`placed_transform`'s rotation) is not in its graft's
+           placing, which only translates and scales.
        - 4g7g. be-host brings back under `--root` what the host keeps, each answering the
          capability 4g6 gave it (the block stack's `core-view`, commands and secrets came
          with 4g7b2a): the login session's lock and PAM (with its

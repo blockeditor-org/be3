@@ -62,12 +62,13 @@ pub use children::{
     child_screen, framing_screen, main_screen, preview_screen, preview_screen_of,
 };
 pub use embedded::{
-    AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, set_clock, tell_editor,
+    AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, describing,
+    next_document, set_clock, set_describing, tell_editor,
 };
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
 
-use be_lib_geometry::{Pos2, Rect, pos2};
+use be_lib_geometry::{Pos2, Rect, Vec2, pos2};
 use be_lib_input_router::Drag;
 use be_lib_layers::{Area, Layer, LayerId, LayerList, Surface};
 use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
@@ -90,6 +91,8 @@ pub struct Embedding {
     /// The anchored views that ask for the keyboard (`anchored-placement.keyboard`), while
     /// their apps keep them open.
     keyed: Vec<Keyed>,
+    /// The trees of the root's own surfaces, by surface, as `describe` last grafted them.
+    own_trees: be_lib_stable_hash::HashMap<u32, be_sdk_app_host::accessibility::Graft>,
 }
 
 /// An anchored view that asks for the keyboard, as be-host gives it: to the child placed in it,
@@ -151,6 +154,7 @@ impl Embedding {
             windows: Windows::new(compositor),
             carried: None,
             keyed: Vec::new(),
+            own_trees: Default::default(),
         }
     }
 
@@ -583,6 +587,73 @@ impl Embedding {
             None => 0,
         };
         self.focus(window, Some(screens[next]))
+    }
+
+    /// The root's accessibility tree for `window`, `size` points large, in its points: a window
+    /// node whose children are what each layer drawn last shows, in z-order, each grafted in a
+    /// document of its own (be-sdk-app-host's `Graft`): the trees of the root's own surfaces,
+    /// `own` by surface (`BeuiSurface::describe`, in the surface's pixels), and of the screens
+    /// its apps described while asked to (`set_describing`). Its focus is the focused layer's.
+    /// What the root hands its host (`frame-done.accessibility`) for drive and screen readers.
+    pub fn describe(
+        &mut self,
+        window: Option<u64>,
+        size: Vec2,
+        own: Vec<(u32, be_sdk_api::accesskit::TreeUpdate)>,
+    ) -> be_sdk_api::accesskit::TreeUpdate {
+        let mut own: be_lib_stable_hash::HashMap<u32, _> = own.into_iter().collect();
+        use be_sdk_api::accesskit::{Node, NodeId, Rect as AccessRect, Role, Tree, TreeId, TreeUpdate};
+        use be_sdk_app_host::accessibility::{Graft, Placing};
+        let focused = self.focused(window).map(|layer| layer.id);
+        let layers = self.windows.layers(window).to_vec();
+        let mut nodes = Vec::new();
+        let mut children = Vec::new();
+        let mut focus = None;
+        for layer in layers.iter().filter(|layer| layer.shown) {
+            let placing = Placing {
+                title: None,
+                area: layer.bounds(),
+                origin: layer.transform.origin().to_vec2(),
+                scale: layer.transform.across().length(),
+            };
+            let grafted = match layer.surface {
+                Surface::Root(surface) => {
+                    let graft = self
+                        .own_trees
+                        .entry(surface)
+                        .or_insert_with(|| Graft::new(embedded::next_document()));
+                    if let Some(tree) = own.remove(&surface) {
+                        graft.update(tree);
+                    }
+                    Some(graft.grafted(placing, focused == Some(layer.id), true))
+                }
+                Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => self
+                    .apps
+                    .iter()
+                    .find(|app| app.instance() == instance)
+                    .and_then(|app| app.grafted(surface, placing)),
+                Surface::Host(_) => None,
+            };
+            let Some(grafted) = grafted else {
+                continue;
+            };
+            children.push(grafted.root);
+            nodes.extend(grafted.nodes);
+            if focused == Some(layer.id) {
+                focus = grafted.focus.or(Some(grafted.root));
+            }
+        }
+        let root = NodeId(0);
+        let mut node = Node::new(Role::Window);
+        node.set_bounds(AccessRect::new(0.0, 0.0, size.x.into(), size.y.into()));
+        node.set_children(children);
+        nodes.insert(0, (root, node));
+        TreeUpdate {
+            nodes,
+            tree: Some(Tree::new(root)),
+            tree_id: TreeId::ROOT,
+            focus: focus.unwrap_or(root),
+        }
     }
 
     /// The input method's area in `window`, in its points: the field the app focused there

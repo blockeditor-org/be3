@@ -153,6 +153,43 @@ struct RootShell {
     editors: Editors,
     /// The block stack as the root is shown it, and the secrets it asked for.
     block_stack: block_stack::BlockStack,
+    /// The root's accessibility tree, grafted under the window's as an app's screen is, in a
+    /// document of beui's the host reserves for it: what drive's `tree`, `find` and presses
+    /// by name read under `--root`, and a screen reader hears.
+    tree: be_sdk_app_host::accessibility::Graft,
+}
+
+/// Grafts the tree the root's frame answered (`frame-done.accessibility`) under the window's,
+/// where the root is drawn (`area`), as be-host grafts an app's screen. Actions on its
+/// nodes (a screen reader's press) do not reach the root yet: drive presses by name at the
+/// point its tree says, which the root hears as any press.
+fn publish_tree(
+    graft: &mut be_sdk_app_host::accessibility::Graft,
+    context: &beui::native::Context,
+    area: beui::Rect,
+    tree: Option<&[u8]>,
+) {
+    let document = graft.document();
+    context.take_accessibility_actions(document);
+    let Some(tree) = tree.and_then(be_sdk_api::ops::decode::<be_sdk_api::accesskit::TreeUpdate>)
+    else {
+        return;
+    };
+    graft.update(tree);
+    let grafted = graft.grafted(
+        be_sdk_app_host::accessibility::Placing {
+            title: None,
+            area,
+            origin: area.min.to_vec2(),
+            scale: 1.0,
+        },
+        true,
+        !context.accessibility_known(document),
+    );
+    context.publish_accessibility(
+        document,
+        beui::native::accessibility::Fragment::new(grafted.nodes, grafted.root, grafted.focus),
+    );
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -204,6 +241,9 @@ impl RootShell {
             memory: None,
             editors: Editors::default(),
             block_stack: block_stack::BlockStack::default(),
+            tree: be_sdk_app_host::accessibility::Graft::new(
+                beui::native::accessibility::next_document_id(),
+            ),
         }
     }
 
@@ -282,11 +322,15 @@ impl RootShell {
                 height: area.height(),
                 pixels_per_point: context.pixels_per_point(),
             },
+            // As be-host describes its own apps' screens (be-host-runtime's `describe`).
+            describe: context.accessibility_active()
+                && (context.automated() || context.accessibility_requested()),
         };
         let done = match root.frame(request, deadline) {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
+        publish_tree(&mut self.tree, context, area, done.accessibility.as_deref());
         clipboard(context, root, &self.pasted);
         serve_editors(&mut self.core, root, &mut self.editors);
         for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {

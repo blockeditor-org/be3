@@ -23,6 +23,7 @@ fn input_reaches_the_child_under_it_by_the_layers_drawn_last() {
                 wall_clock: 0,
                 utc_offset: 0,
                 window: window(),
+                describe: false,
             },
             Instant::now() + PATIENT,
         )

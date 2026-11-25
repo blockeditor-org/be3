@@ -1368,6 +1368,11 @@ interface frames {
         /// the layer list names windows, so a root can lay out each window's
         /// layers, its lock screen among them.
         window: window-size,
+        /// Whether the host shows the root's accessibility tree this frame, as
+        /// a screen reader or a driver (drive's `tree`, `find` and presses by
+        /// name) asks it to: the root then answers it (`frame-done`'s
+        /// `accessibility`), and asks the apps it embeds to describe theirs.
+        describe: bool,
     }
 
     /// A window's size, in points, and the pixels a point is drawn at: a
@@ -1413,6 +1418,12 @@ interface frames {
         /// held in place with its moves reported as motion: while the focused
         /// surface holds the lock.
         pointer-locked: bool,
+        /// The root's accessibility tree for the host's one window, while the
+        /// host asks for it (`frame-request.describe`): an AccessKit
+        /// `TreeUpdate` of the whole tree in be-wasm-ops' encoding, in the
+        /// window's points, with ids the root chooses, which the host grafts
+        /// under its own window as it grafts an app's screen.
+        accessibility: option<list<u8>>,
     }
 
     /// Draws a frame. The host steps the root until it answers: between

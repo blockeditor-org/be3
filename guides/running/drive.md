@@ -98,6 +98,12 @@ after its app, holding the nodes its editor describes, so apps read like the hos
 controls. An app's anchored view (a menu or popover past its frame) is an untitled container
 beside its `Pane`.
 
+Under `--root` the tree past be-host's window node is the root's (`frame-done.accessibility`):
+an untitled container for each layer it draws, in z-order, holding what its own surface
+describes or what the app on that screen does, so test ids and labels read as they do in be-host.
+A press by name lands at the point the tree says; other accessibility actions do not reach the
+root yet.
+
 - `ids` lists every test id and where it is, apps included. Test ids are the steadiest names.
 - `find TARGET` says where a target is; `find TARGET reveal` scrolls it into view first, and
   `find TARGET shown` says where the part of it that shows is. `reveal`, `shown` and `not` are

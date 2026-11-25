@@ -232,7 +232,11 @@ impl BeuiSurface {
         let document = beui_host::native::build(build);
         let overlays = Rc::<RefCell<Vec<Rect>>>::default();
         let mut runner = Runner::new(Launch {
-            options: RunOptions::default(),
+            // Its tree is kept, for the root to hand its host (`BeuiSurface::describe`).
+            options: RunOptions {
+                accessibility_tree: true,
+                ..RunOptions::default()
+            },
             context,
             program: Box::new(Showing {
                 document,
@@ -274,6 +278,15 @@ impl BeuiSurface {
             due: Some(Duration::ZERO),
             overlays,
         })
+    }
+
+    /// The document's accessibility tree as its last frame laid it out, in the surface's pixels
+    /// (its root scaled from its points by its raster), with beui's ids: what the root grafts
+    /// into the tree it hands its host (`Embedding::describe`). None before its first frame.
+    pub fn describe(&self) -> Option<beui_core::accesskit::TreeUpdate> {
+        let (width, height) = self.drawn.surface.borrow().size();
+        let points = beui_types::Vec2::new(width as f32, height as f32) / self.raster;
+        Some(self.runner.output()?.accessibility_tree("", points))
     }
 
     /// The surface's id, which its layers name as `Surface::Root`.

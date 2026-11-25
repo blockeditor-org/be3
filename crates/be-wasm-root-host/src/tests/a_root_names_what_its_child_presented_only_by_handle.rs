@@ -10,6 +10,7 @@ fn a_root_names_what_its_child_presented_only_by_handle() {
                 wall_clock: 0,
                 utc_offset: 0,
                 window: window(),
+                describe: false,
             },
             Instant::now() + PATIENT,
         )
