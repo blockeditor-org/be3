@@ -1199,7 +1199,9 @@ impl Instances {
 
     /// Whether the instance `instance` opened in its app.
     pub(super) fn is_open(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_some_and(|entry| entry.opened)
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.opened)
     }
 
     fn editable(&self, block: Uuid) -> bool {
@@ -2209,6 +2211,20 @@ impl Instances {
 
     pub(super) fn artifact_failure(&self, instance: EditorInstanceId) -> Option<String> {
         self.entries.get(&instance)?.artifact.failure.clone()
+    }
+
+    /// Gives the instance `instance`, opened as an artifact, the exporter that makes it and the
+    /// settings it was made with, which it opens with (`OpeningKind::Artifact`).
+    pub(super) fn seed_artifact(
+        &mut self,
+        instance: EditorInstanceId,
+        exporter: &str,
+        data: &[u8],
+    ) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.artifact.exporter = exporter.to_owned();
+            entry.artifact.data = data.to_vec();
+        }
     }
 
     pub(super) fn artifact_draft(&self, instance: EditorInstanceId) -> Option<Vec<u8>> {
@@ -4074,8 +4090,9 @@ impl Instances {
 
     /// Takes what a root relays of what its dialog `instance` told the shell
     /// (`Forwarded::shell_told`): the block it picked, its answer, whether it takes Escape itself
-    /// and whether it shows as a card, which its placer's status says. Anything else is the
-    /// root's to act on, and is dropped.
+    /// and whether it shows as a card, which its placer's status says, and the settings an
+    /// artifact's settings view edited, which its host applies once committed. Anything else is
+    /// the root's to act on, and is dropped.
     pub(super) fn hear_relayed_shell(
         &mut self,
         instance: EditorInstanceId,
@@ -4088,6 +4105,7 @@ impl Instances {
                     | ShellMessage::CloseDialog(_)
                     | ShellMessage::HandlesDismiss(_)
                     | ShellMessage::ShowCard(_)
+                    | ShellMessage::ArtifactEdited(_)
             ) {
                 self.shell_message(instance, message);
             }

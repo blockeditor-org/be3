@@ -1284,11 +1284,14 @@ impl State {
                     continue;
                 }
                 // What a dialog's placer's status says (its pick, its answer, whether it takes
-                // Escape itself or shows as a card), which its host words that status from.
+                // Escape itself or shows as a card), which its host words that status from, and
+                // the settings an artifact's settings view edited, which its host applies once
+                // its placer commits it.
                 ShellMessage::Picked(_)
                 | ShellMessage::CloseDialog(_)
                 | ShellMessage::HandlesDismiss(_)
-                | ShellMessage::ShowCard(_) => {
+                | ShellMessage::ShowCard(_)
+                | ShellMessage::ArtifactEdited(_) => {
                     let told = host::tell_shell(
                         self.instance.op(),
                         instance.0,

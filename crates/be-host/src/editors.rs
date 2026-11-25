@@ -333,6 +333,30 @@ impl EditorRegistry {
             .find(|editor| editor.edits == Edits::Type(block_type.into_bytes()))
     }
 
+    /// The app and editor that make an artifact of a `source_type` block with its exporter
+    /// `exporter`, whose settings view a root's artifact settings child shows.
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    pub(crate) fn artifact_editor(
+        &self,
+        source_type: Uuid,
+        exporter: &str,
+    ) -> Result<(Arc<AppManifest>, Uuid), String> {
+        let editor = self
+            .default_editor(source_type)
+            .ok_or_else(|| format!("unsupported dynamic artifact source type {source_type}"))?;
+        let generates = editor
+            .manifest
+            .editor(editor.id.into_bytes())
+            .is_some_and(|manifest| manifest.exporter(exporter).is_some());
+        match generates {
+            true => Ok((Arc::clone(&editor.manifest), editor.id)),
+            false => Err(format!(
+                "{} blocks are not exported as \"{exporter}\"",
+                self.display_name(source_type).unwrap_or("These")
+            )),
+        }
+    }
+
     pub(super) fn artifact_session(
         &self,
         source_type: Uuid,
