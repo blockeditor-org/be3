@@ -141,7 +141,7 @@ fn fresh_budgets(bytes: &mut [u8], functions: usize) {
     let Some(start) = bytes.len().checked_sub(functions * 4) else {
         return;
     };
-    for budget in bytes[start..].chunks_exact_mut(4) {
+    for budget in bytes[start..].as_chunks_mut::<4>().0 {
         budget.copy_from_slice(&TIERING_BUDGET.to_le_bytes());
     }
 }
