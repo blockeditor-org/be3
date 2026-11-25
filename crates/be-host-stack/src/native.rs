@@ -33,7 +33,7 @@ impl Running {
         }
     }
 
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn abandon(&mut self) {
         self.0 = None;
     }

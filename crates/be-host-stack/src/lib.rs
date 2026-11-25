@@ -30,7 +30,7 @@ pub mod revisions;
 pub mod search;
 mod seen;
 pub mod terminal_host;
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod testing;
 pub mod types;
 pub mod unread;
@@ -366,7 +366,7 @@ struct Stack {
     #[cfg(not(target_arch = "wasm32"))]
     shared: Arc<Mutex<Shared>>,
     #[cfg(not(target_arch = "wasm32"))]
-    #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     changed: Arc<std::sync::Condvar>,
     running: platform::Running,
 }
@@ -733,7 +733,7 @@ pub fn start(config: Config) {
     // A test that runs no frames has nothing to take the worker's updates in, so a thread takes
     // each as it lands, until a frame takes them (`take_updates_in_frame`): a test that runs
     // frames reads what they took, as the host does.
-    #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_arch = "wasm32"))]
     {
         let pumped = Arc::clone(&handover);
         std::thread::spawn(move || {
@@ -882,7 +882,7 @@ fn stop_now() {
 
 /// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
 /// hold, so only what the device had already written survives.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn crash() {
     if let Some(stack) = stack()
         .lock()
@@ -903,7 +903,7 @@ pub fn stop_and_wait() {
     platform::wait_for_stopped();
 }
 
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn abandon() {
     let stack = stack()
         .lock()
@@ -1413,7 +1413,7 @@ pub fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Arc<Vec<u8>>)>) {
 
 /// Waits until the worker has frames for `editor` the page has not taken, naming `what` for a
 /// wait that fails (`wait_until`).
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 #[track_caller]
 pub fn wait_for_frames(what: &str, editor: u64) {
     let taken = {
@@ -1874,18 +1874,18 @@ pub fn backgrounded() {
 /// test or wait. Progress (`Shared::progressed`) starts the limit again, so a machine too busy
 /// to run the stack quickly is waited for, and a stack that stopped is not, however often its
 /// worker wakes.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// How long a wait may go on in all, however much progress the stack makes: one that keeps
 /// changing and never gets there (a connection retried over and over) still has to end.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(300);
 
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
 /// `WAIT_LIMIT` without progress from the stack, or `WAIT_CAP` in all, naming `what` it waited
 /// for ("opened the note").
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 #[track_caller]
 pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     let (shared, changed) = stack()
@@ -1996,7 +1996,7 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
 /// (`take_updates_in_frame`) and that waits on what a reply's callback does. The callback runs
 /// only as updates are taken, and a served command's answer makes none of the progress
 /// `wait_until` waits on. Panics after `WAIT_LIMIT` without an update, naming `what`.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 #[track_caller]
 pub fn take_updates_or_wait(what: &str, done: impl Fn() -> bool) {
     let handover = with_stack(|stack| Arc::clone(&stack.handover)).expect("the stack is running");
@@ -2017,7 +2017,7 @@ pub fn take_updates_or_wait(what: &str, done: impl Fn() -> bool) {
 /// reads the page's own record, which drops what was taken at once, not the worker's, which
 /// drops it only once the take reaches it: news taken a moment before would otherwise still
 /// count there.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 #[track_caller]
 pub fn take_member_events_until(
     what: &str,
@@ -2043,7 +2043,7 @@ pub fn take_member_events_until(
 
 /// Waits until what `block`'s Join editors have yet to hear holds `ready`, then takes it, read
 /// from the page's own record as `take_member_events_until` reads.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 #[track_caller]
 pub fn take_channel_events_until(
     what: &str,
@@ -2069,7 +2069,7 @@ pub fn take_channel_events_until(
 
 /// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
 /// keeps it, and the outbox sends it after. For a test that reads the server next.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 #[track_caller]
 pub fn flush_and_send() {
     flush();
@@ -2080,7 +2080,7 @@ pub fn flush_and_send() {
     });
 }
 
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn fail_listings(query: Query, error: &str) {
     let query = sourced(query);
     with_shared_mut(|shared| {
@@ -2092,13 +2092,13 @@ pub fn fail_listings(query: Query, error: &str) {
 
 /// Queues `blocks` to be indexed again, read whole (`Search::reread`), and wakes the worker to
 /// do it: a test's stand-in for an index that asks for text it lacks.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn reread_search(blocks: impl IntoIterator<Item = Uuid>) {
     with_shared_mut(|shared| shared.search.reread(blocks));
     send(Command::Sync);
 }
 
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn refetch(query: Query) {
     let query = sourced(query);
     with_shared_mut(|shared| {
@@ -2110,7 +2110,7 @@ pub fn refetch(query: Query) {
 }
 
 /// Changes the worker's own state from a test, and hands it over for the page to read.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
     let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = held.as_ref()?;
@@ -3041,7 +3041,7 @@ fn with_seen<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
 
 /// What the page reads now, for a test that checks what a call it made changed there before
 /// the worker has handed that over.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn read_seen<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
     with_seen(read)
 }
@@ -3049,7 +3049,7 @@ pub fn read_seen<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
 /// Sets the access the page and the worker see this account has to `block`, as a node edit,
 /// for a test of what follows a change of access that the test's accounts cannot make (this
 /// account's own access falling from View to Join, which only another account can lower).
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn set_access_seen(block: Uuid, access: be_block_graph::Access) {
     let Some(mut node) = with_seen(|seen| seen.graph.get(block).cloned()).flatten() else {
         return;

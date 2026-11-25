@@ -41,14 +41,7 @@ impl Runnable for Panics {
 fn a_guest_threads_panic_is_heard_as_contained() {
     let previous = std::panic::take_hook();
     be_wasm_panic::set_hook(Box::new(move |info| {
-        let message = match info.payload().downcast_ref::<&str>() {
-            Some(message) => (*message).to_owned(),
-            None => info
-                .payload()
-                .downcast_ref::<String>()
-                .cloned()
-                .unwrap_or_default(),
-        };
+        let message = be_wasm_panic::message(info.payload());
         HEARD
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

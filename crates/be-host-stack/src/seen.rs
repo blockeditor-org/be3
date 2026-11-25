@@ -1174,10 +1174,7 @@ impl Handover {
         self.frames_take.store(true, Ordering::Release);
     }
 
-    #[cfg_attr(
-        not(all(any(test, feature = "testing"), not(target_arch = "wasm32"))),
-        allow(dead_code)
-    )]
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn frames_take(&self) -> bool {
         self.frames_take.load(Ordering::Acquire)
     }
