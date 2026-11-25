@@ -14,7 +14,7 @@
 //! bottom edge, so no gap opens under it. It rises as it opens, and settles, on the scroll's
 //! spring.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -33,7 +33,8 @@ use beui_view::types::Direction;
 use beui_view::types::Extent;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{
-    BackGesture, CursorIcon, DragGesture, PointerInput, PointerPress, PointerStage, Vec2, vec2,
+    BackGesture, CursorIcon, DragGesture, PointerInput, PointerPress, PointerStage, Vec2,
+    Velocity, pos2, vec2,
 };
 use beui_view::types::{Key, KeyPress};
 
@@ -109,17 +110,19 @@ struct Stops {
 
 impl Stops {
     /// A sheet of `height` (its grip and what it holds) on a screen `extent` tall, with stops
-    /// at `shares` of it (or, `fit`, one at its height), never taller than it holds.
+    /// at `shares` of it, never taller than it holds; or, `fit`, one stop at its height, never
+    /// above `rest`, past which what it holds scrolls.
     fn of(height: f32, extent: f32, shares: &[f32], rest: f32, fit: bool) -> Self {
-        let highest = shares.iter().copied().fold(0.0, f32::max);
-        let top = height.min(highest * extent).max(0.0);
         if fit {
+            let top = height.min(rest * extent).max(0.0);
             return Self {
                 top,
                 stops: vec![top],
                 rest: top,
             };
         }
+        let highest = shares.iter().copied().fold(0.0, f32::max);
+        let top = height.min(highest * extent).max(0.0);
         let mut stops: Vec<f32> = shares
             .iter()
             .map(|share| (share * extent).min(top))
@@ -173,8 +176,8 @@ impl Stops {
 
 /// A panel rising from the bottom of a narrow screen: a vertical `Scroll` whose one offset
 /// raises it and, past its highest stop, scrolls what it holds (the module's doc). It rests on
-/// `stops` (shares of `extent`) or, `fit`, at its own height, never taller than it holds, and
-/// opens at `rest`. A release that settles below its lowest stop, a tap above it, Escape and a
+/// `stops` (shares of `extent`), never taller than it holds, and opens at `rest`; or, `fit`,
+/// at its own height up to `rest`, never higher: past that what it holds scrolls. A release that settles below its lowest stop, a tap above it, Escape and a
 /// back gesture ask `on_close`; it goes only when `open` turns false, sliding down out of sight,
 /// and then `on_gone`. `on_presence` hears how far it is up, from 0 to 1 at its lowest stop. A
 /// sheet opening just as another closes in the same document starts at the other's height, so
@@ -226,12 +229,20 @@ pub fn Sheet(
     let moving_aside = StoredCell::new(false);
     let api = move || scroll.try_get();
     let laid_out = move || position.with_untracked(Option::is_some) && top.get_untracked() > 0.0;
+    // The speed a gesture let it go at, which the next settle starts from.
+    let thrown = StoredCell::new(0.0_f32);
     let settle_on = move |to: Aim| {
         let offset = placed.with_untracked(|placed| placed.offset(to));
         aim.set(Some(to));
         aimed.set(offset);
         if let Some(api) = api() {
-            api.settle_to(offset);
+            // From the speed a gesture let it go at, or else the speed it is moving at, so
+            // a new aim bends its path rather than stopping it.
+            let velocity = match thrown.replace(0.0) {
+                0.0 => api.velocity(),
+                thrown => thrown,
+            };
+            api.settle_to(offset, velocity);
         }
     };
     // Its stops moved (what it holds measured anew) while it rests on, or heads for, a place:
@@ -254,7 +265,7 @@ pub fn Sheet(
             aimed.set(goal);
             if let Some(api) = api() {
                 match moving {
-                    true => api.settle_to(goal),
+                    true => api.settle_to(goal, 0.0),
                     false => api.scroll_to(goal),
                 }
             }
@@ -370,27 +381,53 @@ pub fn Sheet(
         if stop > SETTLED || leaving.get_untracked() {
             return;
         }
+        // Kept open, it rises back from the speed it was going.
+        thrown.set(api().map_or(0.0, |api| api.velocity()));
         close.call(());
         if !leaving.get_untracked() {
             settle_on(Aim::Rest);
         }
     });
+    // Where a back gesture took it from, and how fast it lowers it, on the frame clock, so
+    // the settle once it is let go starts at that speed.
     let backed = StoredCell::new(None::<f32>);
+    let tracked = store(RefCell::new(None::<Velocity>));
+    let released = move || {
+        tracked.with(|tracked| {
+            tracked
+                .borrow_mut()
+                .take()
+                .map_or(0.0, |tracked| tracked.get().y)
+        })
+    };
     on_back(open.clone(), move |gesture: BackGesture| match gesture {
-        BackGesture::Started { .. } => backed.set(Some(raised.get_untracked())),
+        BackGesture::Started { .. } => {
+            let from = raised.get_untracked();
+            backed.set(Some(from));
+            tracked.with(|tracked| {
+                *tracked.borrow_mut() = Some(Velocity::new(now(), pos2(0.0, from)));
+            });
+        }
         BackGesture::Progressed(progress) => {
             if let (Some(from), Some(api)) = (backed.get(), api()) {
-                api.scroll_to(from * (1.0 - progress * BACK_DRAG_SHARE));
+                let to = from * (1.0 - progress * BACK_DRAG_SHARE);
+                api.scroll_to(to);
+                tracked.with(|tracked| {
+                    if let Some(tracked) = tracked.borrow_mut().as_mut() {
+                        tracked.sample(now(), pos2(0.0, to));
+                    }
+                });
             }
         }
         BackGesture::Cancelled => {
             if let Some(from) = backed.take() {
+                thrown.set(released());
                 match placed.with_untracked(|placed| placed.aim_at(from)) {
                     Some(to) => settle_on(to),
                     None => {
                         aimed.set(from);
                         if let Some(api) = api() {
-                            api.settle_to(from);
+                            api.settle_to(from, thrown.replace(0.0));
                         }
                     }
                 }
@@ -398,6 +435,9 @@ pub fn Sheet(
         }
         BackGesture::Invoked => {
             backed.set(None);
+            // Its owner closing it slides it away from the speed the gesture let it go at;
+            // kept open, it rises back from that speed.
+            thrown.set(released());
             close.call(());
             if !leaving.get_untracked() {
                 settle_on(Aim::Rest);
@@ -606,7 +646,10 @@ fn ModalSheetBody(
     }
     let scroll = ComponentRef::<ScrollApi>::new();
     let extent = create_signal(0.0);
-    let highest = stops.iter().copied().fold(0.0, f32::max);
+    let highest = match fit {
+        true => rest,
+        false => stops.iter().copied().fold(0.0, f32::max),
+    };
     let built = view! {
         <List spacing=0.0>
             <ListItem grow=1.0 min={move || extent.get() * (1.0 - highest)}>

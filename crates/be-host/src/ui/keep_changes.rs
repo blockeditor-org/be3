@@ -64,7 +64,7 @@ pub(crate) fn KeepChanges(
     });
     let title = create_memo(move || title.get());
     view! {
-        <Modal open motion=ModalMotion::Still on_dismiss={revert}>|| {
+        <Modal open on_dismiss={revert}>|| {
             let countdown_id = format!("{id}.countdown");
             let body_id = id.clone();
             view! {

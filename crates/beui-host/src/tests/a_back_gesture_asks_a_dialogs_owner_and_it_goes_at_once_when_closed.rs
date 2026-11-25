@@ -56,23 +56,15 @@ fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
         }),
         Input::Back(BackGesture::Progressed(1.0)),
     ]);
-    let pulled = harness.rect(body.get());
-    assert!(
-        pulled.left() > resting.left() + 100.0,
-        "held all the way, the dialog has moved well out of place: {pulled:?} from {resting:?}"
+    assert_eq!(
+        harness.rect(body.get()),
+        resting,
+        "a dialog stays in place while a back gesture is held"
     );
-    assert_eq!(pulled.top(), resting.top());
-
     harness.frame(vec![Input::Back(BackGesture::Cancelled)]);
-    harness.frame(Vec::new());
-    let returning = harness.rect(body.get()).left();
-    assert!(
-        returning > resting.left() && returning < pulled.left(),
-        "let go, it eases back rather than jumping, and is at {returning}"
-    );
     harness.settle();
     assert_eq!(harness.rect(body.get()), resting);
-    assert_eq!(dismissed.get_untracked(), 0);
+    assert_eq!(dismissed.get_untracked(), 0, "a cancelled back asks nothing");
 
     harness.frame(vec![
         Input::Back(BackGesture::Started {
@@ -80,20 +72,11 @@ fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
         }),
         Input::Back(BackGesture::Progressed(0.5)),
     ]);
-    let pulled = harness.rect(body.get());
-    assert!(pulled.left() < resting.left() - 40.0);
-
     harness.frame(vec![Input::Back(BackGesture::Invoked)]);
-    harness.frame(Vec::new());
-    let leaving = harness.rect(body.get());
-    assert!(
-        leaving.left() < pulled.left(),
-        "released, it carries on the way it was going: {leaving:?} after {pulled:?}"
-    );
     assert_eq!(
         dismissed.get_untracked(),
         1,
-        "the owner was asked as it was let go, and slides it away once it agrees"
+        "the owner is asked as it is let go"
     );
     assert!(
         !harness
@@ -102,17 +85,7 @@ fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
             .window
             .requests
             .handles_back,
-        "while it leaves it takes no more input"
-    );
-    harness.settle();
-    assert_eq!(dismissed.get_untracked(), 1);
-    assert!(
-        !harness
-            .frame(Vec::new())
-            .main()
-            .window
-            .requests
-            .handles_back
+        "and once it agrees the dialog is gone at once"
     );
 
     open.set(true);

@@ -20,7 +20,7 @@ fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {
                     <Frame @node_ref=&first_content height=120.0 />
                 </ModalSheet>
                 <ModalSheet open={second} fit=true on_close={move || second.set(false)}>
-                    <Frame @node_ref=&second_content height=300.0 />
+                    <Frame @node_ref=&second_content height=250.0 />
                 </ModalSheet>
             </List>
         }
@@ -63,7 +63,7 @@ fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {
     harness.settle();
     assert_eq!(
         top(&harness, second_content),
-        Some(300.0),
+        Some(350.0),
         "it rests at its own height"
     );
 }

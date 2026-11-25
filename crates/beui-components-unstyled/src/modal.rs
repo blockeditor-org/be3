@@ -1,7 +1,6 @@
 use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
-use super::back_slide::{BackSlide, SlideCurves};
-use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
@@ -18,11 +17,9 @@ pub enum ModalPlacement {
     Sheet,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalMotion {
-    /// The content sits in a [`BackSlide`] moving on these curves, which
-    /// carries it away on back.
-    Slides(SlideCurves),
+    /// It shows and goes at once.
     Still,
     /// The content reports its own presence through [`ModalHandle::presence`]
     /// (as `ModalSheet`'s sheet does), and the scrim fades with it.
@@ -40,8 +37,10 @@ pub struct ModalHandle {
 /// Escape, back and a press on the scrim reach `on_dismiss` at once, but the
 /// modal only leaves when its owner writes `open` false, so an owner that asks
 /// first ("discard changes?") or an app that answers later keeps it in place.
-/// While leaving it lingers, inert. Its content is built each time it opens and dropped once it
-/// has gone; content that keeps its state while closed is a `Kept` the caller wraps it in.
+/// A `Still` modal goes at once; a `Reported` one lingers while its content
+/// moves away. Its content is built each time it opens and dropped once it has
+/// gone; content that keeps its state while closed is a `Kept` the caller wraps
+/// it in.
 #[component]
 pub fn Modal(
     open: Prop<bool>,
@@ -54,45 +53,14 @@ pub fn Modal(
     #[prop(children)] content: RenderFn<ModalHandle, NodeId>,
 ) -> NodeId {
     let presence = create_signal(match motion {
-        ModalMotion::Slides(_) | ModalMotion::Still => 1.0_f32,
+        ModalMotion::Still => 1.0_f32,
         ModalMotion::Reported => 0.0,
-    });
-    let asked = create_signal(false);
-    create_effect(move || {
-        if open.get() {
-            untrack(|| asked.set(false));
-        }
     });
     let handle = ModalHandle {
         presence: presence.into(),
     };
     // Built each time the modal opens, in the overlay's content, and dropped once it is gone.
-    let body = move || {
-        let content = content.call(handle);
-        match motion {
-            ModalMotion::Slides(curves) => {
-                if let Some(overlay) = use_overlay_presence() {
-                    overlay.linger_while(create_memo(move || asked.get() && !open.get()));
-                }
-                view! {
-                    <BackSlide
-                        curves
-                        enters=false
-                        open={move || open.get() || !asked.get()}
-                        on_back={move || {
-                            asked.set(true);
-                            on_dismiss.call(());
-                        }}
-                        on_gone={move || asked.set(false)}
-                        on_presence={presence}
-                    >
-                        {content}
-                    </BackSlide>
-                }
-            }
-            ModalMotion::Still | ModalMotion::Reported => content,
-        }
-    };
+    let body = move || content.call(handle);
     let placed = match placement {
         ModalPlacement::Center => Placement::Center,
         ModalPlacement::Fill => Placement::Fill,
@@ -106,10 +74,7 @@ pub fn Modal(
             scrim={move || scrim.get().scale_alpha(presence.get())}
             level={level}
             shown_in={shown_in}
-            policy={move || match asked.get() && !open.get() {
-                true => LayerPolicy::Inert,
-                false => LayerPolicy::BlocksAll,
-            }}
+            policy=LayerPolicy::BlocksAll
             on_dismiss={move |_: Dismiss| on_dismiss.call(())}
             content={body}
         />

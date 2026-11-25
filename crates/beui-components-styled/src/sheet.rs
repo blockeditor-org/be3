@@ -10,12 +10,15 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align;
 
+/// Where a sheet stops, as shares of the screen: low, middle and high. A sheet fitted to what
+/// it holds rises at most to the middle stop, and past that what it holds scrolls.
 pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
+/// The highest a fitted sheet rises: the middle stop.
+const FITTED: f32 = SHEET_STOPS[1];
 
 const HANDLE_HEIGHT: Size = Size::Md;
 const GRIP_WIDTH: Size = Size::Custom(36.0);
 const GRIP_HEIGHT: Size = Size::Custom(4.0);
-const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
 
 pub fn modal_sheet_room(extent: f32) -> f32 {
     let grip = crate::tokens::Stroke::Hairline.px() + HANDLE_HEIGHT.px();
@@ -32,6 +35,10 @@ pub fn Sheet(
     on_close: Callback<()>,
     children: NodeId,
 ) -> NodeId {
+    let rest = match fit {
+        true => FITTED,
+        false => rest,
+    };
     view! {
         <unstyled::Sheet
             extent
@@ -59,12 +66,18 @@ pub fn ModalSheet(
     open: Prop<bool>,
     #[prop(default = SHEET_STOPS[2])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
-    #[prop(default = false)] fit: bool,
+    /// Rests at its own height, never above the middle stop: past that what it holds scrolls.
+    #[prop(default = false)]
+    fit: bool,
     on_close: Callback<()>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
     let scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
+    let rest = match fit {
+        true => FITTED,
+        false => rest,
+    };
     view! {
         <unstyled::ModalSheet
             open
@@ -97,8 +110,6 @@ pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: Space) -> Node
     view! {
         <ModalSheet
             open={open}
-            rest={ANCHORED_STOPS[0]}
-            stops={ANCHORED_STOPS.to_vec()}
             fit=true
             on_close={on_close}
         >||

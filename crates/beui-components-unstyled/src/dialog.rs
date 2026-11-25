@@ -1,6 +1,5 @@
 use accesskit::{Node, Role};
 
-use super::back_slide::SlideCurves;
 use super::modal::{Modal, ModalHandle, ModalMotion};
 use beui_view::components::overlay::{Modality, Overlay, use_modal};
 use beui_view::components::portal::Portal;
@@ -470,7 +469,6 @@ pub fn Dialog(
     open: Prop<bool>,
     kind: DialogKind,
     scrim: Prop<Color>,
-    slide: SlideCurves,
     sheet_below: f32,
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = DialogSize::Small)] size: DialogSize,
@@ -635,7 +633,7 @@ pub fn Dialog(
             <Modal
                 open={as_card}
                 scrim
-                motion={ModalMotion::Slides(slide)}
+                motion=ModalMotion::Still
                 on_dismiss={on_dismiss}
             >|_: ModalHandle|
                 <Shows node={centred_card} showing />

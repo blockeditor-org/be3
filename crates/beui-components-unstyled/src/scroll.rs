@@ -36,9 +36,6 @@ use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
 const EDGE_SLACK: f32 = 0.5;
-/// How long a browser scroll that snaps is still before it counts as rested, where the browser
-/// does not say (`scrollend`).
-const SCROLL_STILL: Duration = Duration::from_millis(150);
 /// How near a snap stop, and how slow, a scroll settling on it simply stops there.
 const SNAP_SLACK: f32 = 0.5;
 const END_SLACK: f32 = 1.0;
@@ -259,11 +256,16 @@ impl Momentum {
     }
 
     /// The snap stop nearest where a coast from `offset` at the current velocity would come to
-    /// rest, within the scroll's reach.
+    /// rest, within the scroll's reach. Past the last stop there is none: it coasts freely, and
+    /// one coming back below the last stop chooses there, from the speed it has left (a fling
+    /// through a sheet's content that reaches its top goes on to lower the sheet).
     fn aim(&self, offset: f32, max_offset: f32) -> Option<f32> {
         let carried = Fling::new(self.velocity).map_or(0.0, |fling| fling.distance());
         let landing = offset + carried;
         let last = self.snaps.last()?.clamp(0.0, max_offset);
+        if offset > last + SNAP_SLACK {
+            return None;
+        }
         if landing > last + SNAP_SLACK {
             // Past the last stop it moves freely (a sheet's content, past its top stop), but a
             // coast from short of it stops there: a flick up raises a sheet, not its content.
@@ -430,37 +432,6 @@ impl Momentum {
 }
 
 const EDGE_GAIN: f32 = 3.0;
-
-/// The browser's marks for `stops`: an empty snap area at each, and from the last on one as long
-/// as the rest of the content, inside which (taller than the scroll) the browser scrolls freely,
-/// as `Scroll` does past its last stop.
-fn snap_markers(stops: &[f32], direction: Direction) -> String {
-    let (start, across, length) = match direction {
-        Direction::Vertical => ("top", "left", "height"),
-        Direction::Horizontal => ("left", "top", "width"),
-    };
-    let end = match direction {
-        Direction::Vertical => "bottom",
-        Direction::Horizontal => "right",
-    };
-    let mut stops: Vec<f32> = stops.iter().map(|stop| stop.max(0.0)).collect();
-    stops.sort_by(f32::total_cmp);
-    let last = stops.len().saturating_sub(1);
-    stops
-        .iter()
-        .enumerate()
-        .map(|(index, stop)| {
-            let reach = match index == last {
-                true => format!("{end}: 0"),
-                false => format!("{length}: 0"),
-            };
-            format!(
-                "<div style=\"position: absolute; {across}: 0; {start}: {stop}px; {reach}; \
-                 scroll-snap-align: start\"></div>"
-            )
-        })
-        .collect()
-}
 
 /// A browser scroll's content box, as long as what it holds along the scroll and at least
 /// as long as the scroll, clips what is painted past it: a lifted or gliding item's
@@ -815,9 +786,9 @@ impl Motion {
         }
     }
 
-    /// Settles on `offset` as on a snap stop: on the overscroll spring, or at once without
-    /// motion.
-    fn settle_to(&self, offset: f32) {
+    /// Settles on `offset` as on a snap stop, starting at `velocity`: on the overscroll spring,
+    /// or at once without motion.
+    fn settle_to(&self, offset: f32, velocity: f32) {
         if self.placed().is_none() {
             return;
         }
@@ -825,6 +796,7 @@ impl Motion {
         momentum.rest();
         // Clamped as it moves, to what it can reach then.
         momentum.snap = Some(offset.max(0.0));
+        momentum.velocity = velocity;
         momentum.asked = true;
         self.animate(&mut momentum);
     }
@@ -1080,12 +1052,7 @@ fn Scrolling(
     if let Some(offset) = motion.with(|motion| motion.node) {
         offset.on_steer(move |()| motion.value().steer());
     }
-    api.fill(ScrollApi(
-        motion,
-        Callback::empty(),
-        Callback::empty(),
-        Callback::empty(),
-    ));
+    api.fill(ScrollApi(motion, Callback::empty(), Callback::empty()));
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
@@ -1322,9 +1289,10 @@ fn Scrolling(
 /// `fit`/`max_length` make it as long as its content up to a bound; a `Frame` with
 /// a maximum around a scroll does not, since such a frame fills up to its maximum.
 ///
-/// On the HTML core this is a real `overflow: auto` element (`BrowserScroll`): the
-/// browser scrolls and chains it, with none of the momentum, band or drawn bar,
-/// and `ScrollApi::animating` is always false.
+/// On the HTML core one without `snaps` is a real `overflow: auto` element
+/// (`BrowserScroll`): the browser scrolls and chains it, with none of the momentum,
+/// band or drawn bar, and `ScrollApi::animating` is always false. One with `snaps`
+/// (a sheet) runs beui's own motion there as natively.
 ///
 /// Keys scroll it only while it can scroll that way, so one at its end leaves
 /// the key to the scroll around it: the arrows along its axis move 40 points
@@ -1341,20 +1309,20 @@ pub fn Scroll(
     /// Offsets along `direction` that a fling and a release settle on, the nearest to where
     /// they would have come to rest; none lets them rest anywhere. Past the last stop it moves
     /// freely, but a coast from short of it stops there. A wheel or a key steps between stops,
-    /// scrolls freely past the last one and, coming back, stops at it before stepping on. On
-    /// the HTML core they are the browser's scroll snap.
+    /// scrolls freely past the last one and, coming back, stops at it before stepping on. A
+    /// scroll with stops runs beui's own motion on the HTML core too, not the browser's.
     #[prop(default = Vec::new())]
     snaps: Prop<Vec<f32>>,
     /// Once at or past the last stop, a wheel or a key never takes it back below it, and short
     /// of it a wheel only steps forwards (a sheet: they scroll what it holds, never lower it).
-    /// Natively only.
     #[prop(default = false)]
     keep_past_last_stop: bool,
     /// Told the stop a release, a fling or a wheel's step chose, as it starts settling there.
     on_snap: Callback<f32>,
     /// The offset its bar starts at: the bar shows only the offsets past it, as the scroll of
     /// what lies past it, and nothing while the scroll is short of it (a sheet's bar, past its
-    /// highest stop). Natively only: the browser draws its own bar.
+    /// highest stop). Not for the browser's own scroll (the HTML core's, without stops), which
+    /// draws its own bar.
     #[prop(default = 0.0)]
     bar_from: Prop<f32>,
     #[prop(default = false)] fit: bool,
@@ -1366,13 +1334,15 @@ pub fn Scroll(
     children: Children<ListItem>,
 ) -> NodeId {
     let rows = NodeRef::new();
-    if CORE == Core::Html {
+    // A scroll with stops (a sheet) runs beui's own motion on both cores, so its springs, its
+    // flings into a stop and a drag that starts beside it behave the same; any other is the
+    // browser's own scroll on the HTML core.
+    let snapping = !matches!(&snaps, Prop::Static(stops) if stops.is_empty());
+    if CORE == Core::Html && !snapping {
         let scroll = view! {
             <BrowserScroll
                 api
                 offset
-                snaps={snaps.clone()}
-                on_snap={on_snap}
                 direction
                 fit
                 follow_end
@@ -1448,14 +1418,10 @@ fn BrowserScroll(
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
     style: ScrollStyle,
-    snaps: Prop<Vec<f32>>,
-    on_snap: Callback<f32>,
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
     children: Children<ListItem>,
 ) -> NodeId {
-    // A scroll that may snap marks its stops for the browser's own scroll snap.
-    let snapping = !matches!(&snaps, Prop::Static(stops) if stops.is_empty());
     let reported = create_signal(None::<ScrollPosition>);
     let fade = style.fade();
     let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
@@ -1498,61 +1464,10 @@ fn BrowserScroll(
             on_change.call(position);
         }
     };
-    let dragging = create_signal(false);
-    // The stop last told `on_snap`, so coming to rest there again (`scrollend` and the debounce
-    // below both hearing one rest, or a release that moved nothing) tells it once; moving away
-    // from it forgets it.
-    let told = StoredCell::new(None::<f32>);
-    let held_stops = snaps.clone();
-    let stops = create_memo(move || held_stops.get());
-    let nearest_stop = move |offset: f32| -> Option<f32> {
-        stops.with_untracked(|stops| {
-            let last = stops.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-            if offset > last + SNAP_SLACK {
-                return None;
-            }
-            stops
-                .iter()
-                .copied()
-                .min_by(|a, b| (a - offset).abs().total_cmp(&(b - offset).abs()))
-        })
-    };
-    let tell = move |stop: f32| {
-        if told.get().is_some_and(|told| (told - stop).abs() < 1.0) {
-            return;
-        }
-        told.set(Some(stop));
-        on_snap.call(stop);
-    };
-    let rested = move || {
-        refresh();
-        let Some(position) = reported.get_untracked() else {
-            return;
-        };
-        if let Some(stop) =
-            nearest_stop(position.offset).filter(|stop| (stop - position.offset).abs() < 1.0)
-        {
-            tell(stop);
-        }
-    };
-    // Where `scrollend` is missing (Safari), a scroll that has been still a moment has rested.
-    let still = create_timer(move || {
-        rested();
-        None
-    });
     let scrolled = move || {
         refresh();
         if let Some(position) = reported.get_untracked() {
             pinned.set(position.offset >= position.max_offset() - END_SLACK);
-            if told
-                .get()
-                .is_some_and(|told| (told - position.offset).abs() >= 1.0)
-            {
-                told.set(None);
-            }
-        }
-        if snapping {
-            still.restart(SCROLL_STILL);
         }
     };
     let bare = style.bar.is_none();
@@ -1576,22 +1491,6 @@ fn BrowserScroll(
             );
         }
         escape.style("display", "grid".to_owned());
-        if snapping {
-            let along = snaps.clone();
-            escape.style(
-                "scroll-snap-type",
-                Prop::dynamic(move || {
-                    // Not while dragged: the browser would snap each step of the drag.
-                    (along.with(|stops| !stops.is_empty()) && !dragging.get()).then(|| {
-                        match direction.get() {
-                            Direction::Vertical => "y mandatory",
-                            Direction::Horizontal => "x mandatory",
-                        }
-                        .to_owned()
-                    })
-                }),
-            );
-        }
         let track = "minmax(100%, max-content)";
         for (property, vertical, sideways) in [
             ("overflow-y", "auto", "hidden"),
@@ -1616,35 +1515,16 @@ fn BrowserScroll(
             );
         }
         let content = escape.embed(content);
-        let markers = snapping.then(|| {
-            let markers = view! {
-                <html::Div
-                    @attr={("style", "position: absolute; inset: 0; pointer-events: none")}
-                />
-            };
-            let marked = markers.clone();
-            let stops = snaps.clone();
-            create_effect(move || {
-                let markup = stops.with(|stops| snap_markers(stops, direction.get()));
-                marked.set_markup(Some(markup));
-            });
-            markers
-        });
         let element = view! {
             <html::Div
                 on_focus={move |_: HtmlEvent| focused.set(true)}
                 on_blur={move |_: HtmlEvent| focused.set(false)}
                 @on={("scroll", move |_: HtmlEvent| scrolled())}
-                @on={("scrollend", move |_: HtmlEvent| rested())}
             >
                 <html::Div
-                    @attr={("style", Prop::dynamic(move || Some(match snapping {
-                        true => format!("{}; position: relative", content_clip(direction.get())),
-                        false => content_clip(direction.get()),
-                    })))}
+                    @attr={("style", Prop::dynamic(move || Some(content_clip(direction.get()))))}
                 >
                     {content}
-                    {markers}
                 </html::Div>
             </html::Div>
         };
@@ -1753,30 +1633,6 @@ fn BrowserScroll(
                 .get_untracked()
                 .is_some_and(|position| (position.offset - offset).abs() < 1.0);
             wanted.set((!reached).then_some(offset));
-        }),
-        // A drag that starts beside it moves it, and on release goes to the nearest stop.
-        Callback::new(move |gesture: DragGesture| {
-            if gesture.started {
-                dragging.set(true);
-            }
-            let along = direction.get_untracked().main(gesture.delta);
-            if along != 0.0
-                && let Some(position) = reported.get_untracked()
-            {
-                scroll_to(position.offset - along);
-                refresh();
-            }
-            if gesture.ended || gesture.cancelled {
-                dragging.set(false);
-                let at = reported
-                    .get_untracked()
-                    .map_or(0.0, |position| position.offset);
-                if let Some(stop) = nearest_stop(at) {
-                    scroll_to(stop);
-                    refresh();
-                    tell(stop);
-                }
-            }
         }),
     ));
     component_accessibility(create_memo(move || {
@@ -1903,21 +1759,24 @@ fn navigates(key: Key) -> bool {
     )
 }
 
-/// A scroll's handle. On the HTML core its motion is the browser's, so it carries the browser
-/// scroll's own ways to its end and to an offset.
+/// A scroll's handle. On the HTML core a scroll without stops is the browser's own, so it
+/// carries the browser scroll's own ways to its end and to an offset.
 #[derive(Clone, Copy)]
-pub struct ScrollApi(
-    Stored<Motion>,
-    Callback<()>,
-    Callback<f32>,
-    Callback<DragGesture>,
-);
+pub struct ScrollApi(Stored<Motion>, Callback<()>, Callback<f32>);
 
 impl ScrollApi {
     /// Whether it is moving on its own (settling, coasting, springing back), read
     /// reactively.
     pub fn animating(&self) -> bool {
         self.0.with(|motion| motion.momentum.flag().get().moving)
+    }
+
+    /// How fast it is moving on its own, in offsets a second; 0 for the browser's own scroll.
+    pub fn velocity(&self) -> f32 {
+        self.0
+            .try_value()
+            .and_then(|motion| motion.momentum.try_borrow().ok().map(|momentum| momentum.velocity))
+            .unwrap_or(0.0)
     }
 
     pub fn scroll_to_end(&self) {
@@ -1956,25 +1815,22 @@ impl ScrollApi {
         }
     }
 
-    /// Moves to `offset` as it settles on a snap stop: on the overscroll spring, or at once
-    /// without motion; on the HTML core, at once.
-    pub fn settle_to(&self, offset: f32) {
+    /// Moves to `offset` as it settles on a snap stop, starting at `velocity` (offsets a
+    /// second, what a gesture let it go at): on the overscroll spring, or at once without
+    /// motion; the browser's own scroll (on the HTML core, without stops) goes at once.
+    pub fn settle_to(&self, offset: f32, velocity: f32) {
         if !self.2.is_empty() {
             self.2.call(offset);
             return;
         }
         if let Some(motion) = self.0.try_value() {
-            motion.settle_to(offset);
+            motion.settle_to(offset, velocity);
         }
     }
 
     /// Drags it as a drag on it would, for a drag that starts beside it (the space above a
-    /// sheet); on the HTML core it then goes to the nearest stop.
+    /// sheet).
     pub fn drag(&self, gesture: DragGesture) {
-        if !self.3.is_empty() {
-            self.3.call(gesture);
-            return;
-        }
         if let Some(motion) = self.0.try_value() {
             motion.drag(gesture);
         }

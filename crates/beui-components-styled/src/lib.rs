@@ -110,7 +110,7 @@ pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
 pub use count_badge::{COUNT_BADGE_MOST, CountBadge, count_badge_text};
 pub use date_time_field::DateTimeField;
 pub use dialog::{
-    DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, ModalMotion, SHEET_BELOW,
+    DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, SHEET_BELOW,
     Scrim,
 };
 pub use focus_ring::FocusRing;

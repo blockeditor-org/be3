@@ -120,8 +120,9 @@ nodes may not exist.
 
 An animated close belongs to the overlay, not its owner: the content calls
 `use_overlay_presence()` and hands `linger_while` a memo that stays true until
-its exit finishes. The owner just writes `open` false. `ModalSheet` and `Modal`
-leave this way.
+its exit finishes. The owner just writes `open` false. `ModalSheet` leaves this
+way; every other `Modal` (`ModalMotion::Still`) shows and goes at once, with no
+motion of its own.
 
 Whatever an overlay is opened from can hear whether any is open beneath it:
 provide an `OverlaysWithin` and read `any()`. Every `Overlay` built under it
@@ -262,7 +263,11 @@ lock and the password check are its host's (`be3:root`'s `host.lock` and
 
 `unstyled::Modal` is every modal's outer part: an overlay with a scrim that
 fades with its presence. `styled::Modal` picks the scrim (`Scrim`);
-`styled::Dialog`, `Fullscreen` and `ModalSheet` sit on it.
+`styled::Dialog`, `Fullscreen` and `ModalSheet` sit on it. A modal has no exit
+motion but a sheet's: Escape, back and the scrim ask its owner at once
+([decision](../../decisions/beui_modal_asks_before_it_slides_away.md)), and a
+`Still` modal the owner closes is gone that frame. Only a `ModalSheet`
+(`ModalMotion::Reported`) moves, sliding down out of sight.
 
 A dialog's buttons are data
 ([decision](../../decisions/beui_dialog_actions_are_data_with_roles.md)):
@@ -322,12 +327,16 @@ notices as toasts on a surface of its own over everything, anchored to a
 rectangle (`OverlayAnchor::Rect`), whose layer is hit only where the
 document's overlays are (`Document::overlay_rects`, through be-sdk-beui-root's
 `BeuiSurface::overlay_area`; guides/apps/runtime.md, Apps in a root).
+A toast is never wider than its anchor's part of the window, on either core
+(`Placement::inside`: native measures an `Inside*` overlay in that room, the
+HTML core holds it there with `max-width`), so on a narrow window it narrows
+and its text wraps rather than running past the window's edge.
 Each toast slides in from the side of its `edge` on the unstyled `spring`
 (the styled one's is `Movement::Settle`) and is dragged across by a finger
 (`gestures::scroll_drag` along the horizontal, so a vertical drag still
 scrolls the stack) or the mouse; let go past `TOAST_SWIPE_SHARE` of its width
 or faster than `TOAST_SWIPE_SPEED`, it flies off at the speed it was let go
-at, otherwise it springs back. Its dismiss button and its time running out
+at, otherwise it springs back from that speed, stopping at its rest rather than passing it. Its dismiss button and its time running out
 send it off from rest; while it is held, they send it off once it is let go,
 whichever way. `on_dismiss` hears it once it is off, and one its owner keeps
 after that collapses. A toast its owner takes out of `toasts` (after

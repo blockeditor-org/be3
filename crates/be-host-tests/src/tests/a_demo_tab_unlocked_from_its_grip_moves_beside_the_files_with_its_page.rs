@@ -23,8 +23,8 @@ fn a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page() {
     host.run(&["drag", "Tab \"Docking\"", &below]);
     host.run(&["settle"]);
     // The panes glide into the layout the drop made on the stopped clock: the settle
-    // spring (stiffness 500, critically damped) brings a 600-point move within a quarter point
-    // in about 0.45 s, so a second is twice that and more.
+    // spring (stiffness 500, damping ratio 0.75) swings a 600-point move past its place once and
+    // lands within a quarter point in about half a second, so a second is twice that.
     host.pause(1000);
     let tab = host.place("Tab \"Docking\"");
     assert!(

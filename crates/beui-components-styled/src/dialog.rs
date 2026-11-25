@@ -3,7 +3,6 @@ use beui_view::types::LayerLevel;
 use beui_view::types::icons::ICON_X;
 use beui_view::types::text::Phrase;
 
-use crate::back_slide::SLIDE_CURVES;
 use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};
 use crate::sheet::ModalSheet;
@@ -29,14 +28,6 @@ const ACTION_SPACING: Space = Space::Md;
 pub const DIALOG_WIDTH: Size = Size::Dialog;
 pub const SHEET_BELOW: f32 = 400.0;
 
-/// How a modal comes and goes: in a back slide moving on the theme's
-/// movements, which carries it away on back, or in place.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ModalMotion {
-    Slides,
-    Still,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scrim {
     Soft,
@@ -51,7 +42,6 @@ pub fn Modal(
     #[prop(default = Scrim::Dim)] scrim: Scrim,
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
-    #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
     on_dismiss: Callback<()>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
@@ -62,17 +52,13 @@ pub fn Modal(
         Scrim::Strong => theme.scrim_strong.get(),
         Scrim::Opaque => theme.background.get(),
     });
-    let motion = match motion {
-        ModalMotion::Slides => unstyled::ModalMotion::Slides(SLIDE_CURVES),
-        ModalMotion::Still => unstyled::ModalMotion::Still,
-    };
     view! {
         <unstyled::Modal
             open
             scrim={color}
             placement
             level
-            motion
+            motion=unstyled::ModalMotion::Still
             on_dismiss={on_dismiss}
         >|_: ModalHandle| {
             content.call()
@@ -132,7 +118,6 @@ pub fn DialogFrame(
             open
             kind
             scrim={scrim}
-            slide=SLIDE_CURVES
             sheet_below=SHEET_BELOW
             narrow
             size
