@@ -37,6 +37,7 @@ pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
                 index,
                 Some(Path::new(input)),
                 Some(&mut crate::browser::renderer(None)),
+                beui_paint_raster::render,
             )
             .unwrap_or_else(|error| fail(&format!("frame {index} did not render: {error}")));
         let path = match numbered {

@@ -21,6 +21,7 @@ beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 wgpu = { version = "30", default-features = false }
 
 [dev-dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
 beui = { path = "../beui" }
 
 [lints]

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Glyph, Turn};
+use beui_paint_snapshot::{Glyph, Turn};
 
 #[test]
 fn a_glyph_paints_its_coverage_in_its_colour() {

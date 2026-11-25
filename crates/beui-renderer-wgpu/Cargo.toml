@@ -30,6 +30,7 @@ web-sys = { version = "0.3", optional = true, features = [
 ] }
 
 [dev-dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
 be-tool-bench = { path = "../be-tool-bench" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-font-skrifa = { path = "../beui-font-skrifa" }

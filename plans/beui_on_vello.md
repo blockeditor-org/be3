@@ -92,7 +92,10 @@ which this plan leaves for later.
    (continuous in σ, logarithmic in cost). Put the `renderer` benchmark's blur rows, compared as
    in the step before, in the pull request.
 3. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
-   `Frame::tidy` and the rasterizer learn it. Bump the format's
+   `Frame::tidy` and the rasterizer learn it. Until then beui-paint-raster draws a mesh itself, as
+   a GPU draws triangles (`mesh.rs`: no antialiasing, colours interpolated across each), since
+   Vello cannot interpolate a colour across a triangle's corners; images, colour glyphs and lines
+   reach paintings as meshes too. Bump the format's
    `VERSION` (guides/testing_a_gui.md, 4) and let verify rewrite the paintings. Delete the
    tessellator in `beui-core/src/path.rs`.
 4. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
