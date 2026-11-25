@@ -36,7 +36,10 @@ where
     let generated: G = crate::ops::decode(&bytes)
         .unwrap_or_else(|| panic!("{value:?} does not decode as the WIT describes it"));
     let again = crate::ops::encode(&generated);
-    assert_eq!(again, bytes, "{value:?} encodes otherwise as the WIT's: {generated:?}");
+    assert_eq!(
+        again, bytes,
+        "{value:?} encodes otherwise as the WIT's: {generated:?}"
+    );
     let back: R = crate::ops::decode(&again).expect("the same bytes decode again");
     assert_eq!(back, value);
     assert_eq!(format!("{generated:?}"), format!("{value:?}"));

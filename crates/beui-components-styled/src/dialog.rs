@@ -136,12 +136,20 @@ pub fn DialogFrame(
                 let DialogSheetHandle { open, close, outside, tall, body } = handle;
                 match tall {
                     true => view! {
-                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close} on_outside={outside}>|| {
+                        <ModalSheet
+                            open
+                            rest=1.0
+                            stops={vec![1.0]}
+                            on_close={close}
+                            on_outside={outside}
+                        >|| {
                             body.call()
                         }</ModalSheet>
                     },
                     false => view! {
-                        <ModalSheet open fit=true on_close={close} on_outside={outside}>|| { body.call() }</ModalSheet>
+                        <ModalSheet open fit=true on_close={close} on_outside={outside}>|| {
+                            body.call()
+                        }</ModalSheet>
                     },
                 }
             }}

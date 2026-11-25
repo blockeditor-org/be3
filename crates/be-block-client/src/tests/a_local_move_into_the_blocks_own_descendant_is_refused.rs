@@ -15,10 +15,7 @@ async fn a_local_move_into_the_blocks_own_descendant_is_refused() {
         MemoryStore::new(),
     )
     .unwrap();
-    let outer = peer
-        .create::<TextContent>(BlockParent::Root)
-        .await
-        .unwrap();
+    let outer = peer.create::<TextContent>(BlockParent::Root).await.unwrap();
     let inner = peer
         .create::<TextContent>(BlockParent::Block(outer))
         .await

@@ -148,7 +148,10 @@ pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     /// Each preview's `opened` the test has not answered yet.
     // Each preview's `opened` with its reply, by op, as the comment above says.
     #[allow(clippy::type_complexity)]
-    preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>, be_sdk_api::ops::wire::FallibleBytes>)>,
+    preview_asks: Vec<(
+        OpId,
+        Reply<Result<[u8; 16], be_sdk_api::Failure>, be_sdk_api::ops::wire::FallibleBytes>,
+    )>,
     /// The commits of the previews the editor dropped.
     closed_previews: Vec<[u8; 32]>,
     fetches: crate::fetches::Fetches,

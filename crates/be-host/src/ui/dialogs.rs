@@ -62,7 +62,6 @@ fn InviteDialog(view: HostUiStore) -> NodeId {
                 .named("share"),
                 DialogAction::cancel("Done"),
             ]}
-            // Once its link shows, a stray press on the scrim does not take it away.
             dismiss_on_outside_press={move || !made.get()}
             on_dismiss={|| send(UiCommand::CloseInvite)}
         >
@@ -259,7 +258,6 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
                     .named("add"),
                 DialogAction::cancel("Done").shown(made),
             ]}
-            // The credentials show only once: a stray press on the scrim does not lose them.
             dismiss_on_outside_press={move || !made.get()}
             on_dismiss={|| send(UiCommand::CloseAgents)}
         >
@@ -274,7 +272,11 @@ fn ContactsDialog(view: HostUiStore) -> NodeId {
     let open = create_memo(move || contacts.with(Option::is_some));
     let busy = create_memo(move || contacts.get().is_some_and(|contacts| contacts.busy));
     let linked = create_memo(move || {
-        contacts.with(|contacts| contacts.as_ref().is_some_and(|contacts| contacts.link.is_some()))
+        contacts.with(|contacts| {
+            contacts
+                .as_ref()
+                .is_some_and(|contacts| contacts.link.is_some())
+        })
     });
     view! {
         <Dialog
@@ -288,7 +290,6 @@ fn ContactsDialog(view: HostUiStore) -> NodeId {
                     .busy(busy)
                     .named("new-link"),
             ]}
-            // A contact link shows only once: a stray press on the scrim does not lose it.
             dismiss_on_outside_press={move || !linked.get()}
             on_dismiss={|| send(UiCommand::CloseContacts)}
         >

@@ -49,7 +49,10 @@ where
     let generated: G = postcard::from_bytes(&bytes)
         .unwrap_or_else(|_| panic!("{value:?} does not decode as the WIT describes it"));
     let again = postcard::to_stdvec(&generated).expect("it encodes");
-    assert_eq!(again, bytes, "{value:?} encodes otherwise as the WIT's: {generated:?}");
+    assert_eq!(
+        again, bytes,
+        "{value:?} encodes otherwise as the WIT's: {generated:?}"
+    );
     let back: R = postcard::from_bytes(&again).expect("the same bytes decode again");
     assert_eq!(back, value);
 }

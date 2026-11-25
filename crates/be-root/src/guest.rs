@@ -1257,9 +1257,8 @@ impl Root {
                 // secret it cannot show again (an agent's credentials, an invite or contact
                 // link), a stray press on the scrim leaves it open, as be-host's do.
                 let secret = secret_shown.get();
-                let shows_secret = create_memo(move || {
-                    secret.is_some_and(|(held, _)| held.with(Option::is_some))
-                });
+                let shows_secret =
+                    create_memo(move || secret.is_some_and(|(held, _)| held.with(Option::is_some)));
                 view! {
                     <Root clear_color=ColorRole::None>
                         <DialogFrame
