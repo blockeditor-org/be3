@@ -37,6 +37,11 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **A replay's reads fetch what they are refused.** `Scope::check` (be-block-type-host's
+  modules.rs) asks `Peer::block_of_part` of any part a module's `replay` names, which may
+  fetch its object before the read is refused as another block's; the server still decides
+  access. Done: a part's block found without fetching what this device does not hold.
+
 - **An admit a recheck ran beside, without a test.** An admit a recheck ran
   beside asks for another check (`Member::Answering`'s `admit`,
   `Hosting::snapshots`, be-host-stack's hosting.rs), which no test forces: every
