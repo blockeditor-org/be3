@@ -2108,6 +2108,16 @@ impl Client {
                                     within: Some(block),
                                 })
                                 .await;
+                        } else {
+                            // An offer made or withdrawn: whom it names may view the block, so
+                            // its audience reads its offers again with its roots.
+                            connection
+                                .after(After::Roots {
+                                    organization: identity.organization,
+                                    blocks: vec![block],
+                                    before: BTreeSet::new(),
+                                })
+                                .await;
                         }
                     }
                     LogRecord::Ban {

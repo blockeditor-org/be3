@@ -13,7 +13,8 @@ use be_sdk_beui::be_block_content::metadata::ICON_COLOR;
 use be_sdk_beui::be_block_content::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::{
-    ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
+    ICON_BOXES, ICON_CROWN, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS,
+    named,
 };
 use be_sdk_beui::beui::reactive::*;
 pub(crate) use be_sdk_beui::block_menu::can_move_out_of;
@@ -28,6 +29,10 @@ use uuid::Uuid;
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub(crate) enum RowKey {
     Block(Vec<Uuid>),
+    /// "Offered to you": the blocks whose owners offered them to this account.
+    Offered,
+    /// A block offered to this account to own, which opens its share dialog to accept it.
+    Offer(Uuid),
     Shared,
     Orphans,
     System,
@@ -247,6 +252,7 @@ impl Tree {
         let client = editor.blocks();
         let roots = Listing::watch(&client, BlockQuery::Roots);
         let shared = Listing::watch(&client, BlockQuery::Shared);
+        let offers = Listing::watch(&client, BlockQuery::OwnerOffers);
         let watched = Rc::new(RefCell::new(Watched::default()));
         let expanded = create_signal(HashSet::<Uuid>::new());
         let collapsed = create_signal(HashSet::<Uuid>::new());
@@ -369,6 +375,7 @@ impl Tree {
                 }
                 false => shared_with_me(shared),
             });
+            let offered = clock.listed(&offers).unwrap_or_default();
             if guest {
                 let mut builder = Builder {
                     account: host.account_id(),
@@ -382,6 +389,7 @@ impl Tree {
                     used: HashSet::new(),
                     entered: entered.get(),
                 };
+                builder.push_offers(offered);
                 builder.push_shared(loose, !shared_closed);
                 let (built, due) = builder.finish();
                 watched.sections.clear();
@@ -459,6 +467,7 @@ impl Tree {
                     builder.push_unfiled(unfiled_open);
                 }
             }
+            builder.push_offers(offered);
             builder.push_shared(loose, !shared_closed);
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
@@ -568,7 +577,9 @@ impl Tree {
                     }
                 });
             }
-            RowKey::Note(_)
+            RowKey::Offered
+            | RowKey::Offer(_)
+            | RowKey::Note(_)
             | RowKey::SharedNote
             | RowKey::OrphansNote
             | RowKey::SystemNote
@@ -878,6 +889,41 @@ impl Builder<'_> {
             .into_iter()
             .filter_map(|tag| self.shown_block(tag).map(|tag| ShownTag::of(&tag)))
             .collect()
+    }
+
+    /// "Offered to you", while any block is: each offered block, which opens its share dialog,
+    /// where its offer is accepted. It stays until accepted or withdrawn.
+    fn push_offers(&mut self, offered: Vec<BlockInfo>) {
+        if offered.is_empty() {
+            return;
+        }
+        self.rows.push(Row {
+            section: true,
+            expanded: true,
+            glyph: Some(ICON_CROWN),
+            ..Row::note_at(RowKey::Offered, 0, "Offered to you")
+        });
+        for block in offered {
+            self.watched.block_types.insert(block.id, block.block_type);
+            let mut row = describe(
+                self.client,
+                self.types,
+                &self.watched.block_types,
+                &block,
+                Placement {
+                    key: RowKey::Offer(block.id),
+                    depth: 1,
+                    container: None,
+                    expanded: false,
+                    trashed: false,
+                },
+                |id| id.to_string(),
+            );
+            row.expandable = false;
+            row.can_delete = false;
+            row.can_reorder = false;
+            self.rows.push(row);
+        }
     }
 
     fn push_shared(&mut self, shared: Result<Vec<BlockInfo>, Option<String>>, open: bool) {

@@ -159,6 +159,9 @@ pub enum Query {
     Block(Uuid),
     Subtree(Uuid),
     OpenSettings(Uuid),
+    /// The blocks offered to this account to own (`query.owner-offers`), not yet accepted or
+    /// withdrawn (`Graph::set_owner_offers`).
+    OwnerOffers,
 }
 
 #[derive(
@@ -327,6 +330,10 @@ pub struct Graph {
     /// at the root but is no root block: the server's `Children(Root)` leaves it out, and so do
     /// the mirror's listing and `Query::Roots` (`organized`).
     organization_settings: Option<Uuid>,
+    /// The blocks offered to this account to own, as the server last listed them
+    /// (`set_owner_offers`): `Query::OwnerOffers` answers those the mirror holds, and wants
+    /// each one's own summary while it is asked.
+    owner_offers: imbl::OrdSet<Uuid>,
 }
 
 /// What the page reads of the graph, by what changed (`diff::Diff`). What only the worker
@@ -347,6 +354,7 @@ pub(crate) struct GraphDelta {
     reported: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     placing: Option<std::collections::HashSet<Uuid>>,
     organization_settings: Option<Option<Uuid>>,
+    owner_offers: Option<<imbl::OrdSet<Uuid> as Diff>::Delta>,
 }
 
 fn changed<T: Clone + PartialEq>(old: &T, new: &T) -> Option<T> {
@@ -386,6 +394,7 @@ impl Diff for Graph {
             dropped: _,
             unlisted_held: _,
             organization_settings,
+            owner_offers,
         } = new;
         let delta = GraphDelta {
             revision: changed(&old.revision, revision),
@@ -402,6 +411,7 @@ impl Diff for Graph {
             reported: Diff::diff(&old.reported, reported),
             placing: changed(&old.placing, placing),
             organization_settings: changed(&old.organization_settings, organization_settings),
+            owner_offers: Diff::diff(&old.owner_offers, owner_offers),
         };
         let GraphDelta {
             revision,
@@ -418,6 +428,7 @@ impl Diff for Graph {
             reported,
             placing,
             organization_settings,
+            owner_offers,
         } = &delta;
         let changed = revision.is_some()
             || nodes.is_some()
@@ -432,7 +443,8 @@ impl Diff for Graph {
             || unreadable.is_some()
             || reported.is_some()
             || placing.is_some()
-            || organization_settings.is_some();
+            || organization_settings.is_some()
+            || owner_offers.is_some();
         changed.then_some(delta)
     }
 
@@ -452,6 +464,7 @@ impl Diff for Graph {
             reported,
             placing,
             organization_settings,
+            owner_offers,
         } = delta;
         if let Some(revision) = revision {
             self.revision = revision;
@@ -495,6 +508,9 @@ impl Diff for Graph {
         if let Some(organization_settings) = organization_settings {
             self.organization_settings = organization_settings;
         }
+        if let Some(owner_offers) = owner_offers {
+            self.owner_offers.apply(owner_offers);
+        }
     }
 }
 
@@ -529,6 +545,7 @@ impl PartialEq for Graph {
             dropped: _,
             unlisted_held: _,
             organization_settings,
+            owner_offers,
         } = self;
         *revision == other.revision
             && *nodes == other.nodes
@@ -544,6 +561,7 @@ impl PartialEq for Graph {
             && *reported == other.reported
             && *placing == other.placing
             && *organization_settings == other.organization_settings
+            && *owner_offers == other.owner_offers
     }
 }
 
@@ -587,6 +605,19 @@ pub struct UnlistedHeld {
 }
 
 impl Graph {
+    /// The blocks the server lists as offered to this account to own (`query.owner-offers`),
+    /// read as the connection comes up, when its roots may have changed and after this host
+    /// offers or accepts one: each one's summary is wanted while `Query::OwnerOffers` is asked.
+    pub fn set_owner_offers(&mut self, blocks: impl IntoIterator<Item = Uuid>) {
+        let blocks: imbl::OrdSet<Uuid> = blocks.into_iter().collect();
+        if blocks == self.owner_offers {
+            return;
+        }
+        self.owner_offers = blocks;
+        self.moved();
+        self.refresh_listings();
+    }
+
     fn moved(&mut self) {
         self.revision += 1;
         self.to_read_changed = true;
@@ -676,6 +707,9 @@ impl Graph {
             }
             Query::OpenSettings(block) => {
                 into.insert(Listing::OpenSettings(block));
+            }
+            Query::OwnerOffers => {
+                into.extend(self.owner_offers.iter().copied().map(Listing::Block));
             }
             Query::References(block) => {
                 into.insert(Listing::Block(block));
@@ -2027,6 +2061,11 @@ impl Graph {
                 .subtree(root)
                 .into_iter()
                 .filter_map(|block| self.nodes.get(&block).map(|node| Node::clone(node)))
+                .collect(),
+            Query::OwnerOffers => self
+                .owner_offers
+                .iter()
+                .filter_map(|block| self.nodes.get(block).map(|node| Node::clone(node)))
                 .collect(),
         };
         found.sort_by_key(|node| node.id);

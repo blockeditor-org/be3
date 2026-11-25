@@ -24,6 +24,10 @@ interface blocks {
         /// The nearest kind of each type, above the block, that is open to
         /// anyone who views a block inside its owner.
         open-settings(block-id),
+        /// The blocks whose owners offered them to this account, not yet
+        /// accepted or withdrawn: answered again whenever an offer is made,
+        /// withdrawn, accepted or ends with the account's access.
+        owner-offers,
     }
 
     /// Metadata keyed by the uuid of its kind, each value its encoded bytes.

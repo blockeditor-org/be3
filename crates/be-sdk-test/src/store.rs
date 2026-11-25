@@ -157,6 +157,8 @@ struct Inner {
     graph: BTreeMap<Uuid, BlockInfo>,
     created: Vec<Uuid>,
     owner_only: BTreeSet<Uuid>,
+    /// The blocks offered to the account to own (`set_owner_offers`).
+    owner_offers: BTreeSet<Uuid>,
     watched_content: BTreeSet<Uuid>,
     watched_heads: BTreeSet<Uuid>,
     heads_sent: BTreeMap<Uuid, u64>,
@@ -230,6 +232,7 @@ impl Default for Inner {
             graph: BTreeMap::new(),
             created: Vec::new(),
             owner_only: BTreeSet::new(),
+            owner_offers: BTreeSet::new(),
             watched_content: BTreeSet::new(),
             watched_heads: BTreeSet::new(),
             heads_sent: BTreeMap::new(),
@@ -1201,6 +1204,12 @@ impl ContentStore {
         self.0.borrow_mut().graph.insert(info.id, info);
     }
 
+    /// The blocks whose owners offered them to the account (`BlockQuery::OwnerOffers`), each
+    /// answered from the graph as `add_block` put it there.
+    pub fn set_owner_offers(&self, blocks: impl IntoIterator<Item = Uuid>) {
+        self.0.borrow_mut().owner_offers = blocks.into_iter().collect();
+    }
+
     pub fn block(&self, id: Uuid) -> Option<BlockInfo> {
         self.0.borrow().graph.get(&id).cloned()
     }
@@ -2131,6 +2140,10 @@ impl ContentStore {
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
             BlockQuery::OpenSettings(_) => Vec::new(),
+            BlockQuery::OwnerOffers => {
+                let offered = self.0.borrow().owner_offers.clone();
+                offered.iter().filter_map(known).collect()
+            }
         };
         listed
             .into_iter()

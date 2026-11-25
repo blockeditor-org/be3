@@ -2331,6 +2331,7 @@ impl Session<'_> {
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
         self.tasks.0.mutes(peer, shared);
+        self.tasks.0.owner_offers(peer, shared);
         self.tasks.0.account_notices(peer);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
@@ -3981,6 +3982,7 @@ async fn serve_command(
                 .err()
                 .map(|error| acceptance_failed(&error));
             tend(peer, shared).await;
+            tasks.owner_offers(peer, shared);
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();
         }
@@ -4849,6 +4851,8 @@ async fn heard(
                 held.graph.known_only()
             };
             spawn_listings(peer, shared, tasks);
+            // An offer of ownership made, withdrawn or taken tells the roots too.
+            tasks.owner_offers(peer, shared);
             if !known_only.is_empty() {
                 let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
                 tasks.spawn(async move { reread_known_only(&peer, &shared, known_only).await });
@@ -5411,6 +5415,25 @@ impl Tasks {
                 });
                 held.progressed += 1;
                 drop(held);
+                crate::changes::wake();
+            }
+        });
+    }
+
+    /// Reads the blocks offered to this account to own (`query.owner-offers`) into the mirror
+    /// (`Graph::set_owner_offers`), which then fetches each one's summary while an editor asks
+    /// for them. Read as the connection comes up, when the server says the roots may have
+    /// changed (which an offer made or withdrawn tells), and after this host accepts one.
+    fn owner_offers(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), self.clone());
+        self.spawn(async move {
+            if let Ok(offers) = peer.owner_offers().await {
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .set_owner_offers(offers.iter().map(|offer| offer.block));
+                spawn_listings(&peer, &shared, &tasks);
                 crate::changes::wake();
             }
         });

@@ -63,6 +63,8 @@ pub enum BlockQuery {
     Parents(Uuid),
     Block(Uuid),
     OpenSettings(Uuid),
+    /// The blocks offered to this account to own, not yet accepted or withdrawn.
+    OwnerOffers,
 }
 
 impl BlockQuery {
@@ -79,6 +81,7 @@ impl BlockQuery {
             Self::Parents(id) => Wire::Parents(id.into_bytes()),
             Self::Block(id) => Wire::Block(id.into_bytes()),
             Self::OpenSettings(id) => Wire::OpenSettings(id.into_bytes()),
+            Self::OwnerOffers => Wire::OwnerOffers,
         }
     }
 
@@ -95,6 +98,7 @@ impl BlockQuery {
             Wire::Parents(id) => Self::Parents(Uuid::from_bytes(id)),
             Wire::Block(id) => Self::Block(Uuid::from_bytes(id)),
             Wire::OpenSettings(id) => Self::OpenSettings(Uuid::from_bytes(id)),
+            Wire::OwnerOffers => Self::OwnerOffers,
         }
     }
 }
