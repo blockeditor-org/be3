@@ -447,10 +447,12 @@ the connection a stopping stack closed.
   (`Replicas::restart`), so the replica opens on the server's journal: this
   device's copy was never trimmed by another device's seals, and an edit on its
   way when the module stopped is found in the order rather than made again.
-  Edits and changes an editor makes while it rejoins are kept with the others
-  and reach the module only with them (`Open::withheld`): given one sooner, the
-  replica would submit it, and the opening on the server's journal would take
-  it twice. A rejoin that fails gives them then, as an offline restart does.
+  Edits its editors make and changes the host asks while it rejoins are kept
+  with the others and reach the module only with them (`Open::withheld`):
+  given one sooner, the replica would submit it, and the opening on the
+  server's journal would take it twice. A change's answer waits until the
+  change is given. A rejoin that fails, or the device going offline, gives
+  them then, as an offline restart does.
 - **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
   would with `crash`: the worker ends without keeping the open blocks, so only
   what the device had written survives.
