@@ -1851,15 +1851,42 @@ Each step lands on its own.
                tells it something. Test: be-sdk-root's
                `a_dialog_child_runs_in_an_editor_of_its_own`, and since 4g7c the host test
                `be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places`. An Export
-               dialog's height (be-host's `view_size` of it) is not reported yet; a picker is
-               never opened as a phone's sheet (`PickerRequest.sheet`, which be-host's
-               compositor sets from its layout); a dialog no app runs is worded as a block's.
-             - Left: creations (be-host steps a `PendingCreation` per child, with the
-               placer's `commit-child`, host-side), artifact settings (be-host's own settings
-               UI), host panels (the block stack, performance, apps and menu panels are
-               be-host's own UI, which the root would draw itself as its own surfaces) and web
-               views (a native view the root has no surface for: `Surface::Host` is not drawn
-               under the root yet).
+               dialog's height (be-host's `view_size` of it) is not reported yet; a dialog no
+               app runs is worded as a block's.
+             - 4g7b3h. Built: a dialog placed in a view anchored to an edge of its owner's (a
+               phone's sheet) opens as a sheet, laid out for touch, as be-host opens it
+               (`be3:root`'s `shown.dialog` is now a `shown-dialog` with `sheet`, which the
+               host hands on as `PickerRequest.sheet` and `InstanceRole::Rename`'s sheet). An
+               Escape an active child leaves to its placer no longer takes it back: the
+               keyboard stays where it is (the user's decision); a press outside still does,
+               and Escape in its placer still takes a frame back. A web view is its editor's
+               own: the host's `Forwarded` fails it as be-host-runtime does
+               (`drive_web_views`), so its editor says why in its place, and the root says
+               nothing of the child, as be-host. Neither be-host nor the root shows that
+               message in a browser tab yet: its editor hears the failure on the wire, but
+               its page shows nothing (not yet understood). Host test
+               `be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone`.
+             - Left, in this order: creations (be-host steps a `PendingCreation` per child,
+               with the placer's `commit-child`, host-side), artifact settings (be-host's own
+               settings UI), and host panels. be-host keeps no beui but its platform adapters,
+               so it draws no panel: be-root draws the block stack, performance, apps and menu
+               panels itself, as its own surfaces (the user's decision).
+             - One app crashing fails every child it runs: expected, as the pool shares one
+               app per staged app. Apps may later isolate themselves by spawning more wasm
+               processes (deferred, plans/deferred/backlog.md).
+           - 4g7b3i. One live editor per place (the user's decision): a block placed twice
+             gets an editor in each place, as two editor views of one open block each get
+             their own. This replaces 4g7b3e's one editor per block, whose other places draw
+             copies of its screen (`EditorKey`, twins, `copy_layer`): the copies go, with
+             what they allowed (a main view's owner among its places, a preview drawn once
+             at the largest).
+           - 4g7b3j. A child never moves when clicked (the user's decision): clicking or
+             focusing a child placed on a canvas, even one zoomed to fill the view, never
+             moves or resizes it, nor does a side panel opening, closing or moving around
+             it; a panel covering part of it keeps covering it, and the person zooms out to
+             see it. Under the root, and in be-host too where it refits.
+           - A dropped child is not fitted to its content (deferred: the root never hears the
+             checklist's intrinsic size, 4g7b3f).
        - 4g7c. Anchored views placed outside groups (`anchored`).
          - Built: the root hands each view an anchor space (`screen-request.anchor-space`):
            the session's screen anchors anywhere in the window, in its points, and each child

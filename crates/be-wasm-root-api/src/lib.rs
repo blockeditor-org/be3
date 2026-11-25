@@ -33,6 +33,6 @@ pub use host::{
     OrganizationsListed, PairingApproval, PairingRequest, PlacedContent, PowerAction, ProfileRow,
     Reauthenticating, RecoveryArea, Refusal, RelayedFrames, RoleChange, SavingState, SecretCommand,
     ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside, ShareAccess, ShareLinksArea,
-    SharePreview, Shown, ShownBlock, ShownChild, ShownNotices, ShownPreview, SigningIn,
-    StatisticRow, SyncState, UnlockArea, UnsentEdit, ViewRect, ViewSize,
+    SharePreview, Shown, ShownBlock, ShownChild, ShownDialog, ShownNotices, ShownPreview,
+    SigningIn, StatisticRow, SyncState, UnlockArea, UnsentEdit, ViewRect, ViewSize,
 };

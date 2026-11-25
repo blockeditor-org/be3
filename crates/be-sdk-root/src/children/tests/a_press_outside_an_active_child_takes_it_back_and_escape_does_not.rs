@@ -15,7 +15,7 @@ fn escape(layer: LayerId) -> Pressed {
 }
 
 #[test]
-fn a_press_outside_an_active_child_or_escape_in_its_placer_takes_it_back() {
+fn a_press_outside_an_active_child_takes_it_back_and_escape_does_not() {
     let mut children = placing(vec![up(1, ChildMode::Active), up(2, ChildMode::Live)]);
     let active = |children: &Children| {
         children
@@ -45,9 +45,9 @@ fn a_press_outside_an_active_child_or_escape_in_its_placer_takes_it_back() {
     assert_eq!(active(&children), [false, true]);
     children.revoked.clear();
 
-    // Escape takes it back only in its placer's view.
+    // Escape takes it back nowhere, in its placer's view neither: the keyboard stays.
     children.revoke(&[escape(LayerId(1))]);
     assert_eq!(active(&children), [true, true]);
     children.revoke(&[escape(PLACER)]);
-    assert_eq!(active(&children), [false, true]);
+    assert_eq!(active(&children), [true, true]);
 }

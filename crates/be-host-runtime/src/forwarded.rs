@@ -177,6 +177,7 @@ impl Forwarded {
     pub fn step(&mut self) -> Vec<Vec<u8>> {
         let next = self.instances.next_screens(host::pass());
         let mut messages: Vec<Outbound> = next.opened;
+        messages.extend(self.instances.drive_web_views());
         for message in &mut messages {
             self.instances.translate(message, false);
         }
@@ -245,11 +246,17 @@ impl Forwarded {
 }
 
 impl Forwarded {
-    /// Answers what an editor tells the shell around it, and refuses what it asks: the root's
+    /// Fails a web view an editor opens, as be-host does, and answers what an editor tells the
+    /// shell around it, and refuses what else it asks: the root's
     /// views take none of it yet (plans/host_as_platform_adapter.md, 4g7b3f and 4g7c to 4g7e),
     /// so what is told is dropped. Where its children take the keyboard rides on their
     /// placements (`keyboard-ask`), which the root reads itself.
     fn shell(&mut self, call: ShellCall) {
+        // A web view fails as under be-host: its editor hears so (`drive_web_views`).
+        if matches!(call, ShellCall::WebViewNew { .. }) {
+            self.instances.shell_call(call);
+            return;
+        }
         let ShellCall::Tell { reply, .. } = call else {
             let (op, outcome) = call.refuse(OpError::Unsupported);
             self.wire.answer(op, outcome);

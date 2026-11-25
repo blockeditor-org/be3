@@ -1121,7 +1121,16 @@ interface host {
     /// `pick` or `rename`, or the one declaring the export's exporter.
     variant shown {
         block(shown-block),
-        dialog(list<u8>),
+        dialog(shown-dialog),
+    }
+
+    /// A dialog a child shows.
+    record shown-dialog {
+        /// What it runs: the app protocol's `child-content`, in be-wasm-ops' encoding.
+        content: list<u8>,
+        /// Whether it opens as a sheet, laid out for touch, as be-host opens a dialog placed in
+        /// a view anchored to an edge of its owner's (a phone's sheet).
+        sheet: bool,
     }
 
     /// An editor the host opened in an app the root spawned.

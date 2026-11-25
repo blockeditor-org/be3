@@ -1024,7 +1024,7 @@ fn waits_for_listing(core: &crate::HostCore, shown: &be_wasm_root_api::Shown) ->
 enum Shows {
     Block(crate::editors::Opened),
     Picker(be_host_runtime::PickerRequest),
-    Rename(Uuid),
+    Rename(Uuid, bool),
     Export(EditorBlock, be_sdk_api::ExportRequest),
 }
 
@@ -1035,16 +1035,17 @@ fn shown_editor(
     core: &crate::HostCore,
     shown: &be_wasm_root_api::Shown,
 ) -> Result<(std::sync::Arc<be_sdk_manifest::AppManifest>, Uuid, Shows), String> {
-    let content = match shown {
+    let (content, sheet) = match shown {
         be_wasm_root_api::Shown::Block(shown) => {
             return core
                 .editor_of(shown)
                 .map(|(app, editor, opened)| (app, editor, Shows::Block(opened)));
         }
-        be_wasm_root_api::Shown::Dialog(content) => {
-            be_sdk_api::ops::decode::<be_sdk_api::ChildContent>(content)
-                .ok_or("the root named a dialog the host cannot read")?
-        }
+        be_wasm_root_api::Shown::Dialog(dialog) => (
+            be_sdk_api::ops::decode::<be_sdk_api::ChildContent>(&dialog.content)
+                .ok_or("the root named a dialog the host cannot read")?,
+            dialog.sheet,
+        ),
     };
     match content {
         be_sdk_api::ChildContent::Picker { filter, parent } => {
@@ -1055,7 +1056,7 @@ fn shown_editor(
             let request = be_host_runtime::PickerRequest {
                 filter,
                 parent,
-                sheet: false,
+                sheet,
             };
             Ok((app, editor, Shows::Picker(request)))
         }
@@ -1064,7 +1065,7 @@ fn shown_editor(
                 .registry
                 .accepting(be_sdk_manifest::ShellRequest::Rename)
                 .ok_or("no app renames blocks")?;
-            Ok((app, editor, Shows::Rename(Uuid::from_bytes(block))))
+            Ok((app, editor, Shows::Rename(Uuid::from_bytes(block), sheet)))
         }
         be_sdk_api::ChildContent::Export { block_id, request } => {
             let block = Uuid::from_bytes(block_id);
@@ -1263,7 +1264,7 @@ fn open_editor(
             be_host_runtime::ask_picker(instance, request);
             (InstanceRole::Picker(editor), None)
         }
-        Shows::Rename(block) => (InstanceRole::Rename(editor, block, false), None),
+        Shows::Rename(block, sheet) => (InstanceRole::Rename(editor, block, sheet), None),
         Shows::Export(block, request) => {
             be_host_runtime::ask_export(instance, request);
             (InstanceRole::Export(editor, block), None)
