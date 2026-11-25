@@ -31,7 +31,8 @@ fn holding_a_modifier_and_clicking_another_view_tells_that_view_the_modifier_wit
     };
     held.events = vec![beui::Forwarded::Focus(true), click];
     held.focused = true;
-    let (messages, _) = instances.forward(INSTANCE, REGION, &held, &|_, _| beui::Aim::Own, &|_| None);
+    let (messages, _) =
+        instances.forward(INSTANCE, REGION, &held, &|_, _| beui::Aim::Own, &|_| None);
     let events = input_events(&instances.gate(messages));
     assert_eq!(events.first(), Some(&Input::Focus(true)));
     assert_eq!(
@@ -40,7 +41,10 @@ fn holding_a_modifier_and_clicking_another_view_tells_that_view_the_modifier_wit
         "the view is told Ctrl is held right after it gets the keyboard: {events:?}"
     );
     assert!(
-        matches!(events.get(2), Some(Input::PointerButton { pressed: true, .. })),
+        matches!(
+            events.get(2),
+            Some(Input::PointerButton { pressed: true, .. })
+        ),
         "then the click follows: {events:?}"
     );
     assert_eq!(

@@ -2275,12 +2275,7 @@ impl Instances {
             for screen in entry.screens.values() {
                 self.announced.remove(&screen.request.screen);
             }
-            forget_opened(
-                &self.app_id,
-                &self.heard,
-                instance,
-                entry,
-            );
+            forget_opened(&self.app_id, &self.heard, instance, entry);
         }
         let shown = entry.shown_on(block.id);
         if let Some(link) = entry.content.as_mut() {
@@ -2300,12 +2295,7 @@ impl Instances {
         self.sent_block_types = None;
         self.announced.clear();
         for (instance, entry) in &mut self.entries {
-            forget_opened(
-                &self.app_id,
-                &self.heard,
-                *instance,
-                entry,
-            );
+            forget_opened(&self.app_id, &self.heard, *instance, entry);
         }
         self.forget_services();
         self.owners.clear();

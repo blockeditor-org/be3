@@ -124,10 +124,9 @@ impl Scene {
                     .into_iter()
                     .filter(|entity| !entity.is_frame() && reach(entity).intersects(area))
                     .collect();
-                let background = frame
-                    .style
-                    .filled()
-                    .map_or(theme.background, |fill| resolve_color(fill, theme.background));
+                let background = frame.style.filled().map_or(theme.background, |fill| {
+                    resolve_color(fill, theme.background)
+                });
                 let name = frame.text.to_str_lossy();
                 let name = match name.trim().is_empty() {
                     true => "Frame".to_owned(),

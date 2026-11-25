@@ -9,7 +9,8 @@ fn a_screen_announced_while_a_modifier_is_held_is_told_it_as_state() {
     };
     let mut held = forwarded(vec![beui::Forwarded::Focus(true)], None, true);
     held.modifiers = ctrl;
-    let (messages, _) = instances.forward(INSTANCE, REGION, &held, &|_, _| beui::Aim::Own, &|_| None);
+    let (messages, _) =
+        instances.forward(INSTANCE, REGION, &held, &|_, _| beui::Aim::Own, &|_| None);
     assert!(instances.gate(messages).is_empty());
 
     let screens = instances.next_screens(PASS).screens;
