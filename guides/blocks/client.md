@@ -366,8 +366,13 @@ taken unproven.
   per block is kept in the refs database (`LogFork`, `Peer::log_fork`), written
   before it is held, and told once as `Event::LogForked`; one found later
   answers it, and a later `Agrees` leaves it. It needs the server; offline it
-  answers `Disconnected`. Heads reach a device two ways: in the block's live
-  session (`Peer::tell_log_head`, "Live sessions"), and in commits: each seal
+  answers `Disconnected`. Heads reach a device three ways: through the
+  account's own block, where each device shares its heads, signed, and compares
+  those its other devices shared (`Peer::trade_account_heads`, which
+  be-host-stack's worker runs as the connection comes up; at most
+  `SHARED_HEADS` shared a pass, each only moving forward, `AccountBlock::log_heads`);
+  in the block's live session (`Peer::tell_log_head`, "Live sessions"); and in
+  commits: each seal
   names the head its device kept, signed (`Commit::log_through`, sealed with
   it, and sent as `new-commit.log-through`), and `load_head` compares the one a
   commit names (`compare_commit_head`): only for a log this device reads, a
