@@ -68,10 +68,14 @@ def dev_only(flags):
 #   (guides/app_libraries.md, Pure guests), where a crate a pure guest shares
 #   with the apps compiles once, at the apps' release 3: the release checklist
 #   module grew from 1,895,013 bytes at `s` to 2,497,166, and text's from
-#   1,957,971 to 2,566,523, a third (November 2026). The owner may still choose
-#   `s` for the pure guests' own crates, or for every guest
-#   (decisions/shipped_bundle_size_settings.md). When the type modules were at
-#   `s`, the checklist's module went from 2.29 MB to 1.67 MB
+#   1,957,971 to 2,566,523, a third (November 2026).
+# - pure_guest, a pure guest's own top crate (pure_guest_crate's :wasm in
+#   buck/wasm/defs.bzl): `s` in a release build, while the crates it shares
+#   with the apps stay at 3 (decisions/shipped_bundle_size_settings.md). It
+#   took the release checklist module from 2,489,484 bytes to 2,351,015 and
+#   text's from 2,558,927 to 2,415,342, about a twentieth (November 2026); most
+#   of a type module is the block stack it shares. When the type modules were
+#   wholly at `s`, the checklist's module went from 2.29 MB to 1.67 MB
 #   (1.64 MB at z), every type module a quarter to a third smaller, and
 #   compiling them took about half the CPU it did at 3. Saving a 50 MB paste
 #   in be-host-bench, which is the text type module's seal and its publish to a
@@ -101,6 +105,7 @@ OPT_LEVELS = {
     "app_test": (None, 1, 0, 0),
     "fuzz": (3, 3, 3, 3),
     "member": (None, 1, None, "s"),
+    "pure_guest": (None, None, "s", None),
     "toolchain": (0, 2, 3, 3),
 }
 

@@ -2,7 +2,8 @@
 
 Release builds use legacy symbol mangling and build first-party crates for
 wasm32-unknown-unknown at `opt-level=s` (buck/platforms/profile.bzl), which is now only the
-browser's gpu shim: the type modules build at the apps' 3 (Since, below). Linked modules use
+browser's gpu shim, and for each pure guest's own top crate, while the crates it shares with the
+apps build at their 3 (Since, below). Linked modules use
 hashed export names (guides/app_libraries.md), and the bundle ships a `.cwasm` of every
 module with be-host's symbols and the modules' name sections kept.
 
@@ -42,10 +43,15 @@ November 2026: the pure guests (type modules, games, the input remaps) are built
 wasm32-wasip1 in the apps' plan (guides/app_libraries.md, Pure guests), so a crate they share
 with the apps compiles once, at the apps' release opt-level 3 (option a). Type modules no longer
 build at `s` and ship a third bigger again: the release checklist module 1,895,013 bytes to
-2,497,166, text's 1,957,971 to 2,566,523. `s` stays only for the gpu shim, the one crate left on
-wasm32-unknown-unknown. The owner may still choose (b), `s` for every guest, the apps' crates
-too, against the frame times above, or (c), `s` for each pure guest's own crates (its
-`be-type-*` or `tabletop-rules-*` crate and `:wasm`) while the crates it shares stay at 3.
+2,497,166, text's 1,957,971 to 2,566,523. `s` stays for the gpu shim, the one crate left on
+wasm32-unknown-unknown.
+
+November 2026: each pure guest's own top crate (its `be-type-*`, `tabletop-rules-*` or remap
+crate, `pure_guest_crate`'s `:wasm`) builds at `s` in a release build, while the crates it shares
+with the apps stay at 3 (option c; the `pure_guest` kind in buck/platforms/profile.bzl). It took
+about a twentieth off: the release checklist module 2,489,484 bytes to 2,351,015, text's
+2,558,927 to 2,415,342, since most of a type module is the block stack it shares. Rejected: (b),
+`s` for every guest, the apps' crates too, against the frame times above.
 
 November 2026: the deploy's fat LTO over one codegen unit was removed (decisions/no_lto.md), with
 the rejection of thin LTO here.

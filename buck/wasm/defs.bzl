@@ -182,6 +182,7 @@ def pure_guest_crate(module = None, extra_features = []):
         name = "wasm",
         extra_features = extra_features,
         preferred_linkage = "shared",
+        rustc_flags = opt_flags("pure_guest"),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
     wasi_module(
