@@ -222,8 +222,10 @@ impl Embedding {
                 .cloned()
                 .collect();
             events.retain(|event| {
-                if let input::Input::PointerMoved(at) | input::Input::PointerButton { pos: at, .. } =
-                    &event.input
+                if let input::Input::PointerMoved(at)
+                | input::Input::PointerButton { pos: at, .. }
+                | input::Input::Touch { pos: at, .. }
+                | input::Input::Pen { pos: at, .. } = &event.input
                 {
                     for app in &self.apps {
                         app.note_pointer(*at);

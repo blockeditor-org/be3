@@ -406,18 +406,33 @@ impl Embedded {
         let Some(held) = state.held else {
             return false;
         };
+        // Whichever pointer pressed it, a mouse, a finger or a pen, as be-host's desktop follows
+        // every pointer's phases.
         match input {
-            Input::PointerMoved(at) => {
+            Input::PointerMoved(at)
+            | Input::Touch {
+                phase: TouchPhase::Move,
+                pos: at,
+                ..
+            }
+            | Input::Pen {
+                phase: PenPhase::Move,
+                pos: at,
+                ..
+            } => {
                 if floating::drag(&mut state.floating, held, *at) {
                     state.ask_screens();
                     state.wake();
                 }
                 true
             }
-            Input::PointerButton { pressed: false, .. } | Input::PointersCancelled => {
-                // Released, it is kept within its work area again.
+            // Released, it is kept within its work area again, and a move or resize asked for
+            // later starts from a press of its own.
+            input if ends(input) => {
                 state.held = None;
+                state.pressed = None;
                 state.ask_screens();
+                state.wake();
                 false
             }
             _ => false,
@@ -1529,8 +1544,10 @@ impl State {
                     self.pressed,
                     self.pointer,
                 );
+                // A press starts one move or resize: the next asks from where it then is.
                 if held.is_some() {
                     self.held = held;
+                    self.pressed = None;
                 }
                 if changed {
                     self.ask_screens();
