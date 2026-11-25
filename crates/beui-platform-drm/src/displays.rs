@@ -26,6 +26,7 @@ impl Display {
 struct Shared {
     displays: RefCell<Vec<Display>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     screenshot: RefCell<Option<Rc<dyn Fn() -> Option<Image>>>>,
 }
 
