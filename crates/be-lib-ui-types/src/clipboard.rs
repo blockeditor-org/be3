@@ -191,7 +191,7 @@ impl ClipFormat for TextFragment {
     const FORMAT: &'static str = formats::TEXT_FRAGMENT;
 
     fn refs(&self) -> Vec<Uuid> {
-        self.blocks().map(|id| *id).collect()
+        self.blocks().copied().collect()
     }
 
     /// Also drops marks whose ranges do not fit their chunk: a fragment may
