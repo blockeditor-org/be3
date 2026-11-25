@@ -150,13 +150,53 @@ struct Registry {
     subscribed: bool,
     /// The sessions this connection is in, by block, with the organization each block is in.
     sessions: HashMap<Uuid, Uuid>,
-    /// The session events of each block being joined, held until the join is answered, so a
-    /// subscriber hears none before it.
-    /// What a block's session told while its join was on its way, held until the join is
-    /// answered, each change of host with the membership index it is as of.
-    joining: HashMap<Uuid, Vec<(Event, Option<u64>)>>,
+    /// What a block's session told while a join of it was on its way, held until the newest
+    /// join is answered or dropped, so a subscriber hears none before it.
+    joining: HashMap<Uuid, Joining>,
+    /// The id the next join takes (`Joining::join`).
+    joins: u64,
     /// This connection in each session it is in, as the session names it.
     clients: HashMap<Uuid, ClientId>,
+}
+
+/// A block's session being joined (`Registry::joining`).
+#[derive(Default)]
+struct Joining {
+    /// The newest join of the block, the one whose answer lets the held events go. An earlier
+    /// one the server answers first, as it answers in order, and its answer is stale.
+    join: u64,
+    /// What the session told meanwhile, each change of host with the membership index it is as
+    /// of.
+    held: Vec<(Event, Option<u64>)>,
+}
+
+/// Ends a join's hold on its block's events if it is dropped unanswered (`Connection::join`).
+struct JoinHold {
+    connection: Arc<Connection>,
+    block: Uuid,
+    join: u64,
+    answered: bool,
+}
+
+impl Drop for JoinHold {
+    fn drop(&mut self) {
+        if self.answered {
+            return;
+        }
+        let held = {
+            let mut registry = self.connection.registry();
+            match registry.joining.get(&self.block) {
+                Some(joining) if joining.join == self.join => {
+                    registry.joining.remove(&self.block).map(|joining| joining.held)
+                }
+                _ => None,
+            }
+        };
+        // Nothing answered them, so they are told as they came.
+        for (event, _) in held.into_iter().flatten() {
+            let _ = self.connection.events.send(event);
+        }
+    }
 }
 
 /// What a connection signs in with, in its greeting.
@@ -429,8 +469,8 @@ impl Connection {
                     SessionEvent::Joiner(change) => Event::Joiner { block, change },
                 };
                 let mut registry = self.registry();
-                if let Some(held) = registry.joining.get_mut(&block) {
-                    held.push((event, index));
+                if let Some(joining) = registry.joining.get_mut(&block) {
+                    joining.held.push((event, index));
                     return None;
                 }
                 event
@@ -464,25 +504,56 @@ impl Connection {
     /// Joins a block's session as `join_session` does, answering all the server said: as a
     /// participant, or, below View, as a Join member, which hears only the host channel and who
     /// holds the lease (plans/hosted_blocks.md).
+    ///
+    /// Of joins of one block on their way at once, the newest is the one the server answers
+    /// last: it takes over what the others held, and only its answer changes what this
+    /// connection knows of the session and lets the held events go. An earlier one is answered
+    /// to its caller and changes nothing. A join dropped unanswered stops holding, telling what
+    /// it held as it came.
     pub fn join(
         self: &Arc<Self>,
         organization: Uuid,
         block: Uuid,
         tag: Hash,
     ) -> Answer<JoinedSession> {
-        self.registry().joining.insert(block, Vec::new());
+        let join = {
+            let mut registry = self.registry();
+            registry.joins += 1;
+            let join = registry.joins;
+            registry.joining.entry(block).or_default().join = join;
+            join
+        };
+        let mut hold = JoinHold {
+            connection: Arc::clone(self),
+            block,
+            join,
+            answered: false,
+        };
         let joining = be_block_protocol::ask::<JoinedSession, _>(
             &self.peer,
             Some(organization),
             Query::Session { block, tag },
             true,
         );
-        let connection = Arc::clone(self);
         Box::pin(async move {
             let joined = joining.await;
+            hold.answered = true;
+            let connection = Arc::clone(&hold.connection);
             let held = {
                 let mut registry = connection.registry();
-                let held = registry.joining.remove(&block).unwrap_or_default();
+                if registry
+                    .joining
+                    .get(&block)
+                    .is_none_or(|joining| joining.join != join)
+                {
+                    // A newer join of the block answers for it.
+                    return Ok(joined??);
+                }
+                let held = registry
+                    .joining
+                    .remove(&block)
+                    .map(|joining| joining.held)
+                    .unwrap_or_default();
                 match &joined {
                     Ok(Ok(joined)) => {
                         registry.sessions.insert(block, organization);

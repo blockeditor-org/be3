@@ -410,6 +410,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   key arrived and the replica kept a gap that held back its own edit
   (guides/blocks/host.md, "A lost entry"; the be-block-type-host test
   `an_entry_sealed_with_a_key_not_yet_here_reaches_the_replica_once_it_arrives`).
+  Two more that could hold back a session's events are fixed in
+  `Connection::join`: a second join of a block on its way threw away what the
+  first held and let its stale answer tell who hosted, and a join dropped
+  unanswered held the block's events forever (the be-block-client tests
+  `of_two_joins_of_one_block_on_their_way_only_the_newer_answers_for_the_session`
+  and `a_join_dropped_unanswered_holds_none_of_its_sessions_events`).
   The host test itself never failed locally (0 of about 380 runs under
   `stress`, 50 to 300 ms of latency), so whether that was its only cause is not
   shown. Done: if it recurs, the failing run's host log read for a recorded
