@@ -22,7 +22,12 @@ async fn a_key_a_contact_may_not_send_stays_refused_once_sealed_again_after_its_
         .share(block, reader.account(), be_block_graph::Access::View, &to)
         .await
         .unwrap();
-    let data = contact.keys().keys_of(block, KeyKind::Data).last().unwrap().id;
+    let data = contact
+        .keys()
+        .keys_of(block, KeyKind::Data)
+        .last()
+        .unwrap()
+        .id;
     let wrap = contact
         .keys()
         .seal_to(data, reader.account(), &to.public)
@@ -45,7 +50,10 @@ async fn a_key_a_contact_may_not_send_stays_refused_once_sealed_again_after_its_
     .await;
     reader.refresh_contacts().await.unwrap();
     let (sender, sealed) = wrap_to(&harness, data, reader.account());
-    assert_ne!(sealed, planted, "what the contact's old key sealed was not sealed again");
+    assert_ne!(
+        sealed, planted,
+        "what the contact's old key sealed was not sealed again"
+    );
     assert_eq!(
         sender,
         contact.account(),

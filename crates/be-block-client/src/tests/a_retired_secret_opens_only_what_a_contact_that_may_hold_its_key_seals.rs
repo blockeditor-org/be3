@@ -29,13 +29,19 @@ fn a_retired_secret_opens_only_what_a_contact_that_may_hold_its_key_seals() {
     };
 
     let stale = crate::contacts::behind(Some(retired[0].public()), &current);
-    let (plain, secret) =
-        crate::contacts::open_by_any(&current, &retired, stale, open).unwrap();
+    let (plain, secret) = crate::contacts::open_by_any(&current, &retired, stale, open).unwrap();
     assert_eq!(plain, b"plain");
-    assert_eq!(secret.public(), retired[0].public(), "not opened with the retired secret");
+    assert_eq!(
+        secret.public(),
+        retired[0].public(),
+        "not opened with the retired secret"
+    );
 
     let followed = crate::contacts::behind(Some(current.public()), &current);
-    assert!(!followed, "a contact that holds the current key counts as behind");
+    assert!(
+        !followed,
+        "a contact that holds the current key counts as behind"
+    );
     assert!(
         crate::contacts::open_by_any(&current, &retired, followed, open).is_err(),
         "a retired secret opened what a contact that holds the current key sealed"

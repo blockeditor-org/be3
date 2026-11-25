@@ -920,10 +920,12 @@ impl KeyBook {
             account: wrap.sender.into_bytes(),
             public,
         };
-        let Ok(sealed) =
-            self.identity
-                .seal_as_from(&from, self.account.into_bytes(), wrap.key.as_bytes(), plain)
-        else {
+        let Ok(sealed) = self.identity.seal_as_from(
+            &from,
+            self.account.into_bytes(),
+            wrap.key.as_bytes(),
+            plain,
+        ) else {
             return;
         };
         self.retired.lock().unwrap().resealed.insert(

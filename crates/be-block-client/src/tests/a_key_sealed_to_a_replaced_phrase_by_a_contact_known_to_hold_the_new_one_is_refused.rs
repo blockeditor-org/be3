@@ -16,7 +16,12 @@ async fn a_key_sealed_to_a_replaced_phrase_by_a_contact_known_to_hold_the_new_on
     befriend(&contact, &reader).await;
     let old = reader.keys().identity().public();
 
-    let fresh = new_phrase(&reader.connection(), reader.account(), reader.keys().identity()).await;
+    let fresh = new_phrase(
+        &reader.connection(),
+        reader.account(),
+        reader.keys().identity(),
+    )
+    .await;
     contact.refresh_contacts().await.unwrap();
     assert_eq!(
         contact

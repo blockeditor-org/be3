@@ -14,12 +14,18 @@ fn a_seal_made_by_its_recipient_opens_as_from_its_sender() {
         .seal_as_from(&from, [2; 16], b"key", b"plain")
         .unwrap();
     assert_eq!(
-        recipient.open_from(&from, [2; 16], b"key", &sealed).unwrap(),
+        recipient
+            .open_from(&from, [2; 16], b"key", &sealed)
+            .unwrap(),
         b"plain"
     );
     let other = Party {
         account: [1; 16],
         public: RecoveryPhrase::generate().secret().public(),
     };
-    assert!(recipient.open_from(&other, [2; 16], b"key", &sealed).is_err());
+    assert!(
+        recipient
+            .open_from(&other, [2; 16], b"key", &sealed)
+            .is_err()
+    );
 }

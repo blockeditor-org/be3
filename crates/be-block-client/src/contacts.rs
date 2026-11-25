@@ -992,7 +992,9 @@ fn follow(
         }
     }
     let changed = (current != held).then_some(current);
-    let followed_to = changed.zip(holds).map(|(to, holds)| Followed { to, holds, through });
+    let followed_to = changed
+        .zip(holds)
+        .map(|(to, holds)| Followed { to, holds, through });
     (followed_to, followed)
 }
 
@@ -1101,7 +1103,12 @@ fn resealed_from(
                 };
                 let (plain, secret) = secrets
                     .open(stale, |secret| {
-                        secret.open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+                        secret.open_from(
+                            &from,
+                            account.into_bytes(),
+                            key.key.as_bytes(),
+                            &key.sealed,
+                        )
                     })
                     .ok()?;
                 let current = secret.public() == identity.public() && *public == now.public;
@@ -1197,7 +1204,12 @@ pub fn new_identity(
             let sender = contacts.get(&key.sender)?;
             let stale = behind(records[&key.sender].holds, old);
             let (plain, _) = open_by_any(old, retired, stale, |secret| {
-                secret.open_from(sender, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+                secret.open_from(
+                    sender,
+                    account.into_bytes(),
+                    key.key.as_bytes(),
+                    &key.sealed,
+                )
             })
             .ok()?;
             Some(SealedKey {
@@ -1335,8 +1347,7 @@ pub(crate) async fn set_recovery_key_in(
         },
         None => (HashMap::new(), Vec::new()),
     };
-    let Some(resealed) = new_identity(account, old, &retired, fresh, sealed, &records, logs)
-    else {
+    let Some(resealed) = new_identity(account, old, &retired, fresh, sealed, &records, logs) else {
         return Ok(Err(CannotReseal::Unreadable));
     };
     // The old secret, kept where only the new phrase reads it once the block's keys are sealed

@@ -523,7 +523,11 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Gives the `KeyBook` the secrets the account retired, `retired`, and which of `contacts`
     /// may still seal to them (`crate::contacts::behind`).
-    pub(crate) fn retire(&self, retired: Vec<be_block_keys::RecoverySecret>, contacts: &[crate::Contact]) {
+    pub(crate) fn retire(
+        &self,
+        retired: Vec<be_block_keys::RecoverySecret>,
+        contacts: &[crate::Contact],
+    ) {
         let current = self.keys.identity();
         let behind = contacts
             .iter()

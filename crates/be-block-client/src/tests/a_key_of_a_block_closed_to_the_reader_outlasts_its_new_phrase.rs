@@ -30,18 +30,30 @@ async fn a_key_of_a_block_closed_to_the_reader_outlasts_its_new_phrase() {
         .database()
         .execute(
             "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
-            [admin.organization().to_string(), guest.account().to_string()],
+            [
+                admin.organization().to_string(),
+                guest.account().to_string(),
+            ],
         )
         .unwrap();
 
-    new_phrase(&guest.connection(), guest.account(), guest.keys().identity()).await;
+    new_phrase(
+        &guest.connection(),
+        guest.account(),
+        guest.keys().identity(),
+    )
+    .await;
     assert_eq!(
         sealed_to(&harness, key, guest.account()),
         1,
         "a new phrase dropped the key of a block in an organization the account left"
     );
     let (sender, _) = wrap_to(&harness, key, guest.account());
-    assert_eq!(sender, admin.account(), "the admin's key sealed again as another's");
+    assert_eq!(
+        sender,
+        admin.account(),
+        "the admin's key sealed again as another's"
+    );
 
     harness.stop().await;
 }

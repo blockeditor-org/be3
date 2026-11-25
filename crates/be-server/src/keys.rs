@@ -1504,17 +1504,15 @@ impl ServerStore {
                 "SELECT organization_id, key_id, sender, sealed FROM wrapped_keys
                  WHERE wrapped_by = ?1 ORDER BY organization_id, key_id",
             )?;
-            let rows = statement.query_map(
-                [encode_wrapped_by(WrappedBy::Account(account))],
-                |row| {
+            let rows =
+                statement.query_map([encode_wrapped_by(WrappedBy::Account(account))], |row| {
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, Vec<u8>>(3)?,
                     ))
-                },
-            )?;
+                })?;
             let mut sealed = Vec::new();
             for row in rows {
                 let (organization, key, sender, bytes) = row?;

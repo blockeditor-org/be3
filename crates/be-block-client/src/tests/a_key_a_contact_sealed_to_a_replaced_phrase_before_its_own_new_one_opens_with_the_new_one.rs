@@ -12,7 +12,7 @@ use be_type_workspace::FolderContent;
 /// secret.
 #[tokio::test]
 async fn a_key_a_contact_sealed_to_a_replaced_phrase_before_its_own_new_one_opens_with_the_new_one()
- {
+{
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
     let guest = harness.member(&admin, "guest@example.com").await;
@@ -36,7 +36,12 @@ async fn a_key_a_contact_sealed_to_a_replaced_phrase_before_its_own_new_one_open
             });
         }
     });
-    let fresh = new_phrase(&guest.connection(), guest.account(), guest.keys().identity()).await;
+    let fresh = new_phrase(
+        &guest.connection(),
+        guest.account(),
+        guest.keys().identity(),
+    )
+    .await;
 
     let kind = admin
         .create_block(
@@ -59,7 +64,12 @@ async fn a_key_a_contact_sealed_to_a_replaced_phrase_before_its_own_new_one_open
         "the kind's key was not offered to the guest viewing inside"
     );
     // Its change goes to the guest's old key, the one its record holds.
-    new_phrase(&admin.connection(), admin.account(), admin.keys().identity()).await;
+    new_phrase(
+        &admin.connection(),
+        admin.account(),
+        admin.keys().identity(),
+    )
+    .await;
 
     let renewed = Peer::connect(
         PeerConfig::new(

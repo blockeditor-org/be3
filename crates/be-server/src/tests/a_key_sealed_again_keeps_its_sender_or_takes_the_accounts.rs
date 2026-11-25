@@ -54,7 +54,10 @@ async fn a_key_sealed_again_keeps_its_sender_or_takes_the_accounts() {
     let refused = owner
         .call(|peer| peer.write::<()>(reseal(own.scope, contact, b"as the contact's")))
         .await;
-    assert!(refused.is_err(), "the account's own key sealed again as a contact's");
+    assert!(
+        refused.is_err(),
+        "the account's own key sealed again as a contact's"
+    );
     assert_eq!(
         held(&harness, own.scope, account),
         Some((account.to_string(), b"scope sealed to its author".to_vec()))
@@ -73,7 +76,10 @@ async fn a_key_sealed_again_keeps_its_sender_or_takes_the_accounts() {
     let response = owner
         .call(|peer| peer.write::<()>(reseal(gone, account, b"of a key gone")))
         .await;
-    assert!(matches!(response, Ok(())), "a gone row refused: {response:?}");
+    assert!(
+        matches!(response, Ok(())),
+        "a gone row refused: {response:?}"
+    );
     assert_eq!(held(&harness, gone, account), None);
 
     harness.stop().await;

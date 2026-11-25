@@ -33,7 +33,12 @@ async fn a_key_a_contact_sealed_to_a_replaced_phrase_opens_after_the_two_link_ag
             });
         }
     });
-    let fresh = new_phrase(&guest.connection(), guest.account(), guest.keys().identity()).await;
+    let fresh = new_phrase(
+        &guest.connection(),
+        guest.account(),
+        guest.keys().identity(),
+    )
+    .await;
     let renewed = Peer::connect(
         PeerConfig::new(
             &harness.url,

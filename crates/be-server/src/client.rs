@@ -2864,12 +2864,7 @@ impl Connection {
     /// blocks it was revoked from are told, the trees of what it could view advance (each block
     /// of them changed, as who may view it did), and key work for everyone, as for a demotion,
     /// since the removed may have administered.
-    async fn removed(
-        &mut self,
-        organization: Uuid,
-        account: Uuid,
-        removed: crate::store::Removed,
-    ) {
+    async fn removed(&mut self, organization: Uuid, account: Uuid, removed: crate::store::Removed) {
         self.after(After::DropMember {
             organization,
             account,

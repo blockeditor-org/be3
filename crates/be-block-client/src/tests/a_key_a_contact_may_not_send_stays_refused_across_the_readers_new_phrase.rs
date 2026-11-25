@@ -15,7 +15,12 @@ async fn a_key_a_contact_may_not_send_stays_refused_across_the_readers_new_phras
     befriend(&contact, &reader).await;
     let block = note(&contact).await;
     let to = contact.verified_identity(reader.account()).unwrap();
-    let data = contact.keys().keys_of(block, KeyKind::Data).last().unwrap().id;
+    let data = contact
+        .keys()
+        .keys_of(block, KeyKind::Data)
+        .last()
+        .unwrap()
+        .id;
     let wrap = contact
         .keys()
         .seal_to(data, reader.account(), &to.public)
@@ -30,9 +35,17 @@ async fn a_key_a_contact_may_not_send_stays_refused_across_the_readers_new_phras
         "a data key from a contact who is no administrator opened"
     );
 
-    let fresh = new_phrase(&reader.connection(), reader.account(), reader.keys().identity()).await;
+    let fresh = new_phrase(
+        &reader.connection(),
+        reader.account(),
+        reader.keys().identity(),
+    )
+    .await;
     let (sender, sealed) = wrap_to(&harness, data, reader.account());
-    assert_ne!(sealed, planted, "the new phrase did not seal the contact's key again");
+    assert_ne!(
+        sealed, planted,
+        "the new phrase did not seal the contact's key again"
+    );
     assert_eq!(
         sender,
         contact.account(),
