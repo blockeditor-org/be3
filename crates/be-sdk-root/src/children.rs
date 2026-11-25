@@ -167,6 +167,9 @@ pub struct Children {
     /// The children placed that the root shows nothing of, by the view placing each, as the
     /// host is told them.
     unshown: Vec<((EditorInstanceId, ViewId), ShownChild)>,
+    /// The host panels placed (`ChildContent::Host`), which the root draws itself
+    /// (`Children::panels`, `show_panels`).
+    panels: Vec<(PanelPlace, ChildPlacement)>,
     /// What the host was told last of each view's children (`host.show-children`).
     told: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>,
     /// The children placed active that were taken back (`revoke`): they are passive until placed
@@ -950,6 +953,42 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
     }
 }
 
+/// A host panel an editor placed (`ChildContent::Host`): be-host draws its own, and a root draws
+/// it itself, as one of its own surfaces the size of its place.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PanelPlace {
+    /// The editor that placed it, its view and the child's id there.
+    pub editor: EditorInstanceId,
+    pub view: ViewId,
+    pub child: ChildId,
+    pub panel: be_sdk_api::HostPanel,
+    /// The size of its place, in its placer's view's points.
+    pub size: be_lib_geometry::Vec2,
+    /// The pixels per point its placer is laid out at.
+    pub raster: f32,
+}
+
+impl PanelPlace {
+    /// What names it among every app's places: its placer, its view and its id there.
+    pub fn key(&self) -> (EditorInstanceId, ViewId, ChildId) {
+        (self.editor, self.view, self.child)
+    }
+}
+
+thread_local! {
+    /// The layers showing the host panels placed (`PanelPlace::key`), each with its top left at
+    /// its surface's origin, as the root last showed them (`show_panels`).
+    static PANEL_LAYERS: RefCell<HashMap<(EditorInstanceId, ViewId, ChildId), Layer>> =
+        RefCell::default();
+}
+
+/// The layers of the root's own surfaces that show the host panels placed (`Children::panels`),
+/// each by its place, its top left at its surface's origin: what `Children::layers` places
+/// where each is placed.
+pub fn show_panels(layers: Vec<((EditorInstanceId, ViewId, ChildId), Layer)>) {
+    PANEL_LAYERS.with_borrow_mut(|panels| *panels = layers.into_iter().collect());
+}
+
 /// Whether `shown` is an artifact's settings (`ChildContent::ArtifactSettings`), a dialog its
 /// editor runs in its settings view.
 fn settings_dialog(shown: &Shown) -> bool {
@@ -1109,6 +1148,7 @@ impl Children {
         let mut docked = docked_children(&placed);
         self.bodies.clear();
         self.unshown.clear();
+        self.panels.clear();
         for placements in &placed {
             let placer = self.requests.iter().find(|screen| {
                 (screen.instance, screen.view) == (placements.instance, placements.view)
@@ -1142,6 +1182,42 @@ impl Children {
                 // under be-host (be-host-runtime's `drive_web_views`, through the host's
                 // `Forwarded`): the root shows nothing of it and says nothing of it.
                 if matches!(placement.content, ChildContent::WebView(_)) {
+                    continue;
+                }
+                // A host panel the root draws itself, its own surface where it is placed, as
+                // be-host draws its own: available at once.
+                if let ChildContent::Host(panel) = &placement.content
+                    && placement.mode != ChildMode::Hidden
+                {
+                    let place = PanelPlace {
+                        editor: placements.instance,
+                        view: placements.view,
+                        child,
+                        panel: *panel,
+                        size: be_lib_geometry::vec2(
+                            placement.rect.width(),
+                            placement.rect.height(),
+                        ),
+                        raster,
+                    };
+                    self.panels
+                        .push((place, in_view(placement, placements.view)));
+                    self.unshown.push((
+                        (placements.instance, placements.view),
+                        ShownChild {
+                            child: child.0,
+                            shows: Some(Shown::Dialog(ShownDialog {
+                                content: be_wasm_ops::encode(&placement.content),
+                                sheet: false,
+                            })),
+                            shown_in: None,
+                            active: takes_input(placement.mode),
+                            error: None,
+                            preview: ShownPreview::None,
+                            intrinsic: None,
+                            menu: Vec::new(),
+                        },
+                    ));
                     continue;
                 }
                 let occluders = occluders_of(placements, index);
@@ -1941,6 +2017,16 @@ impl Children {
         apps
     }
 
+    /// The host panels placed, any number of levels deep, which the root draws itself and shows
+    /// through `show_panels`.
+    pub fn panels(&self) -> Vec<PanelPlace> {
+        let mut panels: Vec<PanelPlace> = self.panels.iter().map(|(place, _)| *place).collect();
+        for child in &self.shown {
+            panels.extend(child.editor.nested.borrow().panels());
+        }
+        panels
+    }
+
     /// The layers showing the views `parent`'s editor `only` (every editor's of it with none)
     /// anchored outside their groups (menus, popovers, sheets), each with the children placed in
     /// it, and those the editors of its children anchored, any number of levels deep: over
@@ -2103,6 +2189,41 @@ impl Children {
                 .nested
                 .borrow()
                 .layers(&request, shown_child, into);
+        }
+        // The host panels placed here, each the root's own surface (`show_panels`), placed
+        // as a child is: at its place, within its clip, taking the presses where it is.
+        for (place, placement) in &self.panels {
+            if !placed_in(place.editor, place.view) {
+                continue;
+            }
+            let Some(mut shown_panel) =
+                PANEL_LAYERS.with_borrow(|panels| panels.get(&place.key()).cloned())
+            else {
+                continue;
+            };
+            let to_placer = placed_transform(placement, be_lib_geometry::vec2(1.0, 1.0));
+            shown_panel.transform = shown_panel.transform.then(&to_placer).then(&to_window);
+            let Some(from_window) = shown_panel.transform.inverse() else {
+                continue;
+            };
+            let swept = to_placer.bounds(Rect::from_min_size(pos2(0.0, 0.0), place.size));
+            let clip = to_window
+                .bounds(placement.clip.intersect(swept))
+                .intersect(shown);
+            shown_panel.clip = shown_panel.clip.intersect(from_window.bounds(clip));
+            shown_panel.opacity = layer.opacity * placement.opacity.clamp(0.0, 1.0);
+            shown_panel.input.placer = Some(layer.id);
+            let active = takes_input(placement.mode);
+            if !active {
+                shown_panel.input.hit = Area::Nowhere;
+            }
+            if active && placement.layer == ChildLayer::Below {
+                holes.push((hole(placement, pixels, layer.clip), Vec::new()));
+            }
+            match placement.layer {
+                ChildLayer::Below => below.push(shown_panel),
+                ChildLayer::Above => over.push(shown_panel),
+            }
         }
         for ask in &self.bodies {
             if !placed_in(ask.editor, ask.view) {

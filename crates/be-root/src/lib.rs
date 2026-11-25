@@ -178,6 +178,16 @@ pub const SESSION_NOTICE_LAYER: LayerId = LayerId(10);
 /// its app loading, or why it stopped, as be-host's own UI says it.
 pub const SESSION_NOTICE_SURFACE: u32 = 11;
 
+/// The first of the surfaces of the root's own that draw the host panels its apps place
+/// (`HostPanel`), one for each place, numbered on from it.
+pub const PANEL_SURFACES: u32 = 64;
+
+/// The layers showing the host panels' surfaces: each its surface's number past this.
+pub const PANEL_LAYERS: u64 = 1 << 32;
+
+/// What a host panel the root draws no view of yet says in its place.
+pub const PANEL_NOT_DRAWN: &str = "This panel is not drawn under the root yet.";
+
 /// What the session's notice says while its editor's app starts.
 pub const LOADING_APP: &str = "Loading app…";
 

@@ -1,11 +1,12 @@
 //! The root's menu, which opens what be-host's organization menu does.
 
 use super::*;
+use be_sdk_api::HostPanel;
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_CLOUD_ALERT, ICON_CLOUD_CHECK,
-    ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_GAUGE, ICON_KEY, ICON_LAYOUT_PANEL_LEFT,
-    ICON_LINK, ICON_MAIL, ICON_RADIO_TOWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS,
-    ICON_USERS,
+    ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_GAUGE, ICON_KEY, ICON_LAYERS,
+    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_PUZZLE, ICON_RADIO_TOWER, ICON_SHIELD_ALERT,
+    ICON_USER_COG, ICON_USER_PLUS, ICON_USERS,
 };
 
 /// Where the root's menu is hit, in its surface's pixels: its button at the window's top
@@ -23,6 +24,16 @@ pub(super) fn menu_area(menu: &BeuiSurface, window: Window) -> Area {
             Area::Region(rects)
         }
         _ => Area::Region(vec![button]),
+    }
+}
+
+/// The glyph of a host panel's row, as be-host's menu draws it.
+fn panel_glyph(panel: HostPanel) -> Glyph {
+    match panel {
+        HostPanel::BlockStack => ICON_LAYERS,
+        HostPanel::Performance => ICON_GAUGE,
+        HostPanel::Apps => ICON_PUZZLE,
+        HostPanel::Menu => ICON_MENU,
     }
 }
 
@@ -69,6 +80,13 @@ pub(super) fn HostMenu(
     saving: Signal<SavingState>,
     want: Callback<Asking>,
     statistics: Callback<()>,
+    /// Shows one of the host's panels, as be-host's menu does: in the session's editor, which
+    /// places it, and the root draws it there.
+    panel: Callback<HostPanel>,
+    /// Its rows laid out in place, as the host menu panel an editor places shows them
+    /// (`HostPanel::Menu`), rather than behind its button.
+    #[prop(default = false)]
+    rows: bool,
 ) -> NodeId {
     let sync = create_memo(move || saving.with(|saving| saving.sync.clone()));
     let sync_label = create_memo(move || sync.with(sync_label).to_owned());
@@ -191,7 +209,21 @@ pub(super) fn HostMenu(
             separated=true
             on_click={move || statistics.call(())}
         />
+        // Its own statistics are the host's performance panel: the other panels show in the
+        // session's editor.
+        <ForEach value={vec![HostPanel::BlockStack, HostPanel::Apps]}>|shown: HostPanel|
+            <MenuItem
+                label={shown.title().to_owned()}
+                glyph={panel_glyph(shown)}
+                on_click={move || panel.call(shown)}
+            />
+        </ForEach>
     };
+    if rows {
+        return view! {
+            <MenuRows items={items} on_scroll={Callback::empty()} />
+        };
+    }
     view! {
         <Frame width=Length::FILL padding=Space::Sm>
             <List direction=Direction::Horizontal spacing=Space::None justify=Justify::End>

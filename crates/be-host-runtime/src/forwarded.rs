@@ -152,6 +152,12 @@ impl Forwarded {
         self.wire.send(messages);
     }
 
+    /// Asks the editor `instance` to show the host's panel `panel`, as be-host asks its shell
+    /// (`show_panel`): it hears it with its shows.
+    pub fn show_panel(&mut self, instance: EditorInstanceId, panel: be_sdk_api::HostPanel) {
+        self.instances.show_panel(instance, panel);
+    }
+
     /// Hands the editor `instance` the states of the artifacts it watches among `states`, as
     /// `Runtime` hands them (`set_artifact_states`).
     pub fn set_artifact_states(

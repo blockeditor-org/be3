@@ -203,6 +203,8 @@ struct Core<G> {
     /// What the root told the host's editors (`host.tell-editor`), by the root's instance and
     /// the editor, each encoded, in order, until taken.
     editor_events: Vec<(u64, u64, Vec<u8>)>,
+    /// The panels the root asked editors to show (`host.show-panel`), in order.
+    panel_shows: Vec<(u64, u64, Vec<u8>)>,
     /// Where the host's editors the root shows as placed children show their content
     /// (`host.place-content`), until the host takes them.
     placed_contents: Vec<be_wasm_root_api::PlacedContent>,
@@ -362,6 +364,7 @@ impl<G: Inline> Core<G> {
             relay_watcher: None,
             shown_children: Vec::new(),
             editor_events: Vec::new(),
+            panel_shows: Vec::new(),
             dock_updates: Vec::new(),
             placed_contents: Vec::new(),
             assigned_sizes: Vec::new(),
@@ -740,6 +743,12 @@ impl<G: Inline> Core<G> {
     /// the editor, each encoded, in order.
     fn take_editor_events(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
         std::mem::take(&mut self.editor_events)
+    }
+
+    /// The panels the root asked the host's editors to show (`host.show-panel`): by the root's
+    /// instance and the editor, each encoded, in order.
+    fn take_panel_shows(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        std::mem::take(&mut self.panel_shows)
     }
 
     /// The dock updates the root made for the host's editors since the last call
@@ -1260,6 +1269,15 @@ impl<G: Inline> Core<G> {
                 reply,
             }) => {
                 self.editor_events.push((instance, editor, event));
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::ShowPanel {
+                instance,
+                editor,
+                panel,
+                reply,
+            }) => {
+                self.panel_shows.push((instance, editor, panel));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::Dock {

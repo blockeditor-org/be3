@@ -310,6 +310,12 @@ impl Root {
         self.core.take_editor_events()
     }
 
+    /// The panels the root asked the host's editors to show (`host.show-panel`): by the root's
+    /// instance and the editor, each encoded, in order.
+    pub fn take_panel_shows(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.core.take_panel_shows()
+    }
+
     /// The dock updates the root made for the host's editors since the last call
     /// (`host.dock`): by the root's instance and the editor, each encoded, in order.
     pub fn take_dock_updates(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
