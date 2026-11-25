@@ -193,9 +193,10 @@ destination does that. It reads the same sketches as the canvas. SVG writes
 paths, text as `<text>` with a
 `<tspan>` per run, and raster layers as pixelated PNG images. PNG paints into
 an offscreen beui context and rasterizes on the CPU
-(`beui_paint_format::rasterize`), since an app cannot read pixels back from
-the GPU; raster layers are upscaled nearest-neighbour first because that
-rasterizer samples bilinearly.
+(`beui_paint_raster::rasterize`, vello_cpu drawing what beui-renderer-wgpu
+draws with vello_gpu), since an app cannot read pixels back from the GPU;
+raster layers are upscaled nearest-neighbour first because that rasterizer
+samples bilinearly.
 
 ## Testing and benchmarks
 

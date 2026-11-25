@@ -1,5 +1,5 @@
 use super::*;
-use crate::{RoundedRect, Turn};
+use beui_paint_snapshot::{RoundedRect, Turn};
 
 #[test]
 fn a_turned_rounded_rect_is_covered_where_it_turned_to() {

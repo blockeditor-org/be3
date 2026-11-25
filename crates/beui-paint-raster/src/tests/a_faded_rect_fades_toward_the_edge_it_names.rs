@@ -1,8 +1,8 @@
 use super::*;
-use crate::{RoundedRect, Turn};
+use beui_paint_snapshot::{RoundedRect, Turn};
 
 #[test]
-fn a_faded_rect_fades_toward_the_edge_it_names_the_way_the_shader_does() {
+fn a_faded_rect_fades_toward_the_edge_it_names() {
     let snapshot = Snapshot::of(
         Frame {
             size: [8, 2],
@@ -29,8 +29,8 @@ fn a_faded_rect_fades_toward_the_edge_it_names_the_way_the_shader_does() {
 
     let image = crate::render(&snapshot, 0).unwrap();
 
-    assert_eq!(image.get_pixel(0, 0).0, [32, 32, 32, 255]);
-    assert_eq!(image.get_pixel(1, 0).0, [96, 96, 96, 255]);
+    assert_eq!(image.get_pixel(0, 0).0, [31, 31, 31, 255]);
+    assert_eq!(image.get_pixel(1, 0).0, [95, 95, 95, 255]);
     assert_eq!(image.get_pixel(4, 1).0, [255, 255, 255, 255]);
     assert_eq!(image.get_pixel(7, 1).0, [255, 255, 255, 255]);
 }

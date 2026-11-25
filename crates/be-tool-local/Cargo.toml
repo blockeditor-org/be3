@@ -10,6 +10,7 @@ name = "be-tool-local"
 path = "src/main.rs"
 
 [dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
 base64 = "0.22"
 beui-html = { path = "../beui-html" }
 be-lib-build-id = { path = "../be-lib-build-id" }

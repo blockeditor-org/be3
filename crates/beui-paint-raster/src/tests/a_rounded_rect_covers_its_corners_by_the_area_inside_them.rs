@@ -1,8 +1,8 @@
 use super::*;
-use crate::{RoundedRect, Turn};
+use beui_paint_snapshot::{RoundedRect, Turn};
 
 #[test]
-fn a_rounded_rect_is_covered_the_way_the_shader_covers_it() {
+fn a_rounded_rect_covers_its_corners_by_the_area_inside_them() {
     let snapshot = Snapshot::of(
         Frame {
             size: [8, 8],
@@ -27,6 +27,7 @@ fn a_rounded_rect_is_covered_the_way_the_shader_covers_it() {
     let image = crate::render(&snapshot, 0).unwrap();
 
     assert_eq!(image.get_pixel(4, 4).0, [255, 255, 255, 255]);
-    assert_eq!(image.get_pixel(1, 1).0, [0, 0, 0, 255]);
+    // The corner pixel holds only a sliver of the rounding.
+    assert_eq!(image.get_pixel(1, 1).0, [1, 1, 1, 255]);
     assert_eq!(image.get_pixel(0, 4).0, [0, 0, 0, 255]);
 }

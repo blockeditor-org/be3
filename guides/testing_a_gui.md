@@ -150,7 +150,7 @@ Every frame is compared, so keep recordings to the frames that say something.
 - A frame is tidied before it is kept (beui-paint-format's `Frame::tidy`): what paints no pixel
   (a shape under a later opaque rect or over its own colour, a clip that cuts nothing) is
   dropped or made plain, so a change only those see leaves the painting's bytes alone. Tidying
-  must never change a pixel `rasterize` paints.
+  must never change a pixel `rasterize` (beui-paint-raster) paints.
 - The format is beui-paint-format's types as CBOR. Grow it by adding (a variant, or a field that
   skips its default) so existing paintings keep their bytes; renaming, removing or reshaping a
   field bumps `VERSION` (beui-paint-snapshot's format.rs) and verify rewrites every painting.
@@ -226,8 +226,10 @@ dynamic ids, form tokens and times in fixtures.
 
 Whatever reads a painting file (the comparison, `rasterize`, the pull request's previews)
 decodes it as beui-paint-snapshot's `Painting`, `Native` or `Browser`, whose `frames`,
-`difference` and `render(index, browser_renderer)` cover both kinds; `render` hands a browser
-painting to the rasterizer it is given.
+`difference` and `render(index, file, browser_renderer, native)` cover both kinds; `render`
+hands a browser painting to the rasterizer it is given and a native one to `native`,
+beui-paint-raster's `render`, which beui-paint-snapshot cannot hold since the beui library
+holds it.
 
 ## 5. Running them
 

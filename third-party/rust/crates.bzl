@@ -63355,6 +63355,133 @@ third_party = {
         ],
         "version": "0.4.0",
     },
+    "vello_cpu-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A CPU-based renderer for Vello, optimized for SIMD and multithreaded execution.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_cpu",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_cpu",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
     "vello_gpu-0.4.0": {
         "build_script": None,
         "env": {

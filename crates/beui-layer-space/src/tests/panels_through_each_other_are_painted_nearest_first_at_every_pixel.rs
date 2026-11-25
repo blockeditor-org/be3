@@ -53,7 +53,7 @@ fn panels_through_each_other_are_painted_nearest_first_at_every_pixel() {
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
     let pixels =
-        beui_core::painting::rasterize(&painting.frame, painting.frame.background, |key| {
+        beui_paint_raster::rasterize(&painting.frame, painting.frame.background, |key| {
             painting.textures.get(&key)
         })
         .expect("the painting rasterises");

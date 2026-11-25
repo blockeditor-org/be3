@@ -8,7 +8,7 @@ use std::rc::Rc;
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_block_content::blob::Blob;
 use be_sdk_beui::beui::SpanStyle;
-use be_sdk_beui::beui::native::painting::{Punches, painting, rasterize};
+use be_sdk_beui::beui::native::painting::{Punches, painting};
 use be_sdk_beui::beui::native::rich::{RichLayout, SpanKind};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -435,7 +435,7 @@ pub(crate) fn png(
         Color32::TRANSPARENT,
         Punches::Shown,
     )?;
-    let raster = rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
+    let raster = beui_paint_raster::rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
     let size = raster.size;
     Ok((
         encode_png(size, raster.rgba.into_iter().flatten().collect())?,

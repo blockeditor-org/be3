@@ -6,7 +6,7 @@ use std::hash::{Hash as _, Hasher as _};
 pub use beui_paint_format::Group as PaintGroup;
 pub use beui_paint_format::{
     Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
-    ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed, rasterize,
+    ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed,
 };
 
 use crate::context::{FrameOutput, WindowOutput};

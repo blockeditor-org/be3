@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use beui_paint_format::Pixels;
 use image::RgbaImage;
 
-use crate::{Frame, Snapshot};
+use beui_paint_snapshot::{Frame, Snapshot};
 
+/// Frame `frame` of a native painting, drawn as `rasterize` draws it.
 pub fn render(snapshot: &Snapshot, frame: usize) -> Result<RgbaImage, String> {
     let frame: &Frame = snapshot.frame(frame)?;
     let mut textures = BTreeMap::new();
@@ -18,7 +19,7 @@ pub fn render(snapshot: &Snapshot, frame: usize) -> Result<RgbaImage, String> {
         );
     }
     let background = frame.background;
-    let pixels = beui_paint_format::rasterize(
+    let pixels = crate::rasterize(
         frame,
         [background[0], background[1], background[2], 255],
         |key| textures.get(&key),

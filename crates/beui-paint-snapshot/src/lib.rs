@@ -6,7 +6,6 @@ mod fingerprint;
 mod format;
 mod highlight;
 mod painting;
-mod raster;
 
 pub use accepted::{HOW_TO_ACCEPT, assert_accepted, assert_painting, changed};
 pub use beui_paint_format::{
@@ -16,8 +15,7 @@ pub use compare::{Difference, difference, frame_difference};
 pub use fingerprint::fingerprint;
 pub use format::{Snapshot, Texture};
 pub use highlight::{Highlight, highlight};
-pub use painting::Painting;
-pub use raster::render;
+pub use painting::{Native, Painting};
 
 #[cfg(test)]
 mod tests;

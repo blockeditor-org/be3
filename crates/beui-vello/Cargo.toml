@@ -1,0 +1,13 @@
+[package]
+name = "beui-vello"
+description = "beui's shapes drawn with Vello: the one encoding of each, which beui-renderer-wgpu writes into a vello_gpu scene and beui-paint-raster into a vello_cpu context, so the GPU and the rasterizer paint the same pixels"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+# No features: the beui library sets Vello's (crates/be-sdk-library-beui/Cargo.toml).
+vello_common = { version = "0.4", default-features = false }
+
+[lints]
+workspace = true

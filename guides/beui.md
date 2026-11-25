@@ -102,13 +102,13 @@ macros expand to resolve. From the bottom up:
 | `beui-dock`, `beui-dock-host`, `beui-dock-state` | docking: what an editor declares, what lays it out and draws it, the layout model |
 | `beui-keyboard` | the on-screen keyboard |
 | `beui-inspector` | the inspector, simulated screen reader, mouse and keyboard |
-| `beui-draw`, `beui-renderer-wgpu` | gpu drawings, and the wgpu renderer |
+| `beui-draw`, `beui-renderer-wgpu`, `beui-vello` | gpu drawings, the wgpu renderer, and each shape's one encoding into Vello, which the renderer and the rasterizer share |
 | `beui-runner` | the `Runner`, `Platform`, `PlatformServices`, `Layer` and `Renderer` contracts, `RunOptions`, the `BEUI_*` environment |
 | `beui-platform-*`, `beui-layer-*` | platforms (winit, android, web, drm, headless) and layers (space, xr, drive) |
 | `beui-host-window` | a program's entry (`main!`, `run`, `run_program`): natively picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for; in a browser shows the program in the page's element on either core |
 | `beui-font-skrifa` | shaping and rasterizing, and the bundled fonts |
 | `be-sdk-beui-platform` | the platform an app module's views run on |
-| `beui-paint-format`, `beui-paint-snapshot` | paintings and the snapshot assertions |
+| `beui-paint-format`, `beui-paint-snapshot`, `beui-paint-raster` | paintings, the snapshot assertions, and the rasterizer (vello_cpu, so never in the beui library) |
 | `beui-tests` | screens and scripts that must behave the same on both cores |
 
 ## Two cores

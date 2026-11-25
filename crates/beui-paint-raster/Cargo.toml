@@ -1,0 +1,18 @@
+[package]
+name = "beui-paint-raster"
+description = "A painting (beui-paint-format) rasterized with vello_cpu through beui-vello, as beui-renderer-wgpu draws it with vello_gpu: for the tools, the tests and the apps that export pictures, never the beui library"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-paint-format = { path = "../beui-paint-format" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+beui-vello = { path = "../beui-vello" }
+# The f32 pipeline, as the GPU computes; no png, text or threads, which would change the
+# vello_common the beui library holds.
+vello_cpu = { version = "0.4", default-features = false, features = ["std", "f32_pipeline"] }
+
+[lints]
+workspace = true

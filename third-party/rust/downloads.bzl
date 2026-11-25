@@ -1760,6 +1760,12 @@ downloads = {
         "size_bytes": 773605,
         "version": "0.30.10",
     },
+    "glifo-0.5.0": {
+        "name": "glifo",
+        "sha256": "9ae2e3b09ea1cc45c994a405e4d4154901d4caa867d3e1be3a02be641f62fefa",
+        "size_bytes": 59237,
+        "version": "0.5.0",
+    },
     "glob-0.3.4": {
         "name": "glob",
         "sha256": "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b",
@@ -3602,6 +3608,12 @@ downloads = {
         "size_bytes": 567271,
         "version": "0.41.0",
     },
+    "read-fonts-0.46.0": {
+        "name": "read-fonts",
+        "sha256": "bdaa4fffe9ff3ca2c353fa9729792805b9b3e324695ff5a081f860612e81b330",
+        "size_bytes": 920708,
+        "version": "0.46.0",
+    },
     "redox_event-0.4.8": {
         "name": "redox_event",
         "sha256": "c5018d583d6d2f5499352aea8d177e9067d1eb03ab17c78169d5ba7a30001b15",
@@ -4147,6 +4159,12 @@ downloads = {
         "sha256": "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68",
         "size_bytes": 299025,
         "version": "0.44.0",
+    },
+    "skrifa-0.49.0": {
+        "name": "skrifa",
+        "sha256": "a7459fb60888ad9a5f367dd293fa2fb9df142cb451aa6bfd6cd66a7d6a9b739d",
+        "size_bytes": 349449,
+        "version": "0.49.0",
     },
     "slab-0.4.12": {
         "name": "slab",
@@ -4860,6 +4878,12 @@ downloads = {
         "name": "vello_common",
         "sha256": "6d9447018538224861c1bd825471dcc67ffa973c97de666bf6296b72dbb2f166",
         "size_bytes": 147256,
+        "version": "0.4.0",
+    },
+    "vello_cpu-0.4.0": {
+        "name": "vello_cpu",
+        "sha256": "5d6b3db720c5d3aa8783cb1c042d8a77142df70bd0f742dc9005f6d6efe33ebf",
+        "size_bytes": 132188,
         "version": "0.4.0",
     },
     "vello_gpu-0.4.0": {

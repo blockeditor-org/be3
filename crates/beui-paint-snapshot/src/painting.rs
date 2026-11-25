@@ -6,6 +6,9 @@ use image::RgbaImage;
 
 use crate::{BrowserSnapshot, Difference, Snapshot};
 
+/// What draws frame `index` of a native painting: beui-paint-raster's `render`.
+pub type Native = fn(&Snapshot, usize) -> Result<RgbaImage, String>;
+
 /// A painting as its file holds it: what beui painted (`NAME.paint`), or a page rendered as
 /// HTML (`NAME.browser.paint`). Whatever reads a painting file decodes it here, so the two
 /// kinds are told apart, compared, described and drawn one way.
@@ -63,18 +66,20 @@ impl Painting {
         }
     }
 
-    /// Draws frame `index`. A browser painting is drawn by `browser_renderer`, a program
-    /// (crates/be-tool-browser-rasterizer) that is handed the painting's file and a PNG to
-    /// write: `file`, the file it was decoded from, when the caller has one, or else a temporary
-    /// file it is written to.
+    /// Draws frame `index`. A native painting is drawn by `native` (beui-paint-raster's
+    /// `render`, which this crate cannot hold: the beui library holds it). A browser painting is
+    /// drawn by `browser_renderer`, a program (crates/be-tool-browser-rasterizer) that is handed
+    /// the painting's file and a PNG to write: `file`, the file it was decoded from, when the
+    /// caller has one, or else a temporary file it is written to.
     pub fn render(
         &self,
         index: usize,
         file: Option<&Path>,
         browser_renderer: Option<&mut Command>,
+        native: Native,
     ) -> Result<RgbaImage, String> {
         match self {
-            Self::Native(snapshot) => crate::render(snapshot, index),
+            Self::Native(snapshot) => native(snapshot, index),
             Self::Browser(_) if index != 0 => Err(format!(
                 "a browser painting has only frame 0, there is no frame {index}"
             )),
