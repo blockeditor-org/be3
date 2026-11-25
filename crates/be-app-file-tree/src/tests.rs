@@ -423,7 +423,7 @@ fn open_item(document: &Document, node: NodeId, label: &str, open: bool) -> Opti
     document
         .children(node)
         .into_iter()
-        .find_map(|child| open_item(&document, child, label, open))
+        .find_map(|child| open_item(document, child, label, open))
 }
 
 fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
@@ -434,5 +434,5 @@ fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
         || document
             .children(node)
             .into_iter()
-            .any(|child| says_within(&document, child, words))
+            .any(|child| says_within(document, child, words))
 }
