@@ -278,23 +278,6 @@ a role inside the app, since the share dialog grants no roles. A game:
    (`keep_hosting_outlives_the_editor_until_stop`). Untested end to end: what
    the second host's component hears of the players (the counter's ignores
    them; step 6's game will not).
-5. **The share dialog.**
-   - a. The offered levels, names and lines from the manifest (above) (done):
-     a host component's `levels` (`HostManifest::levels`, Join required, on a
-     type of its own app only, one host per type across apps), the access
-     listing's `levels`, and be-sdk-shell's `Offered`, which every level choice
-     and name in the dialog goes through, listed by level, with the chosen
-     level's line under its choice; people added, contact links and share links
-     start at Join. `the_share_dialog_makes_a_join_link_on_a_hosted_block` paints
-     a game's dialog: Join game on the link with its line, Ada's row at Host,
-     mine at Manage; a text block's paintings are unchanged.
-   - b. Who is hosting now, in the dialog (done): the access list names the
-     account holding the lease of the block's live session (`access-list.host`,
-     `access-listing.host`), and a hosted block's dialog says who that is, or
-     that no one hosts it, under "People with access"; member notes use the
-     type's names too. `the_access_list_names_who_hosts_the_block_now`; the
-     game's painting shows "Ada is hosting it now." As of listing: the dialog
-     lists again on each change it makes, not when the lease moves meanwhile.
-6. **A first hosted type**: a small game world in the logic game's spirit,
+5. **A first hosted type**: a small game world in the logic game's spirit,
    with secret state, or a hosted variant of an existing game. Done: a host
    test where an editor hosts and a Join member plays.
