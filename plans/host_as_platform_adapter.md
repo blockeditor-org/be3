@@ -2134,7 +2134,13 @@ Each step lands on its own.
            - 4g7e3b. The root places a window child as a `Surface::Host` layer at its place,
              which be-host composites from the compositor's texture of it and configures to
              its place's size; `drive paint` paints it as the placeholder it paints for a
-             program window today.
+             program window today. Under be-host's UI a window is drawn by its `WindowView`
+             catcher's beui drawing (be-host-wayland's `WindowDraw`, its surfaces' textures and
+             subsurfaces placed in the view) and configured to the rect the view is laid out
+             at (be-host-desktop's `WindowBody`, `window_kind`); under the root neither the
+             view nor the drawing exists, so be-host-desktop needs to hand `RootShell` each
+             window's surfaces as textures placed in the window's pixels, for its layer, and to
+             configure a window to a size it is told, rather than to its view's.
            - 4g7e3c. Input to `Surface::Host` layers: what the root's router delivers to one
              goes to the compositor (pointer, keys, the keyboard's focus), as a
              `WindowView`'s catcher forwards it.
