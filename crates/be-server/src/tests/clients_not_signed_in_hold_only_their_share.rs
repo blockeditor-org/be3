@@ -4,6 +4,8 @@ use super::*;
 
 /// A socket as if from `address`, through the trusted proxy every test connects from, that has
 /// not greeted the server yet.
+// tungstenite's own error, as connecting gives it.
+#[allow(clippy::result_large_err)]
 async fn from(
     harness: &Harness,
     address: &str,
