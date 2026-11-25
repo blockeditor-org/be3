@@ -504,7 +504,7 @@ impl MapState {
         if pasted.format == formats::PNG {
             let position = inner.view_center.get();
             self.import(
-                ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),
+                ImageFile::from_file("Pasted Image.png", pasted.data),
                 position,
             );
         }
