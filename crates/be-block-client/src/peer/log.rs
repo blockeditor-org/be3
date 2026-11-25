@@ -264,11 +264,20 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Sends the entries of `block` that wait in the outbox, in order, a batch per write: each
     /// one taken leaves the outbox, and one refused does too, told as `NotAppended` and kept
-    /// until let go (`refused_entries`). Stops at
-    /// the first failure to reach the server, leaving the rest.
+    /// until let go (`refused_entries`). The server refuses an append whole, so the entries of
+    /// a refused batch go again one at a time, and only those refused alone are kept as
+    /// refused: each entry goes at most twice. Stops at the first failure to reach the server,
+    /// leaving the rest.
     pub(super) async fn send_appends(&self, block: Uuid) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes = Vec::new();
+        // How many of the entries next in the outbox go one at a time, a refused batch's.
+        let mut singly = 0usize;
         loop {
+            let per_send = match singly {
+                0 => ENTRIES_PER_SEND,
+                _ => 1,
+            };
+            singly = singly.saturating_sub(1);
             let mut batch = Vec::new();
             let mut bytes = 0;
             for (sequence, op) in self.refs.pending_for(block) {
@@ -276,7 +285,7 @@ impl<S: ObjectStore> Peer<S> {
                     continue;
                 };
                 if !batch.is_empty()
-                    && (batch.len() >= ENTRIES_PER_SEND
+                    && (batch.len() >= per_send
                         || bytes + appending.payload.len() > BYTES_PER_SEND)
                 {
                     break;
@@ -334,6 +343,8 @@ impl<S: ObjectStore> Peer<S> {
                     }));
                 }
                 Ok(_) => return Err(ClientError::Unexpected),
+                // Nothing of it was taken, and they are still first in the outbox.
+                Err(ClientError::Refused(..)) if batch.len() > 1 => singly = batch.len(),
                 Err(ClientError::Refused(code, why)) => {
                     // Kept until the app lets it go, so what it shows of the refusal outlives
                     // the editor that appended it.

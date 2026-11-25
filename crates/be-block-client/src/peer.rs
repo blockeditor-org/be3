@@ -366,7 +366,7 @@ pub struct Peer<S: ObjectStore> {
     account: Uuid,
     organization: Uuid,
     session: Mutex<(OrganizationRole, OrganizationKind)>,
-    refs: Arc<Refs>,
+    pub(crate) refs: Arc<Refs>,
     resolver: Mutex<Option<Resolver>>,
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
