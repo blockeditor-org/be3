@@ -51,7 +51,7 @@ fn declared(session: &mut EditorSession) -> Option<be_sdk_api::DockDeclaration> 
             DockMessage::Declare(declare) => declare.declaration,
             _ => None,
         })
-        .last()
+        .next_back()
 }
 
 #[test]

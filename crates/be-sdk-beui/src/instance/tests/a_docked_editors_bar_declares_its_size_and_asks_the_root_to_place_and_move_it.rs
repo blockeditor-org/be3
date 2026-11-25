@@ -152,7 +152,7 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
             DockMessage::Declare(declare) => declare.declaration,
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the editor declares again once its bar is measured");
     let size = sized.bars[0].size;
     assert_eq!((size.x, size.y), (24.0, 120.0));
