@@ -373,6 +373,9 @@ pub struct Peer<S: ObjectStore> {
     /// Keys looked for and found missing, not asked for again until keys are stored
     /// (`keys_changed`) or a key opens.
     tried: Arc<Mutex<HashSet<Uuid>>>,
+    /// The heads of blocks' signed logs commits named that this device compared with its own
+    /// (`Peer::compare_commit_head`), each compared once a run.
+    compared_heads: Mutex<HashSet<(Uuid, u64, [u8; 32])>>,
     /// The members key work last listed as signed into the organization's log by no record
     /// (`KeyWork::unsigned_members`).
     unsigned: Mutex<Vec<Uuid>>,
@@ -649,6 +652,7 @@ impl<S: ObjectStore> Peer<S> {
             keys,
             current: Mutex::new(HashMap::new()),
             tried: Arc::default(),
+            compared_heads: Mutex::new(HashSet::new()),
             unsigned: Mutex::new(Vec::new()),
             served_logs: Mutex::new(ServedLogs::new(SERVED_ENTRIES)),
             pending_rotations: Mutex::new(HashMap::new()),
@@ -3500,9 +3504,12 @@ impl<S: ObjectStore> Peer<S> {
     /// `commit` as `block`'s head, which the server names: refused unless one of `block`'s keys
     /// sealed it (`sealed_in`), since the server could name another block's commit, which a
     /// device would show as this block's and write back under this block's key.
+    /// A head the commit names of the block's signed log is compared with the one this device
+    /// kept (`compare_commit_head`).
     pub async fn load_head(&self, block: Uuid, commit: CommitId) -> Result<Commit, ClientError> {
         let loaded = self.load_reached(commit).await?;
         self.sealed_in(block, commit)?;
+        self.compare_commit_head(block, &loaded).await;
         Ok(loaded)
     }
 
@@ -3864,7 +3871,13 @@ impl<S: ObjectStore> Peer<S> {
             .with_kind(kind)
             .with_references(references.clone())
             .with_metadata(encoded)
-            .with_sealed_through(sealed_through);
+            .with_sealed_through(sealed_through)
+            .with_log_through(self.refs.log_head(block).map(|kept| {
+                be_block_commit::LogThrough {
+                    size: kept.size,
+                    root: kept.root,
+                }
+            }));
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         let journal = journal
@@ -3977,7 +3990,12 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => self.commits.try_get(head)?,
             None => None,
         };
-        let manifest = self.commits.get(id)?.manifest;
+        let made = self.commits.get(id)?;
+        let log_through = made.log_through.map(|head| be_block_protocol::LogHead {
+            size: head.size,
+            root: be_block_store::Hash::from_bytes(head.root),
+        });
+        let manifest = made.manifest;
         let merging = parents.len() > usize::from(expected.is_some());
         let (held, listed) = match &previous {
             Some(previous) => (
@@ -4015,7 +4033,7 @@ impl<S: ObjectStore> Peer<S> {
                             time: time,
                             pinned: pinned,
                             objects: objects,
-                            log_through: None,
+                            log_through: log_through,
                         }),
                         references: listed.clone(),
                         metadata: metadata.clone(),

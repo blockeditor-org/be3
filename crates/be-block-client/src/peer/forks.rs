@@ -160,6 +160,43 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(self.relay_framed(block, to, &framed).await?))
     }
 
+    /// Compares the head of `block`'s signed log `commit` names (`Commit::log_through`), made on
+    /// another device, with the one this device kept (`compare_log_head`): each such head once a
+    /// run, and only for a log this device reads and a head that is not the one it kept, so a
+    /// commit made on the log as this device sees it asks the server nothing. What goes wrong
+    /// asking is let go: it is no reason to refuse the commit.
+    pub(crate) async fn compare_commit_head(&self, block: Uuid, commit: &be_block_commit::Commit) {
+        let Some(named) = commit.log_through else {
+            return;
+        };
+        let Some(kept) = self.refs.log_head(block).filter(|_| !self.local) else {
+            return;
+        };
+        if (kept.size, kept.root) == (named.size, named.root)
+            || !self
+                .compared_heads
+                .lock()
+                .unwrap()
+                .insert((block, named.size, named.root))
+        {
+            return;
+        }
+        let theirs = LogHead {
+            size: named.size,
+            root: be_block_store::Hash::from_bytes(named.root),
+        };
+        let from = HeadFrom::Commit {
+            author: commit.author,
+        };
+        if self.compare_log_head(block, theirs, from).await.is_err() {
+            // Asked again the next time it is loaded.
+            self.compared_heads
+                .lock()
+                .unwrap()
+                .remove(&(block, named.size, named.root));
+        }
+    }
+
     /// The fork of `block`'s signed log this device found first, if any.
     pub fn log_fork(&self, block: Uuid) -> Option<LogFork> {
         self.refs.log_fork(block)

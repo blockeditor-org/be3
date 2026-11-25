@@ -585,9 +585,10 @@ pub struct LogFork {
 /// Where a device heard of a head of a block's signed log another device kept.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum HeadFrom {
-    /// A participant of the block's live session, of this account.
+    /// A participant of the block's live session, of `account`.
     Session { account: Uuid },
-    /// A commit of the block, made by this account, named it as the head it was made on.
+    /// A commit of the block, made by `author`, named it as the head it was made on
+    /// (`Commit::log_through`).
     Commit { author: Uuid },
 }
 
