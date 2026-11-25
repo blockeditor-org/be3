@@ -17,7 +17,7 @@ fn a_seen_reads_the_same_from_its_bytes() {
     let read = crate::Seen::decode(&seen.encode()).expect("it decodes");
 
     let nodes = |seen: &crate::Seen| {
-        let mut nodes: Vec<Node> = seen.graph.nodes().map(|node| Node::clone(node)).collect();
+        let mut nodes: Vec<Node> = seen.graph.nodes().map(Node::clone).collect();
         nodes.sort_by_key(|node| node.id);
         nodes
     };

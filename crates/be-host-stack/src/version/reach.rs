@@ -137,7 +137,7 @@ impl Reach<'_> {
                         })
                     })
                     .await
-                    .map_err(|error| ClientError::Disconnected(error))?
+                    .map_err(ClientError::Disconnected)?
             }
         }
     }

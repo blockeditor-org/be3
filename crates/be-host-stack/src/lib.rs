@@ -1618,7 +1618,7 @@ pub fn contact_pins() -> std::collections::HashMap<Uuid, be_block_client::contac
 
 /// The account's storage as the server last said, while `watch_storage` is on.
 pub fn storage_usage() -> Option<be_block_protocol::AccountStorage> {
-    with_seen(|shared| shared.storage.clone()).flatten()
+    with_seen(|shared| shared.storage).flatten()
 }
 
 /// Follows the account's storage while `on`, from a stream the server sends it on.

@@ -3591,8 +3591,8 @@ async fn create_agent(
         &peer.connection(),
         Some(organization),
         be_block_protocol::Op::CreateAgent {
-            account: account,
-            name: name,
+            account,
+            name,
             recovery: public.0,
             signing: secret.signing().0,
             contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
@@ -3608,7 +3608,7 @@ async fn create_agent(
                 .stamped(0),
             ),
             bound_to: bound,
-            member: member,
+            member,
         },
     ))
     .await?;
