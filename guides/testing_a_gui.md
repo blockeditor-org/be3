@@ -286,6 +286,11 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   (`Embedded::paintings`, which be-root does and be-sdk-root-testing does not; a test of that
   one reads them from the window's pixels with `shot()`). The root is staged by naming its
   package's label in `APPS`.
+- Under `Options::desktop`, `HostTest::open_test_window(TITLE)` runs a program window in the
+  desktop's compositor: be-tool-wayland-window (`WAYLAND_TEST_WINDOW` in the tests' environment),
+  one window titled TITLE filled with one color at whatever size it is configured to, started
+  with the variables `drive env` gives programs. The test's programs stop as it closes and before
+  `restart_as_root`, which waits for the desktop to list no window.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK (the comment there

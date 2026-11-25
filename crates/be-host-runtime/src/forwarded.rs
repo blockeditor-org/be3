@@ -27,6 +27,10 @@ use be_host_base::host;
 pub struct Forwarded {
     wire: Wire,
     instances: Instances,
+    /// The shell among its editors, the session's own (`set_shell`).
+    shell: Option<EditorInstanceId>,
+    /// The revision of what the host publishes its editors last took (`step`).
+    published: Option<u64>,
 }
 
 impl Forwarded {
@@ -38,11 +42,15 @@ impl Forwarded {
         instances.allow_block_agents(app.block_agents);
         instances.allow_sharing(app.sharing);
         instances.set_app_id(app.identity.id.clone());
+        // Its editors hear what the host publishes each step: a change wakes the host for it.
+        be_host_base::watches::serve_forwarded();
         Self {
             wire: Wire::granting(app.extensions.clone())
                 .offering(super::published::offered)
                 .relayed(),
             instances,
+            shell: None,
+            published: None,
         }
     }
 
@@ -154,9 +162,13 @@ impl Forwarded {
 
     /// Makes the editor `instance` the shell, the session's own editor, as be-host's own UI makes
     /// its (`set_shell`): it alone hears what only the shell does, such as be3:desktop's
-    /// windows.
-    pub fn set_shell(&mut self, instance: Option<EditorInstanceId>) {
-        self.instances.set_shell(instance);
+    /// windows. The first stays the shell until it closes.
+    pub fn set_shell(&mut self, instance: EditorInstanceId) {
+        if self.shell.is_some() {
+            return;
+        }
+        self.shell = Some(instance);
+        self.instances.set_shell(Some(instance));
     }
 
     /// Asks the editor `instance` to show the host's panel `panel`, as be-host asks its shell
@@ -183,6 +195,10 @@ impl Forwarded {
     /// Closes the editor `instance`: it is served no more, and the app hears it closed with the
     /// next `step`.
     pub fn close(&mut self, instance: EditorInstanceId) {
+        if self.shell == Some(instance) {
+            self.shell = None;
+            self.instances.set_shell(None);
+        }
         if self.instances.remove(instance) {
             self.wire.send(vec![Outbound::Close(instance)]);
         }
@@ -236,9 +252,13 @@ impl Forwarded {
     /// for the root to relay.
     pub fn step(&mut self) -> Vec<Vec<u8>> {
         // What the host publishes (be-host-base's watches: be3:desktop's windows, the desktop's
-        // bar), as be-host's own runtimes hear it (`Watches::published`).
-        for (open, value) in be_host_base::watches::published() {
-            self.instances.publish(open, value);
+        // bar), as be-host's own runtimes hear it (`Watches::published`), taken once it changed.
+        let revision = be_host_base::watches::revision();
+        if self.published != Some(revision) {
+            self.published = Some(revision);
+            for (open, value) in be_host_base::watches::published() {
+                self.instances.publish(open, value);
+            }
         }
         let next = self.instances.next_screens(host::pass());
         let mut messages: Vec<Outbound> = next.opened;

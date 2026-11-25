@@ -162,4 +162,18 @@ delegate_noop!(State: ignore wl_compositor::WlCompositor);
 delegate_noop!(State: ignore wl_surface::WlSurface);
 delegate_noop!(State: ignore wl_shm::WlShm);
 delegate_noop!(State: ignore wl_shm_pool::WlShmPool);
-delegate_noop!(State: ignore wl_buffer::WlBuffer);
+impl Dispatch<wl_buffer::WlBuffer, ()> for State {
+    fn event(
+        _: &mut Self,
+        buffer: &wl_buffer::WlBuffer,
+        event: wl_buffer::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        // Each configure draws a buffer of its own: one the compositor let go of is done with.
+        if let wl_buffer::Event::Release = event {
+            buffer.destroy();
+        }
+    }
+}
