@@ -25,9 +25,9 @@ struct State {
     phase: Phase,
     position: f32,
     direction: f32,
-    /// The page's speed in points a second toward leaving: the gesture's as it
-    /// is let go, then its spring's.
-    velocity: f32,
+    /// The page's motion towards where it is going, its speed in points a second
+    /// toward leaving: the gesture's as it is let go, then its spring's.
+    motion: SpringMotion,
     /// The speed the gesture let a leaving page go at, which the page coming
     /// in starts at.
     thrown: f32,
@@ -108,7 +108,7 @@ impl Slide {
         let animate = {
             let mut state = self.state.borrow_mut();
             state.phase = phase;
-            state.velocity = velocity;
+            state.motion.release(velocity);
             if phase == Phase::Leaving {
                 state.thrown = velocity;
             }
@@ -239,9 +239,9 @@ impl Slide {
     }
 
     fn step(&self, frame: AnimationFrame) -> Option<Duration> {
-        let (phase, position, mut velocity) = {
+        let (phase, position, mut motion) = {
             let state = self.state.borrow();
-            (state.phase, state.position, state.velocity)
+            (state.phase, state.position, state.motion)
         };
         let width = self.width();
         let seconds = frame.delta.as_secs_f32();
@@ -251,13 +251,13 @@ impl Slide {
             Phase::Leaving => (self.curves.leave, 1.0),
             Phase::Entering => (self.curves.enter, 0.0),
         };
-        let mut displacement = (position - target) * width;
-        // It stops at its target (gone, or at rest without showing what is beside it), so it
-        // never passes it.
-        spring.step(&mut displacement, &mut velocity, seconds);
-        let position = target + displacement / width;
+        // It stops at its target (gone, or at rest without showing what is beside it) the
+        // moment it reaches it, which the motion finds within the step however long it is.
+        motion.displacement = (position - target) * width;
+        let moving = motion.advance(spring, seconds);
+        let position = target + motion.displacement / width;
         match phase {
-            Phase::Leaving if position >= 1.0 || (displacement == 0.0 && velocity == 0.0) => {
+            Phase::Leaving if position >= 1.0 || !moving => {
                 self.place(1.0);
                 self.gone();
                 return self.running();
@@ -270,7 +270,7 @@ impl Slide {
             }
             _ => {}
         }
-        self.state.borrow_mut().velocity = velocity;
+        self.state.borrow_mut().motion = motion;
         self.place(position);
         self.running()
     }
@@ -320,7 +320,7 @@ pub fn BackSlide(
             phase: Phase::Still,
             position: 0.0,
             direction: 1.0,
-            velocity: 0.0,
+            motion: SpringMotion::default(),
             thrown: 0.0,
             tracked: None,
         }),

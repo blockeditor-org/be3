@@ -326,9 +326,10 @@ impl Default for CornerSet {
 /// springs; their easings are placeholders, to be set when a component first
 /// asks for them. How long an eased motion takes is behaviour and stays with
 /// the component. `Motion::Instant` still lands every movement at once. No
-/// movement rings: `Settle` and `Pull` (a damping ratio of 0.75) swing past
-/// where they rest once and land there on the way back, and `Rubber`
-/// (critically damped) never passes the edge it springs back to.
+/// movement rings: `Settle` (a damping ratio of 0.75) swings past where it
+/// rests once and lands there on the way back, and `Rubber` and `Pull`
+/// (critically damped) never pass the edge they spring back to, which their
+/// rubber band stops at.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Movement {
     /// Something landing where layout puts it or going on its way: a dropped
@@ -364,7 +365,7 @@ impl Movement {
             },
             Movement::Pull => Spring {
                 stiffness: 400.0,
-                damping: 30.0,
+                damping: 40.0,
             },
         }
     }
