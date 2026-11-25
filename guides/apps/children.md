@@ -183,7 +183,7 @@ root hands its host with its frame (`Embedding::take_host_input`,
 the program. The root tells its host each window child placed, hidden too
 (`shown-child.window`), and the host words its status from the window's (its
 title, icon, raises, bell, minimizes, full screen ask, notice), available to
-the session's editor alone, as be-host's own shell hears it; a `close-child` of
+the shell (the session's editor) alone, as be-host's own shell hears it; a `close-child` of
 one the root relays to its host (`tell-shell`), which closes the window. Web
 views (4g7b3g) are not there yet: a child of another kind the placer hears is
 unavailable.

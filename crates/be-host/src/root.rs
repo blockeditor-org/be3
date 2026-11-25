@@ -569,13 +569,20 @@ impl beui::native::Program for RootShell {
         if every_sample {
             context.want_every_sample(WindowId::MAIN);
         }
-        // The core closes the window once the session it was asked to end has ended (its
-        // programs' windows closed first, `close_requested`), as be-host's own frame closes it.
-        // What else it asks of the window the root asks itself.
-        let closing = be_host_base::host::finish().close;
-        if self.stopped.borrow().is_some() || closing {
+        // What the core asked of the window, as be-host's own frame hands it on (`frame::end`):
+        // the window closes once the session it was asked to end has ended (its programs'
+        // windows closed first, `close_requested`), and the core's frames come when it asks.
+        // The rest the root asks itself.
+        let output = be_host_base::host::finish();
+        if self.stopped.borrow().is_some() || output.close {
             context.close_window();
             return;
+        }
+        if output.repaint {
+            context.request_repaint();
+        }
+        if let Some(delay) = output.repaint_after {
+            context.request_repaint_after(delay);
         }
         match self.next {
             Some(at) if at <= time => context.request_repaint(),
@@ -1064,7 +1071,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     }
     // The views placing program windows whose statuses changed since they were last worded.
     if core.desktop {
-        views.extend(windows_restated(&editors.shown, &mut editors.windows));
+        views.extend(windows_restated(&editors.shown, served, &mut editors.windows));
     }
     views.sort_unstable();
     views.dedup();
@@ -1522,15 +1529,24 @@ fn window_status(window: u64) -> Option<WindowStatus> {
     })
 }
 
-/// The views placing program windows whose statuses changed since they were last worded, which
-/// it notes as worded; it forgets the views no longer shown.
+/// The views of the shell placing program windows whose statuses changed since they were last
+/// worded, which it notes as worded; it forgets the views no longer shown.
 fn windows_restated(
     shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    served: &HashMap<u64, Forwarded>,
     worded: &mut HashMap<(u64, u64, u64), Vec<Option<WindowStatus>>>,
 ) -> Vec<(u64, u64, u64)> {
     worded.retain(|view, _| shown.contains_key(view));
     let mut changed = Vec::new();
     for (view, children) in shown {
+        // Only the shell hears its windows' statuses.
+        let (instance, editor, _) = *view;
+        if !served
+            .get(&instance)
+            .is_some_and(|forwarded| forwarded.is_shell(EditorInstanceId(editor)))
+        {
+            continue;
+        }
         let statuses: Vec<_> = children
             .iter()
             .filter_map(|child| child.window)
