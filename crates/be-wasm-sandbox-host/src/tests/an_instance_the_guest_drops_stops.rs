@@ -10,7 +10,7 @@ fn an_instance_the_guest_drops_stops() {
             .unwrap();
         let instance = guest::sandbox::Instance::new(
             Source::Module(FromBytes {
-                module: module,
+                module,
                 seed: [0; 32],
             }),
             config(),

@@ -13,7 +13,7 @@ fn an_instance_its_host_fails_stops_and_says_why() {
             .unwrap();
         let instance = guest::sandbox::Instance::new(
             Source::Module(FromBytes {
-                module: module,
+                module,
                 seed: [0; 32],
             }),
             config(),

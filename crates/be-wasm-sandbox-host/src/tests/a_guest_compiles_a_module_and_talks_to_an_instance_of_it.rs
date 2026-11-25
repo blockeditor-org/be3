@@ -10,7 +10,7 @@ fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() {
             .expect("the echo guest compiles");
         let instance = guest::sandbox::Instance::new(
             Source::Module(FromBytes {
-                module: module,
+                module,
                 seed: [0; 32],
             }),
             config(),
