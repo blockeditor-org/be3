@@ -1,6 +1,7 @@
-//! Catching a panic: the one container every host thread and guest thread runs fallible work in
-//! (`contain`), whose depth a process's panic hook reads (`containing`) to tell a panic that was
-//! caught and reported from one that crashes the process, and the message a panic carries.
+//! Catching a panic: the one container every guest thread, and host work done for one guest or
+//! task, runs in (`contain`), whose depth a process's panic hook reads (`containing`) to tell a
+//! panic that was caught and reported from one that crashes the process, and the message a panic
+//! carries.
 
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};

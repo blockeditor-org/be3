@@ -16,7 +16,6 @@ fn run(seed: [u8; 32], draws: &[u8]) -> (Vec<u8>, Vec<u8>, String) {
             |host| host.load_bytes(include_str!("pure_wasi.wat").as_bytes()),
             Arc::new(|| {}),
             Arc::clone(&waiting),
-            be_wasm_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = be_wasm_guest_host::Worker::new(channel, waiting);

@@ -19,7 +19,6 @@ fn answers(seed: [u8; 32]) -> Vec<Vec<u8>> {
             |host| host.load_bytes(COUNTER_TYPES),
             std::sync::Arc::new(|| {}),
             std::sync::Arc::clone(&waiting),
-            be_wasm_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = be_wasm_guest_host::Worker::new(channel, waiting);

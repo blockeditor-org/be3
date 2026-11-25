@@ -9,10 +9,10 @@ layered setting from an editor, and the settings the host applies itself.
 
 - **The user**: a root `be_block::Settings` block the user authored. `be_block::root_settings`
   holds the rules for finding, merging and making it and a kind's layers under it, for apps
-  (`be_sdk::root_settings`, over the editor's graph) and be-host alike (`be-host/src/root_settings.rs`
-  implements its `SettingsGraph` over the host stack, and builds sessions and profiles on it).
-  Its `kinds` map points to one block per kind (every device), and a `SettingsProfile` per
-  device does the same for that device.
+  (`be_sdk::root_settings`, over the editor's graph) and be-host alike
+  (`be-host/src/root_settings.rs` implements its `SettingsGraph` over the host stack, and builds
+  sessions and profiles on it). Its `kinds` map points to one block per kind (every device),
+  and a `SettingsProfile` per device does the same for that device.
 - **A block**, usually a workspace: its `SETTINGS` metadata points to a child `Settings` block
   with a `kinds` map. The two edit kinds, the prefix registry and tags
   (`be_block_graph::EDIT_KINDS`), are instead children of the block itself under their own
@@ -91,9 +91,9 @@ the Settings list says in a company organization (`ONLY_YOURS` in `root/ui.rs`);
 a key just asks to connect again.
 
 A guest's `Settings` (guides/blocks/keys.md, "Share links") is itself owner-only, at the top
-of the organization it is a guest of: be-host makes it so as it makes the settings while `be_host_stack::guest()`, and the
-server lets a guest make no other block but what lies in it
-(decisions/a_guest_makes_only_its_own_shell.md).
+of the organization it is a guest of: be-host makes it owner-only when it makes the settings
+for a guest (`be_host_stack::guest`, in its `SettingsGraph::create`), and the server lets a
+guest make no other block but what lies in it (decisions/a_guest_makes_only_its_own_shell.md).
 
 ## Prefixes and tags
 

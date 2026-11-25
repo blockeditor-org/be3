@@ -109,7 +109,13 @@ pub fn compile(bytes: Vec<u8>, wake: Wake) -> Compiling {
     let finishing = Arc::clone(&slot);
     let started = std::thread::Builder::new()
         .name("wasm compile".to_owned())
-        .spawn(move || finishing.finish(compile_now(id, bytes)));
+        .spawn(move || {
+            // A panic compiling bad bytes (in V8's glue or dylink) is this compile's failure,
+            // not the host's crash, and its waiters hear it rather than waiting on forever.
+            let compiled = be_wasm_panic::contain(|| compile_now(id, bytes))
+                .unwrap_or_else(|panic| Err(format!("the module's compile panicked: {panic}")));
+            finishing.finish(compiled);
+        });
     if let Err(error) = started {
         slot.finish(Err(format!(
             "the module's compile could not start: {error}"

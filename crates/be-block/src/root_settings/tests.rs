@@ -4,6 +4,7 @@ use std::cell::RefCell;
 
 mod a_kind_made_for_an_account_with_no_settings_lands_at_once;
 mod an_owner_only_kind_makes_its_block_owner_only;
+mod settings_are_made_only_once_the_roots_are_listed_and_never_beside_the_accounts;
 
 #[derive(Default)]
 pub(super) struct Graph {
@@ -43,11 +44,11 @@ impl SettingsGraph for Graph {
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        under: Option<Uuid>,
+        parent: BlockParent,
         owner_only: bool,
     ) -> Uuid {
         self.contents.borrow_mut().push((block, content));
-        if under.is_none() {
+        if parent == BlockParent::Root {
             *self.settings.borrow_mut() = Some(block);
         }
         self.created

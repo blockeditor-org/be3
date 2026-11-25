@@ -268,7 +268,14 @@ impl Editor {
                 let client = editor.host().client_id();
                 let own = RootSettings::default()
                     .read(&editor)
-                    .map(|held| layers(&editor, &held, R::CONTENT_TYPE, client))
+                    .map(|held| {
+                        layers(
+                            &editor,
+                            &held.settings,
+                            R::CONTENT_TYPE,
+                            held.settings.profile(client),
+                        )
+                    })
                     .unwrap_or_default();
                 let organization = editor.organization_layers(R::CONTENT_TYPE);
                 let set = kinds
@@ -309,7 +316,12 @@ impl Editor {
             let below = RootSettings::default()
                 .read(&editor)
                 .map(|held| {
-                    layers(&editor, &held, R::CONTENT_TYPE, editor.host().client_id())
+                    layers(
+                        &editor,
+                        &held.settings,
+                        R::CONTENT_TYPE,
+                        held.settings.profile(editor.host().client_id()),
+                    )
                         .below(editor.block_id())
                 })
                 .unwrap_or_default();
