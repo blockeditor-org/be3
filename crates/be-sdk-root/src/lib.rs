@@ -546,13 +546,22 @@ impl Embedding {
     /// Moves the keyboard in `window` to the next app's screen that takes it, in the order the
     /// layers drawn last show them, or the previous while `back`, wrapping, as F6 and
     /// Shift+F6 move it between the views of be-host's apps (beui's `forward::cycle_focus`):
-    /// from a surface of the root's own, or from none, to the first or the last. A popup, a
-    /// layer hidden or one no pointer lands on is skipped. Nothing moves while no screen takes
-    /// the keyboard.
+    /// from a surface of the root's own, or from none, to the first or the last. Only screens
+    /// count: a view anchored to one (a popup, a menu, a sheet: `Surface::Anchored`) is
+    /// skipped, as is a layer hidden, one that never takes the keyboard or one no pointer
+    /// lands on. Over a layer that captures presses (a modal dialog, a menu), only the screens
+    /// from it up take part, as beui cycles only the views of its topmost focus-trapping layer.
+    /// Nothing moves while no screen takes the keyboard.
     pub fn cycle_focus(&mut self, window: Option<u64>, back: bool) -> Vec<Delivery> {
-        let screens: Vec<LayerId> = self
-            .windows
-            .layers(window)
+        let layers = self.windows.layers(window);
+        // Over a layer that captures presses (a modal dialog, a menu, a scrim), only the screens
+        // from it up take part, as beui cycles only the views in its topmost focus-trapping
+        // layer: F6 never leaves an open dialog.
+        let from = layers
+            .iter()
+            .rposition(|layer| layer.shown && layer.input.captures)
+            .unwrap_or(0);
+        let screens: Vec<LayerId> = layers[from..]
             .iter()
             .filter(|layer| {
                 matches!(layer.surface, Surface::Screen { .. })

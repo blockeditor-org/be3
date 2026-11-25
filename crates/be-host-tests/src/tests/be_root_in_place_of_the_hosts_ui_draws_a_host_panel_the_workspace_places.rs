@@ -34,7 +34,7 @@ fn be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places() {
     // shows of the host's statistics changes from run to run, so only its top is painted.
     host.run(&["click", "900,650"]);
     host.run(&["settle"]);
-    host.crop("120,100,520,80");
+    host.crop("120,100,520,72");
     host.snapshot("be_root_draws_the_hosts_performance_panel");
     host.close();
 }
