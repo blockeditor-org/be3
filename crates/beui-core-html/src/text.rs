@@ -274,6 +274,7 @@ pub struct TextModel {
     structure: Trigger,
     revision: Cell<u64>,
     pub(crate) decor: RefCell<Decor>,
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     pub(crate) overlay: RefCell<Option<(Rc<dyn SlotHost<Node>>, SlotId)>>,
     /// The layout pass drawing the decoration, held by the model rather than a scope, since a
     /// selection hook may first decorate a text from an event handler, outside any scope.
