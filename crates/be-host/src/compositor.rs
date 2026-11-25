@@ -20,6 +20,7 @@ pub(crate) use app_view::{AppView, ChildView, ViewEditor};
 pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
+    with_window,
 };
 pub(crate) use palette::HostPalette;
 

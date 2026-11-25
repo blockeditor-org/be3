@@ -2147,8 +2147,6 @@ Each step lands on its own.
            `be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input`: the windows
            bar lists it, the desktop shows it in a tab, and a press and a key reach it, under
            be-host and the root.
-           - Left, for 4g7e3d: under the root the tab and the chip are named by the program
-             (the last part of its app id) rather than its window's title.
            - Left: where the compositor thinks a composited window is (`place_windows`) is
              its layer's origin, upright and unscaled, which its popups follow: a window
              placed zoomed or turned hears its pointer right (the root's router delivers it in
@@ -2161,12 +2159,26 @@ Each step lands on its own.
              where under be-host they hang outside the window's view; and the pointer's shape
              a program asks for is not shown under the root, which shows its own
              (`frame-done.cursor`).
-           - 4g7e3d. Each window's status to its placer (`child-status`'s title, icon,
-             group, raised, rung, minimized, fullscreen, notice), which the host keeps
-             (`DesktopHost::window_status`), and closing a window from its tab.
-           - 4g7e3e. be-host closed with a program window open (under its own UI or the
-             root) answers drive's `close`: it stops without answering today ("the program
-             stopped before it answered"), so a host test stops its programs first.
+           - 4g7e3d. Built: each window's status to its placer. be-sdk-root tells its host
+             every window child placed, hidden too, by its window (`shown-child.window`), and
+             be-host words its status from the window's as it keeps it
+             (`DesktopHost::window_status`, be-host's `with_window`): its title, icon, group,
+             raises, bell, minimizes, full screen ask, notice and menu ask, available to the
+             shell alone (`Forwarded::is_shell`), worded again each time one of a view's windows
+             changes (`windows_restated`). The root relays a `close-child` to its host
+             (`tell-shell`), which closes the window that child shows (`close_window`), as
+             be-host's own shell closes one. Under the root the tab and chip are named by the
+             window's title, and a window minimizing itself is hidden, as under be-host. Host
+             tests `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop`,
+             `be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input` and
+             `be_root_in_place_of_the_hosts_ui_closes_a_programs_window_from_its_tab`.
+           - 4g7e3e. Built: be-host closed with a program window open answers drive's `close`.
+             Its session ends first, its programs' windows asked to close (`Power::close`),
+             under the root too, which has no screen lock to run it (`run_screen_lock`); be-host
+             is busy while it ends, and a `close` the program put off (`Phase::Closing`,
+             beui-layer-drive) is answered as closed once the program closes its window. A host
+             test closes the host with its programs' windows open; it still ends them before a
+             restart, so the desktop starts again without their placeholders.
        - 4g7f. Built, before 4g7e2, whose tests press windows by name: drive's `tree`,
          `find` and presses by name read the root's accessibility tree. While be-host asks
          for it (`frame-request.describe`, set as be-host-runtime's `describe` says: a driver

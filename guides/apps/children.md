@@ -180,8 +180,11 @@ so its size is the size the host configures the window to (be-host's
 `RootShell`, guides/desktop.md). What the router delivers to that layer the
 root hands its host with its frame (`Embedding::take_host_input`,
 `frame-done.host-input`), in the window's logical pixels, for the host to hand
-the program. Its placer hears it unavailable until the root
-relays the window's status (plans/host_as_platform_adapter.md, 4g7e3d). Web
+the program. The root tells its host each window child placed, hidden too
+(`shown-child.window`), and the host words its status from the window's (its
+title, icon, raises, bell, minimizes, full screen ask, notice), available to
+the session's editor alone, as be-host's own shell hears it; a `close-child` of
+one the root relays to its host (`tell-shell`), which closes the window. Web
 views (4g7b3g) are not there yet: a child of another kind the placer hears is
 unavailable.
 

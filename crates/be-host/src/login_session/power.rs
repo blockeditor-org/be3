@@ -112,6 +112,11 @@ impl Power {
         false
     }
 
+    /// Whether the session is ending, its programs' windows asked to close.
+    pub(crate) fn ending(&self) -> bool {
+        self.ending.is_some()
+    }
+
     pub(crate) fn stay(&mut self) {
         self.exiting = false;
     }

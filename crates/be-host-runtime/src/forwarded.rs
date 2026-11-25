@@ -171,6 +171,11 @@ impl Forwarded {
         self.instances.set_shell(Some(instance));
     }
 
+    /// Whether the editor `instance` is the shell (`set_shell`).
+    pub fn is_shell(&self, instance: EditorInstanceId) -> bool {
+        self.shell == Some(instance)
+    }
+
     /// Asks the editor `instance` to show the host's panel `panel`, as be-host asks its shell
     /// (`show_panel`): it hears it with its shows.
     pub fn show_panel(&mut self, instance: EditorInstanceId, panel: be_sdk_api::HostPanel) {

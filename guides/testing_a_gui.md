@@ -313,8 +313,10 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   one window titled TITLE filled with one color at whatever size it is configured to (green once
   pressed and red once a key reached it, with `.pressed` or `.typed` added to its app id, which
   names its chip: a test waits for that before it snapshots), started
-  with the variables `drive env` gives programs. The test's programs stop as it closes and before
-  `restart_as_root`, which waits for the desktop to list no window. drive's `settle` waits for a
+  with the variables `drive env` gives programs. Its window is still open as the host closes,
+  which closes it first as its session ends (`close` answers once it has); before
+  `restart_as_root` the test's programs stop, and it waits for the desktop to list no window, so
+  the root starts without their placeholders. drive's `settle` waits for a
   program window shown to draw what it was last configured to (be-host-wayland's
   `Compositor::busy`), so a painting of it is settled once its program answered.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
