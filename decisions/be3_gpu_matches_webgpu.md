@@ -13,8 +13,8 @@ list is passed encoded rather than as flat wasm values.
 What it has beyond WebGPU is only the host's part of an app's life, in `be3:gpu`'s own
 interface beside wasi:webgpu: the surfaces the host shows (an explicit `present`, as
 wasi:graphics-context had, and `age`), textures the host shares under an image id
-(`import-texture`), and the poll through which callbacks reach a wasm app that has no event
-loop of its own.
+(`import-texture`), and the poll, which our binding generator makes for every local
+interface, through which callbacks reach a wasm app that has no event loop of its own.
 
 External textures and external image copies are deferred until apps get camera access
 (plans/deferred/app_libraries.md, "External textures").

@@ -11,8 +11,9 @@ Moving to a later one is a deliberate change, made like any other ABI change.
 
 The `be3:gpu` interface beside it holds:
 
-- the host's surfaces: a `gpu-canvas-context` for a surface id, with `present` and `age`
-  (wasi:webgpu has the context resource but no way to get one);
+- the host's surfaces: a `gpu-canvas-context` for a surface id, with `resize`, `present` and
+  `age` (wasi:webgpu has the context resource but no way to get one, and its configuration
+  has no size);
 - `import-texture`, a `gpu-texture` for an image the host shares under an image id.
 
 `take-error`, `poll`'s hand-written `settled` record and the free functions go: errors are
