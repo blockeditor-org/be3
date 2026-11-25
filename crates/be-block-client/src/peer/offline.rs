@@ -109,6 +109,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// Keeps `op` in the outbox as it is, past the checks the call that would keep it makes: a
+    /// test's way to what an older build, or a server whose limits changed, left there.
+    #[cfg(test)]
+    pub(crate) fn keep_in_outbox(&self, op: Op) -> u64 {
+        self.refs.push(op).expect("the outbox takes it")
+    }
+
     pub fn known_summary(&self, block: Uuid) -> Option<BlockSummary> {
         self.refs.summary(block)
     }
