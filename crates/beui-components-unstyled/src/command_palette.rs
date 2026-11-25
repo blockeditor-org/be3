@@ -8,7 +8,8 @@ use beui_view::types::Color;
 use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
 
-use crate::modal::{Modal, ModalHandle, ModalMotion};
+use beui_view::types::{Dismiss, Vec2};
+use beui_view::window::{Window, WindowAnchor, WindowHandle};
 use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
@@ -216,13 +217,16 @@ pub fn CommandPalette(
         })
     };
     view! {
-        <Modal
-            open={move || open.get()}
+        <Window
+            size=Vec2::ZERO
+            own_window=false
+            anchor={Some(WindowAnchor::Top)}
+            blocks=true
             scrim
-            motion=ModalMotion::Still
             shown_in
-            on_dismiss={move || dismiss(state)}
-        >|_: ModalHandle| {
+            open={move || open.get()}
+            on_dismiss={move |_: Dismiss| dismiss(state)}
+        >|_: WindowHandle| {
             panel.call(view! {
                 <SearchList
                     api={state.list}
@@ -243,7 +247,7 @@ pub fn CommandPalette(
                     row={palette_row}
                 />
             })
-        }</Modal>
+        }</Window>
     }
 }
 

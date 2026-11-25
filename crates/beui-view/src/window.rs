@@ -229,13 +229,9 @@ pub fn Window(
                 let top = Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y));
                 (pinned(top), Placement::CARD, false)
             }
-            Some(WindowAnchor::Centre) => match (owner, owned.get()) {
-                (Some(node), Some(rect)) => (
-                    OverlayAnchor::Pinned { node, rect },
-                    Placement::CenterOn,
-                    false,
-                ),
-                _ => (OverlayAnchor::Point(Pos2::ZERO), Placement::Center, false),
+            Some(WindowAnchor::Centre) => match owned.get() {
+                Some(rect) => (pinned(rect), Placement::CenterOn, false),
+                None => (OverlayAnchor::Point(Pos2::ZERO), Placement::Center, false),
             },
             None => (pinned(point(at.get())), Placement::At, false),
         }
@@ -248,7 +244,7 @@ pub fn Window(
     });
     let blocking = blocks.clone();
     // With no owner, its whole window is what it blocks.
-    let policy = create_memo(move || match (blocking.get(), owner.is_some()) {
+    let policy = create_memo(move || match (blocking.get(), owner.get().is_some()) {
         (true, true) => LayerPolicy::BlocksParent,
         (true, false) => LayerPolicy::BlocksAll,
         (false, _) => LayerPolicy::Pass,
