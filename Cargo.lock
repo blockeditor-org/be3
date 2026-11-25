@@ -1758,6 +1758,7 @@ dependencies = [
  "beui-font-skrifa",
  "beui-layer-drive",
  "beui-renderer-wgpu",
+ "cpal",
  "image",
  "js-sys",
  "pollster",

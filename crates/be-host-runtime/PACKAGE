@@ -39,6 +39,7 @@ write_package_value("be3.cargo", {
                 "//crates/beui-font-skrifa:beui-font-skrifa",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                "//third-party/rust:cpal-0.15.3",
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:rodio-0.20.1",
                 "//third-party/rust:serde-1.0.228",
