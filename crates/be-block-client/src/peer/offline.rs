@@ -715,9 +715,12 @@ impl<S: ObjectStore> Peer<S> {
             if let Some(theirs) = remote
                 && !self.commits.is_ancestor(theirs, ours)?
             {
+                // A common ancestor named by both sides' parents may be held nowhere: the
+                // server prunes the head a publish replaces, and this device may have built on
+                // it as a head it heard of without its commit (a holder's seal, followed).
                 let base = match self.commits.common_ancestor(ours, theirs)? {
-                    Some(base) => Some(base),
-                    None => self.left_from(&waiting)?,
+                    Some(base) if self.try_fetch(base.hash()).await? => Some(base),
+                    _ => self.left_from(&waiting)?,
                 };
                 return Ok(Reconciled::Merge { base, ours, theirs });
             }
@@ -747,7 +750,8 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The remote head the waiting commits were built on, which this device holds: the base of
     /// their merge when the server pruned the history between it and the new head, so no common
-    /// ancestor can be walked to.
+    /// ancestor can be walked to or the one walked to is held nowhere. With none, the merge has
+    /// no base.
     fn left_from(&self, waiting: &[(u64, Pending)]) -> Result<Option<CommitId>, ClientError> {
         for (_, pending) in waiting.iter().rev() {
             let Some(expected) = pending.expected else {
