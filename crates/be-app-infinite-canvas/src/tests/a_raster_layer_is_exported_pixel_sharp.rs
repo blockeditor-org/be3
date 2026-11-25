@@ -28,7 +28,7 @@ fn a_raster_layer_is_exported_pixel_sharp() {
             .expect("the SVG is text"),
     ];
     let [svg] = copied.as_slice() else {
-        panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
+        panic!("Copy puts one SVG on the clipboard, put {copied:?}");
     };
     assert!(
         svg.contains(

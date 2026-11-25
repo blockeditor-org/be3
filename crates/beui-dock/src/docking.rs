@@ -1032,9 +1032,15 @@ impl AnyDockingLayout {
                     |base, next| DockId::derived(stepped(&base.key().to_owned(), next)),
                 );
                 let tab = self.mint(&id);
+                // A key declared as a dialog is that dialog, not a tab, even when a pane lists
+                // it as a tab too (a dialog stays a dialog; `a_dock_dialog_is_never_a_tab`), so
+                // this is no mistake to assert on.
+                if found.parts.contains_key(&tab) {
+                    return None;
+                }
                 assert!(
-                    !found.parts.contains_key(&tab) && !found.bars.contains_key(&tab),
-                    "a dock tab is declared with the id {id:?} of a dialog or bar"
+                    !found.bars.contains_key(&tab),
+                    "a dock tab is declared with the id {id:?} of a bar"
                 );
                 assert!(
                     found.tabs.insert(tab, Rc::clone(entry)).is_none(),
@@ -1082,9 +1088,11 @@ impl AnyDockingLayout {
         for dialog in &dialogs {
             let tab = self.mint_foreign(host, dialog.tab);
             let parent = self.mint_foreign(host, dialog.parent);
-            if found.dialogs.iter().any(|(held, _)| *held == tab) {
-                continue;
-            }
+            assert!(
+                !found.dialogs.iter().any(|(held, _)| *held == tab),
+                "a nested dock declares the dialog {:?} twice",
+                dialog.tab
+            );
             let Some(parts) = self.foreign_dialog(tab, &joined, dialog.tab, dialog) else {
                 continue;
             };
@@ -1103,9 +1111,11 @@ impl AnyDockingLayout {
             let owner = declared
                 .owner
                 .map_or(host, |owner| self.mint_foreign(host, owner));
-            if found.spec_bars.iter().any(|held| held.bar == bar) {
-                continue;
-            }
+            assert!(
+                !found.spec_bars.iter().any(|held| held.bar == bar),
+                "a nested dock declares the bar {:?} twice",
+                declared.tab
+            );
             found
                 .foreign
                 .insert(bar, (Rc::clone(&joined), declared.tab));

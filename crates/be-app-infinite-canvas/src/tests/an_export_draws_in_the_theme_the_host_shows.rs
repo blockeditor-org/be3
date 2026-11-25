@@ -10,8 +10,8 @@ fn fill(theme: ThemeKind) -> String {
 
 #[test]
 fn an_export_draws_in_the_theme_the_host_shows() {
-    // The Export dialog runs the exporter in an app of its own, which draws in the theme its
-    // host has it show.
+    // The theme the host shows when the dialog opens is stored in the export's settings, so the
+    // dialog's own app, whatever theme its host shows, makes the same bytes.
     let mut editor = editor(&[entity(Uuid::from_u128(1))]);
     editor.key(
         Key::A,
@@ -20,9 +20,13 @@ fn an_export_draws_in_the_theme_the_host_shows() {
             ..Modifiers::NONE
         },
     );
+    editor.set_preferences(Preferences {
+        theme: ThemeKind::Light,
+        ..Preferences::default()
+    });
     let mut dialog = export_dialog(&mut editor, "svg");
     dialog.set_preferences(Preferences {
-        theme: ThemeKind::Light,
+        theme: ThemeKind::Dark,
         ..Preferences::default()
     });
     dialog.run();
@@ -35,6 +39,6 @@ fn an_export_draws_in_the_theme_the_host_shows() {
     let svg = String::from_utf8(item.data.clone()).expect("the SVG is text");
     assert!(
         svg.contains(&fill(ThemeKind::Light)) && !svg.contains(&fill(ThemeKind::Dark)),
-        "the background is the light theme's, as the canvas shows it:\n{svg}"
+        "the background is the light theme's, as the host showed it when the dialog opened:\n{svg}"
     );
 }

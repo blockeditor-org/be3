@@ -130,6 +130,13 @@ impl Replay {
         self.focused
     }
 
+    /// Counts no pointer button as held: the program heard none go down, so it must hear none
+    /// come up.
+    pub fn forget_presses(&mut self) {
+        self.pressed = 0;
+        self.away = false;
+    }
+
     pub fn replay(
         &mut self,
         input: &ForwardedInput,

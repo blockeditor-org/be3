@@ -171,11 +171,13 @@ reads; edits read `stored`), with lines bound to it following.
 `ImageExport` settings (scale, background, and the items: what was selected,
 a selected frame, clipped, or none for the whole canvas). Each reads the
 canvas through a `CanvasReader`, the entities and the graph's labels without
-the document a `CanvasState` needs, and draws in the colours of the theme the
-host has the app show (`be_sdk::host_preferences`), so an export looks as the
-canvas does; it reads no view's theme, since an artifact is made with no
-document. There is no direct Copy as PNG or SVG:
-the Export dialog's clipboard destination does that. It reads the same sketches as the canvas. SVG writes paths, text as `<text>` with a
+the document a `CanvasState` needs, and draws in the colours of the theme in
+its `ImageExport` settings, which the Export dialog sets from the host's
+(`be_sdk::host_preferences`) when it opens. Re-makes use the stored theme, so
+every device makes the same bytes for an artifact; none reads its own theme.
+There is no direct Copy as PNG or SVG: the Export dialog's clipboard
+destination does that. It reads the same sketches as the canvas. SVG writes
+paths, text as `<text>` with a
 `<tspan>` per run, and raster layers as pixelated PNG images. PNG paints into
 an offscreen beui context and rasterizes on the CPU
 (`beui_paint_format::rasterize`), since an app cannot read pixels back from
