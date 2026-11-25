@@ -190,7 +190,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
             let painting = beui_paint_format::Painting::decode(&bytes)?;
             let snapshot = beui_paint_snapshot::Snapshot::of_painting(painting)?;
             if file.extension().is_some_and(|found| found == "png") {
-                let image = beui_paint_snapshot::render(&snapshot, 0)?;
+                let image = beui_paint_raster::render(&snapshot, 0)?;
                 image
                     .save(&file)
                     .map_err(|error| format!("could not write {}: {error}", file.display()))?;

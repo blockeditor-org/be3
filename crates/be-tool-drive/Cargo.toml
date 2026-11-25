@@ -12,6 +12,7 @@ name = "be-drive"
 path = "src/main.rs"
 
 [dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
 be-host-archive = { path = "../be-host-archive" }
 beui-runner = { path = "../beui-runner" }
 beui-layer-drive = { path = "../beui-layer-drive" }

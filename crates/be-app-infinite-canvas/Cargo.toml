@@ -8,6 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
 base64 = "0.22"
 beui = { path = "../beui" }
 be-sdk-beui = { path = "../be-sdk-beui" }
