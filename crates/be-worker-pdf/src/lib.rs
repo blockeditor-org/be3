@@ -1,8 +1,10 @@
 //! What the PDF app and its workers say to each other (guides/adding_an_app.md, Workers). Its one
 //! worker, the renderer (crates/be-worker-pdf-render), renders a page, or the part of one shown,
 //! with PDFium, off the editor's own thread: the app sends it a `Job` and gets back an `Answer`
-//! for each, in order, the page's pixels as RGBA, which the app uploads. The app depends on this
-//! crate alone, so it links no PDFium.
+//! for each, in order, the page's pixels as RGBA, which the app uploads. The renderer keeps the
+//! last few documents it opened (`OPEN_DOCUMENTS`), so a job carries the PDF's bytes only when
+//! its document is new to the renderer. The app depends on this crate alone, so it links no
+//! PDFium.
 
 use std::time::Duration;
 
@@ -30,13 +32,38 @@ pub enum Target {
     },
 }
 
-/// What the app asks: render `target` of page `page` of the PDF `data`.
+/// How many documents the renderer keeps open, the most recently used, for every client.
+pub const OPEN_DOCUMENTS: usize = 4;
+
+/// A document the renderer holds: a revision of a block's PDF, as one client sent it. A client
+/// holds one at a time, so opening another revision lets the one it held before go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Document {
+    /// The client that sent it, unique among the app's clients of the renderer.
+    pub client: u64,
+    pub revision: u64,
+}
+
+/// What the app asks: render `target` of page `page` of `document`. `data` is the PDF's bytes,
+/// sent when the renderer may not hold the document yet; without it, a renderer that does not
+/// answers `Unrendered::Unopened`, and the app sends the job again with them.
 #[derive(Serialize, Deserialize)]
 pub struct Job {
+    pub document: Document,
     pub page: usize,
     pub target: Target,
     #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
+    pub data: Option<Vec<u8>>,
+}
+
+/// Why a job was not rendered.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub enum Unrendered {
+    /// The job came without the PDF's bytes, and the renderer does not hold its document (it
+    /// started anew, or let the document go for others).
+    Unopened,
+    /// The document or the page could not be rendered, and why.
+    Failed(String),
 }
 
 /// A rendered tile of a page: `width` by `height` RGBA pixels covering `size_pts` from
@@ -65,6 +92,6 @@ pub enum Measure {
 /// The answer to one `Job`: the tile, or why it could not be rendered.
 #[derive(Serialize, Deserialize)]
 pub struct Answer {
-    pub result: Result<Rendered, String>,
+    pub result: Result<Rendered, Unrendered>,
     pub measures: Vec<Measure>,
 }
