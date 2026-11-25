@@ -73,11 +73,11 @@ for later.
 2. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas. Paintings
    do not change, since they record beui's display list, not pixels. Delete `ui.wgsl`'s shape
    code, the instance encoding and `group.rs`. Put the suite's `renderer` benchmark, compared on
-   a machine with a GPU against the build before (guides/performance.md), in the pull request;
-   likewise for the blur.
+   a machine with a GPU against the build before (guides/performance.md), in the pull request.
 3. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
    replace decisions/beui_filter_blur_is_dual_kawase.md with a decision for Vello's blur
-   (continuous in σ, logarithmic in cost).
+   (continuous in σ, logarithmic in cost). Put the `renderer` benchmark's blur rows, compared as
+   in the step before, in the pull request.
 4. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
    `Frame::tidy` learns it, and beui-paint-format's `raster.rs` (behind `rasterize` and review) is
    rebuilt on `vello_cpu`, in the tools only, never in the beui library. Bump the format's

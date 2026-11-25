@@ -7,6 +7,7 @@ use crate::bundles::{BundleEncoder, Command};
 use crate::queries::{Coarsening, QuerySet};
 use crate::{
     Gpu, Outcome, SURFACE_USAGE, caught, convert, slice, texel_copy_buffer, texel_copy_texture,
+    vertex_slice,
 };
 use std::task::{Context, Poll};
 
@@ -1142,10 +1143,7 @@ impl Host for Gpu {
             .map(|buffer| self.buffers.get(buffer.0, "buffer").cloned())
             .transpose()
             .and_then(|buffer| {
-                let slice = buffer
-                    .as_ref()
-                    .map(|buffer| slice(buffer, offset, size))
-                    .transpose()?;
+                let slice = vertex_slice(buffer.as_ref(), slot, offset, size)?;
                 self.passes
                     .get_mut(this.0, "render pass")
                     .map(|pass| pass.set_vertex_buffer(slot, slice))
@@ -1563,6 +1561,7 @@ impl Host for Gpu {
             let buffer = buffer
                 .map(|buffer| gpu.buffers.get(buffer.0, "buffer").cloned())
                 .transpose()?;
+            vertex_slice(buffer.as_ref(), slot, offset, size)?;
             Ok(Command::VertexBuffer(slot, buffer, offset, size))
         });
     }

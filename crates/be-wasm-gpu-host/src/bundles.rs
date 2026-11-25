@@ -3,7 +3,7 @@ use std::ops::Range;
 use be_wasm_gpu_abi::device as abi;
 use be_wasm_gpu_convert::Convert;
 
-use crate::{Outcome, convert, slice};
+use crate::{Outcome, convert, slice, vertex_slice};
 
 const MAX_COLOR_ATTACHMENTS: usize = 8;
 
@@ -64,10 +64,14 @@ impl BundleEncoder {
     }
 
     pub(crate) fn push(&mut self, command: Command) -> Outcome<()> {
-        if let Command::IndexBuffer(buffer, _, offset, size)
-        | Command::VertexBuffer(_, Some(buffer), offset, size) = &command
-        {
-            slice(buffer, *offset, *size)?;
+        match &command {
+            Command::IndexBuffer(buffer, _, offset, size) => {
+                slice(buffer, *offset, *size)?;
+            }
+            Command::VertexBuffer(slot, buffer, offset, size) => {
+                vertex_slice(buffer.as_ref(), *slot, *offset, *size)?;
+            }
+            _ => {}
         }
         self.commands.push(command);
         Ok(())
@@ -95,12 +99,10 @@ impl BundleEncoder {
                 Command::IndexBuffer(buffer, format, offset, size) => {
                     encoder.set_index_buffer(slice(buffer, *offset, *size)?, *format)
                 }
-                Command::VertexBuffer(slot, Some(buffer), offset, size) => {
-                    encoder.set_vertex_buffer(*slot, slice(buffer, *offset, *size)?)
-                }
-                Command::VertexBuffer(slot, None, ..) => {
-                    encoder.set_vertex_buffer(*slot, None::<wgpu::BufferSlice<'_>>)
-                }
+                Command::VertexBuffer(slot, buffer, offset, size) => encoder.set_vertex_buffer(
+                    *slot,
+                    vertex_slice(buffer.as_ref(), *slot, *offset, *size)?,
+                ),
                 Command::Draw(vertices, instances) => {
                     encoder.draw(vertices.clone(), instances.clone())
                 }
