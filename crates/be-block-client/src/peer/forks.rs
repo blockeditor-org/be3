@@ -99,16 +99,20 @@ impl Relayed {
 }
 
 /// How many heads a device shares in the account's block a pass (`Peer::trade_account_heads`).
-const SHARED_HEADS: usize = 64;
+pub(crate) const SHARED_HEADS: usize = 64;
+/// How many heads the account's block keeps in all (`AccountBlock::log_heads`): past it the
+/// ones shared longest ago go, so the block stays small however many blocks its devices read.
+pub(crate) const KEPT_HEADS: usize = 512;
 
 /// A head of a block's signed log as the account's block keeps it (`AccountBlock::log_heads`):
-/// the organization the block is in, the head and the account's signature over it.
+/// the head, the account's signature over it, and when a device shared it, in milliseconds,
+/// which orders what goes past `KEPT_HEADS` and which a device shares first.
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
-struct SharedHead {
-    organization: Uuid,
-    size: u64,
-    root: [u8; 32],
-    signature: Vec<u8>,
+pub(crate) struct SharedHead {
+    pub(crate) size: u64,
+    pub(crate) root: [u8; 32],
+    pub(crate) signature: Vec<u8>,
+    pub(crate) updated: i64,
 }
 
 impl SharedHead {
@@ -118,6 +122,48 @@ impl SharedHead {
 
     fn decode(bytes: &[u8]) -> Option<Self> {
         postcard::from_bytes(bytes).ok()
+    }
+}
+
+/// A block whose head this device may share in the account's block (`Peer::trade_account_heads`),
+/// with when the head the block holds was shared, if it holds one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Sharing {
+    pub(crate) block: Uuid,
+    pub(crate) held: Option<i64>,
+}
+
+/// Which of `candidates` a pass shares: blocks that hold no head first, then those whose head
+/// was shared longest ago, at most `limit`, so no block waits behind others for ever.
+pub(crate) fn sharing_first(mut candidates: Vec<Sharing>, limit: usize) -> Vec<Sharing> {
+    candidates.sort_by_key(|sharing| (sharing.held.is_some(), sharing.held, sharing.block));
+    candidates.truncate(limit);
+    candidates
+}
+
+/// Which heads the account's block drops so it keeps at most `limit`, given when each it holds
+/// was shared, after `adding` are put: the ones shared longest ago, never one being added.
+pub(crate) fn evicted<K: Copy + Ord>(held: &[(K, i64)], adding: &[K], limit: usize) -> Vec<K> {
+    let mut kept: Vec<(K, i64)> = held
+        .iter()
+        .filter(|(key, _)| !adding.contains(key))
+        .copied()
+        .collect();
+    let room = limit.saturating_sub(adding.len());
+    if kept.len() <= room {
+        return Vec::new();
+    }
+    kept.sort_by_key(|(key, updated)| (*updated, *key));
+    kept.truncate(kept.len() - room);
+    kept.into_iter().map(|(key, _)| key).collect()
+}
+
+/// Clears `Peer::trading_heads` as a pass of `trade_account_heads` ends, however it ends.
+struct Trading<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl Drop for Trading<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::Release);
     }
 }
 
@@ -135,11 +181,15 @@ impl<S: ObjectStore> Peer<S> {
                 size: kept.size,
                 root: Hash::from_bytes(kept.root),
             },
-            signature: self.keys.identity().sign_log_head(
-                block.into_bytes(),
-                kept.size,
-                &kept.root,
-            ),
+            signature: self
+                .keys
+                .identity()
+                .sign_log_head(
+                    self.organization.into_bytes(),
+                    block.into_bytes(),
+                    kept.size,
+                    &kept.root,
+                ),
         })
     }
 
@@ -331,16 +381,24 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Trades heads of blocks' signed logs with the account's other devices through the
     /// account's block (guides/blocks/keys.md, "Forks"), so one person's devices compare even
-    /// when they share no session or commit: first it compares each head another device shared
-    /// for a log this device reads, in this organization, that is not the one it kept
-    /// (`compare_log_head`, `HeadVia::Account`); then it shares its own, signed, where the
-    /// block holds none or a shorter one, at most `SHARED_HEADS` a pass. Answers the blocks it
-    /// compared, each with how it stood; one that could not be compared is left out. Nothing
-    /// for a local account or one with no account block.
-    pub async fn trade_account_heads(&self) -> Result<Vec<(Uuid, LogAgreement)>, ClientError> {
-        if self.local {
+    /// when they share no session or commit. First it compares each head another device shared
+    /// for a log of this organization this device reads that is not the one it kept
+    /// (`compare_log_head`, `HeadVia::Account`). Then it shares its own, signed, for at most
+    /// `SHARED_HEADS` blocks a pass, blocks holding none first: it moves a block's head
+    /// forward only over one that agreed with its own, and replaces one that no key it verified
+    /// signed (one signed before a phrase change, say); a head it found forked, or could not
+    /// compare, stays as evidence for the account's other devices. The block keeps at most
+    /// `KEPT_HEADS`, dropping those shared longest ago. Answers each block it compared with how
+    /// it stood, or why it could not. Nothing for a local account or one with no account
+    /// block, or while another pass is under way.
+    pub async fn trade_account_heads(
+        &self,
+    ) -> Result<Vec<(Uuid, Result<LogAgreement, ClientError>)>, ClientError> {
+        use std::sync::atomic::Ordering;
+        if self.local || self.trading_heads.swap(true, Ordering::AcqRel) {
             return Ok(Vec::new());
         }
+        let _trading = Trading(&self.trading_heads);
         let connection = self.connection();
         let identity = self.keys.identity().clone();
         let Some(records) =
@@ -349,80 +407,158 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Vec::new());
         };
         let content = records.read().await?;
-        let shared: Vec<(Uuid, SharedHead)> = content
+        let organization = self.organization;
+        // The heads the block holds for this organization, as bytes, so a later write puts one
+        // only over the head this pass judged.
+        let held: std::collections::HashMap<Uuid, Vec<u8>> = content
             .root()
             .shared_log_heads()
-            .filter_map(|(block, bytes)| Some((block, SharedHead::decode(bytes)?)))
-            .filter(|(_, shared)| shared.organization == self.organization)
+            .filter(|((holder, _), _)| *holder == organization)
+            .map(|((_, block), bytes)| (block, bytes.to_vec()))
             .collect();
         let mut compared = Vec::new();
-        for (block, held) in &shared {
-            let Some(kept) = self.refs.log_head(*block) else {
+        let mut candidates = Vec::new();
+        for block in self.refs.logs_kept() {
+            let Some(kept) = self.refs.log_head(block) else {
                 continue;
             };
-            if (kept.size, kept.root) == (held.size, held.root) {
+            let Some(bytes) = held.get(&block) else {
+                candidates.push(Sharing { block, held: None });
                 continue;
-            }
-            let theirs = SignedLogHead {
-                account: self.account(),
-                head: LogHead {
-                    size: held.size,
-                    root: Hash::from_bytes(held.root),
-                },
-                signature: held.signature.clone(),
             };
-            if let Ok(agreement) = self.compare_log_head(*block, theirs, HeadVia::Account).await {
-                compared.push((*block, agreement));
+            // A head that does not decode is no one's: replaced like one no key signed.
+            let Some(theirs) = SharedHead::decode(bytes) else {
+                candidates.push(Sharing { block, held: Some(0) });
+                continue;
+            };
+            let replaceable = if (kept.size, kept.root) == (theirs.size, theirs.root) {
+                false
+            } else {
+                let signed = SignedLogHead {
+                    account: self.account(),
+                    head: LogHead {
+                        size: theirs.size,
+                        root: Hash::from_bytes(theirs.root),
+                    },
+                    signature: theirs.signature.clone(),
+                };
+                let agreement = self.compare_log_head(block, signed, HeadVia::Account).await;
+                let replaceable = match &agreement {
+                    Ok(LogAgreement::Agrees) => theirs.size < kept.size,
+                    Err(ClientError::Forged(_)) => true,
+                    Ok(LogAgreement::Forked(_)) | Err(_) => false,
+                };
+                compared.push((block, agreement));
+                replaceable
+            };
+            if replaceable {
+                candidates.push(Sharing {
+                    block,
+                    held: Some(theirs.updated),
+                });
             }
         }
-        let held: std::collections::HashMap<Uuid, u64> = shared
-            .iter()
-            .map(|(block, held)| (*block, held.size))
-            .collect();
-        let mut sharing: Vec<(Uuid, SharedHead)> = self
-            .refs
-            .logs_kept()
-            .into_iter()
-            .filter_map(|block| {
-                let signed = self.signed_log_head(block)?;
-                let ahead = held
-                    .get(&block)
-                    .is_none_or(|size| *size < signed.head.size);
-                ahead.then(|| {
-                    (
+        let updated = self.latest_believed();
+        let sharing: Vec<(Uuid, Option<Vec<u8>>, SharedHead)> =
+            sharing_first(candidates, SHARED_HEADS)
+                .into_iter()
+                .filter_map(|Sharing { block, .. }| {
+                    let signed = self.signed_log_head(block)?;
+                    Some((
                         block,
+                        held.get(&block).cloned(),
                         SharedHead {
-                            organization: self.organization,
                             size: signed.head.size,
                             root: *signed.head.root.as_bytes(),
                             signature: signed.signature,
+                            updated,
                         },
-                    )
+                    ))
                 })
-            })
-            .collect();
-        sharing.sort_by_key(|(block, _)| *block);
-        sharing.truncate(SHARED_HEADS);
+                .collect();
         if !sharing.is_empty() {
             records
                 .update(move |content| {
                     let root = content.root();
-                    let edits = sharing
+                    // Put only over the head this pass judged: one another device put meanwhile
+                    // is compared on a later pass.
+                    let puts: Vec<_> = sharing
                         .iter()
-                        .filter(|(block, head)| {
-                            root.log_head(*block)
-                                .and_then(SharedHead::decode)
-                                .is_none_or(|held| held.size < head.size)
-                        })
-                        .map(|(block, head)| {
-                            be_block::AccountBlock::set_log_head(*block, Some(head.encode()))
+                        .filter(|(block, judged, _)| {
+                            root.log_head(organization, *block) == judged.as_deref()
                         })
                         .collect();
+                    let adding: Vec<(Uuid, Uuid)> = puts
+                        .iter()
+                        .map(|(block, _, _)| (organization, *block))
+                        .collect();
+                    let held: Vec<((Uuid, Uuid), i64)> = root
+                        .shared_log_heads()
+                        .map(|(key, bytes)| {
+                            (key, SharedHead::decode(bytes).map_or(0, |head| head.updated))
+                        })
+                        .collect();
+                    let mut edits: Vec<_> = evicted(&held, &adding, KEPT_HEADS)
+                        .into_iter()
+                        .map(|(holder, block)| {
+                            be_block::AccountBlock::set_log_head(holder, block, None)
+                        })
+                        .collect();
+                    edits.extend(puts.iter().map(|(block, _, head)| {
+                        be_block::AccountBlock::set_log_head(
+                            organization,
+                            *block,
+                            Some(head.encode()),
+                        )
+                    }));
                     crate::peer::account_block::answered(edits)
                 })
                 .await?;
         }
         Ok(compared)
+    }
+
+    /// The head the account's block holds for `block` of `organization` (`trade_account_heads`).
+    #[cfg(test)]
+    pub(crate) async fn account_log_head(
+        &self,
+        organization: Uuid,
+        block: Uuid,
+    ) -> Option<SharedHead> {
+        let connection = self.connection();
+        let records = crate::AccountRecords::open(&connection, self.account(), self.keys.identity())
+            .await
+            .unwrap()?;
+        let content = records.read().await.unwrap();
+        content
+            .root()
+            .log_head(organization, block)
+            .and_then(SharedHead::decode)
+    }
+
+    /// Puts `head` in the account's block for `block` of `organization`, as a device would.
+    #[cfg(test)]
+    pub(crate) async fn put_account_log_head(
+        &self,
+        organization: Uuid,
+        block: Uuid,
+        head: SharedHead,
+    ) {
+        let connection = self.connection();
+        let records = crate::AccountRecords::open(&connection, self.account(), self.keys.identity())
+            .await
+            .unwrap()
+            .expect("an account block");
+        records
+            .update(move |_| {
+                crate::peer::account_block::answered(vec![be_block::AccountBlock::set_log_head(
+                    organization,
+                    block,
+                    Some(head.encode()),
+                )])
+            })
+            .await
+            .unwrap();
     }
 
     /// The fork of `block`'s signed log this device found first, if any.
@@ -436,6 +572,7 @@ impl<S: ObjectStore> Peer<S> {
     fn vouched(&self, block: Uuid, signed: &SignedLogHead) -> bool {
         let verifies = |key: SigningPublic| {
             key.verifies_log_head(
+                self.organization.into_bytes(),
                 block.into_bytes(),
                 signed.head.size,
                 signed.head.root.as_bytes(),

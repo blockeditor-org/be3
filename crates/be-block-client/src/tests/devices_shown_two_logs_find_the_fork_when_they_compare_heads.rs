@@ -43,7 +43,7 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
         signature: laptop
             .keys()
             .identity()
-            .sign_log_head(chat.into_bytes(), size, &root),
+            .sign_log_head(laptop.organization().into_bytes(), chat.into_bytes(), size, &root),
     };
 
     // The phone reads the same log: the laptop's heads, now and before, lie on it.

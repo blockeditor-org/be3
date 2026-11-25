@@ -376,6 +376,9 @@ pub struct Peer<S: ObjectStore> {
     /// The heads of blocks' signed logs commits named that this device compared with its own
     /// (`Peer::compare_commit_head`), each compared once a run.
     compared_heads: Mutex<HashSet<(Uuid, u64, [u8; 32])>>,
+    /// Whether a pass of `trade_account_heads` is under way: one at a time, so two passes never
+    /// compare and share the same heads at once.
+    trading_heads: std::sync::atomic::AtomicBool,
     /// The members key work last listed as signed into the organization's log by no record
     /// (`KeyWork::unsigned_members`).
     unsigned: Mutex<Vec<Uuid>>,
@@ -653,6 +656,7 @@ impl<S: ObjectStore> Peer<S> {
             current: Mutex::new(HashMap::new()),
             tried: Arc::default(),
             compared_heads: Mutex::new(HashSet::new()),
+            trading_heads: std::sync::atomic::AtomicBool::new(false),
             unsigned: Mutex::new(Vec::new()),
             served_logs: Mutex::new(ServedLogs::new(SERVED_ENTRIES)),
             pending_rotations: Mutex::new(HashMap::new()),
