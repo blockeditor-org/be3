@@ -63,7 +63,8 @@ impl Floating {
                 raster: self.raster,
             },
             windows: true,
-            host_place: None,
+            // Where it was put, which the app may open it at again (`window-placement.host`).
+            host_place: Some(be_sdk_window_stack::placement(self.wanted.min)),
             docked: false,
             anchor_space: Some(AnchorSpace {
                 to_host: HostTransform {
@@ -202,6 +203,13 @@ pub(crate) struct Held {
     from: Rect,
 }
 
+impl Held {
+    /// The window being moved or resized.
+    pub(crate) fn view(&self) -> ViewId {
+        self.view
+    }
+}
+
 /// Takes in `requests`, the window requests a layout commit of the app made, over its `windows`,
 /// bottom first, with the `screens` it was asked for: a window opens (only from a screen asked
 /// with windows), is placed, resized, raised or closed, or begins to move or be resized with the
@@ -299,6 +307,23 @@ pub(crate) fn follow_openers(windows: &mut [Floating], screens: &[ScreenRequest]
             windows[index].follow(&request);
         }
     }
+}
+
+/// Shows each of `windows` but the one `moving` where it is wanted, kept within the work area of
+/// its opener (`frame-report.work-area`), as be-host's desktop keeps one clear of its bars: fitted
+/// to it where it is inset, its grip on it. `area` gives a window's display (its bounds) and that
+/// work area, in the window's points; one it gives none is left alone. Answers whether any
+/// moved.
+pub(crate) fn keep_in_work_areas(
+    windows: &mut [Floating],
+    moving: Option<ViewId>,
+    area: impl Fn(ViewRef) -> Option<Rect>,
+) -> bool {
+    let moving = moving.and_then(|view| windows.iter().position(|window| window.view == view));
+    be_sdk_window_stack::keep_in_work_areas(windows, moving, |window| {
+        let work = area(window.opener).unwrap_or(window.bounds);
+        vec![(window.bounds, window.bounds.intersect(work))]
+    })
 }
 
 /// A window keeps a size it can be laid out at, where it is wanted too.

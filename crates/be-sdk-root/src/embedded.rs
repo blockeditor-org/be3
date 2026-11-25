@@ -214,6 +214,9 @@ struct State {
     /// The move or resize of one of them under way, which follows the main window's pointer
     /// until it is released (`Embedded::follow_held`).
     held: Option<floating::Held>,
+    /// Where each screen keeps the windows opened from it, as its last layout's frame report
+    /// said (`frame-report.work-area`).
+    work_areas: HashMap<ScreenId, Insets>,
     /// Where the pointer last was in the root's main window, in its points
     /// (`Embedded::note_pointer`): where one of them opened at the pointer opens.
     pointer: Pos2,
@@ -412,7 +415,9 @@ impl Embedded {
                 true
             }
             Input::PointerButton { pressed: false, .. } | Input::PointersCancelled => {
+                // Released, it is kept within its work area again.
                 state.held = None;
+                state.ask_screens();
                 false
             }
             _ => false,
@@ -529,6 +534,7 @@ impl Embedded {
             pressed: None,
             held: None,
             pointer: Pos2::ZERO,
+            work_areas: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -1318,8 +1324,29 @@ impl State {
     /// Asks the app for the screens the root asks for and the windows it floats, unless it was
     /// asked for those already.
     fn ask_screens(&mut self) {
-        // Each window at its opener's pixels per point and within its bounds, as asked now.
+        // Each window at its opener's pixels per point and within its bounds, as asked now, and
+        // kept within its opener's work area unless it is being moved or resized.
         floating::follow_openers(&mut self.floating, &self.asked);
+        let windows: Vec<ScreenRequest> = self.floating.iter().map(Floating::request).collect();
+        let work = |opener: be_sdk_api::ViewRef| {
+            let request = self
+                .asked
+                .iter()
+                .chain(&windows)
+                .find(|request| (request.instance, request.view) == (opener.instance, opener.view))?;
+            let insets = self.work_areas.get(&request.screen)?;
+            let origin = request.anchor_space?.to_host.origin;
+            let size = request.metrics.logical;
+            Some(Rect::from_min_max(
+                pos2(origin.x + insets.left, origin.y + insets.top),
+                pos2(
+                    origin.x + size.x - insets.right,
+                    origin.y + size.y - insets.bottom,
+                ),
+            ))
+        };
+        let moving = self.held.map(|held| held.view());
+        floating::keep_in_work_areas(&mut self.floating, moving, work);
         let mut screens: Vec<ScreenRequest> = self
             .asked
             .iter()
@@ -1524,8 +1551,14 @@ impl State {
                 self.hear_sizes(std::mem::take(&mut commit.sizes));
                 // Held with its children when they wait for the present, else heard now.
                 self.hear_docks(std::mem::take(&mut commit.docks));
+                let mut rekept = false;
                 for report in &commit.reports {
                     self.contents.insert(report.screen, report.content);
+                    let kept = match report.work_area {
+                        Some(area) => self.work_areas.insert(report.screen, area) != Some(area),
+                        None => self.work_areas.remove(&report.screen).is_some(),
+                    };
+                    rekept |= kept;
                     if let Some(actions) = &report.actions {
                         self.actions.insert(report.screen, actions.clone());
                     }
@@ -1559,6 +1592,10 @@ impl State {
                             self.anchored.remove(&report.screen);
                         }
                     }
+                }
+                // A work area that changed keeps the windows opened from it within it anew.
+                if rekept && !self.floating.is_empty() {
+                    self.ask_screens();
                 }
                 self.run.pacing.laid_out();
             }

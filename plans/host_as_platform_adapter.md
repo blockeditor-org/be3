@@ -2125,9 +2125,18 @@ Each step lands on its own.
                and other windows with (`Spring`), Super+drag on any window, and a gesture held
                by the pointer that began it (be-host's `Gesture::pointer`): under the root any
                pointer's moves follow it.
-           - 4g7e2c. Levels and host placements (`window-level`, `window-placement.host`): bars
-             and panels in front, work areas the desktop notes (`note_work_area`) that keep
-             normal windows clear of them.
+           - 4g7e2c. Built: levels, host placements and work areas. A window opened `above`
+             stays in front of the app's normal ones, and one `fullscreen` is never kept in a
+             work area (be-sdk-window-stack's `Stacked`). Each window is asked for with the
+             host's place for it (`screen-request.host-place`, where it was put), which the app
+             may open it at again (`window-placement.host`). The work area its opener's frame
+             report keeps (`frame-report.work-area`, the desktop's view less its bars) keeps each
+             window but the one moving with its grip on it, as be-host's desktop does
+             (`note_work_area`, `keep_in_work_areas`): kept again as the area changes, as the
+             root asks its screens, and once a move ends (`floating::keep_in_work_areas`).
+             be-sdk-root's `floating::tests`.
+             - Left: one display, the root's window: a window is kept within the work area of
+               the view it opened from, not of the display it is on.
          - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as
            a `Surface::Host` layer, which the host composites and routes input to, and relays
            its status (title, icon, raised, fullscreen) to its placer. Under be-host's own UI
