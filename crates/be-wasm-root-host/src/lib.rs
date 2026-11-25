@@ -811,6 +811,12 @@ impl<G: Inline> Core<G> {
         self.sandbox.unsettled()
     }
 
+    /// Whether what its apps or its host sent waits for the root to be stepped with it: the
+    /// frame that just ended stepped it before the last of that arrived.
+    fn owes_step(&self) -> bool {
+        self.unstepped || !self.relaying.is_empty()
+    }
+
     /// How the root answered the display questions since the last call, oldest first.
     fn take_display_answers(&mut self) -> Vec<(u64, bool)> {
         std::mem::take(&mut self.display_answers)

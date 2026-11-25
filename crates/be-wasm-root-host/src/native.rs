@@ -461,6 +461,12 @@ impl Root {
             match self.core.advance(None) {
                 Progress::Drawn(drawn) => {
                     self.presented();
+                    // What arrived after the frame last stepped the root (an app's frames
+                    // polled as it ended) waits for the next frame: the host is woken for it,
+                    // since the bell that rang for it may have rung while this frame was drawn.
+                    if self.core.owes_step() {
+                        self.bell.ring();
+                    }
                     return drawn;
                 }
                 // Pending: wait until what the root waits on has something for it.
