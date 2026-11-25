@@ -38,8 +38,11 @@ const BACKGROUND: [u8; 4] = [0, 0, 0, 255];
 
 impl Screen {
     fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let renderer =
-            beui_host::native::Renderer::new(&beui_host::native::Resources::new(&device, FORMAT, &Default::default()));
+        let renderer = beui_host::native::Renderer::new(&beui_host::native::Resources::new(
+            &device,
+            FORMAT,
+            &Default::default(),
+        ));
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("screen"),
             size: wgpu::Extent3d {

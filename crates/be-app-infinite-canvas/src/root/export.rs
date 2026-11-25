@@ -435,7 +435,8 @@ pub(crate) fn png(
         Color32::TRANSPARENT,
         Punches::Shown,
     )?;
-    let raster = beui_paint_raster::rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
+    let raster =
+        beui_paint_raster::rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
     let size = raster.size;
     Ok((
         encode_png(size, raster.rgba.into_iter().flatten().collect())?,

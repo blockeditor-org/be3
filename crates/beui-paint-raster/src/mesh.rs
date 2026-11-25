@@ -21,10 +21,9 @@ pub(crate) fn mesh<'a>(
     textures: &dyn Fn(TextureKey) -> Option<&'a Pixels>,
     chains: &mut BTreeMap<TextureKey, Vec<Pixels>>,
 ) -> Result<Option<(Pixmap, [f32; 2])>, String> {
-    let reach = triangles
-        .iter()
-        .flat_map(|triangle| triangle.corners)
-        .fold([f32::MAX, f32::MAX, f32::MIN, f32::MIN], |reach, corner| {
+    let reach = triangles.iter().flat_map(|triangle| triangle.corners).fold(
+        [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
+        |reach, corner| {
             let [x, y] = corner.pos.map(|value| value * scale);
             [
                 reach[0].min(x),
@@ -32,7 +31,8 @@ pub(crate) fn mesh<'a>(
                 reach[2].max(x),
                 reach[3].max(y),
             ]
-        });
+        },
+    );
     let left = reach[0].floor().max(clip[0]).max(0.0);
     let top = reach[1].floor().max(clip[1]).max(0.0);
     let right = reach[2].ceil().min(clip[2]).min(f32::from(u16::MAX));

@@ -38,7 +38,7 @@ pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
             Some(Path::new(input)),
             Some(&mut crate::browser::renderer(None)),
         )
-            .unwrap_or_else(|error| fail(&format!("frame {index} did not render: {error}")));
+        .unwrap_or_else(|error| fail(&format!("frame {index} did not render: {error}")));
         let path = match numbered {
             true => numbered_path(Path::new(output), index),
             false => PathBuf::from(output),

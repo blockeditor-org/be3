@@ -5,7 +5,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod tidy;
 
-
 pub type TextureKey = u64;
 
 pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, String> {

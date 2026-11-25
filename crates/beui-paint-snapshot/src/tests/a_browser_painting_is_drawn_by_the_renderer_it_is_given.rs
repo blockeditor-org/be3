@@ -35,7 +35,10 @@ fn a_browser_painting_is_drawn_by_the_renderer_it_is_given() {
         picture.to_str().unwrap(),
     ]);
     renderer.arg(&file);
-    assert_eq!(page.render(Some(&file), Some(&mut renderer)).unwrap(), drawn);
+    assert_eq!(
+        page.render(Some(&file), Some(&mut renderer)).unwrap(),
+        drawn
+    );
 
     let mut failing = Command::new("sh");
     failing.args(["-c", "echo no browser >&2; exit 1"]);

@@ -76,35 +76,32 @@ impl BrowserSnapshot {
     ) -> Result<RgbaImage, String> {
         let snapshot = self;
         let renderer = browser_renderer
-                .ok_or("a browser painting needs the browser rasterizer, and none was given")?;
-            let written;
-            let input = match file {
-                Some(file) => file,
-                None => {
-                    written = Scratch::new("browser.paint");
-                    std::fs::write(&written.0, snapshot.encode()?).map_err(|error| {
-                        format!("could not write {}: {error}", written.0.display())
-                    })?;
-                    &written.0
-                }
-            };
-            let output = Scratch::new("png");
-            let result = renderer
-                .arg(input)
-                .arg(&output.0)
-                .output()
-                .map_err(|error| format!("could not start the browser rasterizer: {error}"))?;
-            if !result.status.success() {
-                return Err(format!(
-                    "browser rasterizer failed: {}",
-                    String::from_utf8_lossy(&result.stderr)
-                ));
+            .ok_or("a browser painting needs the browser rasterizer, and none was given")?;
+        let written;
+        let input = match file {
+            Some(file) => file,
+            None => {
+                written = Scratch::new("browser.paint");
+                std::fs::write(&written.0, snapshot.encode()?)
+                    .map_err(|error| format!("could not write {}: {error}", written.0.display()))?;
+                &written.0
             }
-            image::open(&output.0)
-                .map(|image| image.to_rgba8())
-                .map_err(|error| {
-                    format!("could not read what the browser rasterizer drew: {error}")
-            })
+        };
+        let output = Scratch::new("png");
+        let result = renderer
+            .arg(input)
+            .arg(&output.0)
+            .output()
+            .map_err(|error| format!("could not start the browser rasterizer: {error}"))?;
+        if !result.status.success() {
+            return Err(format!(
+                "browser rasterizer failed: {}",
+                String::from_utf8_lossy(&result.stderr)
+            ));
+        }
+        image::open(&output.0)
+            .map(|image| image.to_rgba8())
+            .map_err(|error| format!("could not read what the browser rasterizer drew: {error}"))
     }
 }
 /// A file in the temporary directory, removed when dropped.

@@ -262,10 +262,14 @@ fn differing_frames(
         }
         *drawn += 1;
         let old_image = old_frame
-            .map(|(snapshot, file)| beui_paint_raster::render_painting(snapshot, index, Some(file), renderer().as_mut()))
+            .map(|(snapshot, file)| {
+                beui_paint_raster::render_painting(snapshot, index, Some(file), renderer().as_mut())
+            })
             .transpose()?;
         let new_image = new_frame
-            .map(|(snapshot, file)| beui_paint_raster::render_painting(snapshot, index, Some(file), renderer().as_mut()))
+            .map(|(snapshot, file)| {
+                beui_paint_raster::render_painting(snapshot, index, Some(file), renderer().as_mut())
+            })
             .transpose()?;
         let (changes, changed_pixels) = match (&old_image, &new_image) {
             (Some(old), Some(new)) => {

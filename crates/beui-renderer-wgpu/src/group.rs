@@ -191,7 +191,12 @@ impl Groups {
             view_formats: crate::view_formats(self.format),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind = bind(device, &self.layout, &self.uniforms, &crate::drawn_view(&view));
+        let bind = bind(
+            device,
+            &self.layout,
+            &self.uniforms,
+            &crate::drawn_view(&view),
+        );
         Layer { view, bind }
     }
 }

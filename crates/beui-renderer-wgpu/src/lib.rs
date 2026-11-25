@@ -815,7 +815,6 @@ impl Renderer {
         &self.resources
     }
 
-
     fn upload(&mut self, queue: &wgpu::Queue, item: &Item) {
         let Some((image, level)) = item.picture() else {
             return;
@@ -1475,15 +1474,16 @@ impl Renderer {
                 false => Affine::IDENTITY,
             };
             let transform = turn
-                * Affine::translate((
-                    f64::from(offset.x * factor),
-                    f64::from(offset.y * factor),
-                ))
+                * Affine::translate((f64::from(offset.x * factor), f64::from(offset.y * factor)))
                 * Affine::scale(f64::from(scale * factor));
             let style = match path.style() {
                 PathStyle::Fill(rule) => Painted::Fill(match rule {
-                    beui_types::FillRule::NonZero => beui_vello::vello_common::peniko::Fill::NonZero,
-                    beui_types::FillRule::EvenOdd => beui_vello::vello_common::peniko::Fill::EvenOdd,
+                    beui_types::FillRule::NonZero => {
+                        beui_vello::vello_common::peniko::Fill::NonZero
+                    }
+                    beui_types::FillRule::EvenOdd => {
+                        beui_vello::vello_common::peniko::Fill::EvenOdd
+                    }
                 }),
                 PathStyle::Stroke(stroke) => {
                     Painted::Stroke(beui_core::path::kurbo_stroke(stroke, 1.0))
@@ -2097,8 +2097,13 @@ impl Renderer {
     /// is cleared whole.
     fn begin_scene(&mut self, onto: &Onto<'_>) {
         let (width, height) = onto.size;
-        let (width, height) = (width.clamp(1, u32::from(u16::MAX)) as u16, height.clamp(1, u32::from(u16::MAX)) as u16);
-        let vello = self.vello.get_or_insert_with(|| Vello::scene_only(width, height));
+        let (width, height) = (
+            width.clamp(1, u32::from(u16::MAX)) as u16,
+            height.clamp(1, u32::from(u16::MAX)) as u16,
+        );
+        let vello = self
+            .vello
+            .get_or_insert_with(|| Vello::scene_only(width, height));
         vello.scene.reset_and_resize(width, height);
         let mut canvas = scene::Gpu(&mut vello.scene);
         use beui_vello::Canvas;
@@ -2112,7 +2117,9 @@ impl Renderer {
                     (*left + *width) as f32,
                     (*top + *height) as f32,
                 ]);
-                path.extend(beui_vello::vello_common::kurbo::Shape::path_elements(&rect, 0.1));
+                path.extend(beui_vello::vello_common::kurbo::Shape::path_elements(
+                    &rect, 0.1,
+                ));
             }
             canvas.push_clip_path(&path);
         }
@@ -2257,12 +2264,18 @@ impl Renderer {
                                     Some(clip) => clip.iter().copied().map(Some).collect(),
                                     None => vec![None],
                                 };
-                                let mut pass = self.begin_at(encoder, onto.view, wgpu::LoadOp::Load, depth);
+                                let mut pass =
+                                    self.begin_at(encoder, onto.view, wgpu::LoadOp::Load, depth);
                                 for scissor in scissors {
                                     let Some(at) = within(*at, scissor) else {
                                         continue;
                                     };
-                                    let bounds = scissor.unwrap_or([0, 0, at.screen.x as u32, at.screen.y as u32]);
+                                    let bounds = scissor.unwrap_or([
+                                        0,
+                                        0,
+                                        at.screen.x as u32,
+                                        at.screen.y as u32,
+                                    ]);
                                     if clip(&mut pass, clipped(at.clip, bounds)) {
                                         draw.paint(&mut pass, at);
                                     }
@@ -2297,7 +2310,10 @@ impl Renderer {
                             .map(|scissor| intersected(*scissor, region))
                             .filter(|region| region[2] > 0 && region[3] > 0)
                             .collect(),
-                        None => vec![region].into_iter().filter(|region| region[2] > 0 && region[3] > 0).collect(),
+                        None => vec![region]
+                            .into_iter()
+                            .filter(|region| region[2] > 0 && region[3] > 0)
+                            .collect(),
                     };
                     let Some(layer) = self
                         .groups
@@ -2310,7 +2326,8 @@ impl Renderer {
                     if regions.is_empty() {
                         continue;
                     }
-                    let mut inner = Onto::new(&layer, layer_size(&layer), None, Some(regions.clone()));
+                    let mut inner =
+                        Onto::new(&layer, layer_size(&layer), None, Some(regions.clone()));
                     self.begin_scene(&inner);
                     self.paint_steps(device, queue, encoder, &mut inner, grouped, depth + 1);
                     self.flush(device, queue, encoder, &mut inner);
@@ -2331,7 +2348,11 @@ impl Renderer {
                     steps: filtered,
                 } => {
                     self.flush(device, queue, encoder, onto);
-                    let Some(scene_view) = self.effects.get(*index).and_then(filter::Effects::scene).cloned()
+                    let Some(scene_view) = self
+                        .effects
+                        .get(*index)
+                        .and_then(filter::Effects::scene)
+                        .cloned()
                     else {
                         continue;
                     };
@@ -2345,7 +2366,11 @@ impl Renderer {
                     self.paint_steps(device, queue, encoder, &mut inner, filtered, depth);
                     self.flush(device, queue, encoder, &mut inner);
                     let (prepared, srgb) = (self.filters[*index], self.format.is_srgb());
-                    let blurred = self.effects.get(*index).and_then(filter::Effects::blurred).cloned();
+                    let blurred = self
+                        .effects
+                        .get(*index)
+                        .and_then(filter::Effects::blurred)
+                        .cloned();
                     if let Some(blurred) = blurred.filter(|_| prepared.sigma() > 0.0) {
                         let region = prepared.region();
                         // Blurred whole: under a clip, vello_gpu 0.4's filter layer takes
@@ -2638,7 +2663,6 @@ impl Vello {
         self.renderer = Some(vello_gpu::Renderer::new(device, queue, &config));
         self.format = format;
     }
-
 }
 
 /// A clear colour as wgpu takes it for a target of `format` (linear on an sRGB target), back

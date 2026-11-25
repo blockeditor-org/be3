@@ -5,8 +5,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use beui_paint_format::{
-    Content, Fade, Frame, Glyph, Pixels, Primitive, Round, RoundedRect, TextureKey, Triangle,
-    Turn,
+    Content, Fade, Frame, Glyph, Pixels, Primitive, Round, RoundedRect, TextureKey, Triangle, Turn,
 };
 use beui_vello::vello_common::kurbo::{Affine, BezPath, Rect, Shape, Stroke};
 use beui_vello::vello_common::paint::{ImageSource, PaintType, Tint};
@@ -60,9 +59,7 @@ pub fn rasterize<'a>(
         &mut Resources::new(),
         RasterizerSettings {
             render_mode: RenderMode::OptimizeQuality,
-            target_init: beui_vello::vello_common::TargetInit::Clear(beui_vello::color(
-                background,
-            )),
+            target_init: beui_vello::vello_common::TargetInit::Clear(beui_vello::color(background)),
             ..RasterizerSettings::default()
         },
     );
@@ -202,7 +199,9 @@ impl Painter<'_, '_> {
     ) -> Result<(), String> {
         let scale = self.scale;
         match content {
-            Content::RoundedRect(shape) => rounded_rect(canvas, shape, [shape.corner_radius; 4], scale),
+            Content::RoundedRect(shape) => {
+                rounded_rect(canvas, shape, [shape.corner_radius; 4], scale)
+            }
             Content::CorneredRect(shape, corners) => rounded_rect(canvas, shape, *corners, scale),
             Content::Glyph(glyph) => self.glyph(canvas, glyph)?,
             Content::Mesh(triangles) => self.mesh(canvas, triangles, clip)?,
@@ -302,7 +301,9 @@ fn turned(turn: Turn) -> Affine {
 
 /// A texture's straight-alpha texels as a premultiplied pixmap.
 fn pixmap(pixels: &Pixels) -> Pixmap {
-    let [width, height] = pixels.size.map(|side| side.clamp(1, u32::from(u16::MAX)) as u16);
+    let [width, height] = pixels
+        .size
+        .map(|side| side.clamp(1, u32::from(u16::MAX)) as u16);
     let mut data: Vec<u8> = pixels.rgba.iter().flatten().copied().collect();
     data.resize(usize::from(width) * usize::from(height) * 4, 0);
     Pixmap::from_parts(

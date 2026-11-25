@@ -26,7 +26,10 @@ fn a_gpu_lost_mid_frame_is_reopened_and_paints_again() {
     gpu.device.destroy();
     let _ = gpu.device.poll(wgpu::PollType::wait_indefinitely());
     assert!(gpu.lost(), "a destroyed device reports itself lost");
-    assert!(lost.renderer.resources().lost(), "the renderer stops drawing");
+    assert!(
+        lost.renderer.resources().lost(),
+        "the renderer stops drawing"
+    );
     lost.draw(Color32::BLACK, Repaint::Everything, crowded);
 
     pollster::block_on(gpu.reopen(None)).expect("a replacement device opens");

@@ -255,7 +255,12 @@ pub(crate) fn premultiplied(pixels: &[u8]) -> Vec<u8> {
         .flat_map(|texel| {
             let alpha = u32::from(texel[3]);
             let scaled = |channel: u8| ((u32::from(channel) * alpha + 127) / 255) as u8;
-            [scaled(texel[0]), scaled(texel[1]), scaled(texel[2]), texel[3]]
+            [
+                scaled(texel[0]),
+                scaled(texel[1]),
+                scaled(texel[2]),
+                texel[3],
+            ]
         })
         .collect()
 }

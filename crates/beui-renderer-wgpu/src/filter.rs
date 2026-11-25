@@ -58,7 +58,6 @@ impl Prepared {
         self.sigma
     }
 
-
     pub(super) fn widen(&self, damage: [f32; 4]) -> [f32; 4] {
         let touched = overlap(damage, self.region);
         if self.reach <= 0.0 || !covers(touched) {

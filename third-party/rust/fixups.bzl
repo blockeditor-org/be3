@@ -117,6 +117,16 @@ FIXUPS = {
             "src/binding.rs": "overlays/v8/src/binding.rs",
         },
     },
+    # vello_gpu 0.4 panics when a staging buffer has no mapped range, as on a
+    # device lost in the middle of a frame (before wgpu reports it at the next
+    # poll): the overlays skip the write instead, so the frame draws nothing.
+    # Drop them once vello_gpu has it.
+    "vello_gpu": {
+        "overlay": {
+            "src/render/wgpu/passes/strip.rs": "overlays/vello_gpu/render/wgpu/passes/strip.rs",
+            "src/render/wgpu/resources.rs": "overlays/vello_gpu/render/wgpu/resources.rs",
+        }
+    },
     # Bindings on WASI targets, as for js-sys.
     "wasm-bindgen": {
         "overlay": {
@@ -143,16 +153,6 @@ FIXUPS = {
             "src/backend/webgpu.rs": "overlays/wgpu/webgpu.rs",
             "src/backend/wgpu_core.rs": "overlays/wgpu/wgpu_core.rs",
             "src/util/device.rs": "overlays/wgpu/util/device.rs",
-        }
-    },
-    # vello_gpu 0.4 panics when a staging buffer has no mapped range, as on a
-    # device lost in the middle of a frame (before wgpu reports it at the next
-    # poll): the overlays skip the write instead, so the frame draws nothing.
-    # Drop them once vello_gpu has it.
-    "vello_gpu": {
-        "overlay": {
-            "src/render/wgpu/resources.rs": "overlays/vello_gpu/render/wgpu/resources.rs",
-            "src/render/wgpu/passes/strip.rs": "overlays/vello_gpu/render/wgpu/passes/strip.rs",
         }
     },
     # Windows API imports as raw-dylib, which rustc turns into import stubs

@@ -15,7 +15,10 @@ fn a_surface_configured_alike_keeps_its_textures_and_refuses_another_formats_vie
     let surface = gpu.surface_new(0);
     gpu.surface_configure(surface, configured(None));
     let made = gpu.surface(0).expect("the surface has textures").0.clone();
-    gpu.surface_configure(surface, configured(Some(abi::TextureFormat::Rgba8UnormSrgb)));
+    gpu.surface_configure(
+        surface,
+        configured(Some(abi::TextureFormat::Rgba8UnormSrgb)),
+    );
     assert_eq!(
         gpu.surface(0).map(|(texture, _)| texture.clone()),
         Some(made),
@@ -34,7 +37,8 @@ fn a_surface_configured_alike_keeps_its_textures_and_refuses_another_formats_vie
 
     gpu.surface_configure(surface, configured(Some(abi::TextureFormat::Bgra8Unorm)));
     assert!(
-        gpu.take_error().is_some_and(|error| error.contains("sRGB suffix")),
+        gpu.take_error()
+            .is_some_and(|error| error.contains("sRGB suffix")),
         "a view format that is another format is refused"
     );
 }
