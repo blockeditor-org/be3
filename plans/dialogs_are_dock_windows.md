@@ -19,16 +19,11 @@ stays an anchored view, so the app protocol does not change
 
 ## Steps
 
-1. **A window can point at its anchor.** A `Window` (and so a `DockDialog`) may be anchored to a rect:
-   it opens next to it with a beak, as `Anchored`'s card does, follows the anchor while
-   unmoved, and keeps where the person moved it once they move it. With no visible anchor it
-   opens at the top centre of its owning frame and draws no beak
-   (decisions/dialogs_are_presented_by_kind.md's fallback).
-2. **A window may block its owner.** `blocks` is a window's policy: its owner (a frame or a
-   tab) takes no presses and shows a scrim while the window is open; focus is trapped in it and
-   given back on close. `DockDialog`'s `modal` is this.
-3. **Phones show windows as sheets.** In the stacked and gathered modes the dock shows a window
-   as a sheet (a `ModalSheet`, one `Scroll`), full height for a large form.
+Steps 1 (a `Window` points at its anchor), 2 (it may block its owner; `DockDialog` is one) and 3
+(the dock shows a dialog as a sheet in the stacked and gathered modes) are built. A window that
+is a window of its own (a host that opens windows) does not point at its anchor yet; `DockDialog`
+stays an overlay there.
+
 4. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
    - Small forms (1): an anchored window with a beak.
    - Confirmations (2): a window centred on its frame that blocks it.

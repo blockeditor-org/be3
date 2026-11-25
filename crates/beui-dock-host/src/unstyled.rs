@@ -62,7 +62,7 @@ pub use bars::DockBarBandHandle;
 pub(crate) use bars::{BarCovers, BarFloats};
 use bars::{BarHolder, BarPanels, DockBarLifted, DockBarWindows, DockBarred, Lifting};
 use compact::DockCompactView;
-pub use dialog::DockDialogHandle;
+pub use dialog::{DockDialogHandle, DockDialogSheetHandle};
 use dialog::{DialogParts, DockDialogs};
 use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
@@ -323,6 +323,7 @@ struct State {
     dialogs: Memo<Vec<(TabId, TabId)>>,
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle, NodeId>,
+    dialog_sheet: Option<RenderFn<DockDialogSheetHandle, NodeId>>,
     dialog_beak: f32,
     curves: DockCurves,
     dialog_radius: f32,
@@ -1531,6 +1532,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialogs: Memo<Vec<(TabId, TabId)>>,
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
+    pub(crate) dialog_sheet: Option<RenderFn<DockDialogSheetHandle, NodeId>>,
     pub(crate) dialog_beak: f32,
     pub(crate) curves: DockCurves,
     pub(crate) dialog_radius: f32,
@@ -1593,6 +1595,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialogs,
         dialog,
         dialog_chrome,
+        dialog_sheet,
         dialog_beak,
         curves,
         dialog_radius,
@@ -1684,6 +1687,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome: dialog_chrome
             .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
+        dialog_sheet,
         dialog_beak,
         curves,
         dialog_radius,

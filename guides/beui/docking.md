@@ -329,7 +329,12 @@ alone even inside another dock's tab.
 ## Dialogs, tool bars, fullscreen
 
 - **`DockDialog`**: a dialog hung from a tab (or another dialog), shown exactly while its parent tab
-  is, never part of the `DockState` and never saved. `modal` blocks only the parent's panel. Use it
+  is, never part of the `DockState` and never saved. It is a beui `Window` owned by its parent's
+  panel (`unstyled/dialog.rs`): beside its tab with a beak, or at the top centre of the panel when
+  the tab does not show; dragged by its bar it stays where it is let go, inside its window. In the
+  stacked and gathered modes it is a sheet instead (the host's `dialog_sheet` face), full height
+  when its body is taller than a fitted sheet rests. `modal` is the window's `blocks`: it blocks
+  only the parent's panel. Use it
   for content the dock must hold (a program's dialog, be-sdk-shell's `WindowDialog`); a form opened
   from a control inside a tab body is the shared `Dialog` (guides/beui/overlays.md), which finds
   its tab through `use_frame_anchor()`.
@@ -409,7 +414,12 @@ windows. The code is `beui-core/src/window.rs` and `window/`; the component is `
   are overlays inside their window. Hosting may change while running, and a `Window` follows. A
   platform with no main window of its own calls `Context::set_shows_main(false)`.
 
-A `Window` is an `Overlay` with a window spec, so a program looks the same hosted or not.
+A `Window` is an `Overlay` with a window spec, so a program looks the same hosted or not. While it
+is an overlay it may hang from an `owner` node and point at an `anchor` (`WindowAnchor::Beside` a
+rect, placed `Placement::CARD` with a beak from its `pointer` frame, or `Top` of its owner with
+none), and may `block` its owner (no presses, a scrim, focus trapped); `own_window=false` keeps it
+an overlay, sized to its content, even where windows are hosted. A hosted window opens at its
+`placement` and points at nothing.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,
 and then the caller moves it itself.
 
