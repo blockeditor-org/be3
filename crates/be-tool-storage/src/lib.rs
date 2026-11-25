@@ -41,6 +41,9 @@ pub struct Storage {
 
 const RETRIES: u32 = 3;
 
+// ureq's requests answer with ureq's own `Error`, which `call` retries on and passes on as it
+// comes, so its size is ureq's.
+#[allow(clippy::result_large_err)]
 impl Storage {
     /// A client that sends `key`, the storage zone's password, with every `get` and `put`. Without
     /// one, only [`Storage::head`] and [`Storage::agent`] can be of use.
