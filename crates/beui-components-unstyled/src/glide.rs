@@ -17,6 +17,8 @@ pub struct GlideHold {
 struct GlideMotion {
     displacement: Vec2,
     velocity: Vec2,
+    /// Whether each axis has passed its rest since its move began.
+    passed: (bool, bool),
 }
 
 impl GlideMotion {
@@ -25,8 +27,18 @@ impl GlideMotion {
     }
 
     fn step(&mut self, spring: Spring, seconds: f32) -> bool {
-        spring.advance(&mut self.displacement.x, &mut self.velocity.x, seconds);
-        spring.advance(&mut self.displacement.y, &mut self.velocity.y, seconds);
+        spring.advance(
+            &mut self.displacement.x,
+            &mut self.velocity.x,
+            &mut self.passed.0,
+            seconds,
+        );
+        spring.advance(
+            &mut self.displacement.y,
+            &mut self.velocity.y,
+            &mut self.passed.1,
+            seconds,
+        );
         self.moving()
     }
 
@@ -37,6 +49,7 @@ impl GlideMotion {
             None => moved,
         };
         self.velocity = Vec2::ZERO;
+        self.passed = (false, false);
     }
 }
 

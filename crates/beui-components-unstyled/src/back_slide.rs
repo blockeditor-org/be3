@@ -252,7 +252,9 @@ impl Slide {
             Phase::Entering => (self.curves.enter, 0.0),
         };
         let mut displacement = (position - target) * width;
-        spring.advance(&mut displacement, &mut velocity, seconds);
+        // It stops at its target (gone, or at rest without showing what is beside it), so it
+        // never passes it.
+        spring.advance(&mut displacement, &mut velocity, &mut false, seconds);
         let position = target + displacement / width;
         match phase {
             Phase::Leaving if position >= 1.0 || (displacement == 0.0 && velocity == 0.0) => {

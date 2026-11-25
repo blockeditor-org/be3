@@ -30,9 +30,10 @@ pub fn tween(elapsed: f32, duration: f32, easing: Easing) -> f32 {
     })
 }
 
-/// A spring pulling a displacement back to 0. It never oscillates: it is critically damped or
-/// overdamped, a `damping` below critical (`2 * sqrt(stiffness)`) acting as critical, so a
-/// motion let go at rest comes to its end without passing it.
+/// A spring pulling a displacement back to 0. It swings past 0 at most once: the first time it
+/// passes 0 it may overshoot (an underdamped spring, `damping` below `2 * sqrt(stiffness)`),
+/// and from then on, `passed`, it moves as a critically damped spring at least, landing on 0 on
+/// its way back without passing it again. It never rings.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Spring {
     pub stiffness: f32,
@@ -40,37 +41,40 @@ pub struct Spring {
 }
 
 impl Spring {
-    /// The critically damped spring of `stiffness`: the quickest that never passes its end.
-    pub fn critical(stiffness: f32) -> Self {
-        Self {
-            stiffness,
-            damping: 2.0 * stiffness.max(0.0).sqrt(),
-        }
-    }
-
-    /// Whether it rests without passing its end from rest: critically damped or overdamped.
-    pub fn never_oscillates(self) -> bool {
-        self.damping * self.damping >= 4.0 * self.stiffness - 1e-3
-    }
-
-    pub fn advance(self, displacement: &mut f32, velocity: &mut f32, seconds: f32) {
+    /// Moves `displacement` and `velocity` on by `seconds`. `passed` says it has passed 0
+    /// already; it starts false for each new motion (a release, a new target), the spring sets
+    /// it as it passes 0, and clears it at rest.
+    pub fn advance(self, displacement: &mut f32, velocity: &mut f32, passed: &mut bool, seconds: f32) {
         if seconds <= 0.0 {
             return;
         }
         let x = *displacement;
         let v = *velocity;
         let stiffness = self.stiffness.max(0.0);
-        let decay = (self.damping * 0.5).max(stiffness.sqrt());
-        let discriminant = decay * decay - stiffness;
-        let (next, speed) = if discriminant < 1e-4 {
+        let decay = match *passed {
+            true => (self.damping * 0.5).max(stiffness.sqrt()),
+            false => self.damping * 0.5,
+        };
+        let discriminant = stiffness - decay * decay;
+        let (mut next, mut speed) = if discriminant.abs() < 1e-4 {
             let b = v + decay * x;
             let envelope = (-decay * seconds).exp();
             (
                 envelope * (x + b * seconds),
                 envelope * (v - decay * b * seconds),
             )
+        } else if discriminant > 0.0 {
+            let frequency = discriminant.sqrt();
+            let (sin, cos) = (frequency * seconds).sin_cos();
+            let b = (v + decay * x) / frequency;
+            let envelope = (-decay * seconds).exp();
+            let next = envelope * (x * cos + b * sin);
+            (
+                next,
+                envelope * frequency * (-x * sin + b * cos) - decay * next,
+            )
         } else {
-            let root = discriminant.sqrt();
+            let root = (-discriminant).sqrt();
             let first = -decay + root;
             let second = -decay - root;
             let a = (v - second * x) / (first - second);
@@ -79,11 +83,21 @@ impl Spring {
             let two = b * (second * seconds).exp();
             (one + two, first * one + second * two)
         };
+        if next * x < 0.0 || (x != 0.0 && next == 0.0) {
+            match *passed {
+                // Passing 0 a second time, it lands there instead.
+                true => (next, speed) = (0.0, 0.0),
+                false => *passed = true,
+            }
+        }
+        if next.abs() < 0.25 && speed.abs() < 5.0 {
+            next = 0.0;
+            speed = 0.0;
+        }
+        if next == 0.0 && speed == 0.0 {
+            *passed = false;
+        }
         *displacement = next;
         *velocity = speed;
-        if next.abs() < 0.25 && speed.abs() < 5.0 {
-            *displacement = 0.0;
-            *velocity = 0.0;
-        }
     }
 }

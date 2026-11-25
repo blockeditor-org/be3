@@ -149,7 +149,6 @@ pub(crate) fn LockScreen(
             scrim=Scrim::Opaque
             placement=ModalPlacement::Fill
             level=LayerLevel::Lock
-            motion=ModalMotion::Still
         >|| {
             let focused = create_memo(move || open.get() && !busy.get());
             let submit = submit.clone();

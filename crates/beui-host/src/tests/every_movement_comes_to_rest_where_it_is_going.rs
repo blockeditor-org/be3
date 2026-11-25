@@ -19,7 +19,7 @@ fn every_movement_comes_to_rest_where_it_is_going() {
 
         // A spring rests by pixel distances, so it is let go a long way off.
         let spring = movement.spring();
-        let (mut displacement, mut velocity) = (1000.0_f32, 0.0_f32);
+        let (mut displacement, mut velocity, mut passed) = (1000.0_f32, 0.0_f32, false);
         let mut frames = 0;
         while (displacement, velocity) != (0.0, 0.0) {
             assert!(
@@ -27,7 +27,7 @@ fn every_movement_comes_to_rest_where_it_is_going() {
                 "{} comes to rest within two seconds: {displacement}, {velocity}",
                 movement.name()
             );
-            spring.advance(&mut displacement, &mut velocity, 1.0 / 60.0);
+            spring.advance(&mut displacement, &mut velocity, &mut passed, 1.0 / 60.0);
             assert!(displacement.is_finite() && velocity.is_finite());
             frames += 1;
         }

@@ -530,14 +530,17 @@ pub(super) struct Moving {
     max: Vec2,
     min_speed: Vec2,
     max_speed: Vec2,
+    /// Whether each of the four has passed its rest since it set out.
+    passed: [bool; 4],
 }
 
 impl Moving {
     fn step(&mut self, spring: Spring, seconds: f32) -> bool {
-        spring.advance(&mut self.min.x, &mut self.min_speed.x, seconds);
-        spring.advance(&mut self.min.y, &mut self.min_speed.y, seconds);
-        spring.advance(&mut self.max.x, &mut self.max_speed.x, seconds);
-        spring.advance(&mut self.max.y, &mut self.max_speed.y, seconds);
+        let [left, top, right, bottom] = &mut self.passed;
+        spring.advance(&mut self.min.x, &mut self.min_speed.x, left, seconds);
+        spring.advance(&mut self.min.y, &mut self.min_speed.y, top, seconds);
+        spring.advance(&mut self.max.x, &mut self.max_speed.x, right, seconds);
+        spring.advance(&mut self.max.y, &mut self.max_speed.y, bottom, seconds);
         *self != Moving::default()
     }
 
@@ -621,11 +624,20 @@ impl Parting {
                 .unwrap_or_default();
             let (min, max) = (from.min - rect.min, from.max - rect.max);
             // An item already where the new layout puts it stays there; one still away
-            // keeps the speed it had, so a change of place mid-flight bends its path.
+            // keeps the speed it had, so a change of place mid-flight bends its path, and
+            // may pass its new place once.
             if min == Vec2::ZERO && max == Vec2::ZERO {
                 continue;
             }
-            next.insert(key, Moving { min, max, ..speed });
+            next.insert(
+                key,
+                Moving {
+                    min,
+                    max,
+                    passed: [false; 4],
+                    ..speed
+                },
+            );
         }
         self.moving.set(Rc::new(next));
         self.frames.start();

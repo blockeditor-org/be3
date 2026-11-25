@@ -38,9 +38,27 @@ fn a_dock_bar_thrown_towards_an_edge_floats_over_it_and_settles() {
         flying.left() > released.left() && flying.right() < body.right() - 20.0,
         "it flies on towards the edge rather than jumping there: {released:?} then {flying:?} in {body:?}"
     );
-    let frames = harness.frames_to_settle();
-    assert!(frames < 120, "the spring settles: {frames} frames");
+    let mut lefts = vec![flying.left()];
+    loop {
+        let output = harness.frame(Vec::new());
+        lefts.push(harness.rect(harness.find("bar.9")).left());
+        if !output.repaint && output.repaint_after > Duration::ZERO {
+            break;
+        }
+        assert!(lefts.len() < 120, "the spring settles");
+    }
     let floating = harness.rect(harness.find("bar.9"));
+    let rest = floating.left();
+    let passes = lefts
+        .windows(2)
+        .filter(|pair| (pair[0] - rest) * (pair[1] - rest) < 0.0)
+        .count();
+    let beyond = lefts.iter().fold(0.0_f32, |most, left| most.max(left - rest));
+    assert!(
+        passes == 1 && beyond > 1.0,
+        "it swings past where it lands once, by {beyond}, and lands there on the way back \
+         without passing it again ({passes} passes): {lefts:?}"
+    );
     assert!(
         body.contains_rect(floating)
             && body.right() - floating.right() < 16.0

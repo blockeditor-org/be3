@@ -271,6 +271,8 @@ enum Heading {
 struct Held {
     heading: Heading,
     velocity: f32,
+    /// Whether it has passed where it is heading since it set out.
+    passed: bool,
     /// The mouse holding it.
     mouse: Option<Grip>,
     /// A finger carrying it.
@@ -320,6 +322,7 @@ impl Motion {
             }
             held.heading = heading;
             held.velocity = velocity;
+            held.passed = false;
             if held.mouse.is_some() || held.finger {
                 return;
             }
@@ -462,9 +465,14 @@ impl Motion {
         };
         let target = self.target(heading);
         let mut displacement = self.offset.get_untracked() - target;
-        self.swipe
-            .spring
-            .advance(&mut displacement, &mut velocity, frame.delta.as_secs_f32());
+        let mut passed = self.held.borrow().passed;
+        self.swipe.spring.advance(
+            &mut displacement,
+            &mut velocity,
+            &mut passed,
+            frame.delta.as_secs_f32(),
+        );
+        self.held.borrow_mut().passed = passed;
         let offset = target + displacement;
         let off = match heading {
             Heading::Off(side) => offset * side >= self.travel(),
@@ -514,6 +522,7 @@ fn ToastItem(
         held: RefCell::new(Held {
             heading: Heading::Rest,
             velocity: 0.0,
+            passed: false,
             mouse: None,
             finger: false,
             dismissed: false,

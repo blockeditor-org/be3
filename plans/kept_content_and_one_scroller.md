@@ -9,7 +9,7 @@ piece should do once, plus small duplicates found beside them.
 
 Steps 1 (a kept subtree reads the context of the `Kept` showing it), 2 (overlays build their
 body on each open; keeping it is the caller's `Kept`), 3 (`Scroll`'s `snaps`) and 4 (a sheet is
-one `Scroll`, with sticky items, `bar_from` and, on the HTML core, CSS scroll snap) have landed.
+one `Scroll`, with sticky items and `bar_from`, running beui's own motion on both cores) have landed.
 
 5. **One card surface.** `Card`, `DialogCard` and `PopoverPanel` (styled `card.rs`,
    `dialog.rs`, `popover.rs`) are the same frame (Surface fill, the default border, `Lg`

@@ -84,6 +84,8 @@ struct State<K: 'static, P: 'static> {
     gap: Signal<Option<ReorderGap<K>>>,
     aim: Cell<f32>,
     speed: Cell<f32>,
+    /// Whether the gap has passed its aim since it last set out for it.
+    passed: Cell<bool>,
     frames: Cell<Option<Animation>>,
     visited: Signal<bool>,
     raised: Signal<Option<K>>,
@@ -334,7 +336,9 @@ where
             })),
             _ => {}
         }
-        state.aim.set(aim);
+        if state.aim.replace(aim) != aim {
+            state.passed.set(false);
+        }
         let shown = state
             .gap
             .with_untracked(|shown| shown.as_ref().map_or(0.0, |shown| shown.size));
@@ -366,8 +370,10 @@ where
             let aim = state.aim.get();
             let mut offset = shown.size - aim;
             let mut speed = state.speed.get();
-            state.spring.advance(&mut offset, &mut speed, seconds);
+            let mut passed = state.passed.get();
+            state.spring.advance(&mut offset, &mut speed, &mut passed, seconds);
             state.speed.set(speed);
+            state.passed.set(passed);
             shown.size = (aim + offset).max(0.0);
             let moving = offset != 0.0 || speed != 0.0;
             state.gap.set((moving || aim > 0.0).then_some(shown));
@@ -695,6 +701,7 @@ where
         gap,
         aim: Cell::new(0.0),
         speed: Cell::new(0.0),
+        passed: Cell::new(false),
         frames: Cell::new(None),
         visited,
         raised: create_signal(None),

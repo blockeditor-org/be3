@@ -1598,6 +1598,7 @@ fn AnimationSample() -> NodeId {
     let target = StoredCell::new(0.0_f32);
     let from = StoredCell::new(0.0_f32);
     let velocity = StoredCell::new(0.0_f32);
+    let passed = StoredCell::new(false);
     let transition = create_animation(
         move |frame| {
             let progress = tween(frame.elapsed.as_secs_f32(), 0.5, Easing::OutCubic);
@@ -1610,17 +1611,20 @@ fn AnimationSample() -> NodeId {
         move |frame| {
             let mut offset = spring_position.get_untracked() - target.get();
             let mut speed = velocity.get();
+            let mut past = passed.get();
             Spring {
                 stiffness: 180.0,
-                damping: 26.832_815,
+                damping: 20.124_61,
             }
-            .advance(&mut offset, &mut speed, frame.delta.as_secs_f32());
+            .advance(&mut offset, &mut speed, &mut past, frame.delta.as_secs_f32());
             velocity.set(speed);
+            passed.set(past);
             spring_position.set(target.get() + offset);
             offset != 0.0 || speed != 0.0
         },
         move || {
             velocity.set(0.0);
+            passed.set(false);
             spring_position.set(target.get());
         },
     );
@@ -1645,6 +1649,7 @@ fn AnimationSample() -> NodeId {
                     target.set(if target.get() == 0.0 { 220.0 } else { 0.0 });
                     transition.stop();
                     transition.start();
+                    passed.set(false);
                     spring.start();
                 }}
             />

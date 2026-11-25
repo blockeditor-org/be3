@@ -8,7 +8,7 @@ const RUBBER: Spring = Spring {
 };
 const PULL: Spring = Spring {
     stiffness: 400.0,
-    damping: 40.0,
+    damping: 30.0,
 };
 
 mod a_band_let_go_heading_back_carries_its_speed_past_the_edge;
