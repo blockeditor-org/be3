@@ -418,6 +418,13 @@ impl ViewId {
 }
 
 impl ViewPlacement {
+    /// Whether views anchored in it (a select's list, a menu) open as views of their own past
+    /// its bounds: every view but a preview, which takes no input. An artifact's settings view,
+    /// a dialog, is one.
+    pub fn anchors(self) -> bool {
+        !matches!(self, Self::Parent(ParentView::Preview))
+    }
+
     pub fn reports(self) -> bool {
         !matches!(
             self,

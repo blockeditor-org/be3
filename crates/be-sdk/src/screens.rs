@@ -213,7 +213,7 @@ impl Screens {
     fn anchor(&mut self, region: &ShownView, hung: Vec<Anchored>, out: &mut Vec<AnchoredScreen>) {
         let Some(space) = region
             .anchor_space
-            .filter(|_| region.view.placement.reports())
+            .filter(|_| region.view.placement.anchors())
         else {
             return;
         };

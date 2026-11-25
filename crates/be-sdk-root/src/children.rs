@@ -77,8 +77,8 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
     DockUpdate, EditorInstanceId, Fonts, FrameChrome, FrameSpec, HostTransform, MenuItem,
-    ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2,
-    ViewId, ViewPlacement, ViewportMetrics,
+    ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId,
+    ViewPlacement, ViewportMetrics,
     app::{EditorEvent, MenuChoice},
     shell_types::{ChildMenuChoice, MenuSet, ShellMessage},
 };
@@ -277,6 +277,9 @@ struct Child {
 struct Editor {
     /// What it shows, as the place that opened it named it.
     shown: Shown,
+    /// Whether that is an artifact's settings (`ChildContent::ArtifactSettings`), shown at its
+    /// editor's settings view: decoded once, as it is made.
+    settings: bool,
     showing: RefCell<Showing>,
     /// The children its own views place.
     nested: RefCell<Children>,
@@ -334,6 +337,7 @@ enum Showing {
 impl Editor {
     fn new(shown: Shown, showing: Showing) -> Rc<Self> {
         Rc::new(Self {
+            settings: settings_dialog(&shown),
             shown,
             showing: RefCell::new(showing),
             nested: RefCell::new(Children::default()),
@@ -440,11 +444,11 @@ impl Editor {
                     }
                 };
                 main.docked = docked;
-                // An artifact's settings show its editor's settings view, as be-host shows them.
-                if settings_dialog(&self.shown) {
+                // An artifact's settings show its editor's settings view, as be-host shows them,
+                // anchoring its popups (a select's list) where its place may, past the dialog.
+                if self.settings {
                     main.view = ViewId::ARTIFACT_SETTINGS;
                     main.placement = ViewPlacement::Parent(ParentView::ArtifactSettings);
-                    main.anchor_space = None;
                 }
                 Some(main)
             }
@@ -809,7 +813,7 @@ impl Child {
         let (app, editor) = self.hosted()?;
         // An artifact's settings want the height their view used, as be-host's status says
         // (`settings_height`).
-        if settings_dialog(&self.shown) {
+        if self.editor.settings {
             return app.used(self.screen(editor)).map(|used| ViewSize {
                 width: 0.0,
                 height: used.y.max(1.0),
