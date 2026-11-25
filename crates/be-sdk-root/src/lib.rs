@@ -615,7 +615,9 @@ impl Embedding {
         size: Vec2,
         own: Vec<OwnTree>,
     ) -> Option<be_sdk_api::accesskit::TreeUpdate> {
-        use be_sdk_api::accesskit::{Node, NodeId, Rect as AccessRect, Role, Tree, TreeId, TreeUpdate};
+        use be_sdk_api::accesskit::{
+            Node, NodeId, Rect as AccessRect, Role, Tree, TreeId, TreeUpdate,
+        };
         use be_sdk_app_host::accessibility::{Graft, Placing};
         if !describing() {
             self.own_trees.clear();
@@ -623,8 +625,10 @@ impl Embedding {
         }
         // A surface that went lets its tree go; one made in place of another under its id is a
         // new tree.
-        self.own_trees
-            .retain(|surface, (serial, _)| own.iter().any(|tree| (tree.surface, tree.serial) == (*surface, *serial)));
+        self.own_trees.retain(|surface, (serial, _)| {
+            own.iter()
+                .any(|tree| (tree.surface, tree.serial) == (*surface, *serial))
+        });
         for tree in own {
             let (_, graft) = self
                 .own_trees
