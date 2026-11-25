@@ -155,7 +155,10 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   data key or nested scope's key; one missing refuses the whole write
   (`KeyMissing`). A move within a scope or to Recently Deleted changes no
   keys, and the server checks none. `Peer::share` grants
-  and makes the block a scope root sealed to the grantee's verified key.
+  and makes the block a scope root sealed to the grantee's verified key, the
+  seal and the grant in one write when this device manages the block, so a
+  refused grant leaves no key behind: a device takes a verified contact's key
+  without a grant of its own (`KeyBook::sender_may` checks only the sender).
 - **Wrapped only under what is above.** A device wraps a key of a block under
   a scope key only of a block the signed parent records place it at or under
   (`Peer::signed_below`, Access logs below): making a block, moving one (the
