@@ -683,6 +683,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Edits waiting to be submitted: the operation, a bound on its size, how many edits it
     /// absorbed, the last local edit it holds, and the submission of an earlier opening that
     /// holds them, which it goes as (`kept_submissions`).
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     unsent: VecDeque<(C::Op, usize, u64, u64, Option<KeptSubmission>)>,
     /// The tentative layer: every open tentative gesture's edits, in the order made, shown on
     /// top of `unsent` and never submitted until the last of them ends.
@@ -4612,6 +4613,7 @@ where
         }
     }
 
+    #[allow(clippy::single_match)] // the arm left out says, in a comment, why nothing is done
     fn answer_log_read(&mut self, token: Token, result: Result<be_block_content::LogPage, String>) {
         let reader = self.log_reads.remove(&token).flatten();
         if let Ok(page) = &result {
