@@ -20,9 +20,14 @@ pub enum WindowAnchor {
     /// Beside this rect (`Placement::CARD`), pointing a beak at it from the `pointer` frame,
     /// and following its owner as the owner moves.
     Beside(Rect),
+    /// Beside this node, as `Beside` its rect, following it as it moves: a small form beside
+    /// the control that opened it.
+    Node(NodeRef),
     /// At the top centre of its owner (of its window, with no owner), pointing at nothing:
     /// where a window goes whose anchor does not show.
     Top,
+    /// Centred on its owner (on its window, with no owner): a confirmation, a large form.
+    Centre,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -128,8 +133,9 @@ pub fn Window(
     #[prop(default = 0.0)]
     beak: Prop<f32>,
     pointer: Option<NodeRef>,
-    /// Blocks its owner while open: no presses reach the owner, `scrim` covers it, focus can't
-    /// enter it, and a press there asks the window to close (`on_dismiss`).
+    /// Blocks its owner (with no owner, its whole window) while open: no presses reach it,
+    /// `scrim` covers it, focus is trapped in the window, and a press there asks the window to
+    /// close (`on_dismiss`).
     #[prop(default = false)]
     blocks: Prop<bool>,
     #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
@@ -215,6 +221,7 @@ pub fn Window(
         };
         match anchor.get() {
             Some(WindowAnchor::Beside(rect)) => (pinned(rect), Placement::CARD, true),
+            Some(WindowAnchor::Node(node)) => (OverlayAnchor::Node(node), Placement::CARD, true),
             Some(WindowAnchor::Top) => {
                 let frame = owned
                     .get()
@@ -222,6 +229,14 @@ pub fn Window(
                 let top = Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y));
                 (pinned(top), Placement::CARD, false)
             }
+            Some(WindowAnchor::Centre) => match (owner, owned.get()) {
+                (Some(node), Some(rect)) => (
+                    OverlayAnchor::Pinned { node, rect },
+                    Placement::CenterOn,
+                    false,
+                ),
+                _ => (OverlayAnchor::Point(Pos2::ZERO), Placement::Center, false),
+            },
             None => (pinned(point(at.get())), Placement::At, false),
         }
     });
@@ -232,9 +247,11 @@ pub fn Window(
         false => 0.0,
     });
     let blocking = blocks.clone();
-    let policy = create_memo(move || match blocking.get() {
-        true => LayerPolicy::BlocksParent,
-        false => LayerPolicy::Pass,
+    // With no owner, its whole window is what it blocks.
+    let policy = create_memo(move || match (blocking.get(), owner.is_some()) {
+        (true, true) => LayerPolicy::BlocksParent,
+        (true, false) => LayerPolicy::BlocksAll,
+        (false, _) => LayerPolicy::Pass,
     });
     let blocking = blocks.clone();
     let dims = create_memo(move || match blocking.get() {
