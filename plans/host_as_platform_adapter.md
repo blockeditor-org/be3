@@ -2112,9 +2112,19 @@ Each step lands on its own.
              - Left: windows of a child's app (an editor placed in the session) are drawn in
                their own views, as the root asks children without windows; and the pointer an
                `at-pointer` window opens at is the last the main window saw.
-           - 4g7e2b. `begin-move` and `begin-resize`: the window stack's
-             gestures and springs (be-sdk-window-stack's `Gesture`, `Stacked`), the pointer
-             held by the root while one runs, and Super+drag on any window.
+           - 4g7e2b. Built: `begin-move` and `begin-resize`. A press on a window the root
+             floats raises it, with the windows opened over it, and notes where the pointer was
+             (`floating::press`); a move or resize the app asks for next is held from there
+             (`floating::Held`), and the root takes the main window's pointer moves itself
+             while one is held (`Embedding::input`, `Embedded::follow_held`): the window
+             follows the pointer (be-sdk-window-stack's `drag`), asked for where it moved and at
+             its new size, until the pointer is released, which the app hears. Host test
+             `be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip`;
+             be-sdk-root's `floating::tests`.
+             - Left: the springs be-host's desktop pulls a moved window to the displays' edges
+               and other windows with (`Spring`), Super+drag on any window, and a gesture held
+               by the pointer that began it (be-host's `Gesture::pointer`): under the root any
+               pointer's moves follow it.
            - 4g7e2c. Levels and host placements (`window-level`, `window-placement.host`): bars
              and panels in front, work areas the desktop notes (`note_work_area`) that keep
              normal windows clear of them.

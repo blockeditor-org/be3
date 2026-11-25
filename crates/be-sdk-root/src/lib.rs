@@ -210,17 +210,25 @@ impl Embedding {
     /// to the app, at the time it was sampled; what lands on the root's own surfaces is
     /// answered, for the root to take in.
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Routed, String> {
-        let events = input::decode(events)?;
+        let mut events = input::decode(events)?;
         // Where the pointer is in the main window, where a window an app opens at the pointer
-        // opens.
+        // opens and a move or resize of one follows it; the moves that move or resize one the
+        // root takes itself (`Embedded::follow_held`).
         if window.is_none() {
-            for event in &events {
+            let holding: Vec<Embedded> = self
+                .apps
+                .iter()
+                .filter(|app| app.holds())
+                .cloned()
+                .collect();
+            events.retain(|event| {
                 if let input::Input::PointerMoved(at) | input::Input::PointerButton { pos: at, .. } =
                     &event.input
                 {
                     floating::note_pointer(*at);
                 }
-            }
+                !holding.iter().any(|app| app.follow_held(&event.input))
+            });
         }
         self.dismiss_outside(window, &events);
         let lifted = self.lift();
