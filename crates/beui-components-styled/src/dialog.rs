@@ -129,7 +129,7 @@ pub fn DialogFrame(
                 <Frame padding=MARGIN>
                     <Card
                         padding=Space::None
-                        max_width={width.clone().map(Some)}
+                        max_width={width.map(Some)}
                         pointer={handle.pointer}
                     >
                         {handle.body}

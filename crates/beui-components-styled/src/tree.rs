@@ -156,7 +156,7 @@ where
                                     handle
                                     named
                                     outline={outline}
-                                    leading={RowLeading(leading.clone())}
+                                    leading={RowLeading(leading)}
                                     content={content}
                                 />
                             }

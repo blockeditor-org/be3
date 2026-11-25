@@ -27,7 +27,7 @@ pub fn Banner(
                     text
                     id={id.clone()}
                     dismiss_label={dismiss_label.clone()}
-                    on_dismiss={on_dismiss.clone()}
+                    on_dismiss={on_dismiss}
                 />
             </Show>
         </List>

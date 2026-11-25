@@ -151,7 +151,7 @@ pub fn RowFace(
         return view! {
             <Frame
                 height={size.height()}
-                fill={fill.clone()}
+                fill={fill}
                 radius=Radius::Md
                 focus={focused}
                 padding={size.padding()}
