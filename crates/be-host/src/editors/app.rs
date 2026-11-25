@@ -307,6 +307,18 @@ impl PendingCreation for AppCreation {
 const CREATION_DIALOG_HEIGHT: f32 = 96.0;
 const UNSUPPORTED_EDITOR_SIZE: Vec2 = vec2(400.0, 120.0);
 
+/// The size an editor that tells none is taken to want.
+const DEFAULT_EDITOR_SIZE: Vec2 = vec2(420.0, 240.0);
+
+/// The intrinsic size an app's editor told, or, once it has reported a frame without telling
+/// one, the default; `None` until then, so a placer fits a child to what it tells rather than
+/// to a default it replaces a frame later.
+pub(crate) fn told_intrinsic_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
+    be_host_runtime::intrinsic_size(app_id, instance).or_else(|| {
+        be_host_runtime::reported_a_frame(app_id, instance).then_some(DEFAULT_EDITOR_SIZE)
+    })
+}
+
 pub(crate) struct AppEditor {
     app: Option<(Arc<AppManifest>, Uuid)>,
     id: Uuid,
@@ -559,10 +571,7 @@ impl AppEditor {
         let Some(app) = self.app() else {
             return Some(UNSUPPORTED_EDITOR_SIZE);
         };
-        Some(
-            be_host_runtime::intrinsic_size(&app.identity.id, self.instance)
-                .unwrap_or_else(|| vec2(420.0, 240.0)),
-        )
+        told_intrinsic_size(&app.identity.id, self.instance)
     }
 
     pub(crate) fn show_block(&self, open: be_host_runtime::BlockOpen) {

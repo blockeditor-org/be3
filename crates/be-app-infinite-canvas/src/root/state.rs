@@ -505,6 +505,19 @@ struct Placeholder {
     fitted: bool,
 }
 
+/// Cards added together (one block, a paste of several, a drop of files) and the undo group
+/// they were added in, which their first fits join, so the add is one undo step however late
+/// their children tell their sizes. It is the canvas's own group unless the add went into a
+/// gesture of the canvas's already open (`own`). It is committed once every card is fitted or
+/// at the canvas's next other write, and kept as one step if the canvas closes first (the host
+/// commits an undo group its editor leaves open); a card fitted after that keeps the size it
+/// has rather than make a step of its own.
+struct Adding {
+    group: ContentGesture,
+    own: bool,
+    waiting: HashSet<Uuid>,
+}
+
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
     /// Each PNG a paste of a copy asked for, while the PNG exporter makes it, and whether it is
@@ -524,6 +537,7 @@ struct CanvasCells {
     select_tool: Cell<Tool>,
     children: RefCell<HashMap<Uuid, ChildState>>,
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
+    adding: RefCell<Vec<Adding>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
     /// The undo group the canvas's writes go in while one is open (`open_writes`): what a
@@ -702,6 +716,7 @@ impl CanvasState {
             select_tool: Cell::new(Tool::Select),
             children: RefCell::new(HashMap::new()),
             placeholders: RefCell::new(HashMap::new()),
+            adding: RefCell::new(Vec::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
             writing: Cell::new(None),
@@ -1034,7 +1049,8 @@ fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> 
     let mut fitted = entity.clone();
     fitted.scale = scale;
     fitted.transform.size = size;
-    fitted.transform.center = CanvasPoint::new(bounds.center().x, bounds.min.y + size.y * 0.5);
+    // About its centre, where the card was dropped or added, so a tall child stays in view.
+    fitted.transform.center = CanvasPoint::new(bounds.center().x, bounds.center().y);
     Some(fitted)
 }
 
@@ -1050,24 +1066,95 @@ impl CanvasState {
         self.operate_all(std::slice::from_ref(operation));
     }
 
+    fn edit_of(&self, operations: &[InfiniteCanvasOperation]) -> Option<Edit> {
+        self.cells
+            .value()
+            .content
+            .read(|canvas| {
+                operations
+                    .iter()
+                    .flat_map(|operation| Canvas::edit_in(canvas, operation).0)
+                    .collect::<Edit>()
+            })
+            .ok()
+            .filter(|edit| !edit.0.is_empty())
+    }
+
     fn operate_all(&self, operations: &[InfiniteCanvasOperation]) {
-        if let Ok(edit) = self.cells.value().content.read(|canvas| {
-            operations
-                .iter()
-                .flat_map(|operation| Canvas::edit_in(canvas, operation).0)
-                .collect::<Edit>()
-        }) && !edit.0.is_empty()
-        {
-            match self
-                .gesture
-                .with_untracked(|gesture| gesture.as_ref().map(Gesture::chooses))
-            {
-                Some(true) => self.open_hold(),
-                Some(false) => self.open_writes(),
-                None => {}
-            }
+        if let Some(edit) = self.edit_of(operations) {
+            self.open_for_gesture();
             self.write(edit);
         }
+    }
+
+    /// Opens what a gesture in progress writes in: a tentative gesture for one that chooses
+    /// a result, else an undo group.
+    fn open_for_gesture(&self) {
+        match self
+            .gesture
+            .with_untracked(|gesture| gesture.as_ref().map(Gesture::chooses))
+        {
+            Some(true) => self.open_hold(),
+            Some(false) => self.open_writes(),
+            None => {}
+        }
+    }
+
+    /// Commits the undo groups of the cards added since the last write (`Adding`).
+    fn commit_adding(&self) {
+        let adding = std::mem::take(&mut *self.cells.value().adding.borrow_mut());
+        let content = self.content();
+        for adding in adding {
+            if adding.own && content.gesture_open(adding.group) {
+                content.commit_gesture(adding.group);
+            }
+        }
+    }
+
+    /// Writes a new card's first fit in the group it was added in, while that is open, and
+    /// commits the group once its last card is fitted. Whether it was written.
+    fn write_first_fit(&self, fitted: CanvasEntity) -> bool {
+        let id = fitted.id;
+        let content = self.content();
+        let cells = self.cells.value();
+        let Some(at) = cells
+            .adding
+            .borrow()
+            .iter()
+            .position(|adding| adding.waiting.contains(&id))
+        else {
+            return false;
+        };
+        let (group, own) = {
+            let adding = &cells.adding.borrow()[at];
+            (adding.group, adding.own)
+        };
+        if !content.gesture_open(group) {
+            // An undo or redo ended it.
+            cells.adding.borrow_mut().remove(at);
+            return false;
+        }
+        if let Some(edit) = self.edit_of(&[InfiniteCanvasOperation::Update {
+            entities: vec![fitted],
+        }]) {
+            content.operate_in(group, edit);
+        }
+        let done = {
+            let mut adding = cells.adding.borrow_mut();
+            let Some(at) = adding.iter().position(|adding| adding.group == group) else {
+                return true;
+            };
+            adding[at].waiting.remove(&id);
+            adding[at]
+                .waiting
+                .is_empty()
+                .then(|| adding.remove(at))
+                .is_some()
+        };
+        if done && own && content.gesture_open(group) {
+            content.commit_gesture(group);
+        }
+        true
     }
 
     pub(crate) fn with_stroke<R>(&self, change: impl FnOnce(&mut Option<Stroke>) -> R) -> R {
@@ -1085,6 +1172,13 @@ impl CanvasState {
     /// Makes `edit` in the open tentative gesture (`open_hold`), else in the open undo group
     /// (`open_writes`), or outside any.
     fn write(&self, edit: Edit) {
+        self.commit_adding();
+        self.write_keeping_adds(edit);
+    }
+
+    /// `write`, leaving the groups of cards just added open: what the canvas writes of itself,
+    /// fitting its children, which their own fits may still join.
+    fn write_keeping_adds(&self, edit: Edit) {
         let content = self.content();
         let cells = self.cells.value();
         match cells.holding.get().or(cells.writing.get()) {
@@ -2451,13 +2545,19 @@ impl CanvasState {
             if !state.is_alive() {
                 return;
             }
-            for (index, pasted) in pasted.into_iter().enumerate() {
-                let offset = IMPORT_CASCADE_OFFSET * index as f32;
-                state.add_direct_editor(
-                    pasted.block,
-                    CanvasPoint::new(center.x + offset, center.y + offset),
-                );
-            }
+            state.add_direct_editors(
+                pasted
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, pasted)| {
+                        let offset = IMPORT_CASCADE_OFFSET * index as f32;
+                        (
+                            pasted.block,
+                            CanvasPoint::new(center.x + offset, center.y + offset),
+                        )
+                    })
+                    .collect(),
+            );
             state.put_down_tool();
         });
     }
@@ -2838,29 +2938,67 @@ impl CanvasState {
     }
 
     pub(crate) fn add_direct_editor(&self, block_id: Uuid, center: CanvasPoint) {
+        self.add_direct_editors(vec![(block_id, center)]);
+    }
+
+    /// Adds a card for each block, about its point, in one undo step with their first fits
+    /// (`Adding`), and selects them.
+    pub(crate) fn add_direct_editors(&self, blocks: Vec<(Uuid, CanvasPoint)>) {
+        if blocks.is_empty() {
+            return;
+        }
         let size = direct_editor_entity_size(Vec2::new(180.0, 100.0), 1.0);
-        let entity = CanvasEntity {
-            block: Some(block_id),
-            ..CanvasEntity::new(CanvasShape::Editor, CanvasTransform::new(center, size, 0.0))
+        let entities: Vec<CanvasEntity> = blocks
+            .into_iter()
+            .map(|(block_id, center)| CanvasEntity {
+                block: Some(block_id),
+                ..CanvasEntity::new(CanvasShape::Editor, CanvasTransform::new(center, size, 0.0))
+            })
+            .collect();
+        let ids: HashSet<Uuid> = entities.iter().map(|entity| entity.id).collect();
+        self.open_for_gesture();
+        let cells = self.cells.value();
+        let (group, own) = match cells.holding.get().or(cells.writing.get()) {
+            Some(open) => (open, false),
+            None => (self.content().begin_gesture(), true),
         };
-        let entity_id = entity.id;
-        self.cells.value().placeholders.borrow_mut().insert(
-            entity_id,
-            Placeholder {
-                entity: entity.clone(),
-                fitted: false,
-            },
-        );
-        self.selection.set(HashSet::from([entity_id]));
-        self.record(InfiniteCanvasOperation::Add {
-            entity: Box::new(entity),
-            pixels: None,
+        cells.placeholders.borrow_mut().extend(entities.iter().map(|entity| {
+            (
+                entity.id,
+                Placeholder {
+                    entity: entity.clone(),
+                    fitted: false,
+                },
+            )
+        }));
+        cells.adding.borrow_mut().push(Adding {
+            group,
+            own,
+            waiting: ids.clone(),
         });
+        self.selection.set(ids);
+        let added: Vec<InfiniteCanvasOperation> = entities
+            .into_iter()
+            .map(|entity| InfiniteCanvasOperation::Add {
+                entity: Box::new(entity),
+                pixels: None,
+            })
+            .collect();
+        if let Some(edit) = self.edit_of(&added) {
+            self.content().operate_in(group, edit);
+        }
     }
 
     pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
-        let id = self.editor.create_child(&image);
-        self.add_direct_editor(id, center);
+        self.add_imported_images(vec![(image, center)]);
+    }
+
+    pub(crate) fn add_imported_images(&self, images: Vec<(ImageContent, CanvasPoint)>) {
+        let blocks = images
+            .into_iter()
+            .map(|(image, center)| (self.editor.create_child(&image), center))
+            .collect();
+        self.add_direct_editors(blocks);
     }
 
     pub(crate) fn toggle_selected_block_mode(&self) {
@@ -3281,13 +3419,19 @@ impl CanvasState {
             return;
         }
         let base = self.cells.value().pending_file_drop.take().unwrap_or(at);
-        for (index, file) in drop.files.into_iter().enumerate() {
-            let offset = IMPORT_CASCADE_OFFSET * index as f32;
-            self.add_imported_image(
-                ImageFile::from_file(file.name, file.data),
-                CanvasPoint::new(base.x + offset, base.y + offset),
-            );
-        }
+        self.add_imported_images(
+            drop.files
+                .into_iter()
+                .enumerate()
+                .map(|(index, file)| {
+                    let offset = IMPORT_CASCADE_OFFSET * index as f32;
+                    (
+                        ImageFile::from_file(file.name, file.data),
+                        CanvasPoint::new(base.x + offset, base.y + offset),
+                    )
+                })
+                .collect(),
+        );
     }
 
     pub(crate) fn take_paste(&self, pasted: ClipItem) {
@@ -3504,8 +3648,8 @@ impl CanvasState {
                         {
                             held.fitted = true;
                         }
-                        before.push(entity);
-                        after.push(fitted);
+                        // Fitted in the step that added it, or not at all.
+                        self.write_first_fit(fitted);
                     }
                     continue;
                 }
@@ -3552,7 +3696,12 @@ impl CanvasState {
             before.push(entity);
             after.push(updated);
         }
-        self.record_update(before, after);
+        if before != after
+            && let Some(edit) = self.edit_of(&[InfiniteCanvasOperation::Update { entities: after }])
+        {
+            self.open_for_gesture();
+            self.write_keeping_adds(edit);
+        }
     }
 
     fn is_placeholder(&self, entity: &CanvasEntity) -> bool {

@@ -1824,9 +1824,9 @@ Each step lands on its own.
                (`shown-child.intrinsic`). Host test
                `be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_canvas`;
                the root paintings with a tab now show the tab's child's menu in its bar.
-               Left for later: a card dropped under the root keeps its placeholder size, where
-               be-host fits it to the checklist's content, since the checklist's editor never
-               tells the root an intrinsic size there (not yet understood); a pick from a
+               A card dropped under the root is fitted to its child's intrinsic size as under
+               be-host (the checklist declares one, and be-host tells no default size before
+               the child's editor has drawn). Left for later: a pick from a
                joined dock's tab menu (the docks' `take_picks`, now sent as `menu-pick`), a
                docked child's details (`take_details`, as `child-details`) and a pick through a
                child's menu have no host test; files dragged in from outside the window are not
@@ -1923,8 +1923,6 @@ Each step lands on its own.
                closes the panel now (painting
                `be_root_keeps_an_editor_in_place_as_its_panel_closes`); the guide states
                the rule (guides/apps/children.md, A child that takes the frame).
-           - A dropped child is not fitted to its content (deferred: the root never hears the
-             checklist's intrinsic size, 4g7b3f).
        - 4g7c. Anchored views placed outside groups (`anchored`).
          - Built: the root hands each view an anchor space (`screen-request.anchor-space`):
            the session's screen anchors anywhere in the window, in its points, and each child

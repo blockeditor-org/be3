@@ -949,9 +949,11 @@ alike, drops what the editor makes in it after, and the projection runs
 `on_gesture_ended` so the editor stops the gesture. Only a commit already on its
 way when the replica ended it crosses that word. An edit the replica drops in an
 ended gesture is answered with a snapshot, so the editor's mirror lets it go. An
-undo or redo commits open undo groups first; while a
+undo or redo commits open undo groups first and tells their editors
+(`ToEditor::GestureEnded` without `cancelled`), so `gesture_open` answers no for
+them and the editor's later edits in one are recorded outside it; while a
 tentative gesture is open, an undo cancels the whole tentative layer instead and a redo
-is refused. The runtime keeps the ids of the gestures each link holds open and cancels every one when the link goes. A session restart keeps open gestures open with what they recorded. Apps call `act(block, block-command::undo)`
+is refused. The runtime keeps the gestures each link holds open and ends every one when the link goes (its editor closes): an undo group still open is committed and kept as one step, since its edits were written as they were made, and only a tentative gesture is cancelled, so only tentative edits leave no trace. A session restart keeps open gestures open with what they recorded. Apps call `act(block, block-command::undo)`
 and watch a block's `history` with a `block-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying
