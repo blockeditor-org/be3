@@ -146,6 +146,12 @@ downloads = {
         "size_bytes": 5243,
         "version": "0.1.5",
     },
+    "annotate-snippets-0.12.18": {
+        "name": "annotate-snippets",
+        "sha256": "0258346f92c78dbc5b336b9a5b27c64447aa10643bc64e651db2edb145361564",
+        "size_bytes": 61210,
+        "version": "0.12.18",
+    },
     "anstream-1.0.0": {
         "name": "anstream",
         "sha256": "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d",
@@ -235,6 +241,12 @@ downloads = {
         "sha256": "175571dd1d178ced59193a6fc02dde1b972eb0bc56c892cde9beeceac5bf0f6b",
         "size_bytes": 6460,
         "version": "1.0.1",
+    },
+    "ascii-canvas-4.0.0": {
+        "name": "ascii-canvas",
+        "sha256": "ef1e3e699d84ab1b0911a1010c5c106aa34ae89aeac103be5ce0c3859db1e891",
+        "size_bytes": 10940,
+        "version": "4.0.0",
     },
     "ash-0.38.0+1.3.281": {
         "name": "ash",
@@ -487,6 +499,18 @@ downloads = {
         "sha256": "09ec2f926cc3060f09db9ebc5b52823d85268d24bb917e472c0c4bea35780a7d",
         "size_bytes": 20439,
         "version": "0.10.0",
+    },
+    "bit-set-0.8.0": {
+        "name": "bit-set",
+        "sha256": "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3",
+        "size_bytes": 16289,
+        "version": "0.8.0",
+    },
+    "bit-vec-0.8.0": {
+        "name": "bit-vec",
+        "sha256": "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7",
+        "size_bytes": 24132,
+        "version": "0.8.0",
     },
     "bit-vec-0.9.1": {
         "name": "bit-vec",
@@ -812,6 +836,12 @@ downloads = {
         "size_bytes": 57424,
         "version": "0.13.1",
     },
+    "color-0.3.3": {
+        "name": "color",
+        "sha256": "2ec7c5eb7a16992b1904d76c517d170ab353b0e0b3d5a0c81a8a0cd1037893cf",
+        "size_bytes": 75273,
+        "version": "0.3.3",
+    },
     "color_quant-1.1.0": {
         "name": "color_quant",
         "sha256": "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b",
@@ -871,6 +901,12 @@ downloads = {
         "sha256": "1c7e7913ec01ed98b697e62f8d3fd63c86dc6cccaf983c7eebc64d0e563b0ad9",
         "size_bytes": 7048,
         "version": "1.1.0",
+    },
+    "convert_case-0.10.0": {
+        "name": "convert_case",
+        "sha256": "633458d4ef8c78b72454de2d54fd6ab2e60f9e02be22f3c6104cdc8a4e0fceb9",
+        "size_bytes": 24083,
+        "version": "0.10.0",
     },
     "core-foundation-sys-0.8.7": {
         "name": "core-foundation-sys",
@@ -1130,6 +1166,18 @@ downloads = {
         "size_bytes": 26885,
         "version": "0.5.8",
     },
+    "derive_more-2.1.1": {
+        "name": "derive_more",
+        "sha256": "d751e9e49156b02b44f9c1815bcb94b984cdcc4396ecc32521c739452808b134",
+        "size_bytes": 88632,
+        "version": "2.1.1",
+    },
+    "derive_more-impl-2.1.1": {
+        "name": "derive_more-impl",
+        "sha256": "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb",
+        "size_bytes": 99094,
+        "version": "2.1.1",
+    },
     "des-0.9.0": {
         "name": "des",
         "sha256": "916a94e407b54f9034d71dd748234cd1e516ced6284009906ae246f177eafe5a",
@@ -1328,6 +1376,12 @@ downloads = {
         "size_bytes": 128418,
         "version": "0.9.0",
     },
+    "ena-0.14.4": {
+        "name": "ena",
+        "sha256": "eabffdaee24bd1bf95c5ef7cec31260444317e72ea56c4c91750e8b7ee58d5f1",
+        "size_bytes": 23421,
+        "version": "0.14.4",
+    },
     "encoding_rs-0.8.35": {
         "name": "encoding_rs",
         "sha256": "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3",
@@ -1436,6 +1490,18 @@ downloads = {
         "size_bytes": 27188,
         "version": "0.3.7",
     },
+    "fearless_simd-1.3.0": {
+        "name": "fearless_simd",
+        "sha256": "6a7107516a8be9a4ffe92495f3dbfe04348be0ad18f17c67a1d846511f99e599",
+        "size_bytes": 500630,
+        "version": "1.3.0",
+    },
+    "fearless_simd_macros-0.1.0": {
+        "name": "fearless_simd_macros",
+        "sha256": "3e91d94c6885390b81782d7ee60fd6583b33907333a8b340de25ccf468353315",
+        "size_bytes": 13935,
+        "version": "0.1.0",
+    },
     "ff-0.13.1": {
         "name": "ff",
         "sha256": "c0b50bfb653653f9ca9095b427bed08ab8d75a137839d9ad64eb11810d5b6393",
@@ -1477,6 +1543,12 @@ downloads = {
         "sha256": "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2",
         "size_bytes": 80465,
         "version": "1.5.0",
+    },
+    "fixedbitset-0.5.9": {
+        "name": "fixedbitset",
+        "sha256": "5905ec755cc8386d7928353e4d356d2be3e89e81e5ca01fe630a1ca4d08dc175",
+        "size_bytes": 28591,
+        "version": "0.5.9",
     },
     "flagset-0.4.7": {
         "name": "flagset",
@@ -1729,6 +1801,12 @@ downloads = {
         "sha256": "7fd1a1c7a5206c5b7a3f5a0d7ccd3ff85d0c8f5133d62a02680255b0004af5f4",
         "size_bytes": 18537,
         "version": "0.14.0",
+    },
+    "guillotiere-0.7.0": {
+        "name": "guillotiere",
+        "sha256": "6b17e70c989c36bad147b27a58d148c0741c51448aa5653436547323e524d0ab",
+        "size_bytes": 19983,
+        "version": "0.7.0",
     },
     "gvdb-0.10.1": {
         "name": "gvdb",
@@ -2270,6 +2348,12 @@ downloads = {
         "size_bytes": 9164,
         "version": "0.1.0-rc.1",
     },
+    "keccak-0.1.6": {
+        "name": "keccak",
+        "sha256": "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653",
+        "size_bytes": 13529,
+        "version": "0.1.6",
+    },
     "keyboard-types-0.8.3": {
         "name": "keyboard-types",
         "sha256": "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d",
@@ -2306,6 +2390,18 @@ downloads = {
         "size_bytes": 169000,
         "version": "0.13.1",
     },
+    "lalrpop-0.22.2": {
+        "name": "lalrpop",
+        "sha256": "ba4ebbd48ce411c1d10fb35185f5a51a7bfa3d8b24b4e330d30c9e3a34129501",
+        "size_bytes": 245956,
+        "version": "0.22.2",
+    },
+    "lalrpop-util-0.22.2": {
+        "name": "lalrpop-util",
+        "sha256": "b5baa5e9ff84f1aefd264e6869907646538a52147a755d494517a8007fb48733",
+        "size_bytes": 18146,
+        "version": "0.22.2",
+    },
     "lazy_static-1.5.0": {
         "name": "lazy_static",
         "sha256": "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe",
@@ -2323,6 +2419,48 @@ downloads = {
         "sha256": "777b48df9aaab155475a83a7df3070395ea1ac6902f5cd062b8f2b028075c030",
         "size_bytes": 68807,
         "version": "0.10.2",
+    },
+    "lexical-7.0.5": {
+        "name": "lexical",
+        "sha256": "1bc8a009b2ff1f419ccc62706f04fe0ca6e67b37460513964a3dfdb919bb37d6",
+        "size_bytes": 29041,
+        "version": "7.0.5",
+    },
+    "lexical-core-1.0.6": {
+        "name": "lexical-core",
+        "sha256": "7d8d125a277f807e55a77304455eb7b1cb52f2b18c143b60e766c120bd64a594",
+        "size_bytes": 30422,
+        "version": "1.0.6",
+    },
+    "lexical-parse-float-1.0.6": {
+        "name": "lexical-parse-float",
+        "sha256": "52a9f232fbd6f550bc0137dcb5f99ab674071ac2d690ac69704593cb4abbea56",
+        "size_bytes": 194003,
+        "version": "1.0.6",
+    },
+    "lexical-parse-integer-1.0.6": {
+        "name": "lexical-parse-integer",
+        "sha256": "9a7a039f8fb9c19c996cd7b2fcce303c1b2874fe1aca544edc85c4a5f8489b34",
+        "size_bytes": 37501,
+        "version": "1.0.6",
+    },
+    "lexical-util-1.0.7": {
+        "name": "lexical-util",
+        "sha256": "2604dd126bb14f13fb5d1bd6a66155079cb9fa655b37f875b3a742c705dbed17",
+        "size_bytes": 111747,
+        "version": "1.0.7",
+    },
+    "lexical-write-float-1.0.6": {
+        "name": "lexical-write-float",
+        "sha256": "50c438c87c013188d415fbabbb1dceb44249ab81664efbd31b14ae55dabb6361",
+        "size_bytes": 106495,
+        "version": "1.0.6",
+    },
+    "lexical-write-integer-1.0.6": {
+        "name": "lexical-write-integer",
+        "sha256": "409851a618475d2d5796377cad353802345cba92c867d9fbcde9cf4eac4e14df",
+        "size_bytes": 65404,
+        "version": "1.0.6",
     },
     "libc-0.2.186": {
         "name": "libc",
@@ -2378,6 +2516,12 @@ downloads = {
         "size_bytes": 6177,
         "version": "0.1.4",
     },
+    "linebender_resource_handle-0.1.1": {
+        "name": "linebender_resource_handle",
+        "sha256": "d4a5ff6bcca6c4867b1c4fd4ef63e4db7436ef363e0ad7531d1558856bae64f4",
+        "size_bytes": 10920,
+        "version": "0.1.1",
+    },
     "linux-raw-sys-0.12.1": {
         "name": "linux-raw-sys",
         "sha256": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53",
@@ -2419,6 +2563,24 @@ downloads = {
         "sha256": "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f",
         "size_bytes": 52646,
         "version": "0.4.31",
+    },
+    "logos-0.16.1": {
+        "name": "logos",
+        "sha256": "eb2c55a318a87600ea870ff8c2012148b44bf18b74fad48d0f835c38c7d07c5f",
+        "size_bytes": 28172,
+        "version": "0.16.1",
+    },
+    "logos-codegen-0.16.1": {
+        "name": "logos-codegen",
+        "sha256": "58b3ffaa284e1350d017a57d04ada118c4583cf260c8fb01e0fe28a2e9cf8970",
+        "size_bytes": 51792,
+        "version": "0.16.1",
+    },
+    "logos-derive-0.16.1": {
+        "name": "logos-derive",
+        "sha256": "52d3a9855747c17eaf4383823f135220716ab49bea5fbea7dd42cc9a92f8aa31",
+        "size_bytes": 8193,
+        "version": "0.16.1",
     },
     "lyon_geom-1.0.20": {
         "name": "lyon_geom",
@@ -2569,6 +2731,12 @@ downloads = {
         "sha256": "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873",
         "size_bytes": 329984,
         "version": "0.6.0+11769913",
+    },
+    "new_debug_unreachable-1.0.6": {
+        "name": "new_debug_unreachable",
+        "sha256": "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086",
+        "size_bytes": 2582,
+        "version": "1.0.6",
     },
     "nix-0.28.0": {
         "name": "nix",
@@ -2978,11 +3146,23 @@ downloads = {
         "size_bytes": 25267,
         "version": "1.0.0",
     },
+    "peniko-0.6.1": {
+        "name": "peniko",
+        "sha256": "839c8299360d2e998bdb106dc0a6cd71dcc5f4df51df1b620361bf50e283cca6",
+        "size_bytes": 21265,
+        "version": "0.6.1",
+    },
     "percent-encoding-2.3.2": {
         "name": "percent-encoding",
         "sha256": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
         "size_bytes": 11583,
         "version": "2.3.2",
+    },
+    "petgraph-0.7.1": {
+        "name": "petgraph",
+        "sha256": "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772",
+        "size_bytes": 736025,
+        "version": "0.7.1",
     },
     "phf-0.13.1": {
         "name": "phf",
@@ -3013,6 +3193,12 @@ downloads = {
         "sha256": "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef",
         "size_bytes": 21732,
         "version": "0.13.1",
+    },
+    "phf_shared-0.11.3": {
+        "name": "phf_shared",
+        "sha256": "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5",
+        "size_bytes": 15199,
+        "version": "0.11.3",
     },
     "phf_shared-0.13.1": {
         "name": "phf_shared",
@@ -3181,6 +3367,12 @@ downloads = {
         "sha256": "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9",
         "size_bytes": 22522,
         "version": "0.2.21",
+    },
+    "precomputed-hash-0.1.1": {
+        "name": "precomputed-hash",
+        "sha256": "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c",
+        "size_bytes": 1640,
+        "version": "0.1.1",
     },
     "presser-0.3.1": {
         "name": "presser",
@@ -3860,6 +4052,12 @@ downloads = {
         "size_bytes": 32748,
         "version": "0.11.1",
     },
+    "sha3-0.10.9": {
+        "name": "sha3",
+        "sha256": "77fd7028345d415a4034cf8777cd4f8ab1851274233b45f84e3d955502d93874",
+        "size_bytes": 859930,
+        "version": "0.10.9",
+    },
     "sharded-slab-0.1.7": {
         "name": "sharded-slab",
         "sha256": "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6",
@@ -4070,6 +4268,12 @@ downloads = {
         "size_bytes": 31797,
         "version": "0.19.0",
     },
+    "string_cache-0.8.9": {
+        "name": "string_cache",
+        "sha256": "bf776ba3fa74f83bf4b63c3dcbbf82173db2632ed8452cb2d891d33f459de70f",
+        "size_bytes": 17408,
+        "version": "0.8.9",
+    },
     "strsim-0.11.1": {
         "name": "strsim",
         "sha256": "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f",
@@ -4124,11 +4328,11 @@ downloads = {
         "size_bytes": 306011,
         "version": "2.0.117",
     },
-    "syn-3.0.3": {
+    "syn-3.0.10": {
         "name": "syn",
-        "sha256": "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3",
-        "size_bytes": 312999,
-        "version": "3.0.3",
+        "sha256": "4ae9ccbea3a7b0b09443036490c8f34a8b1b760fd345e5c0dae0aac718faea79",
+        "size_bytes": 314214,
+        "version": "3.0.10",
     },
     "sync_wrapper-1.0.2": {
         "name": "sync_wrapper",
@@ -4171,6 +4375,12 @@ downloads = {
         "sha256": "1a978fef907a27736827d336c0bfaab14fb8a7509dd6dc2b43c44e51d59aca5b",
         "size_bytes": 188053,
         "version": "0.2.6",
+    },
+    "term-1.2.1": {
+        "name": "term",
+        "sha256": "d8c27177b12a6399ffc08b98f76f7c9a1f4fe9fc967c784c5a071fa8d93cf7e1",
+        "size_bytes": 37496,
+        "version": "1.2.1",
     },
     "termcolor-1.4.1": {
         "name": "termcolor",
@@ -4646,6 +4856,24 @@ downloads = {
         "size_bytes": 228735,
         "version": "0.2.15",
     },
+    "vello_common-0.4.0": {
+        "name": "vello_common",
+        "sha256": "6d9447018538224861c1bd825471dcc67ffa973c97de666bf6296b72dbb2f166",
+        "size_bytes": 147256,
+        "version": "0.4.0",
+    },
+    "vello_gpu-0.4.0": {
+        "name": "vello_gpu",
+        "sha256": "6a1f838f79b2ef62a4acc61057eca19ffadf496c36317093e2d6961836d6c92f",
+        "size_bytes": 187641,
+        "version": "0.4.0",
+    },
+    "vello_gpu_shaders-0.4.0": {
+        "name": "vello_gpu_shaders",
+        "sha256": "e22815682cf60d24cf8781bd445f309622930e8b8885459b21109b4f6b205b76",
+        "size_bytes": 51059,
+        "version": "0.4.0",
+    },
     "version_check-0.9.5": {
         "name": "version_check",
         "sha256": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a",
@@ -4910,6 +5138,18 @@ downloads = {
         "size_bytes": 46045,
         "version": "0.1.12",
     },
+    "wesl-0.4.0": {
+        "name": "wesl",
+        "sha256": "dc3857a39e7220245e4ec1e2f6230e1b5ccd3542545bc1ee5c13d79597e6d193",
+        "size_bytes": 92038,
+        "version": "0.4.0",
+    },
+    "wesl-macros-0.4.0": {
+        "name": "wesl-macros",
+        "sha256": "8662ee0b2ef199c31f486b869e5272ac364898c09d352483370d37b8c3abf9f9",
+        "size_bytes": 3545,
+        "version": "0.4.0",
+    },
     "wgpu-30.0.2": {
         "name": "wgpu",
         "sha256": "146fc3d654250e6207921a66c87534c621bc886c70df83dcf466c1d66813810e",
@@ -4963,6 +5203,18 @@ downloads = {
         "sha256": "a9f6ee0bd50f5ab79fb8c25e3f33afb27126f034af4ba5909c7a0967058659e6",
         "size_bytes": 144255,
         "version": "30.0.2",
+    },
+    "wgsl-parse-0.4.0": {
+        "name": "wgsl-parse",
+        "sha256": "2141e2425fbb5aefd13e875adc7247e5dc889a3bbbe5a016dd1546211405f89f",
+        "size_bytes": 41273,
+        "version": "0.4.0",
+    },
+    "wgsl-types-0.4.0": {
+        "name": "wgsl-types",
+        "sha256": "d3cf8623d173060d5a9e1465b89954ea42f3ac21af2f533c7975d003f8d82b98",
+        "size_bytes": 54688,
+        "version": "0.4.0",
     },
     "which-6.0.3": {
         "name": "which",

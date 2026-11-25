@@ -20,7 +20,11 @@ A Rust app links two libraries, or one (`buck/wasm/defs.bzl`):
   (guides/blocks/apps.md, State and change callbacks).
 - **beui**, `crates/be-sdk-library-beui`, above base: beui-reactive, beui,
   be-sdk-beui and be-sdk-beui-platform (renderer, fonts), with the bundled
-  faces and the Rust crates that shape and draw them (skrifa, harfrust, zeno).
+  faces and the Rust crates that shape and draw them (skrifa, harfrust, zeno),
+  and Vello's GPU renderer (`vello_gpu` over wgpu, and `vello_common`), which
+  an app may also draw with directly. Its features are set in the library's
+  `Cargo.toml`: no `text`, `webgl`, `png`, `pico_svg` or `multithreading`, so
+  an app that names vello_gpu or vello_common must not turn those on.
 
 Every editor links both (`DEFAULT_LIBRARIES`) unless its `app()` says
 otherwise, and its tests link a third (Tests, below); triangle names base

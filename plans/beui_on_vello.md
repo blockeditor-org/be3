@@ -66,26 +66,22 @@ for later.
 
 ## Steps
 
-1. **Vello in the beui library.** Add `vello_gpu` and vello_common with the features above to
-   `crates/be-sdk-library-beui` and run `./scripts/buckify`; `vello_gpu`'s shaders are compiled by
-   a build script with wesl and naga. Put the beui library's size before and after in the pull
-   request.
-2. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas. Paintings
+1. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas. Paintings
    do not change, since they record beui's display list, not pixels. Delete `ui.wgsl`'s shape
    code, the instance encoding and `group.rs`. Put the suite's `renderer` benchmark, compared on
    a machine with a GPU against the build before (guides/performance.md), in the pull request;
    likewise for the blur.
-3. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
+2. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
    replace decisions/beui_filter_blur_is_dual_kawase.md with a decision for Vello's blur
    (continuous in σ, logarithmic in cost).
-4. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
+3. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
    `Frame::tidy` learns it, and beui-paint-format's `raster.rs` (behind `rasterize` and review) is
    rebuilt on `vello_cpu`, in the tools only, never in the beui library. Bump the format's
    `VERSION` (guides/testing_a_gui.md, 4) and let verify rewrite the paintings. Delete the
    tessellator in `beui-core/src/path.rs`.
-5. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
-   map, guides/beui/components.md (Drawing with the gpu), guides/testing_a_gui.md, guides/canvas.md
-   and guides/app_libraries.md (Vello in the beui library). Record the choice in decisions/ with
+4. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
+   map, guides/beui/components.md (Drawing with the gpu), guides/testing_a_gui.md and
+   guides/canvas.md. Record the choice in decisions/ with
    what was rejected below, and delete this plan.
 
 ## Rejected
