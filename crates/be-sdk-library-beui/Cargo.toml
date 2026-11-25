@@ -12,7 +12,7 @@ beui = { path = "../beui" }
 be-sdk-beui-platform = { path = "../be-sdk-beui-platform" }
 be-sdk-beui = { path = "../be-sdk-beui" }
 # Vello's GPU renderer, for beui-renderer-wgpu and for apps that draw with it
-# directly (plans/beui_on_vello.md). wgpu's `webgl` is not wanted: the browser
+# directly (decisions/beui_draws_with_vello.md). wgpu's `webgl` is not wanted: the browser
 # build runs wgpu over be3:gpu; nor `text`: beui shapes and draws its own glyphs.
 vello_gpu = { version = "0.4", default-features = false, features = [
     "wgpu",
