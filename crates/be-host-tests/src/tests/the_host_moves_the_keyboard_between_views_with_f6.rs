@@ -17,7 +17,11 @@ fn the_host_moves_the_keyboard_between_views_with_f6() {
     let text = host.place("#text.surface");
     let text = format!("{:.0},{:.0}", text.0 + text.2 / 2.0, text.1 + text.3 / 2.0);
     let block = host.place("#infinite-canvas.dock.block");
-    let block = format!("{:.0},{:.0}", block.0 + block.2 / 2.0, block.1 + block.3 / 2.0);
+    let block = format!(
+        "{:.0},{:.0}",
+        block.0 + block.2 / 2.0,
+        block.1 + block.3 / 2.0
+    );
     host.run(&["click", &text]);
     host.run(&["settle"]);
     host.key("shift+F6");

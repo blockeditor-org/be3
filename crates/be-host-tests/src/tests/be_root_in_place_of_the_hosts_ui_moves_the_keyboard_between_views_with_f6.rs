@@ -19,7 +19,11 @@ fn be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6() {
     let text = host.place("#text.surface");
     let text = format!("{:.0},{:.0}", text.0 + text.2 / 2.0, text.1 + text.3 / 2.0);
     let block = host.place("#infinite-canvas.dock.block");
-    let block = format!("{:.0},{:.0}", block.0 + block.2 / 2.0, block.1 + block.3 / 2.0);
+    let block = format!(
+        "{:.0},{:.0}",
+        block.0 + block.2 / 2.0,
+        block.1 + block.3 / 2.0
+    );
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
     host.run(&["click", &text]);
