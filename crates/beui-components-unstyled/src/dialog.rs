@@ -1,7 +1,7 @@
 use accesskit::{Node, Role};
 
-use super::modal::{Modal, ModalHandle, ModalMotion};
-use beui_view::components::overlay::{Modality, Overlay, use_modal};
+use beui_view::components::overlay::{Modality, use_modal};
+use beui_view::window::{Window, WindowAnchor, WindowHandle};
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -11,7 +11,7 @@ use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
 use beui_view::types::text::Phrase;
-use beui_view::types::{Dismiss, OverlayAnchor, Placement, Pos2, Rect};
+use beui_view::types::{Dismiss, Rect, Vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
@@ -512,7 +512,6 @@ pub fn Dialog(
     });
     let sheeted =
         create_memo(move || matches!(presentation.get(), DialogPresentation::Sheet { .. }));
-    let centred = create_memo(move || presentation.get() == DialogPresentation::Centred);
     let layout = DialogLayout {
         narrow,
         sheet: sheeted,
@@ -563,16 +562,10 @@ pub fn Dialog(
             drop(old);
         }
     });
-    let centred_card = create_memo(move || centred.get().then(|| card_built.get()).flatten());
-    let layer_card = create_memo(move || {
-        (!centred.get() && !sheeted.get())
-            .then(|| card_built.get())
-            .flatten()
-    });
+    let windowed_card = create_memo(move || (!sheeted.get()).then(|| card_built.get()).flatten());
     let ready = create_memo(move || open.get() && built.with(Option::is_some));
-    let as_card = create_memo(move || ready.get() && centred.get());
     let as_sheet = create_memo(move || ready.get() && sheeted.get());
-    let as_layer = create_memo(move || ready.get() && !centred.get() && !sheeted.get());
+    let as_window = create_memo(move || ready.get() && !sheeted.get());
     let sheet = sheet.call(DialogSheetHandle {
         open: as_sheet,
         close: on_dismiss,
@@ -584,66 +577,41 @@ pub fn Dialog(
         }),
     });
     let held = NodeRef::new();
-    let frame = create_memo(move || Rect::from_min_size(Pos2::ZERO, viewport.get()));
-    let top = create_memo(move || {
-        let width = viewport.get().x;
-        Rect::from_min_max(Pos2::ZERO, Pos2::new(width, 0.0))
-    });
-    let popover = Placement::CARD;
     let placed = create_memo(move || match presentation.get() {
         DialogPresentation::Anchored(Some(DialogTarget::Node(node))) => {
             if held.try_get() != Some(node) {
                 held.fill(node);
             }
-            (OverlayAnchor::Node(held), popover, false, true)
+            (WindowAnchor::Node(held), false)
         }
         DialogPresentation::Anchored(Some(DialogTarget::Rect(rect))) => {
-            (OverlayAnchor::Rect(rect), popover, false, true)
+            (WindowAnchor::Beside(rect), false)
         }
-        DialogPresentation::Anchored(None) => {
-            (OverlayAnchor::Rect(top.get()), popover, false, false)
-        }
+        DialogPresentation::Anchored(None) => (WindowAnchor::Top, false),
         DialogPresentation::Centred
         | DialogPresentation::OverFrame
-        | DialogPresentation::Sheet { .. } => (
-            OverlayAnchor::Rect(frame.get()),
-            Placement::CenterOn,
-            true,
-            false,
-        ),
+        | DialogPresentation::Sheet { .. } => (WindowAnchor::Centre, true),
     });
-    let at = create_memo(move || placed.get().0);
-    let placement = create_memo(move || placed.get().1);
-    let dims = scrim.clone();
-    let layer_scrim = create_memo(move || match placed.get().2 {
-        true => dims.get(),
+    let anchor = create_memo(move || Some(placed.get().0));
+    let dims = create_memo(move || match placed.get().1 {
+        true => scrim.get(),
         false => Color::TRANSPARENT,
-    });
-    let reach = create_memo(move || match placed.get().3 {
-        true => beak,
-        false => 0.0,
     });
     view! {
         <List spacing=0.0>
-            <Modal
-                open={as_card}
-                scrim
-                motion=ModalMotion::Still
-                on_dismiss={on_dismiss}
-            >|_: ModalHandle|
-                <Shows node={centred_card} showing />
-            </Modal>
-            <Overlay
-                anchor={at}
-                placement={placement}
-                scrim={layer_scrim}
+            <Window
+                size=Vec2::ZERO
+                own_window=false
+                anchor={anchor}
+                blocks=true
+                scrim={dims}
                 pointer={pointer}
-                beak={reach}
-                open={as_layer}
+                beak={beak}
+                open={as_window}
                 on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-            >||
-                <Shows node={layer_card} showing />
-            </Overlay>
+            >|_: WindowHandle|
+                <Shows node={windowed_card} showing />
+            </Window>
             {sheet}
         </List>
     }
