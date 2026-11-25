@@ -1031,13 +1031,12 @@ fn filtered(rows: Memo<Vec<Row>>, keys: Memo<Vec<RowKey>>, filter: &str) -> Foun
             while above.last().is_some_and(|(depth, _)| *depth >= row.depth) {
                 above.pop();
             }
-            if row.id.is_some() || row.section {
-                if row.label.to_lowercase().contains(filter) {
+            if (row.id.is_some() || row.section)
+                && row.label.to_lowercase().contains(filter) {
                     hits += 1;
                     kept.insert(&row.key);
                     kept.extend(above.iter().map(|(_, key)| *key));
                 }
-            }
             above.push((row.depth, &row.key));
         }
         Found {
