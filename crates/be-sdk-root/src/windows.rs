@@ -14,7 +14,7 @@ pub struct Delivery {
     /// itself, such as a focus moving.
     pub time: Option<u64>,
     /// The modifier keys held as it was routed, which say which of the chords the root
-    /// intercepted a key it hears was (its palette's).
+    /// intercepted a key it hears was (its palette's, F6 or Shift+F6).
     pub modifiers: Modifiers,
 }
 
