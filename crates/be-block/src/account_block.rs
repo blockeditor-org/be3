@@ -125,6 +125,7 @@ impl AccountBlock {
 }
 
 impl Root for AccountBlock {
+    #[allow(clippy::unusual_byte_groupings)] // "account-block01" in ASCII, a byte pair a group
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6163_636f_756e_742d_626c_6f63_6b30_31);
 
     fn references(&self) -> Vec<Uuid> {
