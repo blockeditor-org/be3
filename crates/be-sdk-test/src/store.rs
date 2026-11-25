@@ -248,7 +248,7 @@ impl Default for Inner {
             held_reads: Vec::new(),
             known_elsewhere: None,
         };
-        if let Some(types) = inner.ask(|host| replicas::start(host)) {
+        if let Some(types) = inner.ask(replicas::start) {
             inner.blanks = types
                 .into_iter()
                 .map(|info| (info.content_type, info.blank))
@@ -493,7 +493,7 @@ impl Inner {
             Call::ReadPart { reply, part, range } => {
                 let result = self
                     .vault
-                    .read_part(part.into(), range.offset, range.length)
+                    .read_part(part, range.offset, range.length)
                     .map_err(|error| error.to_string());
                 reply.send(&mut self.host, &result);
             }

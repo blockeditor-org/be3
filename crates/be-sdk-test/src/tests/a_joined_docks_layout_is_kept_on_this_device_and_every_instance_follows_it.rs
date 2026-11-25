@@ -56,7 +56,7 @@ fn ids(test: &mut BeuiTest<BarredRoot>) -> (u64, u64) {
             DockMessage::Declare(declare) => declare.declaration,
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the docked editor declares its dock");
     (declaration.tabs[0].tab.tab, declaration.bars[0].tab.tab)
 }
@@ -133,7 +133,7 @@ fn restored(test: &mut BeuiTest<BarredRoot>) -> DockLayout {
             },
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the editor restores the layout it kept")
 }
 

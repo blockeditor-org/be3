@@ -16,7 +16,7 @@ fn declared(test: &mut BeuiTest<StandaloneRoot>) -> HashMap<String, u64> {
             DockMessage::Declare(declare) => declare.declaration,
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the docked editor declares its dock");
     declaration
         .tabs
