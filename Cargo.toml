@@ -240,6 +240,7 @@ members = [
     "crates/be-tool-wayland-window",
     "crates/be-wasm-threads",
     "crates/be-wasm-dylink",
+    "crates/be-wasm-pure-wasi",
     "crates/be-wasm-link",
     "crates/be-sdk-window-stack",
 ]

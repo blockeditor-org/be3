@@ -7,8 +7,9 @@ use crate::engine::{self, Defined, Import, Kind, Module};
 pub(crate) enum Role {
     /// An app: the gpu, its transport, WASI, waking and panicking.
     App,
-    /// A pure guest: its transport, waking and panicking, and the gpu only when its host was
-    /// given a device for it (`Host::with_display`, the root guest's).
+    /// A pure guest: its transport, waking and panicking, be-wasm-pure-wasi's few WASI calls,
+    /// and the gpu only when its host was given a device for it (`Host::with_display`, the root
+    /// guest's).
     Pure { gpu: bool },
 }
 
@@ -24,15 +25,20 @@ pub(crate) fn host_functions<'s>(
     let mut defined = Defined::default();
     crate::panic::define(scope, &mut defined, data)?;
     crate::wake::define(scope, &mut defined, data)?;
+    let imports: Vec<Import> = modules
+        .iter()
+        .flat_map(|module| module.shape.imports.iter().cloned())
+        .collect();
     match role {
-        Role::Pure { gpu: false } => crate::gpu::define_transport(scope, &mut defined, data, fast)?,
-        Role::Pure { gpu: true } => crate::gpu::define_app(scope, &mut defined, data, fast)?,
+        Role::Pure { gpu } => {
+            match gpu {
+                false => crate::gpu::define_transport(scope, &mut defined, data, fast)?,
+                true => crate::gpu::define_app(scope, &mut defined, data, fast)?,
+            }
+            crate::wasi::define_pure(scope, &mut defined, data, &imports)?;
+        }
         Role::App => {
             crate::gpu::define_app(scope, &mut defined, data, fast)?;
-            let imports: Vec<Import> = modules
-                .iter()
-                .flat_map(|module| module.shape.imports.iter().cloned())
-                .collect();
             crate::wasi::define(scope, &mut defined, data, &imports)?;
         }
     }

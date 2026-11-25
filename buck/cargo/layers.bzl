@@ -61,7 +61,8 @@ LAYERS = {
     "beui": ["beui", "be-lib", "be-wasm"],
     "cvl2": [],
     "logicgame": ["be-lib"],
-    "tabletop": ["tabletop", "be-lib"],
+    # A game is a pure guest, answered the WASI every pure guest is (be-wasm-pure-wasi).
+    "tabletop": ["tabletop", "be-lib", "be-wasm"],
 }
 
 # Crates that may depend on more than their family.

@@ -1,0 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# The WASI a pure guest is answered (guides/app_libraries.md, Pure guests), by every host that
+# runs one: be-wasm-host's, tabletop-host's and be-wasm-root-host's on the page.
+cargo_crate()

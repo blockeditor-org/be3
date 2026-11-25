@@ -62,7 +62,9 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   in the browser.
 - **Pure guests.** A type module is validated without threads, shared memory,
   relaxed SIMD, garbage-collected types or a second memory, and its memory's
-  maximum is capped (`MEMORY_LIMIT`). The app host has no fuel and no
+  maximum is capped (`MEMORY_LIMIT`). Of WASI it gets only be-wasm-pure-wasi's
+  answers (`wasi::define_pure`; guides/app_libraries.md, Pure guests), and the
+  page's `compile` (be-wasm-sandbox-host's web.rs) refuses any other import. The app host has no fuel and no
   canonical NaNs.
 - **The sandbox.** `be_wasm_host::sandbox` is the native half of the sandbox
   API (plans/host_as_platform_adapter.md). `spawn` starts an `Instance` of a

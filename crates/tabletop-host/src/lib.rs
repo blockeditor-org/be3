@@ -3,8 +3,8 @@ use std::fmt;
 use uuid::Uuid;
 use wasmi::errors::HostError;
 use wasmi::{
-    Caller, Config, Engine, Error, Extern, Instance, Linker, Memory, Module, Store, TypedFunc,
-    TypedResumableCall, TypedResumableCallHostTrap, Val,
+    Caller, Config, Engine, Error, Extern, FuncType, Instance, Linker, Memory, Module, Store,
+    TypedFunc, TypedResumableCall, TypedResumableCallHostTrap, Val, ValType,
 };
 
 pub use tabletop_api::{Command, GameAction, GameActionOption, GameScreen, Turn};
@@ -18,9 +18,20 @@ pub struct Game {
     name: String,
 }
 
-#[derive(Default)]
 struct Presented {
     screen: Option<Vec<u8>>,
+    /// The game's WASI (guides/app_libraries.md, Pure guests), from the zero seed in every
+    /// instance, so a replayed log draws the same randomness.
+    wasi: be_wasm_pure_wasi::Wasi,
+}
+
+impl Default for Presented {
+    fn default() -> Self {
+        Self {
+            screen: None,
+            wasi: be_wasm_pure_wasi::Wasi::new([0; 32]),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -69,6 +80,8 @@ impl Game {
                     },
                 )
             })
+            .map_err(|error| format!("the game host could not be set up: {error}"))?;
+        answer_wasi(&mut linker)
             .map_err(|error| format!("the game host could not be set up: {error}"))?;
         let mut game = Self {
             engine,
@@ -229,6 +242,83 @@ impl Session {
             Err(error) => Err(format!("this game stopped: {error}")),
         }
     }
+}
+
+/// The parameters of each WASI call a game is answered (be_wasm_pure_wasi::ANSWERED), all
+/// answering an errno but `proc_exit`.
+fn wasi_parameters(name: &str) -> &'static [ValType] {
+    use ValType::{I32, I64};
+    match name {
+        "clock_time_get" => &[I32, I64, I32],
+        "fd_write" => &[I32, I32, I32, I32],
+        "proc_exit" => &[I32],
+        _ => &[I32, I32],
+    }
+}
+
+/// A game's memory, as be-wasm-pure-wasi reads and writes it.
+struct Bytes<'a>(&'a mut [u8]);
+
+impl be_wasm_pure_wasi::Memory for Bytes<'_> {
+    fn size(&self) -> usize {
+        self.0.len()
+    }
+
+    fn read(&self, at: u32, length: u32) -> Result<Vec<u8>, String> {
+        let start = at as usize;
+        self.0
+            .get(start..start.saturating_add(length as usize))
+            .map(<[u8]>::to_vec)
+            .ok_or_else(|| "the game named bytes outside its memory".to_owned())
+    }
+
+    fn write(&mut self, at: u32, bytes: &[u8]) -> Result<(), String> {
+        let start = at as usize;
+        self.0
+            .get_mut(start..start.saturating_add(bytes.len()))
+            .ok_or_else(|| "the game named bytes outside its memory".to_owned())?
+            .copy_from_slice(bytes);
+        Ok(())
+    }
+}
+
+fn answer_wasi(linker: &mut Linker<Presented>) -> Result<(), Error> {
+    for name in be_wasm_pure_wasi::ANSWERED {
+        let exits = name == "proc_exit";
+        let results: &[ValType] = if exits { &[] } else { &[ValType::I32] };
+        let signature = FuncType::new(wasi_parameters(name).iter().copied(), results.iter().copied());
+        linker.func_new(
+            be_wasm_pure_wasi::MODULE,
+            name,
+            signature,
+            move |mut caller: Caller<'_, Presented>, parameters: &[Val], results: &mut [Val]| {
+                let words: Vec<u64> = parameters
+                    .iter()
+                    .map(|value| match value {
+                        Val::I32(word) => *word as u32 as u64,
+                        Val::I64(word) => *word as u64,
+                        _ => 0,
+                    })
+                    .collect();
+                let memory = caller
+                    .get_export("memory")
+                    .and_then(Extern::into_memory)
+                    .ok_or_else(|| Error::new("this game exports no memory"))?;
+                let (bytes, presented) = memory.data_and_store_mut(&mut caller);
+                let errno = presented
+                    .wasi
+                    .call(name, &words, &mut Bytes(bytes), &mut |written| {
+                        eprint!("{}", String::from_utf8_lossy(written))
+                    })
+                    .map_err(|stopped| Error::new(stopped.to_string()))?;
+                if let Some(result) = results.first_mut() {
+                    *result = Val::I32(errno);
+                }
+                Ok(())
+            },
+        )?;
+    }
+    Ok(())
 }
 
 fn export<Parameters: wasmi::WasmParams, Results: wasmi::WasmResults>(

@@ -52,6 +52,17 @@ The browser's gpu shim keeps its own `wasm32-bindgen` plan: it is wasm-bindgen c
 
 1. Answer the WASI set for pure guests natively and on the web, with tests that a type module
    built for wasip1 loads, runs deterministically, and has any other import refused.
+   Built: `crates/be-wasm-pure-wasi` answers the set (randomness a ChaCha20 stream from a seed,
+   `Host::with_seed`, zero unless given), used by be-wasm-host, tabletop-host's wasmi and
+   be-wasm-root-host's page guest; be-wasm-guest-host's `guest.js` answers the same stream in
+   JavaScript, and the page's sandbox `compile` lets the set through. Tested with hand-written
+   guests (be-wasm-host's `a_pure_guest_is_answered_its_few_wasi_calls_from_its_seed`,
+   `..._may_not_import_more_of_wasi_than_it_is_answered`, tabletop-host's
+   `a_game_may_import_a_pure_guests_wasi_and_no_more`); the type modules themselves are built
+   for wasip1 by step 2, whose tests run them so. Still to do in step 2: the type host seeds each
+   module through its host (`Host::with_seed`, `guest.js`'s `seed`) instead of `replicas.start`'s
+   entropy, since on wasip1 getrandom reads `random_get`, and be-sdk-type-guest's own generator
+   and the getrandom fixup go.
 2. Move the pure guests into `wasi-guest` in `crates/be-tool-buck/src/plan.rs`, move
    `wasm32_module` to the wasip1 platform in `buck/wasm/defs.bzl`, delete the `wasm32` plan and
    platform, and run `./scripts/buckify`. Update guides/buck2.md, guides/app_libraries.md

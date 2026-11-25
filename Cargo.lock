@@ -3294,6 +3294,7 @@ dependencies = [
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
  "be-wasm-ops",
+ "be-wasm-pure-wasi",
  "getrandom 0.3.4",
  "libc",
  "rustc-demangle",
@@ -3343,6 +3344,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-wasm-pure-wasi"
+version = "0.1.0"
+
+[[package]]
 name = "be-wasm-root-api"
 version = "0.1.0"
 dependencies = [
@@ -3367,6 +3372,7 @@ dependencies = [
  "be-wasm-host",
  "be-wasm-ops",
  "be-wasm-password",
+ "be-wasm-pure-wasi",
  "be-wasm-root-api",
  "be-wasm-root-testing",
  "be-wasm-sandbox-api",
@@ -3436,6 +3442,7 @@ dependencies = [
  "be-wasm-guest-host",
  "be-wasm-host",
  "be-wasm-ops",
+ "be-wasm-pure-wasi",
  "be-wasm-sandbox-api",
  "js-sys",
  "wasm-bindgen",
@@ -10405,6 +10412,7 @@ dependencies = [
 name = "tabletop-host"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-pure-wasi",
  "bincode",
  "tabletop-api",
  "uuid",
