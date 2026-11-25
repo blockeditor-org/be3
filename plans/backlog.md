@@ -226,7 +226,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   failed 22 of 240 ("the stack never reached counted 5: it made no progress for
   60 s") and `a_joined_channel_opens_to_its_host_and_again_to_the_next` 95 of
   240 ("the channel to the first host closed: []"). Done: each cause found and
-  fixed at its source, and each passes 400 runs at 16 at once.
+  fixed at its source, and each passes 400 runs at 16 at once. Neither failed on
+  568d72d49 (2026-11-25): 0 of 1000 each at 32 at once on 4 cores, and 0 of 240 each at 16 at
+  once beside two whole-crate runs, nor did `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once`
+  (0 of 600 at 32), so what failed is not reproduced locally: the next failure's output (a full
+  verify keeps it) is what to read.
 
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
@@ -434,7 +438,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `wait not #dock.editors.menu.editor.keep-hosting` after reopening the closed Counter, and
   timed out busy, one publish of the Counter left in the outbox through every drain, the last
   `Diverged` (local and remote commits differ) with "object ... is nowhere to be found". Done:
-  the cause found and fixed at its source, and the test passes 200 runs under `stress`.
+  the cause found and fixed at its source, and the test passes 200 runs under `stress`. On
+  568d72d49 it passed 220 of 220 (100 at 4 at a time, 120 at 6 with `--apart --latency 75`),
+  and `players_carry_on_with_the_next_host_once_the_first_closes_the_world` 120 of 120 the
+  second way. Ruled out for the first way: the phone claiming on a stale word that no one
+  hosts as it reopens the Counter; with the phone's answers held from its close until after
+  it reopens, it still stands by (its replica leaves the session as the tab closes).
 
 ## 16. Host test tools
 
