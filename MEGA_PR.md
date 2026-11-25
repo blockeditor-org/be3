@@ -81,6 +81,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7e2a` follow-up: the docks learn every docked child before any is asked for its screens; the 4g7e3 plan split into e3a..d.
 - `kept-content-5`, `kept-content-6`: one `Card` under popovers and dialogs (`PopoverPanel` and `DialogCard` gone); the colour wheel stays on the gpu (decision recorded).
 - `headless-retire`: plans/headless_apps.md, fully built, deleted; its references point at guides/apps/runtime.md "Headless", and the real-deploy run is in plans/backlog.md §22.
+- `kept-content-7`, `kept-content-retire`: one find_text and shared dock fixtures; plans/kept_content_and_one_scroller.md retired
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
