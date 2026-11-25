@@ -192,8 +192,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             drag={move |press: PointerPress| state.lift_move(press)}
             lifts_on_space=false
             on_hover_move={move |press: PointerPress| {
-                let at = state.world_at(press.pos);
-                state.hover(Some(at));
+                state.hover(state.world_at(press.pos));
             }}
             on_hover_change={move |over: bool| {
                 if !over {

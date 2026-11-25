@@ -3479,8 +3479,9 @@ impl<S: ObjectStore> Peer<S> {
         if !self.try_fetch(commit.hash()).await? {
             return Ok(false);
         }
+        // Fetched but gone at once: the store lost it, which is not the server's pruning.
         let Some(held) = self.commits.try_get(commit)? else {
-            return Ok(false);
+            return Err(ClientError::MissingObject(commit.hash()));
         };
         let vault = self.commits.vault();
         loop {

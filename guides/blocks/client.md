@@ -161,7 +161,13 @@ participant hears which commit holds which sequence number (`Event::Sealed`).
 A replica that follows takes the seal as its head by id, and its host fetches the
 commit and its content at once (`Peer::try_hold`): the server prunes it once a
 later publish replaces it, and what the follower seals offline on it needs it,
-to seal and as the base its merge is made against.
+to seal and as the base its merge is made against. One fetch runs per block, and
+the latest seal heard meanwhile waits for it (`Replicas::fetch_seal`); this
+device's own seals are not fetched. A type that loads only its first part
+(`Loads::FirstPart`) fetches the commit alone, whose content may be far larger
+than what it reads: if the server prunes the seal before its parts were read, an
+offline edit on it merges with no base. A fetch that fails is not tried again;
+`Peer::reconcile` fetches the base itself once the device is back online.
 
 - **One edit in flight.** A replica's typing waits in its `unsent` queue while an
   edit of its own is unconfirmed, folded by `LiveEdit::absorb_operation`
