@@ -333,7 +333,9 @@ alone even inside another dock's tab.
   parent's panel or dialog (`unstyled/dialog.rs`): beside its tab with a beak, or at the top
   centre of that panel when the tab shows no label (a bare pane). Dragged by its bar it stays
   where it is let go, kept a card's margin inside the window it shows in, until it closes.
-  `modal` is the window's `blocks`: it blocks only the parent's panel and traps the focus. Use it
+  `modal` is the window's `blocks`: it blocks only the parent's panel and traps the focus. In
+  the stacked and gathered modes it is a sheet instead (the host's `dialog_sheet` face), and a
+  sheet blocks the whole window whether or not the dialog is `modal`. Use it
   for content the dock must hold (a program's dialog, be-sdk-shell's `WindowDialog`); a form opened
   from a control inside a tab body is the shared `Dialog` (guides/beui/overlays.md), which finds
   its tab through `use_frame_anchor()`.

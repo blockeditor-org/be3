@@ -12,6 +12,7 @@ use beui_view::measure::measure;
 use beui_view::window::{Window, WindowAnchor, WindowHandle, opens_windows};
 
 use super::{DockState, State, TabId};
+use beui_dock::DockMode;
 use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
@@ -44,6 +45,20 @@ pub struct DockDialogHandle {
     pub card: NodeRef,
     pub header: NodeRef,
     pub body: NodeId,
+}
+
+/// What a dialog's sheet face gets, in the stacked and gathered modes, where the dock shows a
+/// dialog as a sheet rather than a window.
+pub struct DockDialogSheetHandle {
+    pub tab: TabId,
+    pub title: Memo<String>,
+    /// The size its body asks for: a body too tall for a fitted sheet opens full height.
+    pub size: Memo<Vec2>,
+    pub open: Memo<bool>,
+    /// Asks the dialog's owner to close it (its `on_close`); a dialog with none stays.
+    pub close: Callback<()>,
+    /// Builds what shows the body in the sheet: call it in the sheet's content.
+    pub body: BuildFn<NodeId>,
 }
 
 impl super::State {
@@ -316,7 +331,15 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         content.call()
     });
     store(scope);
-    let width = create_memo(move || Extent::px(size.get().x));
+    let sheet = dock.dialog_sheet;
+    let sheeted = create_memo(move || {
+        sheet.is_some() && matches!(dock.mode.get(), DockMode::Stacked | DockMode::Compact)
+    });
+    // In a sheet the body takes the sheet's width.
+    let width = create_memo(move || match sheeted.get() {
+        true => Extent::fraction(1.0),
+        false => Extent::px(size.get().x),
+    });
     let height = create_memo(move || Extent::px(size.get().y));
     let body = view! {
         <Frame
@@ -421,6 +444,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             .then(|| owner.get().map(window_of))
             .flatten()
     });
+    let windowed = create_memo(move || shown.get() && !sheeted.get());
     let anchor = create_memo(move || match (moved.get(), pointed.get()) {
         (Some(_), _) => None,
         (None, Some(rect)) => Some(WindowAnchor::Beside(rect)),
@@ -441,7 +465,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             pointer={card}
             beak={dock.dialog_beak}
             shown_in={shown_in}
-            open={shown}
+            open={windowed}
             on_dismiss={move |reason: Dismiss| match reason {
                 Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
                 Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
@@ -453,6 +477,35 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 {face()}
             </Interactive>
         </Window>
+    };
+    // In the stacked and gathered modes the same body shows in a sheet.
+    let view = match sheet {
+        None => view,
+        Some(sheet) => {
+            let sheet = sheet.call(DockDialogSheetHandle {
+                tab,
+                title,
+                size,
+                open: create_memo(move || shown.get() && sheeted.get()),
+                close,
+                body: BuildFn::new(move || {
+                    view! {
+                        <Interactive
+                            @node_ref=&frame
+                            on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                        >
+                            <Portal node={Some(body)} />
+                        </Interactive>
+                    }
+                }),
+            });
+            view! {
+                <List spacing=0.0>
+                    {view}
+                    {sheet}
+                </List>
+            }
+        }
     };
     dock.dialog_layers.value().borrow_mut().insert(tab, overlay);
     on_cleanup(move || {

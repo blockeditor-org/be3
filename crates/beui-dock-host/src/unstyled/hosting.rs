@@ -20,7 +20,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::{Color, Modifiers, Pos2, Rect};
 
-use super::dialog::{DialogParts, DockDialogHandle};
+use super::dialog::{DialogParts, DockDialogHandle, DockDialogSheetHandle};
 use super::{
     BarCovers, BarFloats, Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarHandle,
     DockChromeHandle, DockConfig, DockCurves, DockGripHandle, DockPreviewHandle,
@@ -559,6 +559,7 @@ struct HostStyle {
     switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
     switch: Option<RenderFn<DockSwitchHandle, NodeId>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
+    dialog_sheet: Option<RenderFn<DockDialogSheetHandle, NodeId>>,
     dialog_beak: f32,
     curves: DockCurves,
     dialog_radius: f32,
@@ -659,6 +660,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         switcher,
         switch,
         dialog_chrome,
+        dialog_sheet,
         dialog_beak,
         curves,
         dialog_radius,
@@ -837,6 +839,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 dialogs,
                 dialog,
                 dialog_chrome,
+                dialog_sheet,
                 dialog_beak,
                 curves,
                 dialog_radius,
@@ -941,6 +944,7 @@ pub fn DockHost(
     switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
     switch: Option<RenderFn<DockSwitchHandle, NodeId>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
+    dialog_sheet: Option<RenderFn<DockDialogSheetHandle, NodeId>>,
     #[prop(default = 0.0)] dialog_beak: f32,
     curves: DockCurves,
     #[prop(default = 0.0)] dialog_radius: f32,
@@ -984,6 +988,7 @@ pub fn DockHost(
         switcher,
         switch,
         dialog_chrome,
+        dialog_sheet,
         dialog_beak,
         curves,
         dialog_radius,
