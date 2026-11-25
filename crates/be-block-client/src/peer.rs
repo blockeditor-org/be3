@@ -4807,20 +4807,38 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
+    /// Relays `payload`, a message of `block`'s type module, to a participant of its session or
+    /// to all, sealed under the block's key and framed apart from what the stack relays of its
+    /// own (`forks::Relayed`).
     pub async fn relay(
         &self,
         block: Uuid,
         to: Option<ClientId>,
         payload: &[u8],
     ) -> Result<Answer<()>, ClientError> {
+        let mut framed = Vec::with_capacity(1 + payload.len());
+        framed.push(forks::MODULE_RELAY);
+        framed.extend_from_slice(payload);
+        self.relay_framed(block, to, &framed).await
+    }
+
+    async fn relay_framed(
+        &self,
+        block: Uuid,
+        to: Option<ClientId>,
+        framed: &[u8],
+    ) -> Result<Answer<()>, ClientError> {
         let key = self.sealing_key(block).await?;
-        let sealed = self.commits.vault().seal(key, payload)?;
+        let sealed = self.commits.vault().seal(key, framed)?;
         Ok(self.connection().relay(block, to, sealed))
     }
 
-    /// A relay of `block`'s session (`Peer::open_for`).
-    pub fn unseal(&self, block: Uuid, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
-        self.open_for(block, payload).map_err(locked)
+    /// A relay of `block`'s session (`Peer::open_for`): a message of its type module, or one
+    /// the stack relays of its own.
+    pub fn unseal(&self, block: Uuid, payload: &[u8]) -> Result<forks::Relayed, ClientError> {
+        Ok(forks::Relayed::of(
+            self.open_for(block, payload).map_err(locked)?,
+        ))
     }
 
     /// `sealed` bytes the server hands over as `block`'s (its metadata, a relay of its session,

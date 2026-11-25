@@ -21,7 +21,9 @@ async fn heard(
         } = events.recv().await.unwrap()
             && relayed == block
         {
-            let plain = peer.unseal(block, &payload).unwrap();
+            let crate::Relayed::Module(plain) = peer.unseal(block, &payload).unwrap() else {
+                panic!("a module's relay read as the stack's own");
+            };
             heard.push((from, payload, plain));
         }
     }

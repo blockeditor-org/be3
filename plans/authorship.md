@@ -16,10 +16,11 @@ arrival are all caught or impossible there.
 
 - **Forks across devices.** Comparing a head another device kept, and the
   verdict a fork leaves, are built (`Peer::compare_log_head`,
-  guides/blocks/client.md, "Signed logs"). Left: carrying heads in what devices
-  already exchange (peer messages in a session, a commit's `log-through`,
-  contact letters) so they meet and compare, and showing the verdict to the
-  person (guides/blocks/keys.md, "Forks").
+  guides/blocks/client.md, "Signed logs"), and so are heads traded in a block's
+  live session (`Peer::tell_log_head`, guides/blocks/client.md, "Live
+  sessions"). Left: carrying heads in a commit's `log-through` and in contact
+  letters, and showing the verdict to the person (guides/blocks/keys.md,
+  "Forks").
 - **First use of a member's key** is trusted: set aside by the owner
   (plans/deferred/authorship.md).
 - **A replaced key and someone holding the old phrase** look alike: an entry

@@ -1373,6 +1373,43 @@ impl<H: Host> Replicas<H> {
         });
     }
 
+    /// Tells the participants of `block`'s session (`to`, or all) the head of its signed log
+    /// this device kept (`Peer::tell_log_head`; guides/blocks/keys.md, "Forks").
+    fn tell_log_head((peer, shared): Ctx<'_, H>, block: Uuid, to: Option<ClientId>) {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        H::spawn(async move {
+            let told = match peer.tell_log_head(block, to).await {
+                Ok(Some(answer)) => answer.await,
+                Ok(None) => Ok(()),
+                Err(error) => Err(error),
+            };
+            if let Err(error) = told
+                && !unreachable(&error)
+            {
+                H::record(&shared, error);
+            }
+        });
+    }
+
+    /// Compares a head of `block`'s signed log a device of `account` told this one with the head
+    /// it kept (`Peer::compare_log_head`), which keeps a fork it finds as the block's verdict.
+    fn compare_log_head(
+        (peer, shared): Ctx<'_, H>,
+        block: Uuid,
+        account: Uuid,
+        head: be_block_protocol::LogHead,
+    ) {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        H::spawn(async move {
+            let from = be_block_client::HeadFrom::Session { account };
+            if let Err(error) = peer.compare_log_head(block, head, from).await
+                && !unreachable(&error)
+            {
+                H::record(&shared, error);
+            }
+        });
+    }
+
     fn journaled(
         &mut self,
         shared: &Arc<Mutex<H>>,
@@ -1880,6 +1917,7 @@ impl<H: Host> Replicas<H> {
         if offline {
             return Ok(());
         }
+        Self::tell_log_head((peer, shared), block, None);
         // Told against what it loaded, not `head`: opened on the server's journal, it starts at
         // that journal's base, which may predate the head (one the outbox published while the
         // journal's holder was away), and only hearing of the head merges it in.
@@ -2262,6 +2300,7 @@ impl<H: Host> Replicas<H> {
             .into_iter()
             .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));
         self.reopen_joined(replica, client, session, head, loads, commits_kept, ordered);
+        Self::tell_log_head((peer, shared), block, None);
         self.tell_marked(shared, replica);
         for replayed in early {
             self.replay(replica, replayed);
@@ -3903,6 +3942,13 @@ impl<H: Host> Replicas<H> {
                     }
                     return;
                 }
+                // Another participant joined after this device: it is told the head this
+                // device kept, as the others were when this device joined.
+                if matches!(entry.change, be_block_protocol::MembershipChange::Joined(_))
+                    && entry.client != open.client
+                {
+                    Self::tell_log_head((peer, shared), *block, Some(entry.client));
+                }
                 let replayed = Replayed::Lease {
                     session: open.session.clone(),
                 };
@@ -3965,7 +4011,11 @@ impl<H: Host> Replicas<H> {
                     return;
                 };
                 let bytes = match peer.unseal(*block, payload) {
-                    Ok(bytes) => bytes,
+                    Ok(be_block_client::Relayed::Module(bytes)) => bytes,
+                    Ok(be_block_client::Relayed::LogHead { account, head }) => {
+                        return Self::compare_log_head((peer, shared), *block, account, head);
+                    }
+                    Ok(be_block_client::Relayed::Unreadable) => return,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
                             .insert(*block, VecDeque::from([Told::Event(event.clone())]));
@@ -4812,6 +4862,7 @@ impl<H: Host> Replicas<H> {
             .into_iter()
             .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));
         self.reopen_joined(replica, client, session, head, loads, commits_kept, ordered);
+        Self::tell_log_head((peer, shared), block, None);
         self.tell_marked(shared, replica);
         for replayed in early {
             self.replay(replica, replayed);

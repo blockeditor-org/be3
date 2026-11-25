@@ -29,6 +29,7 @@ be-wasm-host = { path = "../be-wasm-host" }
 
 [dev-dependencies]
 be-block-keys = { path = "../be-block-keys" }
+be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 be-server = { path = "../be-server" }
 be-sdk-type-testing = { path = "../be-sdk-type-testing" }
 be-type-checklist = { path = "../be-type-checklist" }

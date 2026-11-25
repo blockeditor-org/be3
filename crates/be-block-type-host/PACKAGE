@@ -40,6 +40,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -75,6 +76,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -110,6 +112,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -145,6 +148,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -180,6 +184,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -241,6 +246,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -276,6 +282,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
                 "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",

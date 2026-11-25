@@ -6,13 +6,13 @@
 //! log, and a pair it cannot prove is a fork, kept as a verdict.
 
 use be_block_keys::merkle;
-use be_block_protocol::{LogHead, LogPage};
+use be_block_protocol::{ClientId, LogHead, LogPage};
 use be_block_store::ObjectStore;
 use uuid::Uuid;
 
 use super::Peer;
 use crate::{
-    ClientError,
+    Answer, ClientError,
     refs::{HeadFrom, KeptLogHead, LogFork},
 };
 
@@ -24,6 +24,52 @@ pub enum LogAgreement {
     /// They do not: the server showed the two devices different logs. The verdict this device
     /// keeps for the block, the first it found (`Peer::log_fork`).
     Forked(LogFork),
+}
+
+/// The first byte of a relay a block's type module sent (`Peer::relay`).
+pub(crate) const MODULE_RELAY: u8 = 0;
+/// The first byte of a relay naming the head of the block's signed log the sender kept
+/// (`Peer::tell_log_head`): its account, then the head's size and root.
+const LOG_HEAD_RELAY: u8 = 1;
+const LOG_HEAD_BYTES: usize = 1 + 16 + 8 + 32;
+
+/// What a participant of a block's live session relayed, unsealed (`Peer::unseal`).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Relayed {
+    /// A message of the block's type module, which the stack hands it.
+    Module(Vec<u8>),
+    /// The head of the block's signed log a device of `account` kept, which this device compares
+    /// with its own (`Peer::compare_log_head`).
+    LogHead { account: Uuid, head: LogHead },
+    /// Bytes framed as neither: dropped.
+    Unreadable,
+}
+
+impl Relayed {
+    pub(crate) fn of(mut plain: Vec<u8>) -> Self {
+        match plain.first() {
+            Some(&MODULE_RELAY) => {
+                plain.remove(0);
+                Self::Module(plain)
+            }
+            Some(&LOG_HEAD_RELAY) if plain.len() == LOG_HEAD_BYTES => {
+                let account = Uuid::from_slice(&plain[1..17]);
+                let size = plain[17..25].try_into().map(u64::from_le_bytes);
+                let root: Result<[u8; 32], _> = plain[25..].try_into();
+                match (account, size, root) {
+                    (Ok(account), Ok(size), Ok(root)) => Self::LogHead {
+                        account,
+                        head: LogHead {
+                            size,
+                            root: be_block_store::Hash::from_bytes(root),
+                        },
+                    },
+                    _ => Self::Unreadable,
+                }
+            }
+            _ => Self::Unreadable,
+        }
+    }
 }
 
 /// How many times a comparison reads the log again as it grows meanwhile.
@@ -92,6 +138,26 @@ impl<S: ObjectStore> Peer<S> {
             };
         }
         Err(ClientError::Contended)
+    }
+
+    /// Tells a participant of `block`'s live session (`to`), or all of them, the head of its
+    /// signed log this device kept, so each compares it with its own
+    /// (guides/blocks/keys.md, "Forks"): as this device joins the session, and to each that
+    /// joins after it. Nothing for a log this device never read, or a local account.
+    pub async fn tell_log_head(
+        &self,
+        block: Uuid,
+        to: Option<ClientId>,
+    ) -> Result<Option<Answer<()>>, ClientError> {
+        let Some(kept) = self.refs.log_head(block).filter(|_| !self.local) else {
+            return Ok(None);
+        };
+        let mut framed = Vec::with_capacity(LOG_HEAD_BYTES);
+        framed.push(LOG_HEAD_RELAY);
+        framed.extend_from_slice(self.account().as_bytes());
+        framed.extend_from_slice(&kept.size.to_le_bytes());
+        framed.extend_from_slice(&kept.root);
+        Ok(Some(self.relay_framed(block, to, &framed).await?))
     }
 
     /// The fork of `block`'s signed log this device found first, if any.
