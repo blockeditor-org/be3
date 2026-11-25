@@ -242,6 +242,18 @@ pub enum KeyboardMove {
     Out,
 }
 
+/// One editor `Children::editors_around` lists outward.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Around {
+    /// The handle of the app running it.
+    pub app: u64,
+    pub editor: EditorInstanceId,
+    /// Its app's name.
+    pub name: String,
+    /// The view of it placing the editor listed before it; none for the first.
+    pub placing: Option<ViewId>,
+}
+
 /// A child placed to run an editor: one place, showing an editor of its own (`Editor`).
 struct Child {
     /// The editor that places it, its view and its id there.
@@ -1458,6 +1470,7 @@ impl Children {
             // ask for a docked child's details to its placer, as be-host-runtime sends them.
             for (owner, view, id, anchor) in docks.take_picks(&key) {
                 let pick = MenuChoice { view, id, anchor };
+                app.note_menu_pick(owner);
                 tell_editor(app.instance(), owner, &EditorEvent::MenuPick(pick));
             }
             for (placer, child) in docks.take_details(&key) {
@@ -1581,34 +1594,37 @@ impl Children {
 
     /// The editors the root's command palette lists outward from `editor`: it, then the editor
     /// placing it, and so on to the one these children are placed in, each with the handle of
-    /// the app running it and its name, as its place says it (`ChildContent::Block`'s app) or as
-    /// `outermost` names the last.
+    /// the app running it, its name, as its place says it (`ChildContent::Block`'s app) or as
+    /// `outermost` names the last, and for each placer the view of it that places the editor
+    /// before, whose actions its palette lists first, as be-host's lists the placing view's.
     pub fn editors_around(
         &self,
         instance: u64,
         editor: EditorInstanceId,
         outermost: &str,
-    ) -> Vec<(u64, EditorInstanceId, String)> {
-        let mut around = vec![(instance, editor)];
-        while let Some((placer_app, placer)) = around
+    ) -> Vec<Around> {
+        let mut around = vec![(instance, editor, None)];
+        while let Some((placer_app, placer, view)) = around
             .last()
-            .and_then(|(_, editor)| self.opener_of(*editor))
+            .and_then(|(_, editor, _)| self.opener_of(*editor))
         {
-            if around.iter().any(|(_, held)| *held == placer) {
+            if around.iter().any(|(_, held, _)| *held == placer) {
                 break;
             }
-            around.push((placer_app, placer));
+            around.push((placer_app, placer, Some(view)));
         }
         let last = around.len() - 1;
         around
             .into_iter()
             .enumerate()
-            .map(|(at, (app, editor))| {
-                let name = match at == last {
+            .map(|(at, (app, editor, placing))| Around {
+                app,
+                editor,
+                name: match at == last {
                     true => outermost.to_owned(),
                     false => self.name_of(editor).unwrap_or_default(),
-                };
-                (app, editor, name)
+                },
+                placing,
             })
             .collect()
     }
@@ -1616,13 +1632,13 @@ impl Children {
     /// The editor that placed the child showing `editor`, any number of levels deep, with the
     /// handle of its app: placed now or kept by the dock that hosts it, whose tab shows it (a
     /// canvas joined to the workspace's dock is the workspace's still).
-    fn opener_of(&self, editor: EditorInstanceId) -> Option<(u64, EditorInstanceId)> {
+    fn opener_of(&self, editor: EditorInstanceId) -> Option<(u64, EditorInstanceId, ViewId)> {
         let opened = self
             .shown
             .iter()
             .find(|child| child.hosted().is_some_and(|(_, shown)| shown == editor));
         if let Some(child) = opened {
-            return Some((self.instance, child.placer));
+            return Some((self.instance, child.placer, child.view));
         }
         self.shown
             .iter()
@@ -1675,6 +1691,7 @@ impl Children {
                     id: choice.id.clone(),
                     anchor,
                 };
+                app.note_menu_pick(editor);
                 tell_editor(app.instance(), editor, &EditorEvent::MenuPick(pick));
             }
             return true;

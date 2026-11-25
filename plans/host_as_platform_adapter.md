@@ -2021,13 +2021,24 @@ Each step lands on its own.
            `Embedded::actions_of`) of the editor whose view has the keyboard
            (`Embedding::focused_editor`), that screen's first, then of each editor placing it
            out to the session's (`Children::editors_around`), each under its app's name, the
-           disabled after the rest; choosing one gives the keyboard back and sends
-           `app.run-action` on the screen that described it (`Embedded::run_action`). Host
-           test `be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette`.
+           disabled after the rest, each placer's placing screen first
+           (`Children::editors_around`'s `Around::placing`); choosing one gives the keyboard
+           to the layer of the screen that described it and sends `app.run-action` there while
+           it still describes it (`Embedded::run_action`, be-host's `action_screen`). An editor
+           may ask for it as be-host's `may_open_palette` lets one: it shows a view, and one of
+           its screens has the keyboard or the person picked from its frame menu within its
+           last two layout commits (`Embedded::note_menu_pick`). It stays shut while the session
+           is locked or the root's dialog or onboarding is up, and shuts as one comes up. Host
+           tests `be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette` and
+           `..._opens_its_palette_from_a_frame_menu`, and be-root's
+           `a_root_keeps_its_palette_shut_while_locked_or_in_a_dialog`.
            - Left: quick open (`PaletteMode::Blocks`), which needs the host's blocks and
              search through be3:root.
            - Left: be-host's own rows (switch account, theme, lock): the root lists none of
              its own yet.
+           - Left: each editor's rows under its block's name, as be-host's palette names them,
+             which needs the host to tell the root block names (a `be3:root` call); the root
+             names each by its app.
            An editor a joined dock's tab shows is kept unplaced, the workspace's still
            (`Children::opener_of`), and any screen its layout has offers its actions, painted
            or not, as be-host's `offers_actions` keeps a main view's: a canvas on the

@@ -54,6 +54,9 @@ impl Root {
             self.close_palette(palette);
             return;
         }
+        if self.palette_barred() {
+            return;
+        }
         let from = self.embedding.borrow().focused_editor(None);
         self.open_palette(from.map(|(app, editor, screen)| (app, editor, Some(screen))));
     }
@@ -66,7 +69,8 @@ impl Root {
         let Some((app, editor, mode)) = asked else {
             return;
         };
-        if mode != PaletteMode::Actions || self.palette.borrow().is_some() {
+        if mode != PaletteMode::Actions || self.palette.borrow().is_some() || self.palette_barred()
+        {
             return;
         }
         self.open_palette(Some((app, editor, None)));
@@ -144,15 +148,31 @@ impl Root {
         };
         let around = match &*self.session.borrow() {
             Some(session) => session.editors_around(app.instance(), editor),
-            None => vec![(app.instance(), editor, String::new())],
+            None => vec![be_sdk_root::Around {
+                app: app.instance(),
+                editor,
+                name: String::new(),
+                placing: None,
+            }],
         };
         let embedding = self.embedding.borrow();
         let mut rows = Vec::new();
-        for (handle, shown, name) in around {
+        for be_sdk_root::Around {
+            app: handle,
+            editor: shown,
+            name,
+            placing,
+        } in around
+        {
             let Some(app) = embedding.app_of(handle) else {
                 continue;
             };
-            let first = screen.filter(|_| shown == editor);
+            // The screen that has the keyboard first, and for each placer the one placing the
+            // editor listed before, as be-host lists the placing view's first.
+            let first = match placing {
+                Some(view) => app.screen_of(shown, view),
+                None => screen,
+            };
             let mut actions: Vec<_> = app
                 .actions_of(shown, first)
                 .into_iter()
@@ -184,7 +204,8 @@ impl Root {
     }
 
     /// Closes the palette once its document said it closed or a row was picked: it gives the
-    /// keyboard back to the layer that had it, then runs the row picked on its app's screen.
+    /// keyboard back to the layer that had it, or for a row picked to the layer showing the
+    /// screen it runs on, as be-host focuses the chosen row's view, then runs it there.
     pub(super) fn settle_palette(&self) {
         let picked = {
             let palette = self.palette.borrow();
@@ -208,14 +229,39 @@ impl Root {
             return;
         };
         let closed = self.palette.borrow_mut().take();
-        if let Some(palette) = closed {
+        let run = run.and_then(|(app, screen, id)| {
+            let app = self.embedding.borrow().app_of(app)?;
+            Some((app, screen, id))
+        });
+        if let Some(mut palette) = closed {
+            if let Some((app, screen, _)) = &run {
+                palette.had = Some(app.layer_id(*screen));
+            }
             self.close_palette(palette);
         }
-        if let Some((app, screen, id)) = run
-            && let Some(app) = self.embedding.borrow().app_of(app)
-        {
+        if let Some((app, screen, id)) = run {
             app.run_action(screen, id);
         }
+    }
+
+    /// Whether the palette stays shut, as be-host's does: while the session is locked, and while
+    /// the root's dialog or onboarding is up, each of which keeps the keyboard until it closes.
+    fn palette_barred(&self) -> bool {
+        self.lock.borrow().is_some()
+            || self
+                .lock_state
+                .borrow()
+                .as_ref()
+                .is_some_and(|state| state.locked)
+            || self.dialog.borrow().is_some()
+            || self.onboarding.borrow().is_some()
+    }
+
+    /// Shuts the palette, if it is open, as the lock screen, a dialog or onboarding comes up
+    /// over it: the layer that had the keyboard as it opened, which the palette answers, gets it
+    /// back once what came up closes.
+    pub(super) fn shut_palette(&self) -> Option<Option<LayerId>> {
+        self.palette.borrow_mut().take().map(|palette| palette.had)
     }
 
     /// Lets go of `palette`, giving the keyboard back to the layer that had it as it opened.

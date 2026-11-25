@@ -11,7 +11,7 @@ use std::{
 
 use be_lib_geometry::pos2;
 use be_lib_layers::{Area, LayerId, LayerInput, LayerList, WindowLayers};
-use be_lib_ui_types::input::{Input, Key, KeyChord, Modifiers};
+use be_lib_ui_types::input::{Input, Key, KeyChord, KeyPress, Modifiers};
 use be_sdk_api::Fonts;
 use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedding, OwnSurface};
@@ -683,6 +683,7 @@ impl Root {
                 }
             },
         )?;
+        self.shut_palette();
         *self.onboarding.borrow_mut() = Some(Onboarding {
             surface,
             closing,
@@ -746,7 +747,8 @@ impl Root {
         let (shown, shown_at) = shown
             .get()
             .ok_or("the lock screen's document made its state")?;
-        let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
+        let focused = self.embedding.borrow().focused(None).map(|layer| layer.id);
+        let had = self.shut_palette().unwrap_or(focused);
         *self.lock.borrow_mut() = Some(Locked {
             surface,
             shown,
@@ -767,8 +769,14 @@ impl Root {
             let asked = match &delivery.input {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(Key::Escape) if open => Some(Asked::Close),
-                    // The root takes no other P than its palette's chord (`chords`).
-                    Some(Key::P) => {
+                    Some(key)
+                        if palette_chord().matches(KeyPress {
+                            key,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: delivery.modifiers,
+                        }) =>
+                    {
                         self.palette_asked.set(true);
                         None
                     }
@@ -1218,8 +1226,9 @@ impl Root {
                 }
             },
         )?;
+        let shut = self.shut_palette();
         let mut embedding = self.embedding.borrow_mut();
-        let had = embedding.focused(None).map(|layer| layer.id);
+        let had = shut.unwrap_or_else(|| embedding.focused(None).map(|layer| layer.id));
         // Until the dialog has the focus, Escape is the root's, wherever the focus is.
         embedding.intercept(chords(true));
         drop(embedding);
@@ -1279,11 +1288,10 @@ impl Presented {
 /// beui's default dialog width, in points, which be-host's alerts keep.
 const DIALOG_POINTS: f32 = 400.0;
 
-/// The chords the root takes ahead of the focus, while the session is not locked: Escape while
-/// its dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
-/// document's, which closes it once nothing in it (a popup) took the key first.
-/// The chords the root takes ahead of whatever has the keyboard: its palette's, and Escape
-/// while `escape` (its dialog is open and the keyboard is outside it).
+/// The chords the root takes ahead of whatever has the keyboard, while the session is not
+/// locked: its palette's, and Escape while `escape` (its dialog is open but the keyboard is
+/// outside it). With the keyboard in the dialog, Escape is its document's, which closes it once
+/// nothing in it (a popup) took the key first.
 fn chords(escape: bool) -> Vec<KeyChord> {
     let mut chords = vec![palette_chord()];
     if escape {
