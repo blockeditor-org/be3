@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
     convert::Infallible,
-    panic::{AssertUnwindSafe, catch_unwind},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -11,7 +10,7 @@ use std::{
 
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 
-use crate::{Channel, Event, Produced, Received, StepTime, Wake, panic_message, wakes};
+use crate::{Channel, Event, Produced, Received, StepTime, Wake, wakes};
 
 pub struct InProcess<G: Guest> {
     guest: Option<G>,
@@ -42,14 +41,14 @@ impl<G: Guest> InProcess<G> {
             wake,
         };
         let mut outbound = Vec::new();
-        let started = catch_unwind(AssertUnwindSafe(|| G::start(waker, &mut outbound)));
+        let started = be_wasm_panic::contain(|| G::start(waker, &mut outbound));
         let event = match started {
             Ok(Ok(guest)) => {
                 channel.guest = Some(guest);
                 Event::Ready(Produced::sent(outbound, StepTime::default()))
             }
             Ok(Err(error)) => Event::Failed(error),
-            Err(panic) => Event::Failed(panic_message(&*panic)),
+            Err(panic) => Event::Failed(panic),
         };
         channel.report(event);
         channel
@@ -82,9 +81,7 @@ impl<G: Guest> Channel for InProcess<G> {
         let woken = std::mem::take(&mut self.taken) | self.woken.swap(false, Ordering::AcqRel);
         let mut outbound = Vec::new();
         let started = Instant::now();
-        let stepped = catch_unwind(AssertUnwindSafe(|| {
-            guest.step(frames, woken, &mut outbound)
-        }));
+        let stepped = be_wasm_panic::contain(|| guest.step(frames, woken, &mut outbound));
         let took = StepTime {
             step: started.elapsed(),
             ..StepTime::default()
@@ -101,7 +98,7 @@ impl<G: Guest> Channel for InProcess<G> {
             }
             Err(panic) => {
                 self.guest = None;
-                Event::Failed(panic_message(&*panic))
+                Event::Failed(panic)
             }
         };
         self.report(event);

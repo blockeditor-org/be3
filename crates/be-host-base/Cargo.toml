@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-block-protocol = { path = "../be-block-protocol" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-lib-build-id = { path = "../be-lib-build-id" }
@@ -48,6 +49,10 @@ web-sys = { version = "0.3", features = [
     "WorkerGlobalScope",
     "console",
 ] }
+
+# A guest thread that panics, in a test of the hook.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 
 [lints]
 workspace = true

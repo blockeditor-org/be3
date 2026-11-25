@@ -33,7 +33,7 @@ use std::{
 
 use be_wasm_guest_host::{
     Produced, StepTime, Wake as HostWake,
-    thread::{self, Contain, Runnable, Spawn, Threaded},
+    thread::{self, Runnable, Spawn, Threaded},
 };
 
 use be_wasm_gpu_host::Gpu;
@@ -174,7 +174,6 @@ impl Host {
         load: impl FnOnce(&Host) -> Result<R, String> + Send + 'static,
         wake: HostWake,
         waiting: Arc<AtomicBool>,
-        contain: Contain,
     ) -> Result<Threaded<R::Presented>, String> {
         let interrupter = self.interrupter();
         self.name = Some(name.clone());
@@ -184,7 +183,6 @@ impl Host {
                 wake,
                 waiting,
                 interrupt: Box::new(move || interrupter.interrupt()),
-                contain,
             },
             move || load(&self),
         )

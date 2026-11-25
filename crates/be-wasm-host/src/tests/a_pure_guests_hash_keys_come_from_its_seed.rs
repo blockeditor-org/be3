@@ -14,7 +14,6 @@ fn hash(seed: [u8; 32]) -> Vec<u8> {
             |host| host.load_bytes(ECHO),
             Arc::new(|| {}),
             Arc::clone(&waiting),
-            be_wasm_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = be_wasm_guest_host::Worker::new(channel, waiting);

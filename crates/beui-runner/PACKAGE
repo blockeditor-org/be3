@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -31,6 +32,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -45,6 +47,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -59,6 +62,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -73,6 +77,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -87,6 +92,7 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -101,6 +107,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -115,6 +122,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
@@ -129,6 +137,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-panic:be-wasm-panic",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",

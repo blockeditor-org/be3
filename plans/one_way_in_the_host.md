@@ -21,6 +21,13 @@ disagree. Each step below removes one of the pair.
    `panic_message` (today in be-wasm-guest-host, be-host-base and beui-runner).
    Test: a type module that panics inside a host test leaves the host running and writes no
    last-panic.txt.
+   Done: `contain`, `contain_task`, the counter (`containing`) and one `message` are in
+   be-wasm-panic, the base layer both be-wasm-guest-host and beui-runner may use (be-lib and beui
+   crates may not be beneath a be-wasm one); every guest thread and in-process guest runs in it,
+   and be-host-base's hook is set through `be_wasm_panic::set_hook`. A type module cannot be made
+   to panic in host code from a host test, so the test is be-host-base's
+   `a_guest_thread_that_panics_is_its_failure_not_a_crash`, a guest thread spawned as type modules
+   and the sandbox spawn theirs.
 2. **One `RootSettings`.** `be-sdk/src/root_settings.rs` (`own_settings_blocks`,
    `RootSettings::{read, find, ensure_with}`, `layers`, over `SettingsGraph`) and
    `be-host/src/root_settings.rs` (`owned`, `find`, `ensure`, `settings`, `layers`, against

@@ -243,7 +243,6 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
         },
         wake,
         Arc::clone(&waiting),
-        be_wasm_guest_host::thread::catch,
     )?;
     Ok(Instance {
         worker: Worker::new(channel, waiting),

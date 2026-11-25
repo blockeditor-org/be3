@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-wasm-panic = { path = "../be-wasm-panic" }
 accesskit = "0.24.1"
 beui-core = { path = "../beui-core" }
 beui-reactive = { path = "../beui-reactive" }

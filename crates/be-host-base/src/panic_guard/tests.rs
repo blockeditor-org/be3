@@ -1,2 +1,3 @@
 use super::*;
 mod a_contained_panic_is_not_a_crash_but_a_loose_one_is;
+mod a_guest_thread_that_panics_is_its_failure_not_a_crash;

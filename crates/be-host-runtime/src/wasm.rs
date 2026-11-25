@@ -224,7 +224,6 @@ fn start(
         move |host| staged.load(host).map(Presenting),
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
-        |run| be_host_base::panic_guard::contain(run),
     )?;
     Ok((channel, mailbox, waiting))
 }

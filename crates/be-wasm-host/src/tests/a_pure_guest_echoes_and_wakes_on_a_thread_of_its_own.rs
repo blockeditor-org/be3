@@ -19,7 +19,6 @@ fn a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own() {
                 woken.fetch_add(1, Ordering::SeqCst);
             }),
             Arc::clone(&waiting),
-            be_wasm_guest_host::thread::catch,
         )
         .unwrap();
     let mut worker = be_wasm_guest_host::Worker::new(channel, waiting);
