@@ -116,6 +116,7 @@ Landed on 2026-11-24:
 - `pure-guest-opt-s`: a pure guest's own crate builds at opt-level s in a release build (about 5.6% smaller apps).
 - `backlog-30-31`: the shared WIT's hash and uuid, and be3:ui's block-ref, are list<u8> as on the wire; a move into a block's own descendant is refused on the device; a secret shown once survives a stray press on its scrim.
 - `beui-vello-7`: paintings hold paths (Content::Path), the tessellator and lyon go, one merge rule for seamed fills in raster and renderer; plans/beui_on_vello.md is done and deleted (decisions/beui_draws_with_vello.md).
+- `server-protocol-26`: §26 of the server protocol plan, split; a replica's logged input that arrives while it loads is queued as a job.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
