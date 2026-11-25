@@ -19,7 +19,7 @@ async fn numbered(peer: &Peer<MemoryStore>, block: Uuid, count: u64) {
             barrier: false,
             payload: vec![1],
         };
-        peer.submit(block, tag(), submission, false, Vec::new())
+        peer.submit(block, tag(), submission, false)
             .await
             .expect("the entry is numbered");
     }
@@ -62,7 +62,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
             state: Vec::new(),
             parts: Vec::new(),
         };
-        peer.rebase_journal(block, tag(), 0, base.clone(), false, false)
+        peer.rebase_journal(block, tag(), 0, base.clone(), false)
             .await
             .expect("the journal starts on the head");
         numbered(&peer, block, 4).await;
@@ -96,7 +96,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
             sequence: 4,
             ..base
         };
-        peer.rebase_journal(block, tag(), 0, past, false, false)
+        peer.rebase_journal(block, tag(), 0, past, false)
             .await
             .expect("the journal starts past what it numbered");
         let empty = seal(&peer, block, parent, "empty", 5).await;

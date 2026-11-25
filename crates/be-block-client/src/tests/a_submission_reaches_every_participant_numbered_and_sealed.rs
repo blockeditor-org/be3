@@ -39,7 +39,7 @@ async fn a_submission_reaches_every_participant_numbered_and_sealed() {
         payload: b"an edit".to_vec(),
     };
     let Ok(peer::Submitted::Server(answer)) = phone
-        .submit(block, BUILD, submission, true, Vec::new())
+        .submit(block, BUILD, submission, true)
         .await
     else {
         panic!("an online submission goes to the server");
@@ -72,7 +72,7 @@ async fn a_submission_reaches_every_participant_numbered_and_sealed() {
         payload: b"made offline".to_vec(),
     };
     let Ok(peer::Submitted::Offline(entry)) =
-        phone.submit(block, BUILD, offline, false, Vec::new()).await
+        phone.submit(block, BUILD, offline, false).await
     else {
         panic!("an offline submission is numbered on the device");
     };

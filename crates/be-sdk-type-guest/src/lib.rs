@@ -959,7 +959,6 @@ impl Module {
             Effect::Submit {
                 replica,
                 submission,
-                announcements,
             } => {
                 let counter = submission.id.counter;
                 let submission = be_sdk_type_api::Submission {
@@ -969,7 +968,7 @@ impl Module {
                     barrier: submission.barrier,
                     payload: submission.payload,
                 };
-                let pending = ops::with_parent(replica, || host::submit(submission, announcements));
+                let pending = ops::with_parent(replica, || host::submit(submission));
                 self.answer_later(replica, pending, move |submitted| Input::Submitted {
                     counter,
                     outcome: match submitted {

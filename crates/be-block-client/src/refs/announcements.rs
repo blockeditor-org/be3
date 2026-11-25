@@ -1,11 +1,9 @@
-//! What edits made on this device announce (`be_block_content::Announcement`), kept beside the journal
-//! entry or outbox commit that holds each edit until the server holds it, then sent once
-//! (guides/type_modules.md, "Announcements"). The text is sealed with the block's key, as the
-//! journal is.
+//! What log entries appended on this device announce (`be_block_content::Along::announcement`),
+//! kept from when the server holds the entry until they are sent, once (guides/type_modules.md,
+//! "Announcements"). The text is sealed with the block's key, as the log is.
 
 use std::collections::{BTreeMap, HashSet};
 
-use be_block_commit::CommitId;
 use be_block_store::StoreError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,26 +14,12 @@ use super::{Refs, Row, Table, row};
 /// with it) is not told twice.
 const REMEMBERED: usize = 256;
 
-/// What has to happen before an announcement is sent.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum Until {
-    /// The edit was submitted to the server's order, which has not answered yet.
-    Submitted,
-    /// The edit is in this device's journal as `sequence`, numbered offline, and the server does
-    /// not hold it yet.
-    Journal(u64),
-    /// The edit is in this commit, kept in the outbox.
-    Commit(CommitId),
-    /// The server holds the edit.
-    Held,
-    /// Sent, or given up: remembered so it is not sent again.
-    Sent,
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct Waiting {
     pub(crate) order: u64,
-    pub(crate) until: Until,
+    /// Sent, or given up: remembered so it is not sent again. Otherwise the server holds the
+    /// entry and it waits to go.
+    pub(crate) sent: bool,
     pub(crate) made: Made,
 }
 
@@ -80,13 +64,11 @@ pub(super) fn forget(state: &mut super::State, block: Uuid, rows: &mut Vec<Row>)
 }
 
 impl Refs {
-    /// Keeps announcements of edits of `block` until `until`. A key already held, sent or kept
-    /// with a commit is not kept again; one waiting in the journal is replaced, since the edit
-    /// was made again (a replica restarted with it) and the journal entry may never be held.
+    /// Keeps announcements of entries of `block` the server holds, to send. A key already held
+    /// or sent is not kept again.
     pub fn add_announcements(
         &self,
         block: Uuid,
-        until: Until,
         announcements: Vec<Made>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
@@ -94,19 +76,17 @@ impl Refs {
             let mut guard = self.state.lock().unwrap();
             let state = &mut *guard;
             for made in announcements {
-                let known = state
+                if state
                     .announcements
                     .get(&block)
-                    .and_then(|held| held.get(&made.key));
-                if known.is_some_and(|known| {
-                    !matches!(known.until, Until::Journal(_) | Until::Submitted)
-                }) {
+                    .is_some_and(|held| held.contains_key(&made.key))
+                {
                     continue;
                 }
                 let key = key_of(block, &made.key);
                 let waiting = Waiting {
                     order: state.take(),
-                    until,
+                    sent: false,
                     made,
                 };
                 rows.push(row(Table::Announcement, key, &waiting));
@@ -120,105 +100,7 @@ impl Refs {
         self.write(rows)
     }
 
-    /// Moves the announcements of `block` that `change` answers for to what it answers: `None`
-    /// forgets one.
-    fn update_announcements(
-        &self,
-        block: Uuid,
-        change: impl Fn(&str, Until) -> Option<Option<Until>>,
-    ) -> Result<(), StoreError> {
-        let mut rows = Vec::new();
-        {
-            let mut state = self.state.lock().unwrap();
-            let Some(held) = state.announcements.get_mut(&block) else {
-                return Ok(());
-            };
-            let mut gone = Vec::new();
-            for (key, waiting) in held.iter_mut() {
-                match change(key, waiting.until) {
-                    None => {}
-                    Some(None) => gone.push(key.clone()),
-                    Some(Some(until)) if until != waiting.until => {
-                        waiting.until = until;
-                        rows.push(row(Table::Announcement, key_of(block, key), &*waiting));
-                    }
-                    Some(Some(_)) => {}
-                }
-            }
-            for key in gone {
-                held.remove(&key);
-                rows.push(Row {
-                    table: Table::Announcement,
-                    key: key_of(block, &key),
-                    value: None,
-                });
-            }
-        }
-        self.write(rows)
-    }
-
-    /// The server numbered the submissions holding the announcements named.
-    pub fn submitted_held(&self, block: Uuid, keys: &HashSet<String>) -> Result<(), StoreError> {
-        self.update_announcements(block, |key, until| match until {
-            Until::Submitted if keys.contains(key) => Some(Some(Until::Held)),
-            _ => None,
-        })
-    }
-
-    /// The server refused the submissions holding the announcements named: they are never sent.
-    pub fn submitted_refused(&self, block: Uuid, keys: &HashSet<String>) -> Result<(), StoreError> {
-        self.update_announcements(block, |key, until| match until {
-            Until::Submitted if keys.contains(key) => Some(None),
-            _ => None,
-        })
-    }
-
-    /// The journal of `block` starts from a commit holding the order up to `sequence`: what
-    /// waited in it up to there goes with that commit when this device sealed it (`own`), kept
-    /// in the outbox (`kept`) or already on the server; anything after stays in the journal.
-    pub fn journal_rebased(
-        &self,
-        block: Uuid,
-        commit: Option<CommitId>,
-        sequence: u64,
-        own: bool,
-        kept: bool,
-    ) -> Result<(), StoreError> {
-        self.update_announcements(block, |_, until| match until {
-            Until::Journal(at) if at > sequence => None,
-            Until::Journal(at) => Some(match commit {
-                Some(commit) if own && at <= sequence => Some(match kept {
-                    true => Until::Commit(commit),
-                    false => Until::Held,
-                }),
-                _ => None,
-            }),
-            _ => None,
-        })
-    }
-
-    /// The server holds `commits` of `block`: what waited on them is held.
-    pub fn commits_held(&self, block: Uuid, commits: &HashSet<CommitId>) -> Result<(), StoreError> {
-        self.update_announcements(block, |_, until| match until {
-            Until::Commit(commit) if commits.contains(&commit) => Some(Some(Until::Held)),
-            _ => None,
-        })
-    }
-
-    /// The server refused `commits` of `block` kept on this device, or they were given up: what
-    /// they announce is never sent.
-    pub fn commits_refused(
-        &self,
-        block: Uuid,
-        commits: &HashSet<CommitId>,
-    ) -> Result<(), StoreError> {
-        self.update_announcements(block, |_, until| match until {
-            Until::Commit(commit) if commits.contains(&commit) => Some(None),
-            _ => None,
-        })
-    }
-
-    /// Takes every announcement whose edit the server holds, marking it sent, oldest first.
+    /// Takes every announcement waiting to go, marking it sent, oldest first.
     pub fn take_held_announcements(&self) -> Result<Vec<Announcing>, StoreError> {
         let mut taken = Vec::new();
         let mut rows = Vec::new();
@@ -226,10 +108,10 @@ impl Refs {
             let mut state = self.state.lock().unwrap();
             for (block, held) in state.announcements.iter_mut() {
                 for (key, waiting) in held.iter_mut() {
-                    if waiting.until != Until::Held {
+                    if waiting.sent {
                         continue;
                     }
-                    waiting.until = Until::Sent;
+                    waiting.sent = true;
                     rows.push(row(Table::Announcement, key_of(*block, key), &*waiting));
                     taken.push((
                         waiting.order,
@@ -241,7 +123,7 @@ impl Refs {
                 }
                 let mut sent: Vec<(u64, String)> = held
                     .iter()
-                    .filter(|(_, waiting)| waiting.until == Until::Sent)
+                    .filter(|(_, waiting)| waiting.sent)
                     .map(|(key, waiting)| (waiting.order, key.clone()))
                     .collect();
                 sent.sort();
@@ -274,13 +156,22 @@ impl Refs {
                 .or_default()
                 .insert(announcing.made.key.clone());
         }
-        for (block, keys) in by_block {
-            self.update_announcements(block, |key, until| match until {
-                Until::Sent if keys.contains(key) => Some(Some(Until::Held)),
-                _ => None,
-            })?;
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            for (block, keys) in by_block {
+                let Some(held) = state.announcements.get_mut(&block) else {
+                    continue;
+                };
+                for (key, waiting) in held.iter_mut() {
+                    if waiting.sent && keys.contains(key) {
+                        waiting.sent = false;
+                        rows.push(row(Table::Announcement, key_of(block, key), &*waiting));
+                    }
+                }
+            }
         }
-        Ok(())
+        self.write(rows)
     }
 
     /// Whether any announcement waits to be sent.
@@ -290,6 +181,6 @@ impl Refs {
             .unwrap()
             .announcements
             .values()
-            .any(|held| held.values().any(|waiting| waiting.until == Until::Held))
+            .any(|held| held.values().any(|waiting| !waiting.sent))
     }
 }

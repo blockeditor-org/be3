@@ -216,7 +216,6 @@ impl<S: ObjectStore> Peer<S> {
     pub fn abandon(&self, block: Uuid, commit: CommitId) -> Result<(), ClientError> {
         if let Some((sequence, _)) = self.pending_publish(block, commit) {
             self.refs.remove(&[sequence])?;
-            self.refs.commits_refused(block, &HashSet::from([commit]))?;
         }
         Ok(())
     }
@@ -250,7 +249,6 @@ impl<S: ObjectStore> Peer<S> {
                 }
             }
         }
-        self.refs.commits_held(block, &commits)?;
         self.refs
             .settle(block, &settled, head, self.behind(), |local| {
                 local.is_none_or(|local| commits.contains(&local))
@@ -613,10 +611,6 @@ impl<S: ObjectStore> Peer<S> {
                 self.move_to_unsent(block, None)?;
                 continue;
             }
-            let mut publishing = match &op {
-                Op::Publish(pending) => Some(pending.commit),
-                _ => None,
-            };
             let sent = match op {
                 Op::Create(creation) => self.send_creation(sequence, creation).await,
                 // Sealed again under a new epoch: sent once more as it now stands, and set
@@ -627,7 +621,6 @@ impl<S: ObjectStore> Peer<S> {
                         let Some(Op::Publish(pending)) = self.refs.op(sequence) else {
                             continue;
                         };
-                        publishing = Some(pending.commit);
                         self.drain_publish(sequence, pending, false).await
                     }
                     sent => sent,
@@ -643,9 +636,6 @@ impl<S: ObjectStore> Peer<S> {
                 Err(error) if error.is_unreachable() => break,
                 Err(ClientError::Refused(code, _)) => {
                     stopped.insert(block);
-                    if let Some(commit) = publishing {
-                        self.refs.commits_refused(block, &HashSet::from([commit]))?;
-                    }
                     Drained::Refused {
                         block,
                         code,
@@ -785,7 +775,6 @@ impl<S: ObjectStore> Peer<S> {
             .filter(|(_, commit)| reached.contains(commit))
             .map(|(sequence, _)| *sequence)
             .collect();
-        self.refs.commits_held(block, &reached)?;
         self.refs
             .settle(block, &settled, head, self.behind(), |local| {
                 local.is_none_or(|local| local == head || reached.contains(&local))
@@ -1185,16 +1174,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.forget(&blocks)?)
     }
 
-    /// Sets what this device keeps of `block` aside: what its commits announce is never sent
-    /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
+    /// Sets what this device keeps of `block` aside.
     /// With `refused`, the server refused it with that code; otherwise this account lost access.
     pub fn move_to_unsent(
         &self,
         block: Uuid,
         refused: Option<crate::refs::Aside>,
     ) -> Result<bool, ClientError> {
-        let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
-        self.refs.commits_refused(block, &commits)?;
         Ok(self
             .refs
             .move_to_unsent(block, now_milliseconds(), refused)?)

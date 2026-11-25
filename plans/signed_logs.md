@@ -312,11 +312,20 @@ within one page: step 4's fold takes the first occurrence of an id.
      drops it, and nothing is read again.
    - **Sending** shows from `take_appended` (kept: "Sending"; refused: "Not
      sent") instead of the lacking edits.
-6. **Remove what nothing uses.** Segments, `ChatOp::Close`, chat's
+6. **Remove what nothing uses.** Built. Segments, `ChatOp::Close`, chat's
    `MergeParts`, ranked `LatestMap`, `LiveEdit::arrival` and
    `CLAIMED_ARRIVAL`, the `Trust::Altered` and gap rows, `seen` and
    `own_previous`, and the announcements machinery if chat was its only user.
    Done: `./scripts/verify` passes and a search of the tree finds none of them.
+   Built. Segments, `Close`, chat's `MergeParts`, the `Trust` rows and `seen`
+   went with step 5; this step took out the rest: ranks in `Stamp`,
+   `LiveEdit::arrival` and the replica's stamping, `WHOLE_BYTES` and the copies
+   it refused (`Peer::has_later_parts`), and the announcements of content edits
+   (`LiveEdit::announcements`, `submit`'s announcements, the refs' journal and
+   commit states, `rebase_journal`'s `own`). Announcements stay for log
+   entries (`Along::announcement`), held from when the server takes the entry.
+   A journal entry keeps `received`, which tells what the server numbered from
+   what a device numbered offline.
 7. **Docs.** A decision ("A block's records that only grow are a signed log,
    not content"), guides/chat.md, guides/blocks/{server,client,content_types}.md,
    guides/type_modules.md and guides/blocks/keys.md updated; plans/authorship.md

@@ -129,10 +129,8 @@ interface host {
     /// Hands the session's order a submission: the server numbers it, keeps it
     /// in the block's journal and every replica hears it (`replica.sequenced`),
     /// this one too. Offline the host numbers it in this device's own order
-    /// and the replica hears it the same way. `announcements` are those of the
-    /// edits made on this device it holds: the host keeps them and sends them
-    /// once the server holds the edit.
-    submit: async func(submission: submission, announcements: list<announcement>) -> submitted;
+    /// and the replica hears it the same way.
+    submit: async func(submission: submission) -> submitted;
 
     variant submitted {
         /// The server numbered it.

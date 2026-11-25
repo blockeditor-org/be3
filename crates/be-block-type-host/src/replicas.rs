@@ -216,7 +216,7 @@ async fn log_items<S: be_block_store::ObjectStore>(
     items
 }
 
-/// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
+/// Sends what the log entries the server now holds announce (`Peer::send_announcements`); an
 /// unreachable server leaves them for the next time.
 pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
     if let Err(error) = peer.send_announcements().await
@@ -329,7 +329,6 @@ struct Refused {
     epoch: u64,
     reply: Reply<be_sdk_type_api::host::Submitted>,
     submission: be_block_session::Submission,
-    announcements: Vec<be_block_content::Announcement>,
 }
 
 pub enum Answered {
@@ -1188,7 +1187,7 @@ pub struct Replicas<H: Host> {
     /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
     bookmarks: HashMap<Uuid, String>,
     /// The newest commits each block's replicas sealed here, published or kept, across
-    /// reopens: a journal rebased on one hands its announcements to it (`Peer::rebase_journal`).
+    /// reopens: a seal the server tells of that is one of them is not fetched again.
     sealed: HashMap<Uuid, VecDeque<CommitId>>,
     pub handled: u64,
     /// How many heads replicas were told moved, for tests.
@@ -5266,7 +5265,6 @@ impl<H: Host> Replicas<H> {
         replica: ReplicaId,
         reply: Reply<be_sdk_type_api::host::Submitted>,
         submission: be_block_session::Submission,
-        announcements: Vec<be_block_content::Announcement>,
     ) {
         let Some((block, made_up)) = self
             .open
@@ -5275,10 +5273,6 @@ impl<H: Host> Replicas<H> {
         else {
             return;
         };
-        let keys: std::collections::HashSet<String> = announcements
-            .iter()
-            .map(|announcement| announcement.key.clone())
-            .collect();
         let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
         let arrivals = peer.arrivals();
         let online = !made_up && peer.is_attached();
@@ -5332,16 +5326,7 @@ impl<H: Host> Replicas<H> {
                     .call(module, |connection| reply.send(connection, &failed));
                 return;
             }
-            Ok(()) => {
-                peer.submit(
-                    block,
-                    tag,
-                    submission.clone(),
-                    online,
-                    announcements.clone(),
-                )
-                .await
-            }
+            Ok(()) => peer.submit(block, tag, submission.clone(), online).await,
             Err(error) => Err(error),
         };
         match submitted {
@@ -5351,28 +5336,14 @@ impl<H: Host> Replicas<H> {
                     open.submitting += 1;
                 }
                 let (shared, io) = (Arc::clone(shared), self.io.clone());
-                let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
                     let answered = match answer.await {
-                        Ok(()) => {
-                            if !keys.is_empty() {
-                                match peer.submitted_held(block, &keys) {
-                                    Ok(()) => send_announcements::<H>(&peer, &shared).await,
-                                    Err(error) => H::record(&shared, error),
-                                }
-                            }
-                            be_sdk_type_api::host::Submitted::Held
-                        }
+                        Ok(()) => be_sdk_type_api::host::Submitted::Held,
                         // This account may not edit the block: sent again it would be refused
-                        // again, so the replica gives the edit up, and what it announces is never
-                        // sent. The server's refusal and a local `OpError::Denied` both arrive as
-                        // this (`ClientError::from`), and both mean give it up.
+                        // again, so the replica gives the edit up. The server's refusal and a
+                        // local `OpError::Denied` both arrive as this (`ClientError::from`), and
+                        // both mean give it up.
                         Err(error @ ClientError::Refused(ErrorCode::PermissionDenied, _)) => {
-                            if !keys.is_empty()
-                                && let Err(error) = peer.submitted_refused(block, &keys)
-                            {
-                                H::record(&shared, error);
-                            }
                             let refused =
                                 be_sdk_type_api::host::Submitted::Refused(error.to_string());
                             H::record_sync(&shared, error);
@@ -5414,7 +5385,6 @@ impl<H: Host> Replicas<H> {
                     epoch,
                     reply,
                     submission,
-                    announcements,
                 });
                 match peer.arrivals() == arrivals {
                     true => self.lock(shared, block),
@@ -5451,7 +5421,6 @@ impl<H: Host> Replicas<H> {
                     refused.replica,
                     refused.reply,
                     refused.submission,
-                    refused.announcements,
                 )
                 .await;
             }
@@ -5507,11 +5476,7 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
-            Call::Submit {
-                reply,
-                submission,
-                announcements,
-            } => {
+            Call::Submit { reply, submission } => {
                 let submission = be_block_session::Submission {
                     id: be_block_session::OpId {
                         origin: submission.origin,
@@ -5521,15 +5486,8 @@ impl<H: Host> Replicas<H> {
                     barrier: submission.barrier,
                     payload: submission.payload,
                 };
-                self.submit(
-                    (peer, shared),
-                    module,
-                    replica,
-                    reply,
-                    submission,
-                    announcements,
-                )
-                .await;
+                self.submit((peer, shared), module, replica, reply, submission)
+                    .await;
                 false
             }
             Call::RebaseJournal {
@@ -5555,20 +5513,8 @@ impl<H: Host> Replicas<H> {
                 // itself; one the module made in a session the host made up (offline, or while
                 // joining) is kept on this device only.
                 let trim = !made_up && peer.is_attached();
-                // An own commit: one a replica of this host sealed, or one this device's outbox
-                // keeps.
-                let own = base.commit.is_some_and(|commit| {
-                    self.sealed
-                        .get(&block)
-                        .is_some_and(|sealed| sealed.contains(&commit))
-                        || peer.pending_commits(block).contains(&commit)
-                });
-                let rebased = peer
-                    .rebase_journal(block, tag, restarts, base, trim, own)
-                    .await;
+                let rebased = peer.rebase_journal(block, tag, restarts, base, trim).await;
                 self.journaled(shared, rebased);
-                let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-                H::spawn(async move { send_announcements::<H>(&peer, &shared).await });
                 false
             }
             Call::Load {
@@ -5871,7 +5817,7 @@ impl<H: Host> Replicas<H> {
                             && !made_up
                             && peer.is_attached();
                         match peer
-                            .rebase_journal(block, tag, restarts, base, trim, true)
+                            .rebase_journal(block, tag, restarts, base, trim)
                             .await
                         {
                             Ok(Some(trimmed)) => {
@@ -5885,7 +5831,6 @@ impl<H: Host> Replicas<H> {
                             Err(error) if unreachable(&error) => {}
                             Err(error) => H::record(&shared, error),
                         }
-                        send_announcements::<H>(&peer, &shared).await;
                     }
                     let kept = publishing
                         .kept()
@@ -6460,7 +6405,7 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     let answer = peer
         // The server holds no journal, so the run it starts at is no stale seal's: any of this
         // or a later run trims after it.
-        .rebase_journal(block, tag, 0, mirror.base, true, false)
+        .rebase_journal(block, tag, 0, mirror.base, true)
         .await
         .ok()??;
     answer.await.ok()?;

@@ -1888,8 +1888,7 @@ where
                 self.doubtful.push(operation);
                 continue;
             }
-            let announcements = self.visible.announcements(&operation);
-            self.queue(operation, number, announcements);
+            self.queue(operation, number);
             queued = true;
         }
         if rebuild {
@@ -3958,13 +3957,12 @@ where
         if !self.tentative.is_empty() {
             let mut unheld = self.unheld().clone();
             unheld.apply(&operation);
-            let announcements = unheld.announcements(&operation);
             match self.doubtful_now {
                 true => {
                     self.first_doubtful.get_or_insert(self.edit_number());
                     self.doubtful.push(operation);
                 }
-                false => self.queue(operation, self.edit_number(), announcements),
+                false => self.queue(operation, self.edit_number()),
             }
             self.rebuild_visible();
             self.flush();
@@ -3983,8 +3981,6 @@ where
             self.doubtful.push(operation);
             return true;
         }
-        // Asked as the edit is made, so the host keeps it with the edit from here on.
-        let announcements = self.visible.announcements(&operation);
         let unsettled = self.unsettled() + 1;
         self.journal(
             Journaled::Edited {
@@ -3993,21 +3989,16 @@ where
             },
             origin,
         );
-        self.queue(operation, self.edit_number(), announcements);
+        self.queue(operation, self.edit_number());
         self.flush();
         true
     }
 
-    /// Queues `operation`, the local edit `through`, to submit, with what it announces.
-    fn queue(
-        &mut self,
-        operation: C::Op,
-        through: u64,
-        announcements: Vec<be_block_content::Announcement>,
-    ) {
+    /// Queues `operation`, the local edit `through`, to submit.
+    fn queue(&mut self, operation: C::Op, through: u64) {
         let payload = C::encode_operation(&operation);
         let size = payload.len();
-        self.lacking.add(payload, announcements);
+        self.lacking.add(payload);
         let kept = self.kept_submission(through);
         let counter = kept.as_ref().map(|kept| kept.counter);
         let mut apart = false;
@@ -4155,7 +4146,7 @@ where
             },
             None => self.submission(through, entry.clone(), false),
         };
-        let announcements = self.lacking.submitted(submission.id.counter, weight);
+        self.lacking.submitted(submission.id.counter, weight);
         self.pending.push_back(Sent {
             id: submission.id,
             operation: Some(operation),
@@ -4166,7 +4157,6 @@ where
         self.out.push(Effect::Submit {
             replica: self.id,
             submission,
-            announcements,
         });
     }
 
@@ -4215,7 +4205,6 @@ where
         self.out.push(Effect::Submit {
             replica: self.id,
             submission,
-            announcements: Vec::new(),
         });
         id
     }
@@ -4323,7 +4312,6 @@ where
         self.out.push(Effect::Submit {
             replica: self.id,
             submission,
-            announcements: Vec::new(),
         });
     }
 

@@ -79,8 +79,6 @@ pub(crate) enum Effect {
     Submit {
         replica: ReplicaId,
         submission: be_block_session::Submission,
-        /// What the edits it holds announce.
-        announcements: Vec<be_block_content::Announcement>,
     },
     Rebase {
         replica: ReplicaId,

@@ -138,7 +138,6 @@ mod concurrent_edits_converge;
 mod edits_after_an_own_entry_the_journal_holds_are_sent_again_though_the_base_names_no_longer_their_origin;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod edits_given_again_with_a_submission_that_holds_other_edits_go_anew;
-mod edits_given_again_with_the_submission_that_held_them_carry_their_announcements;
 mod edits_on_their_way_when_another_head_lands_land_on_it;
 mod edits_peer_ops_and_a_close_during_a_pending_merge_wait_behind_it_and_land_on_its_result;
 mod edits_waiting_behind_a_merge_undo_as_made_not_as_handled;
@@ -248,71 +247,6 @@ impl Root for Counter {
 }
 
 type CounterContent = Document<Counter>;
-
-/// A counter whose every edit announces itself, as a chat's message does.
-#[derive(Clone, Debug, Default, PartialEq)]
-struct AnnouncedCounter(CounterContent);
-
-impl BlockContent for AnnouncedCounter {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x616e_6e6f_756e_6365_642d_6669_7874_0001);
-
-    fn encode(&self) -> Vec<u8> {
-        self.0.encode()
-    }
-
-    fn decode(bytes: &[u8]) -> Result<Self, be_block_content::ContentError> {
-        CounterContent::decode(bytes).map(Self)
-    }
-}
-
-impl LiveEdit for AnnouncedCounter {
-    type Op = Edit;
-
-    fn apply(&mut self, operation: &Edit) {
-        self.0.apply(operation);
-    }
-
-    fn announcements(&self, _: &Edit) -> Vec<be_block_content::Announcement> {
-        vec![be_block_content::Announcement {
-            key: "counted".to_owned(),
-            text: "counted".to_owned(),
-            several: "counted".to_owned(),
-            mentions: Vec::new(),
-        }]
-    }
-
-    fn absorb_operation(operation: &mut Edit, next: Edit) -> Option<Edit> {
-        CounterContent::absorb_operation(operation, next)
-    }
-
-    fn carry_over(operation: &Edit, before: &Self, after: &Self, client: u64) -> Option<Edit> {
-        CounterContent::carry_over(operation, &before.0, &after.0, client)
-    }
-
-    fn session_state(&self) -> Vec<u8> {
-        LiveEdit::session_state(&self.0)
-    }
-
-    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), be_block_content::ContentError> {
-        LiveEdit::adopt_session_state(&mut self.0, state)
-    }
-}
-
-impl be_block_content::Merge for AnnouncedCounter {
-    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> be_block_commit::MergeResult<Self> {
-        match CounterContent::merge3(&base.0, &ours.0, &theirs.0) {
-            be_block_commit::MergeResult::Clean(value) => {
-                be_block_commit::MergeResult::Clean(Self(value))
-            }
-            be_block_commit::MergeResult::Conflicted { value, conflicts } => {
-                be_block_commit::MergeResult::Conflicted {
-                    value: Self(value),
-                    conflicts,
-                }
-            }
-        }
-    }
-}
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Prose {
@@ -469,10 +403,6 @@ impl be_block_content::LogFold for Logbook {
 
 fn logbook_module() -> Module {
     Module::new(vec![Registration::of::<Logbook>().log::<Logbook>()])
-}
-
-fn announced_counter_module() -> Module {
-    Module::new(vec![Registration::of::<AnnouncedCounter>()])
 }
 
 fn prose_module() -> Module {

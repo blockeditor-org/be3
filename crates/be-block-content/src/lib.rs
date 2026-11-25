@@ -178,9 +178,8 @@ pub const UNREAD_ENTRIES: u32 = 100;
 /// A searchable document of a block's content (`BlockContent::search_text`).
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SearchDocument {
-    /// Stable across edits and rekeys, unlike a part's ref: a chat segment's part hash (of its
-    /// plaintext, so a rekey keeps it), a database row's id, a long text's section id, or empty
-    /// for a block that is one document.
+    /// Stable across edits and rekeys, unlike a part's ref: a database row's id, a long text's
+    /// section id, or empty for a block that is one document.
     pub key: String,
     /// The part the document's text came from, if it is one part.
     pub source: Option<PartRef>,
@@ -223,12 +222,12 @@ pub enum ChildChange {
     Reorder { block: Uuid, after: Option<Uuid> },
 }
 
-/// What an edit made on this device tells the block's other members who are not connected, once
-/// the server holds it: the text of a notification and the accounts it mentions. `key` names
-/// what is announced (chat: the message), unique in the block and the same each time the edit
-/// is made again (a host replays an editor's edits into a restarted replica), so it is told
-/// once. `several` is the text when it goes together with others of the block (an outbox
-/// drained at once), with `{count}` for how many (chat: "{count} new messages").
+/// What an entry appended to a block's signed log tells the block's other members who are not
+/// connected, once the server holds it (`Along::announcement`): the text of a notification and
+/// the accounts it mentions. `key` names what is announced (chat: the message), unique in the
+/// block and the same each time the entry is appended again, so it is told once. `several` is
+/// the text when it goes together with others of the block (an outbox drained at once), with
+/// `{count}` for how many (chat: "{count} new messages").
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Announcement {
     pub key: String,
@@ -250,15 +249,6 @@ pub trait LiveEdit: BlockContent {
     /// nothing.
     fn unsent_over(&self, server: &Self, account: Uuid) -> Vec<Self::Op> {
         let _ = (server, account);
-        Vec::new()
-    }
-
-    /// What `operation` announces (`Announcement`), asked when the edit is made on this device
-    /// of content that holds it. The replica hands it to the host with the edit, and the host
-    /// keeps it beside the journal entry or commit holding the edit and sends it once the
-    /// server holds that, whether the replica is open then or not.
-    fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
-        let _ = operation;
         Vec::new()
     }
 
