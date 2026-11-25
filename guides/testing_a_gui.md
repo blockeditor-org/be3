@@ -114,6 +114,11 @@ says `impl Wraps for Fixture {}` to be one too.
   editor stalls it until the deadline, as it would in be-host.
 - `settle()` paints until a frame stops asking for another at once. Call it before a snapshot
   of something that animates in.
+- A `be_host_stack` reply (a served command's answer, a listing, members) reaches its callback
+  only while the stack's updates are taken. A test that blocks on a channel the callback sends
+  on (`recv()`) takes none, so it hangs: loop on
+  `be_host_stack::take_updates_or_wait(what, || received())`, which takes them and waits for
+  the worker to hand over more until `received` holds.
 - The editor's clock (`timer::now()`) is the harness's: each frame is one frame interval
   later, so an animation lands on the same frame everywhere. `advance(by)` moves it on and
   delivers queued host calls without painting; the next `run()` or gesture paints the frame
