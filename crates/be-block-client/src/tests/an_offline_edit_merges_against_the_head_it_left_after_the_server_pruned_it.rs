@@ -1,5 +1,6 @@
 use super::*;
 
+use be_block_store::{FileStore, ObjectStore};
 use be_type_text::{TextBlock, TextContent};
 
 #[tokio::test]
@@ -34,8 +35,6 @@ async fn an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned
             .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let ours = offline.local_head(note).unwrap();
-    // The phone saves twice within the minute, so the server keeps only its last save: the
-    // commits between the laptop's base and the new head are gone.
     let phone = harness.second(&owner).await;
     let first = phone
         .save(note, &TextBlock::of("zero\none"), Some(base))
@@ -53,6 +52,10 @@ async fn an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned
         .unwrap()
         .published()
         .unwrap();
+    // The server pruned the phone's first save once its second replaced it: the commit between
+    // the laptop's base and the new head is gone, so no common ancestor can be walked to.
+    let objects = FileStore::open(harness.server.directory.join("objects")).unwrap();
+    objects.remove(first.hash()).unwrap();
 
     harness.reconnect(&offline, owner.token()).await;
     assert_eq!(

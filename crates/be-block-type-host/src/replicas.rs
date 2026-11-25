@@ -252,6 +252,23 @@ enum Moved {
     Reconnected,
 }
 
+/// A fetch of a holder's seal in flight (`Replicas::fetch_seal`), aborted when let go of: its
+/// block closed for good, or the replicas were dropped as the host stops.
+struct SealFetch {
+    id: u64,
+    commit: CommitId,
+    first_part: bool,
+    /// The latest seal heard while it was in flight, fetched once it is done.
+    next: Option<CommitId>,
+    abort: futures_util::future::AbortHandle,
+}
+
+impl Drop for SealFetch {
+    fn drop(&mut self) {
+        self.abort.abort();
+    }
+}
+
 fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
@@ -406,8 +423,13 @@ pub enum Io {
         kept: bool,
     },
     Relayed,
-    /// A head the session's holder sealed was fetched, as much of it as the server had.
-    SealFetched,
+    /// A head the session's holder sealed was fetched, as much of it as the server had
+    /// (`Replicas::fetch_seal`): `held` is the commit if this device holds what it fetches of it.
+    SealFetched {
+        block: Uuid,
+        id: u64,
+        held: Option<CommitId>,
+    },
     Left(Uuid),
     Sealed,
     /// A search for `key`, which relayed messages waited on, answered: how many keys it opened.
@@ -1090,8 +1112,12 @@ pub struct Replicas<H: Host> {
     scopes: HashMap<(usize, OpId), types::Scope>,
     pending: Vec<Io>,
     relaying: usize,
-    /// Heads sealed by the holder this device is fetching (`Io::SealFetched`).
-    fetching_seals: usize,
+    /// Per block, the holder's seal being fetched (`Io::SealFetched`) and the latest one heard
+    /// meanwhile, fetched next: one fetch in flight a block, however fast its seals come.
+    seal_fetches: HashMap<Uuid, SealFetch>,
+    seal_fetch_ids: u64,
+    /// Per block, the seal its last fetch held: heard again, it is not fetched again.
+    seals_held: HashMap<Uuid, CommitId>,
     left: usize,
     /// The blocks whose sessions those leaves are leaving, each with how many.
     left_blocks: HashMap<Uuid, usize>,
@@ -1187,7 +1213,9 @@ impl<H: Host> Replicas<H> {
             scopes: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
-            fetching_seals: 0,
+            seal_fetches: HashMap::new(),
+            seal_fetch_ids: 0,
+            seals_held: HashMap::new(),
             left: 0,
             left_blocks: HashMap::new(),
             unsealing: HashMap::new(),
@@ -1237,7 +1265,61 @@ impl<H: Host> Replicas<H> {
 
     /// Whether a head the session's holder sealed is still being fetched (`Io::SealFetched`).
     pub fn fetching_seals(&self) -> bool {
-        self.fetching_seals > 0
+        !self.seal_fetches.is_empty()
+    }
+
+    /// Fetches a seal of `block`'s holder: the commit and its content, or for a type that loads
+    /// its first part alone (`be_block_content::Loads::FirstPart`) the commit, whose manifest
+    /// names the parts, since its content may be far larger than what it reads. A merge on such
+    /// a seal pruned before its parts were read has no base (`Peer::reconcile`).
+    ///
+    /// One that fails, offline or refused, is not tried again: what needs the commit is an
+    /// offline edit's merge, and `Peer::reconcile` fetches its base itself (`Peer::try_hold`)
+    /// once the device is back online, as much as the server still has.
+    fn fetch_seal(
+        &mut self,
+        (peer, shared): Ctx<'_, H>,
+        block: Uuid,
+        commit: CommitId,
+        first_part: bool,
+    ) {
+        self.seal_fetch_ids += 1;
+        let id = self.seal_fetch_ids;
+        let holding = Arc::clone(peer);
+        let (fetch, abort) = futures_util::future::abortable(async move {
+            match first_part {
+                true => holding.try_fetch(commit.hash()).await,
+                false => holding.try_hold(commit).await,
+            }
+        });
+        let (io, shared) = (self.io.clone(), Arc::clone(shared));
+        H::spawn(async move {
+            // Let go of (`SealFetch`): its block closed or the replicas stopped, and the peer
+            // it holds is let go of with it.
+            let Ok(fetched) = fetch.await else {
+                return;
+            };
+            let held = match fetched {
+                Ok(held) => held,
+                Err(error) => {
+                    if !unreachable(&error) {
+                        H::record(&shared, error);
+                    }
+                    false
+                }
+            };
+            let held = held.then_some(commit);
+            let _ = io.send(Io::SealFetched { block, id, held });
+            H::wake();
+        });
+        let fetch = SealFetch {
+            id,
+            commit,
+            first_part,
+            next: None,
+            abort,
+        };
+        self.seal_fetches.insert(block, fetch);
     }
 
     pub fn leaving(&self) -> bool {
@@ -3809,29 +3891,31 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
-                if !self.open.contains_key(&replica) {
+                let Some(open) = self.open.get(&replica) else {
                     return;
-                }
+                };
                 // A replica following the holder takes its seal as its head by id alone, and
                 // the server prunes that head once a publish replaces it: this device fetches it
                 // now, so what it seals on it offline merges against it (`Peer::reconcile`). Its
-                // own seals it holds already, which costs no request.
-                self.fetching_seals += 1;
-                let (holding, io, shared, head) = (
-                    Arc::clone(peer),
-                    self.io.clone(),
-                    Arc::clone(shared),
-                    *commit,
-                );
-                H::spawn(async move {
-                    if let Err(error) = holding.try_hold(head).await
-                        && !unreachable(&error)
-                    {
-                        H::record(&shared, error);
+                // own seals it holds already, and one its last fetch held it fetched.
+                let own = open.published.contains(commit)
+                    || self
+                        .sealed
+                        .get(block)
+                        .is_some_and(|sealed| sealed.contains(commit))
+                    || self.seals_held.get(block) == Some(commit)
+                    || peer.pending_commits(*block).contains(commit);
+                if !own {
+                    match self.seal_fetches.get_mut(block) {
+                        Some(fetch) if fetch.commit != *commit => fetch.next = Some(*commit),
+                        Some(_) => {}
+                        None => {
+                            let first_part = crate::modules::kind_of(open.content_type)
+                                .is_some_and(|kind| kind.first_part);
+                            self.fetch_seal((peer, shared), *block, *commit, first_part);
+                        }
                     }
-                    let _ = io.send(Io::SealFetched);
-                    H::wake();
-                });
+                }
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
@@ -4241,7 +4325,21 @@ impl<H: Host> Replicas<H> {
                 }
             }
             Io::Relayed => self.relaying -= 1,
-            Io::SealFetched => self.fetching_seals -= 1,
+            Io::SealFetched { block, id, held } => {
+                // One let go of whose block opened again answers nothing of the fetch now.
+                if self.seal_fetches.get(&block).is_none_or(|fetch| fetch.id != id) {
+                    return;
+                }
+                let Some(fetch) = self.seal_fetches.remove(&block) else {
+                    return;
+                };
+                if let Some(held) = held {
+                    self.seals_held.insert(block, held);
+                }
+                if let Some(next) = fetch.next.filter(|next| Some(*next) != held) {
+                    self.fetch_seal((peer, shared), block, next, fetch.first_part);
+                }
+            }
             Io::Left(block) => {
                 self.left -= 1;
                 if let Some(count) = self.left_blocks.get_mut(&block) {
@@ -5050,6 +5148,9 @@ impl<H: Host> Replicas<H> {
         if !open.reopen {
             self.not_yet.remove(&open.block);
             self.retried.remove(&open.block);
+            // Let go of, so it holds the peer no longer.
+            self.seal_fetches.remove(&open.block);
+            self.seals_held.remove(&open.block);
         }
         if !open.joining {
             self.leave(shared, peer, open.block);

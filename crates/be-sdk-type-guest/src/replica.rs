@@ -4424,11 +4424,9 @@ where
         self.edit(operation, origin)
     }
 
-    /// Handles what `editor` sent, relayed at `at`.
+    /// Handles what `editor` sent, relayed at `at`: never later than this replica's clock, as
+    /// a relay ticks the module to its stamp before its input (`GuestReplica::message`).
     fn handle_editor(&mut self, editor: EditorId, message: FromEditor, at: u64) {
-        // Never later than this replica's clock: a relay stamped ahead of the last tick it was
-        // given would otherwise put an edit after ones it makes later.
-        let at = at.min(self.now);
         let Some(&editable) = self.editors.get(&editor) else {
             return;
         };

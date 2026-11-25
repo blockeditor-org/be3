@@ -51,7 +51,7 @@ impl CanvasState {
             {
                 return None;
             }
-            self.begin_move(self.world_at(press.pos), false);
+            self.begin_move(self.world_at(press.pos)?, false);
         }
         let (start, bounds) = self.gesture.with_untracked(|gesture| match gesture {
             Some(Gesture::Move {
@@ -68,7 +68,7 @@ impl CanvasState {
             )),
             _ => None,
         })?;
-        let camera = self.camera();
+        let camera = self.camera()?;
         let grabbed = camera.to_screen(Pos2::new(start.x, start.y));
         let item = camera
             .rect_to_screen(bounds.rect())
@@ -145,10 +145,16 @@ pub(crate) fn use_move_site(state: CanvasState, surface: NodeRef) {
             // A keyboard step is the arrows' nudge: a world unit, ten with Shift.
             .stepped(state.scale())
         }),
-        Callback::new(move |(_, at): (CanvasMove, CanvasPoint)| state.drop_move(at)),
+        // Put down where no camera says where it lands, the move goes back.
+        Callback::new(
+            move |(_, at): (CanvasMove, Option<CanvasPoint>)| match at {
+                Some(at) => state.drop_move(at),
+                None => state.carry_over(None),
+            },
+        ),
     );
     create_effect_on(
-        move || site.over.get(),
+        move || site.over.get().flatten(),
         move |at: &Option<CanvasPoint>, _| untrack(|| state.carry_over(*at)),
     );
     edge_scroll(state, surface);

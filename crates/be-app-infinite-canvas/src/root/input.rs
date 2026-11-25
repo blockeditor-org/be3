@@ -82,7 +82,9 @@ impl CanvasState {
         if press.pen.is_some() {
             self.note_pen();
         }
-        let world = self.world_at(press.pos);
+        let Some(world) = self.world_at(press.pos) else {
+            return;
+        };
         self.hover(Some(world));
         if let Some(child) = self.live_child_at(world) {
             if self.takes_frame(child) {
@@ -344,7 +346,9 @@ impl CanvasState {
         if self.previewing() {
             return;
         }
-        let world = self.world_at(press.pos);
+        let Some(world) = self.world_at(press.pos) else {
+            return;
+        };
         self.note_context_position(Some(world));
         let frame = selection_frame_of(self);
         let inside = frame.is_some_and(|frame| frame.contains(world));
@@ -361,7 +365,9 @@ impl CanvasState {
         if self.previewing() || !self.pointer_held() {
             return;
         }
-        let world = self.world_at(press.pos);
+        let Some(world) = self.world_at(press.pos) else {
+            return;
+        };
         self.hover(Some(world));
         let modifiers = press.modifiers;
         match self.gesture.get_untracked() {
@@ -377,7 +383,7 @@ impl CanvasState {
         }
         let scale = self.scale();
         let pen_step = 1.0 / scale;
-        let predicted = press.predicted.map(|at| self.world_at(at));
+        let predicted = press.predicted.and_then(|at| self.world_at(at));
         self.update_gesture(|gesture| match gesture {
             Gesture::Create {
                 tool,

@@ -843,33 +843,40 @@ impl CanvasState {
         self.editor.block_id()
     }
 
-    /// The camera as the stage shows it: only a preview whose stage is not measured yet has
-    /// none (`camera_view`), and a preview takes no input, so the unit camera stands in.
-    pub(crate) fn camera(&self) -> CanvasView {
+    /// The camera as the stage shows it: none for a preview whose stage is not measured yet
+    /// (`camera_view`), which has no scale. A preview takes drops, so what maps a point through
+    /// it (`world_at`) has none either, and bails.
+    pub(crate) fn camera(&self) -> Option<CanvasView> {
         camera_view(
             self.editor.canvas().get_untracked(),
             self.editor.world().get_untracked(),
             self.cells.value().stage.get(),
             self.framed(),
         )
-        .unwrap_or_else(|| CanvasView::new(Pos2::ZERO, 1.0))
     }
 
     pub(crate) fn framed(&self) -> Option<WorldRect> {
         self.preview.then(|| self.entities.region())
     }
 
+    /// The camera's scale, which sizes what is drawn or reached at a constant size on screen:
+    /// 1 with no camera, which shows nothing.
     pub(crate) fn scale(&self) -> f32 {
-        self.camera().scale.max(f32::EPSILON)
+        self.camera()
+            .map_or(1.0, |camera| camera.scale.max(f32::EPSILON))
     }
 
-    pub(crate) fn world_at(&self, at: Pos2) -> CanvasPoint {
-        let canvas = self.camera().to_canvas(at);
-        CanvasPoint::new(canvas.x, canvas.y)
+    /// The world point under `at` on the stage: none with no camera.
+    pub(crate) fn world_at(&self, at: Pos2) -> Option<CanvasPoint> {
+        let canvas = self.camera()?.to_canvas(at);
+        Some(CanvasPoint::new(canvas.x, canvas.y))
     }
 
+    /// The world the stage shows: nothing, at the origin, with no camera.
     pub(crate) fn visible_world(&self) -> Rect {
-        self.camera().rect_to_canvas(self.cells.value().stage.get())
+        self.camera().map_or(Rect::ZERO, |camera| {
+            camera.rect_to_canvas(self.cells.value().stage.get())
+        })
     }
 
     pub(crate) fn viewport_center(&self) -> CanvasPoint {
@@ -2495,7 +2502,10 @@ impl CanvasState {
 
     pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
         let at = center.unwrap_or_else(|| self.viewport_center());
-        let on_screen = self.camera().to_screen(pos2(at.x, at.y));
+        let Some(camera) = self.camera() else {
+            return;
+        };
+        let on_screen = camera.to_screen(pos2(at.x, at.y));
         self.pick_block_from(center, Rect::from_min_size(on_screen, Vec2::ZERO));
     }
 
@@ -3223,11 +3233,14 @@ impl CanvasState {
         if drag.block_id == self.block_id() || self.focused_editor.get_untracked().is_some() {
             return;
         }
+        // Not taken where no camera says where it would land.
+        let Some(center) = self.world_at(drag.position) else {
+            return;
+        };
         self.editor.accept_drag(true);
         if !drag.dropped {
             return;
         }
-        let center = self.world_at(drag.position);
         let here = BlockParent::Block(self.block_id());
         match drag.action {
             DropAction::Move => {
@@ -3260,7 +3273,9 @@ impl CanvasState {
             self.cells.value().pending_file_drop.set(None);
             return;
         };
-        let at = self.world_at(drop.position);
+        let Some(at) = self.world_at(drop.position) else {
+            return;
+        };
         if !drop.dropped {
             self.cells.value().pending_file_drop.set(Some(at));
             return;
@@ -3424,7 +3439,10 @@ impl CanvasState {
         let Some(view) = self.editor.canvas().get_untracked() else {
             return;
         };
-        let shown = self.camera().rect_to_screen(bounds.rect());
+        let Some(camera) = self.camera() else {
+            return;
+        };
+        let shown = camera.rect_to_screen(bounds.rect());
         let stage = self.cells.value().stage.get();
         self.editor.fit(
             view.rect_to_canvas(shown),
