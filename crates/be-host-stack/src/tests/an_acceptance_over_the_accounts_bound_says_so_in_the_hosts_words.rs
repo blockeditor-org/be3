@@ -1,5 +1,3 @@
-use super::*;
-
 /// The server refuses an acceptance of ownership that would take the account over its bound
 /// on blocks (`MAX_BLOCKS_PER_ACCOUNT`) as `OverQuota`: the host answers that in its own words,
 /// that the account holds too many blocks to take this one, rather than the server's message.
