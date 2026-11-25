@@ -20,9 +20,9 @@ arrival are all caught or impossible there.
   block's live session and in its commits (`Peer::tell_log_head`,
   `Commit::log_through`). A head is compared only signed with a key the device
   verified for its account, so the server can plant no fork, and "a longer
-  head is a fork" assumes one linearizable server per log. Left:
-  - comparing through the account block, so one person's devices compare even
-    when they share no session or commit;
+  head is a fork" assumes one linearizable server per log. One person's devices
+  also compare through the account's block (`Peer::trade_account_heads`), as
+  they connect. Left:
   - showing the verdict to the person: a warning bar on the block ("Another
     device was shown a different history of this block. The server may be
     showing people different versions."), with Details and Dismiss, writing

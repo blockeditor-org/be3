@@ -610,6 +610,9 @@ pub enum HeadFrom {
     /// A commit of the block made by `author` named it, signed with the author's key
     /// (`Commit::log_through`).
     Commit { author: Uuid, signature: Vec<u8> },
+    /// Another device of this account shared it in the account's block, signed
+    /// (`Peer::trade_account_heads`).
+    Account { signature: Vec<u8> },
     /// The server served it to this device, though it does not extend the head this device
     /// kept (`ClientError::LogForked`): the server's own word against itself.
     Server,

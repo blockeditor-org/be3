@@ -2355,6 +2355,12 @@ impl Session<'_> {
         self.tasks
             .0
             .spawn(async move { caught_up.catch_up_redactions().await });
+        // Heads of signed logs traded with the account's other devices through its block, so
+        // one person's devices compare them as they reconnect (`Peer::trade_account_heads`).
+        let trading = Arc::clone(peer);
+        self.tasks.0.spawn(async move {
+            let _ = trading.trade_account_heads().await;
+        });
         self.versions.reconnected();
         shared
             .lock()
