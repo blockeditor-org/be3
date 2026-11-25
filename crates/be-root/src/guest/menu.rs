@@ -71,15 +71,14 @@ fn sync_glyph(sync: &SyncState) -> Glyph {
 /// unsent edits while there are some; why the escrow key is not trusted yet, while it is not;
 /// the blocks it keeps hosting, each to stop; contacts and opening a share link; inviting a
 /// member to a company's organization, and its members and invitations for an administrator;
-/// agents, sessions, switching organization or account, and a new recovery phrase; and the
-/// statistics panel. be-host's About, Close and its other panels and inspector are be-host's
-/// own until it hands them over (plans/host_as_platform_adapter.md, 4g7g).
+/// agents, sessions, switching organization or account, and a new recovery phrase; and every
+/// host panel. be-host's About, Close and its inspector are be-host's own until it hands them
+/// over (plans/host_as_platform_adapter.md, 4g7g).
 #[component]
 pub(super) fn HostMenu(
     core: Signal<CoreView>,
     saving: Signal<SavingState>,
     want: Callback<Asking>,
-    statistics: Callback<()>,
     /// Shows one of the host's panels, as be-host's menu does: in the session's editor, which
     /// places it, and the root draws it there.
     panel: Callback<HostPanel>,
@@ -203,18 +202,13 @@ pub(super) fn HostMenu(
             disabled={unsaved}
             on_click={|| ask_core(CoreCommand::SwitchAccount)}
         />
-        <MenuItem
-            label=STATISTICS_TITLE
-            glyph=ICON_GAUGE
-            separated=true
-            on_click={move || statistics.call(())}
-        />
-        // Its own statistics are the host's performance panel: the other panels show in the
+        // Every one of the host's panels, as be-host's menu lists them: each shows in the
         // session's editor.
-        <ForEach value={vec![HostPanel::BlockStack, HostPanel::Apps]}>|shown: HostPanel|
+        <ForEach value={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
                 label={shown.title().to_owned()}
                 glyph={panel_glyph(shown)}
+                separated={shown == HostPanel::ALL[0]}
                 on_click={move || panel.call(shown)}
             />
         </ForEach>

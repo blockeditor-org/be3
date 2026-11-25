@@ -49,8 +49,7 @@ use crate::{
     ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE,
     REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
     SESSION_NOTICE_SURFACE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE,
-    SLOW_SAVE_TOAST, STATISTICS_LAYER, STATISTICS_SURFACE, STATISTICS_TITLE, STATISTICS_WIDTH,
-    TOAST_LAYER, TOAST_SURFACE, UNSENT_TITLE,
+    SLOW_SAVE_TOAST, STATISTICS_TITLE, TOAST_LAYER, TOAST_SURFACE, UNSENT_TITLE,
 };
 
 mod dialogs;
@@ -85,10 +84,12 @@ struct Root {
     /// Its menu, which beui draws, made on its first frame: what opens the block stack's
     /// dialogs and its panel, in place of be-host's own menu.
     menu: Rc<RefCell<Option<BeuiSurface>>>,
-    /// The core's view and the saving its menu shows, which the host's answers set.
-    menu_shows: Rc<Cell<Option<(Signal<CoreView>, Signal<SavingState>)>>>,
-    /// Whether its menu asked to open or close the statistics panel, done with the next frame.
-    statistics_asked: Rc<Cell<bool>>,
+    /// The core's view and the saving each menu drawn shows, its own and each menu panel's,
+    /// which the host's answers set (`menus_show`).
+    menu_shows: MenuShows,
+    /// Whether its host's changes are saved, as its host said last, which a menu drawn next
+    /// shows first.
+    saving_now: Rc<RefCell<SavingState>>,
     /// The toasts that document shows, which the host's notices set.
     shown: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
     /// Whether its host's changes are saved, as its host said last, which the toasts' document
@@ -133,7 +134,7 @@ struct Root {
     /// an answer is the latest request's.
     secret_shown: Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
     /// The host's window as its last frame drew it: its width and height in points and its
-    /// pixels per point, which every surface but the statistics panel fills.
+    /// pixels per point, which every surface of its own but the host panels fills.
     window: Rc<Cell<Window>>,
     /// The host's time zone as its last frame said it, in seconds east of UTC, which the lock
     /// screen's clock shows the time at.
@@ -145,20 +146,19 @@ struct Root {
     dialog: Rc<RefCell<Option<Dialog>>>,
     /// What its input asked of the dialog, done with the next frame.
     asked: Rc<Cell<Option<Asked>>>,
-    /// Its panel of the host's statistics, while it is open.
-    statistics: Rc<RefCell<Option<BeuiSurface>>>,
     /// The host panels its apps place, each drawn on a surface of its own (`settle_panels`).
     panels: Rc<RefCell<Vec<PanelSurface>>>,
     /// How many panel surfaces it made: the next is numbered past them.
     panels_made: Rc<Cell<u32>>,
     /// The host panel its menu asked the session's editor to show, done with the next frame.
     panel_asked: Rc<Cell<Option<be_sdk_api::HostPanel>>>,
-    /// The statistics that panel shows, which the host's answers set.
-    shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
-    /// The memory over time that panel graphs, which the host's answers set.
-    shown_memory: Rc<Cell<Option<Signal<MemoryMinutes>>>>,
-    /// Counts the panel's openings, so a watch begun for an earlier one stops.
-    statistics_opened: Rc<Cell<u64>>,
+    /// How many performance panels watch the host's statistics: the host keeps them while any
+    /// does.
+    statistics_watchers: Rc<Cell<u32>>,
+    /// Whether the feeds handing the host's statistics and its memory over time to the
+    /// performance panels run (`feed_statistics`, `feed_memory`).
+    statistics_fed: Rc<Cell<bool>>,
+    memory_fed: Rc<Cell<bool>>,
     /// The session's screen lock as the host said last, until a frame shows it.
     lock_state: Rc<RefCell<Option<LockState>>>,
     /// Its lock screen, while the session is locked.
@@ -221,11 +221,6 @@ impl Window {
     /// The pixels a surface filling it spans.
     fn whole(&self) -> (u32, u32) {
         self.pixels(self.width, self.height)
-    }
-
-    /// The statistics panel's width, in points: `STATISTICS_WIDTH`, or the window's if narrower.
-    fn statistics_width(&self) -> f32 {
-        STATISTICS_WIDTH.min(self.width)
     }
 
     /// The whole window as a rect in its points, at its top left.
@@ -360,7 +355,13 @@ impl Root {
             toasts: Rc::default(),
             menu: Rc::default(),
             menu_shows: Rc::default(),
-            statistics_asked: Rc::default(),
+            saving_now: Rc::new(RefCell::new(SavingState {
+                generation: 0,
+                unsaved: false,
+                saves: 0,
+                unsent: 0,
+                sync: SyncState::Saved,
+            })),
             shown: Rc::default(),
             saving: Rc::default(),
             keep_asking: Rc::default(),
@@ -381,13 +382,12 @@ impl Root {
             utc_offset: Rc::default(),
             dialog: Rc::default(),
             asked: Rc::default(),
-            statistics: Rc::default(),
             panels: Rc::default(),
             panels_made: Rc::default(),
             panel_asked: Rc::default(),
-            shown_statistics: Rc::default(),
-            shown_memory: Rc::default(),
-            statistics_opened: Rc::default(),
+            statistics_watchers: Rc::default(),
+            statistics_fed: Rc::default(),
+            memory_fed: Rc::default(),
             lock_state: Rc::default(),
             lock: Rc::default(),
             session: Rc::default(),
@@ -401,8 +401,7 @@ impl Root {
     }
 
     /// Lays its surfaces out in the host's window as `window` says it is now: each that fills
-    /// it, and the statistics panel at its right edge, resized at its pixels per point when it
-    /// changed.
+    /// it, resized at its pixels per point when it changed.
     fn resize(&self, window: Window) {
         if self.window.replace(window) == window {
             return;
@@ -432,12 +431,6 @@ impl Root {
         }
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.resize(whole, raster);
-        }
-        if let Some(statistics) = &mut *self.statistics.borrow_mut() {
-            statistics.resize(
-                window.pixels(window.statistics_width(), window.height),
-                raster,
-            );
         }
     }
 
@@ -489,51 +482,15 @@ impl Root {
             },
         )?;
         let waker = self.waker.clone();
-        let wakes = self.waker.clone();
-        let wanted = Rc::clone(&self.wanted);
-        let statistics_asked = Rc::clone(&self.statistics_asked);
-        let panel_asked = Rc::clone(&self.panel_asked);
-        let wakes_panel = self.waker.clone();
-        let menu_shows = Rc::clone(&self.menu_shows);
-        let core = self.core.borrow().clone();
+        let parts = self.menu_parts(MENU_SURFACE);
         let menu = BeuiSurface::new(
             &beui,
             OwnSurface::new(MENU_SURFACE, window.whole()),
             window.pixels_per_point,
             move || waker.wake(),
             move || {
-                let wakes_too = wakes.clone();
-                let want = Callback::new(move |asking: Asking| {
-                    *wanted.borrow_mut() = Some(asking);
-                    wakes.wake();
-                });
-                let statistics = Callback::new(move |()| {
-                    statistics_asked.set(true);
-                    wakes_too.wake();
-                });
-                let panel = Callback::new(move |shown: be_sdk_api::HostPanel| {
-                    panel_asked.set(Some(shown));
-                    wakes_panel.wake();
-                });
-                let core = create_signal(core);
-                let saving = create_signal(SavingState {
-                    generation: 0,
-                    unsaved: false,
-                    saves: 0,
-                    unsent: 0,
-                    sync: SyncState::Saved,
-                });
-                menu_shows.set(Some((core, saving)));
                 view! {
-                    <Root clear_color=ColorRole::None>
-                        <HostMenu
-                            core={core}
-                            saving={saving}
-                            want={want}
-                            statistics={statistics}
-                            panel={panel}
-                        />
-                    </Root>
+                    <Root clear_color=ColorRole::None>{parts.view(false)}</Root>
                 }
             },
         )?;
@@ -590,12 +547,8 @@ impl Root {
         let mut seen = 0;
         while let Ok(saving) = host::saving(seen).await {
             seen = saving.generation;
-            if let (Some(menu), Some((_, shown))) =
-                (&mut *self.menu.borrow_mut(), self.menu_shows.get())
-            {
-                let saving = saving.clone();
-                menu.enter(|| shown.set(saving));
-            }
+            *self.saving_now.borrow_mut() = saving.clone();
+            self.menus_show(None, Some(&saving));
             if let (Some(surface), Some(shown)) =
                 (&mut *self.toasts.borrow_mut(), self.saving.get())
             {
@@ -622,12 +575,7 @@ impl Root {
         while let Ok(view) = host::core(seen).await {
             seen = view.generation;
             *self.core.borrow_mut() = view.clone();
-            if let (Some(menu), Some((shown, _))) =
-                (&mut *self.menu.borrow_mut(), self.menu_shows.get())
-            {
-                let view = view.clone();
-                menu.enter(|| shown.set(view));
-            }
+            self.menus_show(Some(&view), None);
             if let (Some(accounts), Some(shown)) = (
                 &mut *self.onboarding.borrow_mut(),
                 self.onboarding_shown.get(),
@@ -830,109 +778,12 @@ impl Root {
         if let Some(dialog) = &mut *self.dialog.borrow_mut() {
             dialog.surface.input(own);
         }
-        if let Some(statistics) = &mut *self.statistics.borrow_mut() {
-            statistics.input(own);
-        }
         self.panels_heard(own);
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.input(own);
         }
         if let Some(accounts) = &mut *self.onboarding.borrow_mut() {
             accounts.surface.input(own);
-        }
-    }
-
-    /// Opens its panel of the host's statistics, watching them while it is open, or closes it,
-    /// which stops the watch.
-    fn toggle_statistics(&self) {
-        let opened = self.statistics_opened.get() + 1;
-        self.statistics_opened.set(opened);
-        if self.statistics.borrow_mut().take().is_some() {
-            be_wasm_ops::guest::spawn(async {
-                // A host that cannot hear it has stopped, which the root hears from its frames.
-                let _ = host::watch_statistics(false).await;
-            });
-            return;
-        }
-        let Some(beui) = self.beui.borrow().clone() else {
-            return;
-        };
-        let waker = self.waker.clone();
-        let shown = Rc::clone(&self.shown_statistics);
-        let graphed = Rc::clone(&self.shown_memory);
-        let panel = BeuiSurface::new(
-            &beui,
-            OwnSurface::new(
-                STATISTICS_SURFACE,
-                self.window.get().pixels(
-                    self.window.get().statistics_width(),
-                    self.window.get().height,
-                ),
-            ),
-            self.window.get().pixels_per_point,
-            move || waker.wake(),
-            move || {
-                let statistics = create_signal(HostStatistics {
-                    generation: 0,
-                    performance: Vec::new(),
-                    memory: Vec::new(),
-                    memory_file: None,
-                });
-                shown.set(Some(statistics));
-                let history = create_signal(MemoryMinutes::default());
-                graphed.set(Some(history));
-                view! {
-                    <Root>
-                        <StatisticsPanel statistics={statistics} history={history} />
-                    </Root>
-                }
-            },
-        );
-        match panel {
-            Ok(panel) => *self.statistics.borrow_mut() = Some(panel),
-            // The panel is for debugging: one that cannot be drawn is left closed.
-            Err(_) => return,
-        }
-        be_wasm_ops::guest::spawn(self.clone().hear_statistics(opened));
-        be_wasm_ops::guest::spawn(self.clone().hear_memory(opened));
-    }
-
-    /// Watches the host's memory over time and graphs each change of it in the panel opened as
-    /// the `opened`th, until it closes or the host stops answering. Its rows change every frame,
-    /// these once a minute, so they are a watch of their own.
-    async fn hear_memory(self, opened: u64) {
-        let mut seen = 0;
-        while let Ok(history) = host::memory_history(seen).await {
-            if self.statistics_opened.get() != opened {
-                return;
-            }
-            seen = history.generation;
-            if let (Some(panel), Some(shown)) =
-                (&mut *self.statistics.borrow_mut(), self.shown_memory.get())
-            {
-                panel.enter(|| shown.set(history));
-            }
-        }
-    }
-
-    /// Watches the host's statistics and shows each change of them in the panel opened as the
-    /// `opened`th, until it closes or the host stops answering.
-    async fn hear_statistics(self, opened: u64) {
-        if host::watch_statistics(true).await.is_err() {
-            return;
-        }
-        let mut seen = 0;
-        while let Ok(statistics) = host::statistics(seen).await {
-            if self.statistics_opened.get() != opened {
-                return;
-            }
-            seen = statistics.generation;
-            if let (Some(panel), Some(shown)) = (
-                &mut *self.statistics.borrow_mut(),
-                self.shown_statistics.get(),
-            ) {
-                panel.enter(|| shown.set(statistics));
-            }
         }
     }
 
@@ -1565,9 +1416,6 @@ impl frames::Guest for Root {
                 .as_ref()
                 .map(|own| own.layer(ROOT_LAYER, pos2(0.0, 0.0), 1.0))
                 .expect("the root made its own surface");
-            if root.statistics_asked.take() {
-                root.toggle_statistics();
-            }
             if let Some(panel) = root.panel_asked.take() {
                 root.show_panel(panel);
             }
@@ -1587,11 +1435,6 @@ impl frames::Guest for Root {
                     .surface
                     .frame()
                     .expect("the root draws its dialog with beui");
-            }
-            if let Some(statistics) = &mut *root.statistics.borrow_mut() {
-                statistics
-                    .frame()
-                    .expect("the root draws its statistics with beui");
             }
             if let Some(accounts) = &mut *root.onboarding.borrow_mut() {
                 accounts
@@ -1624,18 +1467,7 @@ impl frames::Guest for Root {
                 };
                 layers.push(layer);
             }
-            // Its statistics panel while it is open, over the app: it scrolls, so it takes
-            // presses, but never the focus from what the person works in.
-            if let Some(statistics) = &*root.statistics.borrow() {
-                let window = root.window.get();
-                let mut layer = statistics.layer(
-                    STATISTICS_LAYER,
-                    pos2(window.width - window.statistics_width(), 0.0),
-                );
-                layer.input.focuses = false;
-                layers.push(layer);
-            }
-            // Its menu while an organization's blocks are open, over its panel, hit only where
+            // Its menu while an organization's blocks are open, over the rest, hit only where
             // its button and what it opens show.
             if let Some(menu) = &*root.menu.borrow()
                 && root.core.borrow().waits_for.is_none()
@@ -1752,11 +1584,6 @@ impl frames::Guest for Root {
                 .borrow()
                 .as_ref()
                 .and_then(|dialog| dialog.surface.next());
-            let statistics = root
-                .statistics
-                .borrow()
-                .as_ref()
-                .and_then(BeuiSurface::next);
             let lock = root
                 .lock
                 .borrow()
@@ -1773,7 +1600,6 @@ impl frames::Guest for Root {
                 .chain(root.panels_next())
                 .chain(documents)
                 .chain(dialog)
-                .chain(statistics)
                 .chain(lock)
                 .chain(accounts)
                 .min();
@@ -1824,8 +1650,8 @@ impl input::Guest for Root {
 
 impl paintings::Guest for Root {
     /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of each surface it
-    /// shows now: its toasts while one shows, its dialog and scrim, its onboarding, its
-    /// statistics and its lock screen.
+    /// shows now: its toasts while one shows, its dialog and scrim, its onboarding, the host
+    /// panels it draws and its lock screen.
     fn paintings(&self) -> LocalFuture<Vec<u8>> {
         let own = self.own.borrow().as_ref().map(|own| {
             let (width, height) = own.size();
@@ -1854,9 +1680,7 @@ impl paintings::Guest for Root {
             .borrow()
             .as_ref()
             .and_then(|dialog| painted(&dialog.surface));
-        // Its statistics panel only while it is open, its accounts while they show, and its
-        // lock screen while locked.
-        let statistics = self.statistics.borrow().as_ref().and_then(painted);
+        // Its accounts while they show, and its lock screen while locked.
         let accounts = self
             .onboarding
             .borrow()
@@ -1885,7 +1709,6 @@ impl paintings::Guest for Root {
             .chain(notice)
             .chain(menu)
             .chain(accounts)
-            .chain(statistics)
             .chain(dialog)
             .chain(toasts)
             .chain(lock)

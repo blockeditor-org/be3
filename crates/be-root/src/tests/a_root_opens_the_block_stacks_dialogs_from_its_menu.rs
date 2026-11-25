@@ -3,7 +3,7 @@ use be_wasm_root_api::{
 };
 
 use super::*;
-use crate::{DIALOG_LAYER, DIALOG_SURFACE, MENU_LAYER, MENU_SURFACE, STATISTICS_LAYER};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE, MENU_LAYER, MENU_SURFACE};
 
 /// A company's organization the person administers, with an unsent edit, a block kept
 /// hosting and an escrow key not to be trusted yet.
@@ -157,22 +157,4 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
         };
         assert!(right, "{asked} asks the block stack: {commands:?}");
     }
-
-    // Performance opens the statistics panel and closes it again.
-    let _ = menu(&mut root, &mut time, Entry::Performance);
-    until(
-        &mut root,
-        &mut time,
-        Vec::new(),
-        "Performance opens the statistics panel",
-        |done| layer_of(done, STATISTICS_LAYER).is_some(),
-    );
-    let _ = menu(&mut root, &mut time, Entry::Performance);
-    until(
-        &mut root,
-        &mut time,
-        Vec::new(),
-        "Performance again closes it",
-        |done| layer_of(done, STATISTICS_LAYER).is_none(),
-    );
 }

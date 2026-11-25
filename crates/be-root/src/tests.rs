@@ -14,7 +14,7 @@ mod a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_on
 mod a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one;
 mod a_root_opens_the_block_stacks_dialogs_from_its_menu;
 mod a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed;
-mod a_root_shows_its_hosts_lock_screen_and_statistics;
+mod a_root_shows_its_hosts_lock_screen;
 mod a_root_shows_its_hosts_organizations_and_sessions;
 mod a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_only_what_was_typed;
 mod a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved;
@@ -64,7 +64,6 @@ enum Entry {
     SwitchOrganization,
     NewRecoveryPhrase,
     ManageAccounts,
-    Performance,
 }
 
 thread_local! {
@@ -107,10 +106,11 @@ fn offered() -> Vec<Option<Entry>> {
                 Entry::SwitchOrganization,
                 Entry::NewRecoveryPhrase,
                 Entry::ManageAccounts,
-                Entry::Performance,
             ]
             .map(Some),
         );
+        // The host's panels, as `HostPanel::ALL` lists them, which the session's editor shows.
+        rows.extend(be_sdk_api::HostPanel::ALL.map(|_| None));
         rows
     })
 }

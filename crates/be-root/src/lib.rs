@@ -17,8 +17,9 @@
 //! - the block stack's dialogs, which its menu opens: unsent edits, invitations, members,
 //!   agents, contacts and share links, with the secrets they make answered once
 //!   (`host.make-secret`) and held only while they show;
-//! - the host's statistics and memory graph in a panel (`STATISTICS_LAYER`), watched only while
-//!   open.
+//! - the host's panels its session's editor places (`HostPanel`), which its menu asks for as
+//!   be-host's does: its statistics and memory graph, watched only while one shows, and its
+//!   menu's rows.
 //!
 //! - the session's view (core-view's `showing`): its block's editor, which its host opens and
 //!   serves, filling the window under everything else, with a notice over it
@@ -61,19 +62,7 @@ pub const DIALOG_SURFACE: u32 = 6;
 /// asks in its dialog's place while its host asks it (`host.displays`).
 pub const KEEP_DISPLAY_TITLE: &str = "Keep these display settings?";
 
-/// The layer showing `STATISTICS_SURFACE` while the panel is open: over everything but the
-/// dialog and the toasts, taking presses (it scrolls) but never the focus.
-pub const STATISTICS_LAYER: LayerId = LayerId(6);
-
-/// A surface of the root's own that beui draws the host's statistics on, as its debug panels
-/// show them: its performance and memory rows.
-pub const STATISTICS_SURFACE: u32 = 7;
-
-/// `STATISTICS_SURFACE`'s width, in points, at the window's right edge and as tall as it, or
-/// the window's width in a narrower window.
-pub const STATISTICS_WIDTH: f32 = 320.0;
-
-/// The panel's title.
+/// The performance panel's title.
 pub const STATISTICS_TITLE: &str = "Performance";
 
 /// The layer showing `LOCK_SURFACE` while the session is locked: over everything, toasts too,
@@ -183,7 +172,7 @@ pub const SESSION_NOTICE_SURFACE: u32 = 11;
 pub const PANEL_SURFACES: u32 = 64;
 
 /// The layers showing the host panels' surfaces: each its surface's number past this.
-pub const PANEL_LAYERS: u64 = 1 << 32;
+pub const FIRST_PANEL_LAYER: u64 = 1 << 32;
 
 /// What a host panel the root draws no view of yet says in its place.
 pub const PANEL_NOT_DRAWN: &str = "This panel is not drawn under the root yet.";

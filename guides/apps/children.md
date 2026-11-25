@@ -165,10 +165,13 @@ says, as be-host's compositor does, where each view takes presses
 
 Host panels are the root's to draw: be-sdk-root lists each placed
 (`Children::panels`, a `PanelPlace` each) and the root shows a layer of its
-own in each place (`show_panels`), framed and cut out like a child's.
-be-root draws Performance and Menu as be-host does and says the others are
-not drawn yet. Its menu asks the session's editor to show one
-(`host.show-panel`), as be-host asks its shell. Web views and program windows
+own in each place (`Children::show_panels`), framed and cut out like a
+child's. be-root draws Performance and Menu as be-host does and says the
+others are not drawn yet. Its menu lists every panel and asks the session's
+editor to show one (`host.show-panel`), as be-host asks its shell; it has no
+statistics overlay of its own. Its menu and a Menu panel are built one way
+(`MenuParts`) and follow the host's views as they change; the Performance
+panels share one feed of the host's statistics, watched while any shows. Web views and program windows
 (plans/host_as_platform_adapter.md, 4g7b3g) are not there yet: a child of
 another kind the placer hears is unavailable.
 
