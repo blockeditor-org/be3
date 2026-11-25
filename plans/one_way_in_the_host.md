@@ -65,6 +65,11 @@ disagree. Each step below removes one of the pair.
    beside the reactive `windows.list()`), and `program_editors::listed_since`. Each publishes
    from an effect over what it describes (the windows' effect tracks both the list and
    `bound_windows`), and the counters and their per-frame checks go.
+   Done for `push_device`: `set_state` publishes `PushDeviceWatch` as it changes, and be-host
+   publishes the first state as it starts. Left: the windows' revision (be-host-desktop's
+   Linux and Windows hosts, be-host-wayland) and `program_editors::listed_since`, which be-host's
+   `root.rs` reads to hand the root its catalog; both are in what plans/host_as_platform_adapter.md's
+   step 4g7e moves, so they go with it, as step 4 does.
 6. **One failure budget for guests that restart.** Type modules restart up to `RESTART_LIMIT`
    (8) over their lifetime and then stop with only an `eprintln`; the remapper stops after
    `FAILURES_BEFORE_STOPPING` (3) within `FAILURE_WINDOW` and posts a notice; Xwayland gives up

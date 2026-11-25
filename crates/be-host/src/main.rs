@@ -670,8 +670,6 @@ struct HostCore {
     opening_after_link: Option<Uuid>,
     /// What the host stack changed since the last frame.
     stack_changes: be_host_stack::ChangeWatch,
-    /// The `be_host_base::push_device::revision` the push device watch last published.
-    push_device_published: Option<u64>,
     /// What a pressed notification's block last waited on (the open organization, how many
     /// there are, the changes unsaved), so it is tried again only when that or the graph
     /// changes.
@@ -1075,7 +1073,6 @@ impl HostCore {
             share_links: share_link::ShareLinks::default(),
             opening_after_link: None,
             stack_changes: be_host_stack::ChangeWatch::new(),
-            push_device_published: None,
             #[cfg(any(target_arch = "wasm32", target_os = "android"))]
             pressed_waiting_on: None,
             #[cfg(any(target_arch = "wasm32", target_os = "android"))]
@@ -1160,6 +1157,7 @@ impl HostCore {
             wifi: None,
         };
         core.resume_organization();
+        be_host_base::push_device::publish();
         Ok(core)
     }
 
@@ -3910,7 +3908,6 @@ impl HostCore {
         if changes.mutes {
             self.publish_mutes();
         }
-        self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
             be_host_stack::set_guest(self.role() == be_sdk_api::AccountRole::Guest);
@@ -4061,25 +4058,6 @@ impl HostCore {
                 .collect::<Vec<_>>()
         });
         be_host_base::watches::publish::<be_sdk_api::MutesWatch>(&mutes);
-    }
-
-    /// Publishes whether this device shows pushes whenever it changed.
-    fn publish_push_device(&mut self) {
-        let revision = Some(be_host_base::push_device::revision());
-        if self.push_device_published == revision {
-            return;
-        }
-        self.push_device_published = revision;
-        be_host_base::watches::publish::<be_sdk_api::PushDeviceWatch>(
-            &match be_host_base::push_device::state() {
-                be_host_base::push_device::PushDevice::Unsupported => None,
-                be_host_base::push_device::PushDevice::Off => Some(be_sdk_api::PushDevice::Off),
-                be_host_base::push_device::PushDevice::On => Some(be_sdk_api::PushDevice::On),
-                be_host_base::push_device::PushDevice::Denied => {
-                    Some(be_sdk_api::PushDevice::Denied)
-                }
-            },
-        );
     }
 
     fn publish_role(&self) {
