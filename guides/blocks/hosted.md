@@ -194,8 +194,7 @@ knows nothing of the rules but `may_dig` and the counts. Its pieces:
   last board the host told it and asks to dig, and as `world::World` for one
   who may read the block, which shows every gem and makes a new world.
 
-Its "Practice gem hunt" template hides the gems in the same cells every time
-(`Hunt::practice`). Its tests show each side alone (guides/testing_a_gui.md,
-3), and be-host-tests' `a_player_digs_through_the_editor_that_hosts_the_hunt`
-plays a practice hunt end to end: one device hosts while another account's
-device, given a Join link, digs through it.
+Its tests show each side alone (guides/testing_a_gui.md, 3), and be-host-tests'
+`a_player_digs_through_the_editor_that_hosts_the_hunt` plays it end to end: one
+device hosts while another account's device, given a Join link, digs a cell
+the host's editor shows holds a gem.

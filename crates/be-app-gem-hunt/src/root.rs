@@ -42,11 +42,7 @@ impl be_sdk_beui::BeuiRoot for HuntRoot {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        let hunt = match creation.template() {
-            "practice" => Hunt::practice(),
-            _ => Hunt::scattered(seed()),
-        };
-        Ok(creation.create(&HuntContent::new(&hunt)))
+        Ok(creation.create(&HuntContent::new(&Hunt::scattered(seed()))))
     }
 }
 

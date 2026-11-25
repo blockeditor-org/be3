@@ -16,14 +16,29 @@ impl BeuiRoot for WorldRoot {
             </Root>
         }
     }
+
+    fn exporters() -> Vec<be_sdk_beui::Exporter> {
+        vec![
+            be_sdk_beui::ExporterOf::<be_type_text::TextContent, ()>::new("copy", |_| {
+                |_: &()| Err(be_sdk_beui::beui::reactive::Pending::Loading)
+            })
+            .into(),
+        ]
+    }
 }
 
 /// An editor opened as a Join member holds none of its block's content
 /// (guides/blocks/hosted.md, "Access"), so its frame offers no undo, redo, rename or share,
-/// in the menu or the palette, where an editor of the block offers each.
+/// or export, in the menu or the palette, where an editor of the block offers each.
 #[test]
 fn a_join_editors_frame_offers_nothing_on_content_it_does_not_hold() {
-    let content = ["editor.undo", "editor.redo", "editor.rename", "editor.share"];
+    let content = [
+        "editor.undo",
+        "editor.redo",
+        "editor.rename",
+        "editor.share",
+        "editor.export.copy",
+    ];
     let offered = |test: &BeuiTest<WorldRoot>| -> Vec<String> {
         let mut ids = test.menu_ids();
         ids.extend(test.described_actions().iter().map(|action| action.id.clone()));

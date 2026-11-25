@@ -344,8 +344,9 @@ dialog"), and the app's `beui_app!` map pairs the name with a root as it does an
 editor's; the framework refuses to start unless the roots cover the editors and
 hosts together. The root's `BeuiRoot::host(editor)` runs once it is attached,
 in a reactive scope kept while it runs, and is where the component does its
-work (it needs no `View`, whose default is empty, since it is never shown): be-app-example-counter's `CounterHost` adds
-one to its block once the content arrives. With no frames, the guest takes in
+work (it needs no `View`, whose default is empty, since it is never shown):
+be-app-example-counter's `CounterHost` adds one to its block once the content
+arrives. With no frames, the guest takes in
 what changed each time the instance is woken instead (`Instance::pass`, which
 be-sdk-beui runs as `begin_frame` inside that scope, so the effects woken
 then run as it ends). The host opens it with `opening-kind.host` (block, type,
