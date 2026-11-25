@@ -2173,9 +2173,12 @@ Each step lands on its own.
              `be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input` and
              `be_root_in_place_of_the_hosts_ui_closes_a_programs_window_from_its_tab`.
            - Left: of what be-host's core asks of its window (`host::finish`), `RootShell`
-             hands on only the close and its frames: a copy, a paste, the pointer grab, full
-             screen and file picks are dropped under the root, and a pick's slot dropped leaves
-             the app's pick unanswered (be-host-runtime's `instances/services.rs`).
+             hands on only the close: its repaints (honoured, a root showing an artifact's
+             settings never settles), a copy, a paste, the pointer grab, full screen and file
+             picks are dropped under the root, and a pick's slot dropped leaves the app's pick
+             unanswered (be-host-runtime's `instances/services.rs`).
+           - Left: no test shows a program window that minimized itself coming back when the
+             desktop shows it again from its chip, under the root or under be-host.
            - 4g7e3e. Built: be-host closed with a program window open answers drive's `close`.
              Its session ends first, its programs' windows asked to close (`Power::close`),
              under the root too, which has no screen lock to run it (`run_screen_lock`); be-host

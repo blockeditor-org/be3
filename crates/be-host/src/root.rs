@@ -569,20 +569,14 @@ impl beui::native::Program for RootShell {
         if every_sample {
             context.want_every_sample(WindowId::MAIN);
         }
-        // What the core asked of the window, as be-host's own frame hands it on (`frame::end`):
-        // the window closes once the session it was asked to end has ended (its programs'
-        // windows closed first, `close_requested`), and the core's frames come when it asks.
-        // The rest the root asks itself.
-        let output = be_host_base::host::finish();
-        if self.stopped.borrow().is_some() || output.close {
+        // The core closes the window once the session it was asked to end has ended (its
+        // programs' windows closed first, `close_requested`), as be-host's own frame closes it
+        // (`frame::end`). Its frames come as the root's do, and as what it waits on wakes it
+        // (`host::wake`): the repaints it asks for, which its own UI's frames answer, are not
+        // the root's, which asks for its own (`next`).
+        if self.stopped.borrow().is_some() || be_host_base::host::finish().close {
             context.close_window();
             return;
-        }
-        if output.repaint {
-            context.request_repaint();
-        }
-        if let Some(delay) = output.repaint_after {
-            context.request_repaint_after(delay);
         }
         match self.next {
             Some(at) if at <= time => context.request_repaint(),
