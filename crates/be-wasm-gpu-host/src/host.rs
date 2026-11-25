@@ -1322,6 +1322,7 @@ impl Host for Gpu {
             width,
             height,
             format,
+            view_formats,
         } = configuration;
         let limit = self.device.limits().max_texture_dimension_2d;
         if width == 0 || height == 0 || width > limit || height > limit {
@@ -1331,9 +1332,23 @@ impl Host for Gpu {
             return;
         }
         let format = Convert::<wgpu::TextureFormat>::convert(format);
+        let view_formats: Vec<wgpu::TextureFormat> = view_formats
+            .into_iter()
+            .map(Convert::<wgpu::TextureFormat>::convert)
+            .collect();
+        if let Some(view) = view_formats
+            .iter()
+            .find(|view| view.remove_srgb_suffix() != format.remove_srgb_suffix())
+        {
+            self.report(format!(
+                "surface {surface} asked for {format:?} textures viewed as {view:?}, which differs from it by more than its sRGB suffix"
+            ));
+            return;
+        }
         let matches = self.surfaces.get(&surface).is_some_and(|existing| {
             let (texture, _) = existing.shown();
             existing.textures.len() == 2
+                && existing.view_formats == view_formats
                 && texture.width() == width
                 && texture.height() == height
                 && texture.format() == format
@@ -1354,11 +1369,11 @@ impl Host for Gpu {
                 dimension: wgpu::TextureDimension::D2,
                 format,
                 usage: SURFACE_USAGE,
-                view_formats: &[],
+                view_formats: &view_formats,
             })
         };
         let textures = vec![texture(), texture()];
-        self.insert_surface(surface, textures);
+        self.insert_surface(surface, textures, view_formats);
     }
 
     fn surface_acquire(&mut self, this: abi::Surface) -> Option<abi::Texture> {

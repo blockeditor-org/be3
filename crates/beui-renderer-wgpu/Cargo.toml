@@ -12,10 +12,18 @@ beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
 beui-draw = { path = "../beui-draw" }
+beui-vello = { path = "../beui-vello" }
 be-lib-layers = { path = "../be-lib-layers" }
 bytemuck = { version = "1", features = ["derive"] }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
+vello_gpu = { version = "0.4", default-features = false, features = [
+    "wgpu",
+    "wgpu_external_texture",
+    "gradient_sweep",
+    "blurred_rounded_rect",
+    "full_image_support",
+] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = "0.4"

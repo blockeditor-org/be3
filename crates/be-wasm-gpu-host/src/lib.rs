@@ -80,6 +80,8 @@ type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo>>>;
 
 struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
+    /// The formats its textures may also be viewed as.
+    view_formats: Vec<wgpu::TextureFormat>,
     drawn: usize,
     ages: Ages,
 }
@@ -204,10 +206,15 @@ impl Gpu {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        self.insert_surface(surface, vec![texture]);
+        self.insert_surface(surface, vec![texture], Vec::new());
     }
 
-    fn insert_surface(&mut self, surface: u32, textures: Vec<wgpu::Texture>) {
+    fn insert_surface(
+        &mut self,
+        surface: u32,
+        textures: Vec<wgpu::Texture>,
+        view_formats: Vec<wgpu::TextureFormat>,
+    ) {
         let textures: Vec<(wgpu::Texture, u64)> = textures
             .into_iter()
             .map(|texture| {
@@ -220,6 +227,7 @@ impl Gpu {
             surface,
             Surface {
                 textures,
+                view_formats,
                 drawn: 0,
                 ages,
             },

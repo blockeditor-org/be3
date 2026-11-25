@@ -84,7 +84,7 @@ impl CanvasSurface {
             desired_maximum_frame_latency: FRAME_LATENCY,
             alpha_mode,
             color_space: wgpu::SurfaceColorSpace::Auto,
-            view_formats: Vec::new(),
+            view_formats: crate::view_formats(format).to_vec(),
         };
         Ok(Self {
             canvas,

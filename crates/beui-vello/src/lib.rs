@@ -104,8 +104,14 @@ pub fn filled_rect(
 }
 
 /// A segment `width` wide with round caps.
-pub fn segment(canvas: &mut impl Canvas, [x0, y0, x1, y1]: [f32; 4], width: f32, paint: [u8; 4]) {
-    plain(canvas, Affine::IDENTITY, paint);
+pub fn segment(
+    canvas: &mut impl Canvas,
+    [x0, y0, x1, y1]: [f32; 4],
+    width: f32,
+    paint: [u8; 4],
+    transform: Affine,
+) {
+    plain(canvas, transform, paint);
     let (from, to) = (
         Point::new(f64::from(x0), f64::from(y0)),
         Point::new(f64::from(x1), f64::from(y1)),
