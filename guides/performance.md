@@ -65,7 +65,9 @@ while working on it.
   shapes panned and zoomed, a blur at radii from 0.5 to 64, opacity groups eight deep, and a
   64-point damaged square in a full window. Each scene is painted before the clock starts, so it
   reports the renderer's CPU time to prepare, encode and submit a frame and, where the adapter
-  has `TIMESTAMP_QUERY`, the GPU time between two timestamps around it. It prints the adapter and
+  has `TIMESTAMP_QUERY`, the GPU time between two timestamps around the encoder `render`
+  records into. That leaves out the uploads and submissions `prepare` makes itself, and on
+  Metal the timestamps of the empty passes that bracket it may read about 0. It prints the adapter and
   reports nothing on a software one (`DeviceType::Cpu`, llvmpipe), which is every agent VM's:
   there it only draws a few frames of each scene, so an agent can check it runs, and people
   compare it on machines with GPUs. A benchmark that reports nothing on purpose calls

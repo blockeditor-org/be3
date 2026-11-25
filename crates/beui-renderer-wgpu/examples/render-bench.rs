@@ -17,6 +17,7 @@ use beui_core::filter::Filter;
 use beui_core::node::SpaceId;
 use beui_core::painter::{Painter, Zoom};
 use beui_renderer_wgpu::{Renderer, Repaint, Resources, wgpu_color_in};
+use beui_types::geometry::Region;
 use beui_types::{Color32, FillRule, FontId, NodeId, Path, Rect, Stroke, pos2, vec2};
 
 const WIDTH: u32 = 1920;
@@ -266,8 +267,8 @@ impl Bench {
             .collect()
     }
 
-    /// A window of text and shapes, then a 64-point square repainted inside it each frame as
-    /// a cursor or a ticking clock would be.
+    /// A window of text and shapes, then a 64-point square that moves each frame, as a cursor
+    /// or a ticking clock would, repainting where it was and where it is.
     fn damaged(&mut self, frames: usize) -> Vec<Timed> {
         let spot = |step: usize| {
             let x = 80.0 + (step % 24) as f32 * 72.0;
@@ -276,7 +277,7 @@ impl Bench {
         self.run(
             frames,
             |step| Repaint::Region {
-                region: spot(step).into(),
+                region: Region::from(spot(step)).union(spot(step.saturating_sub(1)).into()),
                 background: BACKGROUND,
             },
             |painter, step| {

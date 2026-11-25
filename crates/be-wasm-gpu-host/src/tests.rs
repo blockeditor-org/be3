@@ -107,3 +107,4 @@ mod every_webgpu_limit_of_the_device_is_forwarded;
 mod only_a_texture_the_app_created_is_destroyed;
 mod only_the_calls_that_record_into_a_pass_go_untimed;
 mod submitted_work_wakes_the_app_once_the_gpu_has_done_it;
+mod unbinding_a_vertex_buffer_takes_no_offset_or_size;
