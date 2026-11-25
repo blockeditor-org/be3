@@ -601,7 +601,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                 host_place: None,
                 origin: None,
                 docked: self.docked,
-                anchor_space: self.anchor_space.clone(),
+                anchor_space: self.anchor_space,
                 fit: false,
             }]
         });
@@ -1322,7 +1322,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             .children
             .into_iter()
             .filter(|placements| placements.view == view)
-            .last()
+            .next_back()
         {
             let hidden = |placement: &ChildPlacement| placement.mode == ChildMode::Hidden;
             self.occluders = placements
@@ -2478,7 +2478,7 @@ fn capabilities<A: AppEditor>() -> be_sdk_manifest::EditorCapabilities {
         be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
     let editor = A::EDITORS[0];
     match manifest.editors.0.iter().find(|(name, _)| *name == editor) {
-        Some((_, document)) => document.capabilities.clone(),
+        Some((_, document)) => document.capabilities,
         // A host component is no editor: it has no frame to be capable of anything in.
         None if is_host(&manifest, editor) => be_sdk_manifest::EditorCapabilities::default(),
         None => panic!("the app's manifest names no editor {editor:?}"),
