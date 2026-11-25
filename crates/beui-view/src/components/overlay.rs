@@ -38,10 +38,10 @@ pub fn Overlay(
     on_dismiss: Callback<Dismiss>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
-    let blocks = policy.clone();
+    let blocks = policy;
     let open = create_memo(move || open.get());
     if let Some(within) = use_context::<OverlaysWithin>() {
-        let takes_input = policy.clone();
+        let takes_input = policy;
         within.follow(create_memo(move || {
             open.get() && takes_input.get() != LayerPolicy::Inert
         }));
