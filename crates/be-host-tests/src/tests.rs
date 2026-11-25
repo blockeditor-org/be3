@@ -181,6 +181,18 @@ mod typing_as_the_connection_silently_drops_leaves_the_host_settled;
 mod typing_in_the_add_menu_from_the_files_reaches_it_straight_away;
 mod unlinking_a_reference_in_a_text_puts_a_copy_in_its_place;
 
+/// The link the open share dialog made (`#share.links.make`), read from its field.
+fn share_link(host: &mut HostTest) -> String {
+    host.tree()
+        .lines()
+        .find_map(|line| {
+            let (_, value) = line.split_once("value=\"")?;
+            let value = value.split('"').next()?;
+            value.contains("#share/").then(|| value.to_owned())
+        })
+        .expect("the share dialog shows the link it made")
+}
+
 fn add_to_my_files(host: &mut HostTest, label: &str) {
     start_adding_to_my_files(host, label);
     host.key("Enter");

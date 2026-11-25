@@ -397,10 +397,9 @@ impl Watched {
 
 #[derive(Clone)]
 struct FrameActions {
-    undo: Action,
-    redo: Action,
-    rename: Action,
-    share: Action,
+    /// None for a Join member, which holds none of the block's content
+    /// (guides/blocks/hosted.md, "Access"): it has nothing to undo, rename or share.
+    content: Option<ContentActions>,
     details: Action,
     /// Only while this device hosts the block (guides/blocks/hosted.md, "Hosting"), so the
     /// palette lists it only then too.
@@ -411,6 +410,15 @@ struct FrameActions {
     exports: Vec<Action>,
     /// Zoom in, out, to 100% and fit, while the manifest declares `pan_and_zoom` (`zoom.rs`).
     _zoom: Option<crate::ZoomActions>,
+}
+
+/// The frame's actions on the block's content, for an editor that holds it.
+#[derive(Clone)]
+struct ContentActions {
+    undo: Action,
+    redo: Action,
+    rename: Action,
+    share: Action,
 }
 
 /// `editor.export.<name>` for each exporter `editor` declares, labelled as its manifest names
@@ -485,7 +493,7 @@ fn frame_actions(
         .capabilities()
         .pan_and_zoom
         .then(|| crate::zoom::register(editor, live));
-    FrameActions {
+    let content = (!editor.joined()).then(|| ContentActions {
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
         })
@@ -518,6 +526,9 @@ fn frame_actions(
         .pin(Pin::Label)
         .enabled(can(|state| state.can_share))
         .register(),
+    });
+    FrameActions {
+        content,
         details: Action::new("editor.details", "File details", move || {
             editor.host().show_details()
         })
@@ -592,10 +603,7 @@ pub(crate) fn FrameMenu(
         }
     });
     let FrameActions {
-        undo,
-        redo,
-        rename,
-        share,
+        content,
         details,
         keep_hosting,
         close,
@@ -606,8 +614,10 @@ pub(crate) fn FrameMenu(
         if !live.get() {
             return Vec::new();
         }
-        let mut listed: Vec<MenuNode> = [&undo, &redo, &rename, &share, &palette]
-            .into_iter()
+        let mut listed: Vec<MenuNode> = content
+            .iter()
+            .flat_map(|content| [&content.undo, &content.redo, &content.rename, &content.share])
+            .chain([&palette])
             .map(MenuNode::action)
             .collect();
         listed.push(MenuNode::Separator);

@@ -16,15 +16,7 @@ fn a_share_link_asks_before_opening_a_block_someone_shared() {
     host.click("#file-tree.section.share");
     host.click("#share.links.make");
     host.wait("#share.links.url");
-    let link = host
-        .tree()
-        .lines()
-        .find_map(|line| {
-            let (_, value) = line.split_once("value=\"")?;
-            let value = value.split('"').next()?;
-            value.contains("#share/").then(|| value.to_owned())
-        })
-        .expect("the share dialog shows the link it made");
+    let link = share_link(&mut host);
     host.click("#share.close");
     host.synced();
 

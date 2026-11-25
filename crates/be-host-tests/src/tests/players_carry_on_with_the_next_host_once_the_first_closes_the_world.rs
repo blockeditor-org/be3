@@ -45,15 +45,7 @@ fn players_carry_on_with_the_next_host_once_the_first_closes_the_world() {
     laptop.click("ListBoxOption \"Anyone with an account here\"");
     laptop.click("#share.links.make");
     laptop.wait("#share.links.url");
-    let link = laptop
-        .tree()
-        .lines()
-        .find_map(|line| {
-            let (_, value) = line.split_once("value=\"")?;
-            let value = value.split('"').next()?;
-            value.contains("#share/").then(|| value.to_owned())
-        })
-        .expect("the share dialog shows the link it made");
+    let link = share_link(&mut laptop);
     laptop.click("#share.close");
     laptop.synced();
 

@@ -39,15 +39,7 @@ fn a_player_digs_through_the_editor_that_hosts_the_hunt() {
     laptop.wait("\"Join the hunt\"");
     laptop.click("#share.links.make");
     laptop.wait("#share.links.url");
-    let link = laptop
-        .tree()
-        .lines()
-        .find_map(|line| {
-            let (_, value) = line.split_once("value=\"")?;
-            let value = value.split('"').next()?;
-            value.contains("#share/").then(|| value.to_owned())
-        })
-        .expect("the share dialog shows the link it made");
+    let link = share_link(&mut laptop);
     laptop.click("#share.close");
     laptop.synced();
 
