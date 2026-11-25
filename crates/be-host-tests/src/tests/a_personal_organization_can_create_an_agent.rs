@@ -16,6 +16,12 @@ fn a_personal_organization_can_create_an_agent() {
     host.wait("#host.agents.credentials");
     host.wait("Button \"Copy Agent credentials\"");
     host.wait("Dialog \"Agent credentials\"");
+    // A stray press on the scrim leaves them showing: they cannot be had again.
+    host.click("4,4");
+    assert!(
+        host.tree().contains("Dialog \"Agent credentials\""),
+        "a press on the scrim leaves the credentials showing"
+    );
     let tree = host.tree();
     assert!(!tree.contains("TextInput \"Agent name\""));
     assert!(!tree.contains("Button \"Add agent\""));

@@ -772,16 +772,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   `first_end()`, so opening a large blob is O(depth), with that test's bound
   on the objects held after reading the header back to a constant.
 
-## 30. One-time secrets
-
-- **A stray press dismisses a secret shown once.** be-host's dialogs that show a secret only
-  once (an agent's credentials, an invite or contact link) close on a press on their scrim,
-  and be-root's do the same (be-host parity, plans/host_as_platform_adapter.md 4g7a2), so a
-  stray press loses credentials that cannot be had again. The fix lands in both be-host and
-  be-root, together, so they stay alike. Done: once such a secret shows, a press on the scrim
-  leaves the dialog open in each, closing only from Done or its close button, with a test in
-  each.
-
 ## 31. Wire types
 
 - **The shared WIT spells hash and uuid as tuples no wire uses.** be-wasm-ops's
@@ -794,12 +784,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   docs, those `with:` entries are gone, and be-sdk-type-api's
   `every_type_the_wit_maps_onto_the_stacks_has_its_wire_form` covers them, with
   the same `root`-based check on the protocol and apps worlds.
-- **An export's cycle refusal has no test.** `transfer::collect` in
-  be-block-type-host refuses a block whose parents lead back to it ("listed
-  inside itself"), but the test server cannot serve a parent cycle. Done: a test
-  drives that refusal, through a stub `Peer` summary or a fault relay that
-  rewrites a summary's parent.
-
 ## 32. Host events
 
 - **A Host event held during a join can override the join's answer.**

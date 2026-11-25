@@ -189,6 +189,13 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     );
     let _ = asks(&mut root, &mut time, key(Key::Enter));
     assert_eq!(root.take_copies().len(), 1, "Copy copies them once");
+    // A stray press on the scrim leaves them showing: they cannot be had again.
+    let commands = asks(&mut root, &mut time, click(pos2(8.0, 8.0)));
+    assert!(commands.is_empty(), "the press asks nothing: {commands:?}");
+    assert!(
+        layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(),
+        "a press on the scrim leaves the credentials showing"
+    );
 
     // Closed, they go: opened again, the agents show without them.
     let _ = asks(&mut root, &mut time, key(Key::Escape));

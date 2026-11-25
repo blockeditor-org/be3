@@ -372,6 +372,9 @@ impl Default for DialogDismissal {
 pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: Callback<()>,
+    /// What a press on the sheet's scrim does: `close`, unless the dialog stays on one
+    /// (`dismiss_on_outside_press`).
+    pub outside: Callback<()>,
     pub tall: bool,
     /// Builds what shows the body in the sheet: call it in the sheet's content.
     pub body: BuildFn<NodeId>,
@@ -471,6 +474,10 @@ pub fn Dialog(
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = 0.0)] beak: f32,
+    /// Whether a press on the scrim dismisses it. One showing what cannot be had again (a
+    /// secret shown once) stays, closing only from its own actions, Escape or back.
+    #[prop(default = true)]
+    dismiss_on_outside_press: Prop<bool>,
     on_dismiss: Callback<()>,
     card: RenderFn<DialogCardHandle, NodeId>,
     sheet: Render<DialogSheetHandle, NodeId>,
@@ -566,9 +573,15 @@ pub fn Dialog(
     let ready = create_memo(move || open.get() && built.with(Option::is_some));
     let as_sheet = create_memo(move || ready.get() && sheeted.get());
     let as_window = create_memo(move || ready.get() && !sheeted.get());
+    let dismisses = create_memo(move || dismiss_on_outside_press.get());
     let sheet = sheet.call(DialogSheetHandle {
         open: as_sheet,
         close: on_dismiss,
+        outside: Callback::new(move |()| {
+            if dismisses.get_untracked() {
+                on_dismiss.call(());
+            }
+        }),
         tall: size == DialogSize::Large,
         body: BuildFn::new(move || {
             view! {
@@ -608,7 +621,11 @@ pub fn Dialog(
                 pointer={pointer}
                 beak={beak}
                 open={as_window}
-                on_dismiss={move |_: Dismiss| on_dismiss.call(())}
+                on_dismiss={move |reason: Dismiss| {
+                    if reason != Dismiss::OutsidePress || dismisses.get_untracked() {
+                        on_dismiss.call(());
+                    }
+                }}
             >|_: WindowHandle|
                 <Shows node={windowed_card} showing />
             </Window>
