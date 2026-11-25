@@ -170,6 +170,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//crates/be-wasm-password:be-wasm-password",
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/be-wasm-root-api:be-wasm-root-api",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
                 "//crates/be-wasm-sandbox-host:be-wasm-sandbox-host",

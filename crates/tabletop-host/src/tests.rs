@@ -1,5 +1,6 @@
 use super::{Game, GameAction};
 
+mod a_game_may_import_a_pure_guests_wasi_and_no_more;
 mod a_move_that_never_finishes_runs_out_of_its_own_fuel;
 mod load_rejects_a_module_that_is_not_a_game;
 mod load_rejects_bytes_that_are_not_webassembly;

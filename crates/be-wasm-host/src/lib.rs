@@ -73,6 +73,8 @@ pub struct Host {
     interrupt: Arc<Interrupt>,
     flavor: Flavor,
     memory_limit: Option<usize>,
+    /// What the pure guests it loads draw their randomness from (`with_seed`).
+    seed: [u8; 32],
     name: Option<String>,
 }
 
@@ -133,6 +135,7 @@ impl Host {
             imports: Imports::default(),
             flavor,
             memory_limit: (flavor == Flavor::Pure).then_some(MEMORY_LIMIT),
+            seed: [0; 32],
             name: None,
         })
     }
@@ -142,6 +145,13 @@ impl Host {
     /// the root guest is given one (plans/host_as_platform_adapter.md, The layer list).
     pub fn with_display(mut self, device: wgpu::Device, queue: wgpu::Queue) -> Self {
         self.devices = Devices::Given(device, queue);
+        self
+    }
+
+    /// Seeds the randomness of the pure guests this host loads (be-wasm-pure-wasi's
+    /// `random_get`), which is the zero seed's unless given.
+    pub fn with_seed(mut self, seed: [u8; 32]) -> Self {
+        self.seed = seed;
         self
     }
 
@@ -708,7 +718,10 @@ impl App {
     ) -> Result<Self, String> {
         let wake: Arc<Wake> = Arc::default();
         let setup = Setup {
-            wasi: Wasi::app(),
+            wasi: match host.flavor {
+                Flavor::Pure => Wasi::pure(host.seed),
+                Flavor::App => Wasi::app(),
+            },
             initialize: true,
         };
         let running = Running::new(host, code, library, &wake, setup)?;

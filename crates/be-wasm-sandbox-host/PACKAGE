@@ -115,6 +115,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
                 "//third-party/rust:js-sys-0.3.99",
                 "//third-party/rust:wasm-bindgen-0.2.122",

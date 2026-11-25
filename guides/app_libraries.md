@@ -166,7 +166,15 @@ guest implements `be_wasm_guest_abi::Guest` and exports it with
 
 ### Pure guests
 
-A pure guest imports only `be3_host`: no gpu, library, WASI, threads or clock.
+A pure guest imports only `be3_host` and the few `wasi_snapshot_preview1` calls
+Rust's std makes: no gpu, library, threads, files or clock. Its WASI is
+`crates/be-wasm-pure-wasi`, which every host of one answers through (be-wasm-host,
+tabletop-host's wasmi and be-wasm-root-host on the page; be-wasm-guest-host's
+`guest.js` answers the same in JavaScript): `random_get` is a ChaCha20 stream
+from the seed its host gives it (`Host::with_seed`, zero unless given), so a guest
+stays deterministic; `fd_write` to standard output or error goes to the host's log;
+its arguments and environment are empty, the clocks answer ENOSYS, and `proc_exit`
+stops it. Any other import is refused when it loads.
 It is a `wasm32_module` (wasm32-unknown-unknown), not an `app()`. A type module
 is one, and so is the input remapper, which runs in the sandbox for modules
 from bytes (guides/apps/runtime.md, Backends); `crates/be-wasm-guest-echo` is

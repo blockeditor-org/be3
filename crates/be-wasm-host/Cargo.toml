@@ -17,6 +17,7 @@ getrandom = "0.3"
 wasm-encoder = "0.257"
 wasmparser = "0.257"
 be-wasm-dylink = { path = "../be-wasm-dylink" }
+be-wasm-pure-wasi = { path = "../be-wasm-pure-wasi" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [target.'cfg(unix)'.dependencies]

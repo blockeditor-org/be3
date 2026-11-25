@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-wasm-pure-wasi = { path = "../be-wasm-pure-wasi" }
 bincode = "1"
 tabletop-api = { path = "../tabletop-api" }
 uuid = { version = "1", features = ["serde", "v4"] }

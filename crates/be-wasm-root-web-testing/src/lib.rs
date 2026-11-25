@@ -50,7 +50,7 @@ pub async fn run() -> Result<String, JsValue> {
     passed.push(a_root_that_keeps_waking_itself_stops_at_its_patience().await?);
     passed.push(a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks().await?);
     passed.push(a_guest_compiles_a_module_and_talks_to_an_instance_of_it().await?);
-    passed.push(a_module_that_imports_more_than_its_transport_does_not_compile().await?);
+    passed.push(a_module_that_imports_more_than_a_pure_guest_may_does_not_compile().await?);
     passed.push(an_instance_of_a_module_from_bytes_is_held_to_its_memory_limit().await?);
     Ok(passed.join("; "))
 }
@@ -304,9 +304,9 @@ async fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() -> Result<St
     Ok("a module compiled from bytes echoed from a worker of its own".to_owned())
 }
 
-async fn a_module_that_imports_more_than_its_transport_does_not_compile() -> Result<String, JsValue>
+async fn a_module_that_imports_more_than_a_pure_guest_may_does_not_compile() -> Result<String, JsValue>
 {
-    // The echo guest as a staged app imports WASI and its libraries.
+    // The echo guest as a staged app imports the whole of WASI and its libraries.
     let bytes = fetch(CHILD_ENTRY).await?;
     let mut pump = Pump::new();
     let compiled = pump
@@ -318,10 +318,10 @@ async fn a_module_that_imports_more_than_its_transport_does_not_compile() -> Res
         .await?;
     match compiled {
         Err(why) if why.contains("a pure guest may not") => {
-            Ok("a module that imports more than its transport was refused".to_owned())
+            Ok("a module that imports more than a pure guest may was refused".to_owned())
         }
         Err(why) => Err(format!("the module was refused for another reason: {why}").into()),
-        Ok(_) => Err("a module that imports more than its transport compiled".into()),
+        Ok(_) => Err("a module that imports more than a pure guest may compiled".into()),
     }
 }
 

@@ -621,6 +621,10 @@ struct Transport {
     woken: Cell<bool>,
     panicked: RefCell<Option<String>>,
     wake: Wake,
+    /// Its WASI (guides/app_libraries.md, Pure guests), from the zero seed.
+    wasi: RefCell<be_wasm_pure_wasi::Wasi>,
+    /// What it wrote to standard output or error since its last whole line.
+    line: RefCell<String>,
 }
 
 impl Transport {
@@ -635,9 +639,84 @@ impl Transport {
     }
 }
 
+/// The root's memory, as be-wasm-pure-wasi reads and writes it.
+struct PageMemory(WebAssembly::Memory);
+
+impl be_wasm_pure_wasi::Memory for PageMemory {
+    fn size(&self) -> usize {
+        Uint8Array::new(&self.0.buffer()).length() as usize
+    }
+
+    fn read(&self, at: u32, length: u32) -> Result<Vec<u8>, String> {
+        let end = at
+            .checked_add(length)
+            .filter(|end| *end as usize <= self.size())
+            .ok_or("the root named bytes outside its memory")?;
+        Ok(Uint8Array::new(&self.0.buffer()).subarray(at, end).to_vec())
+    }
+
+    fn write(&mut self, at: u32, bytes: &[u8]) -> Result<(), String> {
+        let fits = (at as usize)
+            .checked_add(bytes.len())
+            .is_some_and(|end| end <= self.size());
+        if !fits {
+            return Err("the root named bytes outside its memory".to_owned());
+        }
+        Uint8Array::new(&self.0.buffer()).set(&Uint8Array::from(bytes), at);
+        Ok(())
+    }
+}
+
+/// A WASI call's answer to the root, or the exception that stops it.
+type WasiCall = dyn FnMut(JsValue, JsValue, JsValue, JsValue) -> Result<JsValue, JsValue>;
+
+/// The WASI calls a pure guest is answered (be_wasm_pure_wasi::ANSWERED), as functions of the
+/// root's `transport`.
+fn wasi_calls(transport: &Rc<Transport>) -> Vec<(&'static str, Closure<WasiCall>)> {
+    be_wasm_pure_wasi::ANSWERED
+        .into_iter()
+        .map(|name| {
+            let held = Rc::clone(transport);
+            let call = Closure::<WasiCall>::new(move |a: JsValue, b: JsValue, c: JsValue, d: JsValue| {
+                // Every argument a pure guest's call reads is an i32; the clock's i64 precision,
+                // a BigInt, is never read.
+                let words: Vec<u64> = [a, b, c, d]
+                    .iter()
+                    .map(|value| value.as_f64().map_or(0, |word| word as i64 as u32 as u64))
+                    .collect();
+                let memory = held.memory.borrow().clone().ok_or("the root has no memory")?;
+                let mut logged = Vec::new();
+                let answered = held.wasi.borrow_mut().call(
+                    name,
+                    &words,
+                    &mut PageMemory(memory),
+                    &mut |bytes| logged.extend_from_slice(bytes),
+                );
+                if !logged.is_empty() {
+                    let mut line = held.line.borrow_mut();
+                    line.push_str(&String::from_utf8_lossy(&logged));
+                    while let Some(end) = line.find('\n') {
+                        web_sys::console::error_1(&line[..end].into());
+                        line.drain(..=end);
+                    }
+                }
+                match answered {
+                    Ok(errno) => Ok(errno.into()),
+                    Err(stopped) => {
+                        let stopped = stopped.to_string();
+                        *held.panicked.borrow_mut() = Some(stopped.clone());
+                        Err(js_sys::Error::new(&stopped).into())
+                    }
+                }
+            });
+            (name, call)
+        })
+        .collect()
+}
+
 /// The root guest instantiated on the page: a pure guest (guides/app_libraries.md, Pure guests),
-/// whose only imports are its transport, which this answers as be-wasm-guest-host's worker
-/// runtime (src/guest.js) answers it in a worker.
+/// whose only imports are its transport and a pure guest's WASI, which this answers as
+/// be-wasm-guest-host's worker runtime (src/guest.js) answers them in a worker.
 struct PageGuest {
     exports: Object,
     transport: Rc<Transport>,
@@ -658,6 +737,8 @@ impl PageGuest {
             woken: Cell::new(false),
             panicked: RefCell::new(None),
             wake,
+            wasi: RefCell::new(be_wasm_pure_wasi::Wasi::new([0; 32])),
+            line: RefCell::new(String::new()),
         });
         let held = Rc::clone(&transport);
         let send = Closure::<dyn FnMut(u32, u32)>::new(move |pointer, length| {
@@ -699,8 +780,14 @@ impl PageGuest {
         ] {
             let _ = Reflect::set(&host, &name.into(), function);
         }
+        let wasi = Object::new();
+        let calls = wasi_calls(&transport);
+        for (name, call) in &calls {
+            let _ = Reflect::set(&wasi, &(*name).into(), call.as_ref());
+        }
         let imports = Object::new();
         let _ = Reflect::set(&imports, &"be3_host".into(), &host);
+        let _ = Reflect::set(&imports, &be_wasm_pure_wasi::MODULE.into(), &wasi);
         let instance = JsFuture::from(WebAssembly::instantiate_module(module, &imports))
             .await
             .map_err(|error| format!("the root could not be instantiated: {}", describe(&error)))?;
@@ -719,6 +806,7 @@ impl PageGuest {
                 Box::new(receive),
                 Box::new(wake),
                 Box::new(panic),
+                Box::new(calls),
             ],
             stopped: false,
         };

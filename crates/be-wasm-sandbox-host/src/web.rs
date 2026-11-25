@@ -51,8 +51,9 @@ thread_local! {
     static COMPILED: RefCell<HashMap<ModuleId, Weak<Compiled>>> = RefCell::new(HashMap::new());
 }
 
-/// The only functions a pure guest may import: its transport (be-wasm-guest-abi), which the
-/// worker answers itself. Its memory, which compiling imports, is `env.memory`.
+/// The only functions a pure guest may import beside its WASI (be_wasm_pure_wasi::ANSWERED): its
+/// transport (be-wasm-guest-abi). The worker answers both itself. Its memory, which compiling
+/// imports, is `env.memory`.
 const TRANSPORT: [&str; 4] = ["host_send", "host_receive", "host_wake", "host_panic"];
 
 /// A compile under way, which the browser finishes off the page's thread.
@@ -134,8 +135,8 @@ async fn sha256(bytes: &Uint8Array) -> Result<ModuleId, String> {
         .map_err(|_| "the module's hash is not 32 bytes".to_owned())
 }
 
-/// Checks that `module` imports nothing but its transport and its memory, as a pure guest's
-/// module does once its memory is imported.
+/// Checks that `module` imports nothing but its transport, its WASI and its memory, as a pure
+/// guest's module does once its memory is imported.
 fn pure(module: &WebAssembly::Module) -> Result<(), String> {
     for wanted in WebAssembly::Module::imports(module).iter() {
         let field = |key: &str| {
@@ -145,7 +146,8 @@ fn pure(module: &WebAssembly::Module) -> Result<(), String> {
                 .unwrap_or_default()
         };
         let (from, name, kind) = (field("module"), field("name"), field("kind"));
-        let transport = from == "be3_host" && TRANSPORT.contains(&name.as_str());
+        let transport = (from == "be3_host" && TRANSPORT.contains(&name.as_str()))
+            || be_wasm_pure_wasi::answers(&from, &name);
         let memory =
             from == be_wasm_dylink::ENV && name == be_wasm_dylink::MEMORY_NAME && kind == "memory";
         if !transport && !memory {

@@ -7,7 +7,8 @@
 //! directories it is given, each opened at its own path, read and written through `std::fs`. A
 //! path that leaves its directory through `..` is refused; one that leaves it through a symbolic
 //! link is not, so a run is only as confined as the directories it is handed. Any call not here is
-//! unsupported (ENOSYS). A pure guest gets none of them.
+//! unsupported (ENOSYS). A pure guest gets only be-wasm-pure-wasi's few calls (`define_pure`):
+//! randomness from its seed, standard output and error to the host's, and no clock.
 
 use std::{
     collections::HashMap,
@@ -135,6 +136,8 @@ pub(crate) struct Wasi {
     preopened: Vec<(u32, String)>,
     open: Mutex<HashMap<u32, Open>>,
     next: Mutex<u32>,
+    /// A pure guest's answers, which are all it gets.
+    pure: Option<Mutex<be_wasm_pure_wasi::Wasi>>,
 }
 
 impl Wasi {
@@ -142,6 +145,14 @@ impl Wasi {
     pub(crate) fn app() -> Arc<Self> {
         Arc::new(Self {
             stderr: Output::Inherited,
+            ..Self::default()
+        })
+    }
+
+    /// A pure guest's: be-wasm-pure-wasi's answers, its randomness drawn from `seed`.
+    pub(crate) fn pure(seed: [u8; 32]) -> Arc<Self> {
+        Arc::new(Self {
+            pure: Some(Mutex::new(be_wasm_pure_wasi::Wasi::new(seed))),
             ..Self::default()
         })
     }
@@ -180,6 +191,7 @@ impl Wasi {
             next: Mutex::new(3 + preopened.len() as u32),
             preopened,
             open: Mutex::new(open),
+            pure: None,
         }))
     }
 
@@ -868,7 +880,7 @@ fn poll_oneoff(call: &Call) -> Answer {
 }
 
 /// Why a guest that called `proc_exit` stopped, which a test run reads its exit code from.
-pub(crate) const EXITED: &str = "the guest exited with status ";
+pub(crate) const EXITED: &str = be_wasm_pure_wasi::EXITED;
 
 fn proc_exit(call: &Call) -> Answer {
     Err(format!("{EXITED}{}", call.u32(0) as i32))
@@ -952,6 +964,100 @@ pub(crate) fn define<'s>(
             fd_sync fd_tell fd_write path_create_directory path_filestat_get path_open
             path_remove_directory path_rename path_unlink_file poll_oneoff proc_exit random_get
             sched_yield
+        )?;
+    }
+    Ok(())
+}
+
+/// A pure guest's memory, as be-wasm-pure-wasi reads and writes it.
+struct Pure<'a>(&'a View);
+
+impl be_wasm_pure_wasi::Memory for Pure<'_> {
+    fn size(&self) -> usize {
+        self.0.size()
+    }
+
+    fn read(&self, at: u32, length: u32) -> Result<Vec<u8>, String> {
+        self.0.read(at, length)
+    }
+
+    fn write(&mut self, at: u32, bytes: &[u8]) -> Result<(), String> {
+        self.0.write(at, bytes)
+    }
+}
+
+fn pure_answer(
+    scope: &mut v8::PinScope,
+    arguments: &v8::FunctionCallbackArguments,
+    returned: &mut v8::ReturnValue<v8::Value>,
+    name: &str,
+) {
+    // the function's data is its State (state_of).
+    // unsafe(memory)
+    let state = unsafe { state_of(arguments.data()) };
+    let words: Vec<u64> = (0..arguments.length())
+        .map(|index| {
+            let value = arguments.get(index);
+            match v8::Local::<v8::BigInt>::try_from(value) {
+                Ok(big) => big.u64_value().0,
+                Err(_) => value.int32_value(scope).unwrap_or(0) as u32 as u64,
+            }
+        })
+        .collect();
+    let view = state.view_in(scope);
+    let wasi = Arc::clone(&state.wasi);
+    let answered = match &wasi.pure {
+        Some(pure) => pure.lock().unwrap_or_else(PoisonError::into_inner).call(
+            name,
+            &words,
+            &mut Pure(&view),
+            &mut |bytes| Output::Inherited.write(false, bytes),
+        ),
+        None => Err(be_wasm_pure_wasi::Stopped::Fault(format!(
+            "{MODULE}.{name} is a pure guest's, and this guest is not one"
+        ))),
+    };
+    match answered {
+        Ok(errno) => returned.set_int32(errno),
+        Err(stopped) => {
+            let stopped = stopped.to_string();
+            throw(scope, &stopped);
+            state.fatal = Some(stopped);
+        }
+    }
+}
+
+macro_rules! define_pure_calls {
+    ($scope:ident, $defined:ident, $data:ident, $name:expr, $($call:ident)*) => {
+        match $name {
+            $(stringify!($call) => {
+                fn function(
+                    scope: &mut v8::PinScope,
+                    arguments: v8::FunctionCallbackArguments,
+                    mut returned: v8::ReturnValue<v8::Value>,
+                ) {
+                    pure_answer(scope, &arguments, &mut returned, stringify!($call));
+                }
+                crate::engine::function($scope, $defined, MODULE, $name, $data, function)
+            })*
+            // Anything else is left unanswered, so the guest is refused when it is loaded.
+            _ => Ok(()),
+        }
+    };
+}
+
+/// The WASI calls a pure guest may make that `imports` names (be_wasm_pure_wasi::ANSWERED).
+pub(crate) fn define_pure<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    defined: &mut Defined<'s>,
+    data: v8::Local<'s, v8::Value>,
+    imports: &[crate::engine::Import],
+) -> Result<(), String> {
+    for import in imports.iter().filter(|import| import.module == MODULE) {
+        define_pure_calls!(
+            scope, defined, data, import.name.as_str(),
+            args_get args_sizes_get clock_res_get clock_time_get environ_get environ_sizes_get
+            fd_write proc_exit random_get
         )?;
     }
     Ok(())

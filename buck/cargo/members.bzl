@@ -181,6 +181,7 @@ members = [
     "crates/be-wasm-ops",
     "crates/be-wasm-ops-bindgen",
     "crates/be-wasm-password",
+    "crates/be-wasm-pure-wasi",
     "crates/be-wasm-root-api",
     "crates/be-wasm-root-host",
     "crates/be-wasm-root-testing",
