@@ -1247,8 +1247,7 @@ keys the granter verified that way, which every device then seals to.
 - **A contact's name and email** are the card's, as verified, never the
   server's account row, which could name one contact as another so a share to
   "Bob" sealed to Mallory. They are as the contact gave them in their link;
-  a contact who renames later keeps the old name until they connect again
-  (plans/backlog.md, 18). A contact whose card has not opened shows the row's,
+  a contact who renames later keeps the old name until they connect again. A contact whose card has not opened shows the row's,
   marked as not confirmed, and nothing is sealed to it.
 - **Links** are one family (`contacts.wit`): a card sealed with the code, a
   lookup id derived from it, and an accept that makes the two accounts
