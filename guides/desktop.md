@@ -21,6 +21,11 @@ only then are the package's `windows` and `programs` offered. Any other run answ
 a block. A desktop refuses to start on a data directory another be-host already runs on
 (guides/running/native.md).
 
+Under `--root` (guides/apps/runtime.md, The root guest), `--desktop` makes the desktop app the
+session's editor the root shows (`run_desktop_shell`) but starts none of the desktop's OS services
+yet (the screen lock and its power actions, notifications, the tray, screenshots), and the root
+shows no app or program windows yet (plans/host_as_platform_adapter.md, 4g7e).
+
 To run it headless: `./scripts/buck run //crates/be-host:dev -- --desktop`, then drive it
 (guides/running/drive.md). The host test `the_desktop_shell_opens_and_closes_cleanly`
 (crates/be-host-tests) does the same. The desktop app's own tests run the shell on be-sdk-test's
