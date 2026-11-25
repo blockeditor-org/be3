@@ -149,6 +149,10 @@ pub struct Children {
     /// The creations a placer committed (`commit-child`) whose editors have yet to open, with
     /// the placer (`relay_commits`).
     commits: Vec<(EditorInstanceId, be_sdk_api::shell_types::ChildCreation)>,
+    /// The editors of the children let go of in the settle under way, by their placer and id: a
+    /// placer commits a child (an accepted dialog's) in the layout that removes it, so what it
+    /// commits reaches the editor still, which its host closes only after it heard it.
+    released: Vec<(EditorInstanceId, ChildId, Embedded, EditorInstanceId)>,
     /// The handle of the app whose editors place these, as of the last `settle`.
     instance: u64,
     /// The layers showing that app's screens, with the editor and view each shows.
@@ -433,6 +437,12 @@ impl Editor {
                     }
                 };
                 main.docked = docked;
+                // An artifact's settings show its editor's settings view, as be-host shows them.
+                if settings_dialog(&self.shown) {
+                    main.view = ViewId::ARTIFACT_SETTINGS;
+                    main.placement = ViewPlacement::Parent(ParentView::ArtifactSettings);
+                    main.anchor_space = None;
+                }
                 Some(main)
             }
             // A docked child no place shows stays open, asked for its main view still.
@@ -659,7 +669,8 @@ impl Child {
             ChildContent::Picker { .. }
             | ChildContent::Rename(_)
             | ChildContent::Export { .. }
-            | ChildContent::Creation { .. } => {
+            | ChildContent::Creation { .. }
+            | ChildContent::ArtifactSettings { .. } => {
                 let dialog = ShownDialog {
                     content: be_wasm_ops::encode(&placement.content),
                     sheet: false,
@@ -797,6 +808,14 @@ impl Child {
             return self.fitted();
         }
         let (app, editor) = self.hosted()?;
+        // An artifact's settings want the height their view used, as be-host's status says
+        // (`settings_height`).
+        if settings_dialog(&self.shown) {
+            return app.used(self.screen(editor)).map(|used| ViewSize {
+                width: 0.0,
+                height: used.y.max(1.0),
+            });
+        }
         app.intrinsic(editor).map(|size| ViewSize {
             width: size.x,
             height: size.y,
@@ -928,6 +947,18 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
         kept,
         opened,
         gone: before.into_values().collect(),
+    }
+}
+
+/// Whether `shown` is an artifact's settings (`ChildContent::ArtifactSettings`), a dialog its
+/// editor runs in its settings view.
+fn settings_dialog(shown: &Shown) -> bool {
+    match shown {
+        Shown::Dialog(dialog) => matches!(
+            be_wasm_ops::decode::<ChildContent>(&dialog.content),
+            Some(ChildContent::ArtifactSettings { .. })
+        ),
+        Shown::Block(_) => false,
     }
 }
 
@@ -1166,6 +1197,7 @@ impl Children {
             opened,
             gone,
         } = reconcile(std::mem::take(&mut self.shown), wanted, above);
+        self.released.clear();
         for child in &opened {
             spawn(&kept[*child], settling.spawning, settling.now);
         }
@@ -1180,6 +1212,9 @@ impl Children {
                 gone.framing = false;
                 kept.push(gone);
                 continue;
+            }
+            if let Some((app, editor)) = gone.hosted() {
+                self.released.push((gone.placer, gone.child, app, editor));
             }
             release(&gone, settling.embedding, Some(&mut *settling.docks));
         }
@@ -1473,6 +1508,13 @@ impl Children {
                 (None, Showing::Opening) => PlacedEditor::Opening,
                 (None, _) => PlacedEditor::Gone,
             };
+        }
+        if let Some((.., app, editor)) = self
+            .released
+            .iter()
+            .find(|(held, id, ..)| (*held, *id) == (placer, child))
+        {
+            return PlacedEditor::Open(app.clone(), *editor);
         }
         self.shown
             .iter()

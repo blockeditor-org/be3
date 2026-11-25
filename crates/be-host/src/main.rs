@@ -686,7 +686,12 @@ struct HostCore {
     shell: Option<Uuid>,
     windows_sent: Option<(u64, Vec<be_sdk_api::HostWindowId>)>,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
-    artifact_watches: HashMap<Uuid, Vec<Uuid>>,
+    /// The artifacts each editor watches (`InstanceEvent::ArtifactWatch`), by its app and
+    /// instance: be-host's own, or one a root's app runs, which the root's host hands the states
+    /// (`artifact_states`).
+    artifact_watches: HashMap<(String, be_sdk_api::EditorInstanceId), Vec<Uuid>>,
+    /// The states of the artifacts watched, as `poll_artifacts` made them last.
+    artifact_states: Vec<be_sdk_api::ArtifactState>,
     /// What instances reported that the core acts on: focus, artifact watches, and their
     /// children's commits, dismissals and closes.
     instance_events: Vec<be_host_runtime::Heard>,
@@ -1078,6 +1083,7 @@ impl HostCore {
             windows_sent: None,
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
+            artifact_states: Vec::new(),
             instance_events: Vec::new(),
             _instance_events: {
                 let (mailbox, post) = desk().mailbox(HostCore::instance_heard);
@@ -3096,8 +3102,9 @@ impl HostCore {
         be_host_desktop::programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);
-        if self.artifact_watches.remove(&id).is_some() {
-            self.watch_artifacts(self.watched());
+        let source = self.with_editor(id, |editor| editor.source()).flatten();
+        if let Some(source) = source {
+            self.forget_artifact_watch(source.app_id, source.instance);
         }
         self.editors
             .with_simulated(|simulated| simulated.remove(&id));
@@ -3108,6 +3115,35 @@ impl HostCore {
         if let Some(mut editor) = self.editors.with(|open| open.remove(&id)) {
             editor.tab_closed();
         }
+    }
+
+    /// Forgets what the editor `instance` of the app `app_id` watched, once it closed.
+    fn forget_artifact_watch(&mut self, app_id: String, instance: be_sdk_api::EditorInstanceId) {
+        if self.artifact_watches.remove(&(app_id, instance)).is_some() {
+            self.watch_artifacts(self.watched());
+        }
+    }
+
+    /// Takes in the artifacts editors watch, as they reported them, which `poll_artifacts`
+    /// keeps the states of; under a root, the only instance events the host acts on itself, the
+    /// rest dropped. Answers the rest.
+    fn hear_artifact_watches(&mut self) -> Vec<be_host_runtime::Heard> {
+        let mut rest = Vec::new();
+        let mut rewatched = false;
+        for heard in std::mem::take(&mut self.instance_events) {
+            match heard.event {
+                be_host_runtime::InstanceEvent::ArtifactWatch(watch) => {
+                    self.artifact_watches
+                        .insert((heard.app_id, heard.instance), watch);
+                    rewatched = true;
+                }
+                _ => rest.push(heard),
+            }
+        }
+        if rewatched {
+            self.watch_artifacts(self.watched());
+        }
+        rest
     }
 
     fn watch_artifacts(&mut self, blocks: Vec<Uuid>) {
@@ -3172,7 +3208,7 @@ impl HostCore {
             be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
             self.windows_sent = Some((Host::revision(), hidden));
         }
-        let heard = std::mem::take(&mut self.instance_events);
+        let heard = self.hear_artifact_watches();
         let keys: HashMap<(String, be_sdk_api::EditorInstanceId), Uuid> = match heard.is_empty() {
             true => HashMap::new(),
             false => self.editors.with(|open| {
@@ -3185,7 +3221,6 @@ impl HostCore {
             }),
         };
         let mut refocused = false;
-        let mut rewatched = false;
         let mut children = Vec::new();
         for heard in heard {
             let key = keys.get(&(heard.app_id.clone(), heard.instance)).copied();
@@ -3200,10 +3235,6 @@ impl HostCore {
                         },
                     );
                     refocused = true;
-                }
-                (be_host_runtime::InstanceEvent::ArtifactWatch(watch), Some(id)) => {
-                    self.artifact_watches.insert(id, watch);
-                    rewatched = true;
                 }
                 (
                     event @ (be_host_runtime::InstanceEvent::ChildCommitted(_)
@@ -3220,9 +3251,6 @@ impl HostCore {
         }
         if refocused && let Some(focus) = self.focus(shell) {
             be_host_runtime::set_focus(focus.block, focus.editor, focus.via);
-        }
-        if rewatched {
-            self.watch_artifacts(self.watched());
         }
         self.forward_child_commits(children);
         self.editors.step_creations();
@@ -3420,10 +3448,12 @@ impl HostCore {
             }
             states.push(state);
         }
-        let watchers: Vec<Uuid> = self.artifact_watches.keys().copied().collect();
-        for watcher in watchers {
-            self.with_editor(watcher, |editor| editor.set_artifact_states(states.clone()));
+        // be-host's own editors are told here; a root's by the root's host (root.rs), which
+        // serves them.
+        for (app_id, instance) in self.artifact_watches.keys() {
+            be_host_runtime::set_artifact_states(app_id, *instance, states.clone());
         }
+        self.artifact_states = states;
         self.show_artifact_settings();
     }
 
@@ -3458,6 +3488,26 @@ impl HostCore {
         self.editors
             .set_settings_status(Some((id, session.settings_height(), session.dialog())));
         self.dynamic_artifact_sessions.insert(id, session);
+    }
+
+    /// Applies the settings `data` a root's artifact settings child accepted to the artifact
+    /// `id`, as `apply_artifact_settings` applies those of be-host's own dialog: kept as the
+    /// artifact's, which its session makes it again with.
+    fn apply_root_artifact_settings(&mut self, id: Uuid, data: Vec<u8>) {
+        let Some(descriptor) = artifact_of(id) else {
+            return;
+        };
+        set_artifact(
+            id,
+            Some(be_block_content::Artifact {
+                settings: data.clone(),
+                ..descriptor
+            }),
+        );
+        if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
+            session.regenerate(&data);
+        }
+        self.dynamic_artifact_errors.remove(&id);
     }
 
     fn apply_artifact_settings(&mut self, id: Uuid) {
@@ -3863,6 +3913,7 @@ impl HostCore {
             #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             // Once the stack lists it: before, the root could not open it.
             true => {
+                self.hear_artifact_watches();
                 self.root_session = self
                     .ensure_session()
                     .filter(|session| be_host_stack::node(*session).is_some());

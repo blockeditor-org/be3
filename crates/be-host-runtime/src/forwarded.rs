@@ -60,6 +60,30 @@ impl Forwarded {
         self.step()
     }
 
+    /// Opens an editor of an artifact (`InstanceRole::Artifact`) as `instance`, as `open` does,
+    /// made by the source's exporter `exporter` with the settings `data`, which it opens with:
+    /// its settings view shows them, and what it changes is its draft (`artifact_draft`).
+    pub fn open_artifact(
+        &mut self,
+        instance: EditorInstanceId,
+        role: InstanceRole,
+        exporter: &str,
+        data: &[u8],
+        client_id: Uuid,
+        block_types: &Arc<crate::AppCatalog>,
+    ) -> Vec<Vec<u8>> {
+        self.instances
+            .open_forwarded(instance, role, client_id, block_types);
+        self.instances.seed_artifact(instance, exporter, data);
+        self.step()
+    }
+
+    /// The settings the person changed in the artifact editor `instance`'s settings view, not
+    /// applied yet.
+    pub fn artifact_draft(&self, instance: EditorInstanceId) -> Option<Vec<u8>> {
+        self.instances.artifact_draft(instance)
+    }
+
     /// Tells the editor `instance` the statuses of the children it placed in its view `view`, as
     /// its root shows them: those that changed since the last call for that view, sent with
     /// the next `step`. A child left out is no longer reported.
@@ -126,6 +150,16 @@ impl Forwarded {
     pub fn commit_creation(&mut self, instance: EditorInstanceId) {
         let messages = self.instances.commit_creation(instance);
         self.wire.send(messages);
+    }
+
+    /// Hands the editor `instance` the states of the artifacts it watches among `states`, as
+    /// `Runtime` hands them (`set_artifact_states`).
+    pub fn set_artifact_states(
+        &mut self,
+        instance: EditorInstanceId,
+        states: Vec<be_sdk_api::ArtifactState>,
+    ) {
+        self.instances.set_artifact_states(instance, states);
     }
 
     /// Whether the editor `instance` opened in its app.
