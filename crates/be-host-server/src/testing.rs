@@ -4,10 +4,9 @@
 //! (`be_host_stack::testing::Harness`) signs one account's stack in against it, and be-host's
 //! host tests sign each host they start in as a device of one of its accounts.
 //!
-//! The server half of the fixture lives here, beneath be-host-stack, rather than behind
-//! be-host-stack's `testing` feature, so nothing a host ships links be-server
-//! (decisions/no_crate_splits_inside_dependency_chains.md, the embedded server cut out of
-//! be-host-stack).
+//! The server half of the fixture lives here, beneath be-host-stack, rather than in
+//! `be_host_stack::testing`, which every native build compiles, so nothing a host ships links
+//! be-server (decisions/test_hooks_are_ordinary_code.md).
 
 use std::{
     net::SocketAddr,

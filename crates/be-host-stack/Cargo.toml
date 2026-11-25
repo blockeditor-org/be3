@@ -4,9 +4,6 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[features]
-testing = []
-
 [dependencies]
 be-block-repository = { path = "../be-block-repository" }
 be-block-input = { path = "../be-block-input" }

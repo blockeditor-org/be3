@@ -921,7 +921,7 @@ pub struct Shared {
     /// has not reached means the stack is waiting for it; `None` while it is connected, and while
     /// the first connect is in flight. A wait on a driven clock (`wait_until`) moves the clock on
     /// to it.
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
@@ -934,7 +934,7 @@ pub struct Shared {
     pub before_write: Option<super::version::HeldWrite>,
     /// Set by `crash`: the worker ends at its next pass without keeping what open replicas
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub crashed: bool,
     /// What `log_unlisted_held` logged, for a test to read.
     #[cfg(test)]
@@ -1342,7 +1342,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
 
 /// Notes the moment the stack next tries the server, for a test's wait to move a manual clock to
 /// (`Shared::reconnect`); `None` once it tries.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 fn reconnecting_at(shared: &Arc<Mutex<Shared>>, at: Option<(be_block_client::Clock, Duration)>) {
     shared
         .lock()
@@ -1415,7 +1415,7 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
 ) -> Option<(Arc<Peer<Store>>, Option<Opened>)> {
     let mut failures = 0;
     loop {
-        #[cfg(any(test, feature = "testing"))]
+        #[cfg(not(target_arch = "wasm32"))]
         reconnecting_at(shared, None);
         match make_store().and_then(|store| Ok((store, super::refs(config)?))) {
             Ok((store, refs)) => {
@@ -1433,7 +1433,7 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
         failures = failures.saturating_add(1);
         // One moment for the sleep and for the wait that moves a clock to it.
         let at = config.clock.now() + delay;
-        #[cfg(any(test, feature = "testing"))]
+        #[cfg(not(target_arch = "wasm32"))]
         reconnecting_at(shared, Some((config.clock.clone(), at)));
         changed.notify_all();
         crate::changes::wake();
@@ -1492,7 +1492,7 @@ enum Line {
     Down {
         failures: u32,
         /// When it tries again, on the config's clock.
-        #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
+        #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
         at: Duration,
         reaching: Reaching,
     },
@@ -1626,7 +1626,7 @@ impl Session<'_> {
             // What the host runs ahead of every pass (on the web, keeping its files).
             platform::first();
             // A crash ends the worker before its next pass, so nothing more is written.
-            #[cfg(any(test, feature = "testing"))]
+            #[cfg(not(target_arch = "wasm32"))]
             if shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -1722,7 +1722,7 @@ impl Session<'_> {
                 Woken::Nudged => {
                     if let Line::Down { failures, .. } = self.line {
                         self.line = Line::down(self.config, failures, Duration::ZERO);
-                        #[cfg(any(test, feature = "testing"))]
+                        #[cfg(not(target_arch = "wasm32"))]
                         reconnecting_at(shared, None);
                     }
                     false
@@ -1732,7 +1732,7 @@ impl Session<'_> {
                     true
                 }
                 Woken::Reached(Ok(link)) => {
-                    #[cfg(any(test, feature = "testing"))]
+                    #[cfg(not(target_arch = "wasm32"))]
                     reconnecting_at(shared, None);
                     shared
                         .lock()
@@ -2233,7 +2233,7 @@ impl Session<'_> {
             failures => reconnect_delay(failures - 1, jitter()),
         };
         self.line = Line::down(self.config, failures, delay);
-        #[cfg(any(test, feature = "testing"))]
+        #[cfg(not(target_arch = "wasm32"))]
         if let Line::Down { at, .. } = &self.line {
             reconnecting_at(
                 self.shared,
@@ -2317,7 +2317,7 @@ impl Session<'_> {
             held.arriving = true;
             held.error = None;
             held.sync_error = None;
-            #[cfg(any(test, feature = "testing"))]
+            #[cfg(not(target_arch = "wasm32"))]
             {
                 held.reconnect = None;
             }
@@ -2766,9 +2766,9 @@ async fn open_wanted(
     block: Uuid,
     content_type: Uuid,
 ) {
-    #[cfg(feature = "testing")]
+    #[cfg(not(target_arch = "wasm32"))]
     let tested = cfg!(test) || crate::testing::in_process().is_some();
-    #[cfg(not(feature = "testing"))]
+    #[cfg(target_arch = "wasm32")]
     let tested = cfg!(test);
     let reader = tested || wanted.readers.contains(&block);
     let opened = replicas

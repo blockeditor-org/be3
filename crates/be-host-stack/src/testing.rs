@@ -2,41 +2,34 @@
 //! (`Harness`), one account's stack against a test's block server, and the block types a
 //! test serves in process (`serve_in_process`).
 //!
-//! The harness asks the server for no more than `TestServer` says, so the server itself
-//! (`be_host_server::testing::Server`) lives beneath this crate and nothing a host ships links
-//! be-server (decisions/no_crate_splits_inside_dependency_chains.md).
+//! It is compiled into every native build, inert unless a test calls it
+//! (decisions/test_hooks_are_ordinary_code.md). The harness asks the server for no more than
+//! `TestServer` says, so the server itself (`be_host_server::testing::Server`) lives beneath
+//! this crate and nothing a host ships links be-server.
 
-#[cfg(feature = "testing")]
 use std::sync::OnceLock;
-#[cfg(not(target_arch = "wasm32"))]
 use std::{path::PathBuf, sync::MutexGuard};
 
 use uuid::Uuid;
 
-#[cfg(feature = "testing")]
 use crate::types::Source;
 
-#[cfg(feature = "testing")]
 pub struct InProcess {
     pub sources: fn() -> Vec<Source>,
     pub knows: fn(Uuid) -> bool,
 }
 
-#[cfg(feature = "testing")]
 static IN_PROCESS: OnceLock<InProcess> = OnceLock::new();
 
-#[cfg(feature = "testing")]
 pub fn serve_in_process(types: InProcess) {
     let _ = IN_PROCESS.set(types);
 }
 
-#[cfg(feature = "testing")]
 pub(crate) fn in_process() -> Option<&'static InProcess> {
     IN_PROCESS.get()
 }
 
 /// What the harness asks of a test's block server.
-#[cfg(not(target_arch = "wasm32"))]
 pub trait TestServer {
     /// Where a device that reaches it directly signs in.
     fn url(&self) -> String;
@@ -54,7 +47,6 @@ pub trait TestServer {
 
 /// One account's stack signed in against a test's server, in the account's organization
 /// "Counters": one at a time in a process, since the stack is one per process.
-#[cfg(not(target_arch = "wasm32"))]
 pub struct Harness {
     pub(crate) server: Box<dyn TestServer>,
     pub(crate) directory: PathBuf,
@@ -70,7 +62,6 @@ pub struct Harness {
     _one_stack: MutexGuard<'static, ()>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Harness {
     /// Makes the account "Counter" on `server` and its organization "Counters"; `connect`
     /// starts the stack in it.
@@ -220,7 +211,6 @@ impl Harness {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Drop for Harness {
     fn drop(&mut self) {
         be_block_commit::pin_now(None);
@@ -237,7 +227,6 @@ impl Drop for Harness {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

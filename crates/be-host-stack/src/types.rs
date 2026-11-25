@@ -90,7 +90,7 @@ pub fn host_block_types() -> Vec<BlockTypeDescriptor> {
 
 #[cfg(not(test))]
 pub fn provided(content_type: Uuid) -> bool {
-    #[cfg(feature = "testing")]
+    #[cfg(not(target_arch = "wasm32"))]
     if let Some(types) = crate::testing::in_process() {
         return be_sdk_type_host::block_types().knows(content_type) || (types.knows)(content_type);
     }
@@ -105,7 +105,7 @@ pub fn provided(content_type: Uuid) -> bool {
 #[cfg(not(test))]
 pub(super) async fn sources() -> Vec<Source> {
     let mut sources = vec![in_process::<be_sdk_type_host::BlockTypes>("host-types")];
-    #[cfg(feature = "testing")]
+    #[cfg(not(target_arch = "wasm32"))]
     if let Some(types) = crate::testing::in_process() {
         sources.extend((types.sources)());
         return sources;

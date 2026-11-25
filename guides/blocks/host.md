@@ -64,7 +64,7 @@ what it reports (`report-status`, which carries the undo state too, `described`,
 A module runs on its own thread natively, in a web worker on the web
 (`WebGuest`), and in process in unit tests (`InProcess`); the worker never
 waits on one. A module that stops (a panic, or a step past `STEP_TIMEOUT`) is
-restarted, unless it stopped `RESTARTS` (8) times within a minute, when it stays stopped and
+restarted, unless it stopped `FAILURES_BEFORE_STOPPING` (9) times within a minute, when it stays stopped and
 the host shows why as a notice (`Replicas::take_stopped_modules`; `be_lib_failure_budget`, which
 the input remaps and Xwayland give up by too). A restarted module has its replicas reopened from their last heads with this device's
 journal on them (Opening again, below), editors attached and messages since

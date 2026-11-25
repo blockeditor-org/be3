@@ -22,8 +22,9 @@ use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler};
 
 use crate::state::{ClientWindow, Grab, Layer, ServerEvent, State, WindowId, collect_layers};
 
-/// Xwayland stopping this many times within the window is not started again.
-const RESTARTS: usize = 3;
+/// Xwayland stopping this many times within the window is not started again: it is started
+/// again after each of the three before.
+const FAILURES_BEFORE_STOPPING: usize = 4;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 const PROGRAM: &str = "Xwayland";
 const SOCKET_DIR: &str = "/tmp/.X11-unix";
@@ -145,7 +146,7 @@ impl XWaylandState {
             source: None,
             display: None,
             stopped: false,
-            failures: FailureBudget::new(RESTARTS, RESTART_WINDOW),
+            failures: FailureBudget::new(FAILURES_BEFORE_STOPPING, RESTART_WINDOW),
             gave_up: false,
             failure: None,
             overlays: Vec::new(),
@@ -284,7 +285,7 @@ impl State {
             self.xwayland.display = None;
             self.xwayland.gave_up = true;
             self.events.push(ServerEvent::Failed(format!(
-                "Xwayland stopped {RESTARTS} times in a minute, so X11 programs cannot run until be-host restarts."
+                "Xwayland stopped {FAILURES_BEFORE_STOPPING} times in a minute, so X11 programs cannot run until be-host restarts."
             )));
             return;
         }

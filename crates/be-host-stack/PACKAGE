@@ -53,9 +53,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -74,9 +72,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
         "linux-arm64": {
             "binaries": {},
@@ -117,9 +113,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -139,9 +133,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
         "linux-x86_64": {
             "binaries": {},
@@ -182,9 +174,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -204,9 +194,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
         "macos-arm64": {
             "binaries": {},
@@ -247,9 +235,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -269,9 +255,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
         "macos-x86_64": {
             "binaries": {},
@@ -312,9 +296,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -334,9 +316,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
         "wasi": {
             "binaries": {},
@@ -421,9 +401,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -443,9 +421,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
         "windows-x86_64": {
             "binaries": {},
@@ -486,9 +462,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
-            "features": [
-                "testing",
-            ],
+            "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-server:be-host-server",
@@ -508,9 +482,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:ureq-2.12.1",
             ],
-            "test_features": [
-                "testing",
-            ],
+            "test_features": [],
         },
     },
     "profile_flags": [],

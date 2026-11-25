@@ -271,8 +271,9 @@ pub struct Modules {
     kinds_changed: fn(),
 }
 
-/// A module that stops this many times within the window is not started again.
-pub(crate) const RESTARTS: usize = 8;
+/// A module that stops this many times within the window is not started again: it is started
+/// again after each of the eight before.
+pub(crate) const FAILURES_BEFORE_STOPPING: usize = 9;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 
 const CLAIMED_BYTES: usize = 64 * 1024;
@@ -455,7 +456,7 @@ impl Modules {
                     hello: false,
                     failure: None,
                     generation: 0,
-                    failures: FailureBudget::new(RESTARTS, RESTART_WINDOW),
+                    failures: FailureBudget::new(FAILURES_BEFORE_STOPPING, RESTART_WINDOW),
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
@@ -742,7 +743,7 @@ impl Modules {
         let held = &mut self.modules[module];
         if held.failures.fail(now) == Failed::Stop {
             let stopped = format!(
-                "The type module {} stopped {RESTARTS} times in a minute and is not started again, so blocks of its types cannot be opened until be-host restarts.",
+                "The type module {} stopped {FAILURES_BEFORE_STOPPING} times in a minute and is not started again, so blocks of its types cannot be opened until be-host restarts.",
                 held.source.name
             );
             eprintln!("{stopped}");

@@ -17,7 +17,7 @@ mod web;
 pub use bundle::open;
 #[cfg(not(target_arch = "wasm32"))]
 pub use bundle::use_assets;
-#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "testing")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub use bundle::{AssetsForTesting, assets_for_testing};
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};
@@ -205,7 +205,7 @@ fn install(apps: Apps) {
 /// Puts these manifests, `(source, document)`, in place of the apps found, for a test whose host
 /// stages none, until the answer is dropped: the apps found are the process's, which other tests
 /// in it share. Fails on one discovery would refuse.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 #[must_use = "the manifests are in place only while this is held"]
 pub fn install_for_testing(manifests: &[(&str, &str)]) -> InstalledForTesting {
     let mut apps = Apps::default();
@@ -222,10 +222,10 @@ pub fn install_for_testing(manifests: &[(&str, &str)]) -> InstalledForTesting {
 }
 
 /// Manifests a test put in place (`install_for_testing`), until it is dropped.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub struct InstalledForTesting(Option<Arc<Apps>>);
 
-#[cfg(any(test, feature = "testing"))]
+#[cfg(not(target_arch = "wasm32"))]
 impl Drop for InstalledForTesting {
     fn drop(&mut self) {
         *APPS

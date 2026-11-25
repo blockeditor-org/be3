@@ -1320,8 +1320,8 @@ starts one beside the web build.
   as a device of one of its accounts. The harness,
   `be_host_stack::testing::Harness`, signs one account's stack in against it in
   the organization "Counters", asking the server only what `TestServer` says,
-  so nothing a host ships links be-server
-  (decisions/no_crate_splits_inside_dependency_chains.md). be-host-stack's own
+  so nothing a host ships links be-server, though it is compiled into every
+  native build (decisions/test_hooks_are_ordinary_code.md). be-host-stack's own
   tests wrap it with the relay they reach the server through; crates above it
   use `be-host-testing`'s `Harness`, which serves the first-party types in
   process (`be_host_stack::testing::serve_in_process`) on a driven clock. Both

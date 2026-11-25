@@ -707,7 +707,7 @@ impl Graph {
         }
     }
 
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn listings_of(&self, query: Query) -> HashSet<Listing> {
         let mut listings = HashSet::new();
         self.listings_for(query, &mut listings);
@@ -959,7 +959,7 @@ impl Graph {
     }
 
     /// How many listings failed to load and are not asked for again until something relists them.
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn failed_listings(&self) -> usize {
         self.listings
             .values()
@@ -1294,7 +1294,7 @@ impl Graph {
     }
 
     /// The entry points followed, for a test.
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn followed_entries(&self) -> Vec<Uuid> {
         self.follows.keys().copied().collect()
     }
