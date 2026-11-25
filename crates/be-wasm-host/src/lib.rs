@@ -719,7 +719,10 @@ impl App {
         let wake: Arc<Wake> = Arc::default();
         let setup = Setup {
             wasi: match host.flavor {
-                Flavor::Pure => Wasi::pure(host.seed),
+                Flavor::Pure => Wasi::pure(
+                    host.name.clone().unwrap_or_else(|| "a pure guest".to_owned()),
+                    host.seed,
+                ),
                 Flavor::App => Wasi::app(),
             },
             initialize: true,

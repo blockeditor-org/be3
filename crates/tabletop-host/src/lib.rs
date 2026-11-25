@@ -21,15 +21,23 @@ pub struct Game {
 struct Presented {
     screen: Option<Vec<u8>>,
     /// The game's WASI (guides/app_libraries.md, Pure guests), from the zero seed in every
-    /// instance, so a replayed log draws the same randomness.
+    /// instance. A game takes its randomness from its actions, as tabletop-api's table seeds its
+    /// shuffle from the players, never from `random_get`, which only std's hash keys read: every
+    /// instance of a module draws the same, so a replayed log shows what the live game did.
     wasi: be_wasm_pure_wasi::Wasi,
+    /// What its log lines are prefixed with: the game's name once it has given it.
+    name: String,
 }
 
-impl Default for Presented {
-    fn default() -> Self {
+impl Presented {
+    fn new(name: &str) -> Self {
         Self {
             screen: None,
             wasi: be_wasm_pure_wasi::Wasi::new([0; 32]),
+            name: match name {
+                "" => "a game".to_owned(),
+                name => name.to_owned(),
+            },
         }
     }
 }
@@ -131,7 +139,7 @@ impl Game {
     }
 
     fn instantiate(&self) -> Result<(Store<Presented>, Instance, Memory), String> {
-        let mut store = Store::new(&self.engine, Presented::default());
+        let mut store = Store::new(&self.engine, Presented::new(&self.name));
         store
             .set_fuel(TURN_FUEL)
             .map_err(|error| format!("this game could not be given fuel: {error}"))?;
@@ -244,18 +252,6 @@ impl Session {
     }
 }
 
-/// The parameters of each WASI call a game is answered (be_wasm_pure_wasi::ANSWERED), all
-/// answering an errno but `proc_exit`.
-fn wasi_parameters(name: &str) -> &'static [ValType] {
-    use ValType::{I32, I64};
-    match name {
-        "clock_time_get" => &[I32, I64, I32],
-        "fd_write" => &[I32, I32, I32, I32],
-        "proc_exit" => &[I32],
-        _ => &[I32, I32],
-    }
-}
-
 /// A game's memory, as be-wasm-pure-wasi reads and writes it.
 struct Bytes<'a>(&'a mut [u8]);
 
@@ -284,9 +280,18 @@ impl be_wasm_pure_wasi::Memory for Bytes<'_> {
 
 fn answer_wasi(linker: &mut Linker<Presented>) -> Result<(), Error> {
     for name in be_wasm_pure_wasi::ANSWERED {
-        let exits = name == "proc_exit";
-        let results: &[ValType] = if exits { &[] } else { &[ValType::I32] };
-        let signature = FuncType::new(wasi_parameters(name).iter().copied(), results.iter().copied());
+        let parameters = be_wasm_pure_wasi::parameters(name)
+            .ok_or_else(|| Error::new(format!("{name} has no signature")))?
+            .iter()
+            .map(|word| match word {
+                be_wasm_pure_wasi::Word::I32 => ValType::I32,
+                be_wasm_pure_wasi::Word::I64 => ValType::I64,
+            });
+        let results: &[ValType] = match be_wasm_pure_wasi::returns_errno(name) {
+            true => &[ValType::I32],
+            false => &[],
+        };
+        let signature = FuncType::new(parameters, results.iter().copied());
         linker.func_new(
             be_wasm_pure_wasi::MODULE,
             name,
@@ -305,11 +310,9 @@ fn answer_wasi(linker: &mut Linker<Presented>) -> Result<(), Error> {
                     .and_then(Extern::into_memory)
                     .ok_or_else(|| Error::new("this game exports no memory"))?;
                 let (bytes, presented) = memory.data_and_store_mut(&mut caller);
-                let errno = presented
-                    .wasi
-                    .call(name, &words, &mut Bytes(bytes), &mut |written| {
-                        eprint!("{}", String::from_utf8_lossy(written))
-                    })
+                let Presented { wasi, name: game, .. } = presented;
+                let errno = wasi
+                    .call(name, &words, &mut Bytes(bytes), &mut |line| eprintln!("{game}: {line}"))
                     .map_err(|stopped| Error::new(stopped.to_string()))?;
                 if let Some(result) = results.first_mut() {
                     *result = Val::I32(errno);

@@ -85,6 +85,9 @@ export function pureWasi(guest, seed) {
     const SUCCESS = 0;
     const EBADF = 8;
     const ENOSYS = 52;
+    if (seed !== undefined && seed.length !== 32) {
+        throw new Error(`a pure guest's seed is 32 bytes, not ${seed.length}`);
+    }
     const random = keystream(seed ?? new Uint8Array(32));
     const decoder = new TextDecoder();
     let line = "";

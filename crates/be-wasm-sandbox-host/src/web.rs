@@ -146,8 +146,9 @@ fn pure(module: &WebAssembly::Module) -> Result<(), String> {
                 .unwrap_or_default()
         };
         let (from, name, kind) = (field("module"), field("name"), field("kind"));
-        let transport = (from == "be3_host" && TRANSPORT.contains(&name.as_str()))
-            || be_wasm_pure_wasi::answers(&from, &name);
+        let transport = kind == "function"
+            && ((from == "be3_host" && TRANSPORT.contains(&name.as_str()))
+                || be_wasm_pure_wasi::answers(&from, &name));
         let memory =
             from == be_wasm_dylink::ENV && name == be_wasm_dylink::MEMORY_NAME && kind == "memory";
         if !transport && !memory {

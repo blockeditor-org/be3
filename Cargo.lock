@@ -3410,6 +3410,7 @@ dependencies = [
  "be-lib-layers",
  "be-wasm-guest-host",
  "be-wasm-ops",
+ "be-wasm-pure-wasi",
  "be-wasm-root-api",
  "be-wasm-root-host",
  "be-wasm-root-testing",

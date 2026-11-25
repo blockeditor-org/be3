@@ -41,13 +41,16 @@ program(
 )
 
 # The root (be-wasm-root-testing) and the pure echo guest are both named
-# module.wasm, so they lie beside the bundle under names of their own.
+# module.wasm, so they lie beside the bundle under names of their own, with
+# the pure guests be-wasm-host's tests run natively (src/tests/pure_wasi.wat).
 page_test(
     name = "web-test",
     files = {
         "bundle": ":web",
         "echo-pure.wasm": "//crates/be-wasm-guest-echo:module",
         "index.html": "web/index.html",
+        "pure-wasi.wasm": "//crates/be-wasm-host:pure_wasi.wasm",
+        "reads-a-file.wasm": "//crates/be-wasm-host:reads_a_file.wasm",
         "root.wasm": "//crates/be-wasm-root-testing:module",
     },
 )

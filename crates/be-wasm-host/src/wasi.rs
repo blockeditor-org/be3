@@ -137,7 +137,7 @@ pub(crate) struct Wasi {
     open: Mutex<HashMap<u32, Open>>,
     next: Mutex<u32>,
     /// A pure guest's answers, which are all it gets.
-    pure: Option<Mutex<be_wasm_pure_wasi::Wasi>>,
+    pure: Option<Pure>,
 }
 
 impl Wasi {
@@ -149,10 +149,14 @@ impl Wasi {
         })
     }
 
-    /// A pure guest's: be-wasm-pure-wasi's answers, its randomness drawn from `seed`.
-    pub(crate) fn pure(seed: [u8; 32]) -> Arc<Self> {
+    /// A pure guest's: be-wasm-pure-wasi's answers, its randomness drawn from `seed`, each line
+    /// it writes to the host's standard error after its `name`.
+    pub(crate) fn pure(name: String, seed: [u8; 32]) -> Arc<Self> {
         Arc::new(Self {
-            pure: Some(Mutex::new(be_wasm_pure_wasi::Wasi::new(seed))),
+            pure: Some(Pure {
+                name,
+                wasi: Mutex::new(be_wasm_pure_wasi::Wasi::new(seed)),
+            }),
             ..Self::default()
         })
     }
@@ -969,10 +973,16 @@ pub(crate) fn define<'s>(
     Ok(())
 }
 
-/// A pure guest's memory, as be-wasm-pure-wasi reads and writes it.
-struct Pure<'a>(&'a View);
+/// A pure guest's WASI: be-wasm-pure-wasi's, and the name its lines are logged under.
+pub(crate) struct Pure {
+    name: String,
+    wasi: Mutex<be_wasm_pure_wasi::Wasi>,
+}
 
-impl be_wasm_pure_wasi::Memory for Pure<'_> {
+/// A pure guest's memory, as be-wasm-pure-wasi reads and writes it.
+struct PureMemory<'a>(&'a View);
+
+impl be_wasm_pure_wasi::Memory for PureMemory<'_> {
     fn size(&self) -> usize {
         self.0.size()
     }
@@ -1007,11 +1017,11 @@ fn pure_answer(
     let view = state.view_in(scope);
     let wasi = Arc::clone(&state.wasi);
     let answered = match &wasi.pure {
-        Some(pure) => pure.lock().unwrap_or_else(PoisonError::into_inner).call(
+        Some(pure) => pure.wasi.lock().unwrap_or_else(PoisonError::into_inner).call(
             name,
             &words,
-            &mut Pure(&view),
-            &mut |bytes| Output::Inherited.write(false, bytes),
+            &mut PureMemory(&view),
+            &mut |line| eprintln!("{}: {line}", pure.name),
         ),
         None => Err(be_wasm_pure_wasi::Stopped::Fault(format!(
             "{MODULE}.{name} is a pure guest's, and this guest is not one"
@@ -1046,7 +1056,8 @@ macro_rules! define_pure_calls {
     };
 }
 
-/// The WASI calls a pure guest may make that `imports` names (be_wasm_pure_wasi::ANSWERED).
+/// The WASI calls a pure guest may make that `imports` names (be_wasm_pure_wasi::ANSWERED, which
+/// the list below repeats: `every_call_a_pure_guest_is_answered_is_defined` holds them to it).
 pub(crate) fn define_pure<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     defined: &mut Defined<'s>,

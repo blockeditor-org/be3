@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 be-lib-layers = { path = "../be-lib-layers" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-pure-wasi = { path = "../be-wasm-pure-wasi" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-root-host = { path = "../be-wasm-root-host" }
 be-wasm-root-testing = { path = "../be-wasm-root-testing" }

@@ -172,9 +172,12 @@ Rust's std makes: no gpu, library, threads, files or clock. Its WASI is
 tabletop-host's wasmi and be-wasm-root-host on the page; be-wasm-guest-host's
 `guest.js` answers the same in JavaScript): `random_get` is a ChaCha20 stream
 from the seed its host gives it (`Host::with_seed`, zero unless given), so a guest
-stays deterministic; `fd_write` to standard output or error goes to the host's log;
+stays deterministic; `fd_write` to standard output or error reaches the host's log a
+line at a time, after the guest's name;
 its arguments and environment are empty, the clocks answer ENOSYS, and `proc_exit`
-stops it. Any other import is refused when it loads.
+stops it. Any other import is refused when it loads. Every host's answers are held to
+RFC 7539's vectors (`be_wasm_pure_wasi::vectors`) by be-wasm-host's tests and, through the
+same guest (`crates/be-wasm-host/src/tests/pure_wasi.wat`), be-wasm-root-web-testing's.
 It is a `wasm32_module` (wasm32-unknown-unknown), not an `app()`. A type module
 is one, and so is the input remapper, which runs in the sandbox for modules
 from bytes (guides/apps/runtime.md, Backends); `crates/be-wasm-guest-echo` is

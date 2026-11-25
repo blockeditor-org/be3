@@ -37,6 +37,11 @@ const ROOT: &str = "../root.wasm";
 /// The echo guest as a pure guest's module, which the sandbox compiles from its bytes.
 const ECHO: &str = "../echo-pure.wasm";
 
+/// The guest be-wasm-host's tests run natively (its src/tests/pure_wasi.wat), which imports every
+/// WASI call a pure guest is answered, and one that would read a file.
+const PURE_WASI: &str = "../pure-wasi.wasm";
+const READS_A_FILE: &str = "../reads-a-file.wasm";
+
 /// Far enough off that a child that answers at all answers before it.
 const PATIENT: Duration = Duration::from_secs(30);
 
@@ -52,6 +57,8 @@ pub async fn run() -> Result<String, JsValue> {
     passed.push(a_guest_compiles_a_module_and_talks_to_an_instance_of_it().await?);
     passed.push(a_module_that_imports_more_than_a_pure_guest_may_does_not_compile().await?);
     passed.push(an_instance_of_a_module_from_bytes_is_held_to_its_memory_limit().await?);
+    passed.push(a_module_from_bytes_is_answered_a_pure_guests_wasi_as_natively().await?);
+    passed.push(a_module_from_bytes_that_reads_a_file_does_not_compile().await?);
     Ok(passed.join("; "))
 }
 
@@ -322,6 +329,68 @@ async fn a_module_that_imports_more_than_a_pure_guest_may_does_not_compile() -> 
         }
         Err(why) => Err(format!("the module was refused for another reason: {why}").into()),
         Ok(_) => Err("a module that imports more than a pure guest may compiled".into()),
+    }
+}
+
+async fn a_module_from_bytes_is_answered_a_pure_guests_wasi_as_natively()
+-> Result<String, JsValue> {
+    use be_wasm_pure_wasi::vectors;
+    let bytes = fetch(PURE_WASI).await?;
+    // Across a block's end and the next's start, as be-wasm-host's native test draws them.
+    let draws: [u8; 5] = [10, 54, 60, 8, 60];
+    let wanted = 4 + draws.iter().map(|length| *length as usize).sum::<usize>();
+    let mut pump = Pump::new();
+    let received = pump
+        .run(async move {
+            let module = guest::sandbox::compile(bytes)
+                .await
+                .map_err(|error| error.to_string())??;
+            let instance = guest::sandbox::Instance::new(
+                Source::Module(module),
+                Config {
+                    name: "pure wasi".to_owned(),
+                    memory_limit: 16 << 20,
+                },
+            );
+            instance
+                .send(draws.iter().map(|length| vec![0, *length]).collect())
+                .await
+                .map_err(|error| error.to_string())?;
+            let mut received: Vec<Vec<u8>> = Vec::new();
+            while received.iter().map(Vec::len).sum::<usize>() < wanted {
+                received.extend(instance.next().await.map_err(|error| error.to_string())??);
+            }
+            Ok::<_, String>(received)
+        })
+        .await?;
+    check(received.first().map(Vec::as_slice) == Some(&[0, 52, 0, 24]), || {
+        format!("the guest started with {:?}", received.first())
+    })?;
+    let drawn = received[1..].concat();
+    check(
+        vectors::hex(&drawn[..64]) == vectors::ZERO_BLOCK_0
+            && vectors::hex(&drawn[64..128]) == vectors::ZERO_BLOCK_1,
+        || format!("the guest drew {}", vectors::hex(&drawn)),
+    )?;
+    Ok("a module from bytes was answered a pure guest's WASI and drew ChaCha20's stream".to_owned())
+}
+
+async fn a_module_from_bytes_that_reads_a_file_does_not_compile() -> Result<String, JsValue> {
+    let bytes = fetch(READS_A_FILE).await?;
+    let mut pump = Pump::new();
+    let compiled = pump
+        .run(async move {
+            guest::sandbox::compile(bytes)
+                .await
+                .map_err(|error| error.to_string())
+        })
+        .await?;
+    match compiled {
+        Err(why) if why.contains("fd_read") => {
+            Ok("a module from bytes that reads a file was refused".to_owned())
+        }
+        Err(why) => Err(format!("the module was refused for another reason: {why}").into()),
+        Ok(_) => Err("a module from bytes that reads a file compiled".into()),
     }
 }
 
