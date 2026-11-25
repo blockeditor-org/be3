@@ -20,7 +20,7 @@ guest it is single-threaded, so it can start no threads.
   (be-sdk-root-testing's module, 1.4 MB, holds be-sdk-root, be-sdk-app-host, be-sdk-beui-root
   and itself), and natively shares the one compile of each library every app on the device
   uses (`Host`'s library cache is per flavor, so a pure root would compile beui again).
-- Every guest is to end up on one triple (plans/pure_guests_in_the_apps_plan.md); building the
+- Every guest is to end up on one triple (since built: guides/app_libraries.md, Pure guests); building the
   root with the apps is that, for the root, already.
 - What a root needs it gets as an app: the host's device (`Host::new` gives it the gpu), the sandbox (`be3:sandbox` over its ops connection,
   which no flavor changes), and WASI with nothing it cannot have: an app's WASI has no files,
