@@ -9,7 +9,7 @@
 ;; name.
 (module
   (import "be3:gpu/device@0.1.0" "[constructor]surface" (func $surface (param i32) (result i32)))
-  (import "be3:gpu/device@0.1.0" "[method]surface.configure" (func $configure (param i32 i32 i32 i32)))
+  (import "be3:gpu/device@0.1.0" "[method]surface.configure" (func $configure (param i32 i32 i32 i32 i32 i32)))
   (import "be3:gpu/device@0.1.0" "[method]surface.acquire" (func $acquire (param i32) (result i32)))
   (import "be3:gpu/device@0.1.0" "[method]surface.present" (func $present (param i32)))
   (import "be3:gpu/device@0.1.0" "[method]texture.create-view" (func $create_view (param i32 i32 i32) (result i32)))
@@ -44,7 +44,7 @@
   (func (export "app_start")
     (global.set $surface (call $surface (i32.const 7)))
     ;; 17 is rgba8unorm in be3:gpu's texture-format.
-    (call $configure (global.get $surface) (i32.const 4) (i32.const 4) (i32.const 17)))
+    (call $configure (global.get $surface) (i32.const 4) (i32.const 4) (i32.const 17) (i32.const 0) (i32.const 0)))
 
   (func (export "app_step")
     (local $encoder i32)
