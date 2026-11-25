@@ -33,8 +33,8 @@ const STREAM_BUFFER: usize = 4096;
 /// not reading what it is sent, is disconnected too.
 pub(crate) const STREAM_BUFFER_BYTES: usize = 4 * be_block_protocol::MAX_FRAME_BYTES;
 const PUSHES: usize = 4096;
-/// Where a test holds a join of a session, after the first check of a ban and before the
-/// connection is registered (`be_lib_test_pause`, keyed by the block).
+/// Where a test holds a join of a session (`be_lib_test_pause`, keyed by the block): after its
+/// first check of a ban, before it registers the connection in the session and checks again.
 #[cfg(test)]
 pub(crate) const JOIN_PAUSE: &str = "client::join";
 

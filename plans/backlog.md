@@ -56,9 +56,8 @@ Fixed items are removed as they land.
   `sealed_joining`. It is expected to resolve once the drain sends the commit
   and the replica merges it, with the sealed edits given up and not given again.
   Done: a be-host-stack test that reopens a block after a crash, has its
-  made-up session seal while the join is held, and counts exactly what was made.
-  Left by the §7 pass, unattempted: be-lib-test-pause can now hold the join's
-  answer while the made-up session seals.
+  made-up session seal while the join is held (`be-lib-test-pause` can hold
+  it), and counts exactly what was made.
 
 - **A kept submission carried over a restart that does not encode again.** A
   replica opened again submits the edits a kept submission holds under its id
@@ -82,7 +81,6 @@ Fixed items are removed as they land.
   keep, crash, reopen, crash again is untested end to end. Done: a harness that
   holds a submission and controls when a replica loads, and a test of that
   sequence counting exactly what was made.
-  Left by the §7 pass, unattempted: the harness is the work.
 
 - **A lost seal's rebase with a merge above it.** Before leases came from
   the session order, the server could lose a seal's
@@ -100,7 +98,6 @@ Fixed items are removed as they land.
   past the journal's base it holds. Done: either such a path and a test that
   counts exactly what was made through it, or the walk removed with a test that
   shows every seal on the journal's base trims it.
-  Left by the §7 pass, unattempted: an investigation before any change.
 
 - **A terminal host stands by on a timer.** Since a claim takes the lease at
   once, a second terminal host waits `CLAIM_INTERVAL` (3 s) after it first sees
@@ -116,7 +113,6 @@ Fixed items are removed as they land.
   that show something, not which peers it has heard from at all, so "a holder that sends
   no presence" cannot be told from one whose presence is late until the replica says when a
   peer's presence (empty included) has arrived.
-  Left by the §7 pass, unattempted: its prerequisite is a change of its own.
 
 ## 9. Version control's caches
 

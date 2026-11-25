@@ -38,6 +38,8 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   hash map to use where iteration order reaches output: be-tool-fix-rust-source
   (`hash_order.rs`) reports randomly seeded ones in the crates it lists. `be-lib-sha256` is
   how a tool writes a SHA-256 (lowercase hex), and `be-lib-git` how it runs git for its output.
+  `be-lib-test-pause` holds code a crate's own tests name between two awaits
+  (guides/blocks/server.md, "Tests").
 - `beui-*`: beui and what only beui uses.
 - `be-tool-*`: build, test and developer tools, including the bootstrap (guides/bootstrap.md),
   `be-tool-cli` (`be`), `be-tool-launcher` (runs any pull request on Android or the desktop) and

@@ -383,15 +383,27 @@ impl std::ops::DerefMut for Harness {
 
 impl Harness {
     pub fn start() -> Self {
-        Self::serving(be_server::push::PushConfig::DEFAULT)
+        Self::serving(be_host_server::testing::Options::default())
     }
 
     /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
     fn pushing() -> Self {
-        Self::serving(be_server::push::PushConfig {
-            allow_local_endpoints: true,
-            fcm: None,
-            hosts: vec!["127.0.0.1".to_owned()].into(),
+        Self::serving(be_host_server::testing::Options {
+            push: be_server::push::PushConfig {
+                allow_local_endpoints: true,
+                fcm: None,
+                hosts: vec!["127.0.0.1".to_owned()].into(),
+            },
+            ..be_host_server::testing::Options::default()
+        })
+    }
+
+    /// A harness whose server lets an account send a lease holder only `burst` host-channel
+    /// messages at once before it holds them back (`slow-down`).
+    fn holding_host_messages_after(burst: f64) -> Self {
+        Self::serving(be_host_server::testing::Options {
+            host_message_burst: Some(burst),
+            ..be_host_server::testing::Options::default()
         })
     }
 
@@ -474,11 +486,8 @@ impl Harness {
         });
     }
 
-    fn serving(push: be_server::push::PushConfig) -> Self {
-        let server = be_host_server::testing::Server::with(be_host_server::testing::Options {
-            push,
-            ..be_host_server::testing::Options::default()
-        });
+    fn serving(options: be_host_server::testing::Options) -> Self {
+        let server = be_host_server::testing::Server::with(options);
         let counter = server.account("Counter");
         let harness = crate::testing::Harness::start(crate::testing::SignIn {
             url: server.url(),
