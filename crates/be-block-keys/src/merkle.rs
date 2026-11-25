@@ -49,7 +49,7 @@ fn split(size: u64) -> u64 {
 /// of it. Its level and index then name it.
 fn perfect(low: u64, high: u64) -> Option<(u32, u64)> {
     let width = high - low;
-    (width.is_power_of_two() && low % width == 0)
+    (width.is_power_of_two() && low.is_multiple_of(width))
         .then(|| (width.trailing_zeros(), low >> width.trailing_zeros()))
 }
 
