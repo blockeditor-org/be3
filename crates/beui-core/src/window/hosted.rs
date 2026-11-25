@@ -111,7 +111,11 @@ impl Document {
     /// one of its own is never taken for another.
     pub(crate) fn shown_window(&self, window: WindowId) -> Option<WindowId> {
         let held = window.is_main()
-            || self.windows.laying.iter().any(|(laying, _)| *laying == window)
+            || self
+                .windows
+                .laying
+                .iter()
+                .any(|(laying, _)| *laying == window)
             || self.window_node(window).is_some();
         self.opens_windows().then_some(match held {
             true => window,
@@ -129,7 +133,10 @@ impl Document {
             .filter(|(_, node)| self.contains(*node))
             .filter_map(|(id, node)| {
                 let held = self.arena.get_as::<OverlayNode>(*node);
-                let spec = held.window.as_ref().filter(|spec| self.hosts_window(spec))?;
+                let spec = held
+                    .window
+                    .as_ref()
+                    .filter(|spec| self.hosts_window(spec))?;
                 let beui_types::WindowPlacement::Over { window: over, at } = spec.placement else {
                     return None;
                 };

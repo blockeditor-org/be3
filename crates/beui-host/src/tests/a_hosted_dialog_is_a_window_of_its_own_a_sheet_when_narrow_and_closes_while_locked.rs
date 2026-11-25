@@ -28,7 +28,12 @@ fn a_hosted_dialog_is_a_window_of_its_own_a_sheet_when_narrow_and_closes_while_l
         view! {
             <List spacing=0.0>
                 <Frame width=600.0 height=400.0 />
-                <DialogFrame open={open} narrow={narrow} level={level} on_dismiss={move || open.set(false)}>||
+                <DialogFrame
+                    open={open}
+                    narrow={narrow}
+                    level={level}
+                    on_dismiss={move || open.set(false)}
+                >||
                     <Text color=Color32::WHITE>"Body"</Text>
                 </DialogFrame>
                 <Modal open={locked} scrim=Scrim::Opaque level=LayerLevel::Lock>||

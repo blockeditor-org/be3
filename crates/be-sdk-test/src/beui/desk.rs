@@ -400,8 +400,14 @@ fn outside(rect: Rect, hole: Rect) -> Vec<Rect> {
     [
         Rect::from_min_max(rect.min, Pos2::new(rect.max.x, cut.min.y)),
         Rect::from_min_max(Pos2::new(rect.min.x, cut.max.y), rect.max),
-        Rect::from_min_max(Pos2::new(rect.min.x, cut.min.y), Pos2::new(cut.min.x, cut.max.y)),
-        Rect::from_min_max(Pos2::new(cut.max.x, cut.min.y), Pos2::new(rect.max.x, cut.max.y)),
+        Rect::from_min_max(
+            Pos2::new(rect.min.x, cut.min.y),
+            Pos2::new(cut.min.x, cut.max.y),
+        ),
+        Rect::from_min_max(
+            Pos2::new(cut.max.x, cut.min.y),
+            Pos2::new(rect.max.x, cut.max.y),
+        ),
     ]
     .into_iter()
     .filter(Rect::is_positive)

@@ -43,7 +43,10 @@ fn a_blocking_window_of_its_own_is_left_out_of_the_cover_its_window_reports() {
         "a host lifting the main window's cover over other windows leaves the dialog's own \
          window to take its presses: {covers:?} {shown:?}"
     );
-    let covered: f32 = covers.iter().map(|cover| cover.width() * cover.height()).sum();
+    let covered: f32 = covers
+        .iter()
+        .map(|cover| cover.width() * cover.height())
+        .sum();
     assert_eq!(
         covered,
         WIDE_VIEWPORT.x * WIDE_VIEWPORT.y - size.x * size.y,
