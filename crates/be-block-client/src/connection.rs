@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeSet, HashMap, VecDeque},
     pin::Pin,
     sync::{Arc, Mutex, PoisonError},
     task::{Context, Poll},
@@ -150,10 +150,10 @@ struct Registry {
     subscribed: bool,
     /// The sessions this connection is in, by block, with the organization each block is in.
     sessions: HashMap<Uuid, Uuid>,
-    /// What a block's session told while a join of it was on its way, held until the newest
-    /// join is answered or dropped, so a subscriber hears none before it.
+    /// The joins of each block on their way, and what its session told meanwhile, held until
+    /// the newest is answered, so a subscriber hears none before it.
     joining: HashMap<Uuid, Joining>,
-    /// The id the next join takes (`Joining::join`).
+    /// The id the next join takes, counting up, so a later join has a larger one.
     joins: u64,
     /// This connection in each session it is in, as the session names it.
     clients: HashMap<Uuid, ClientId>,
@@ -162,15 +162,26 @@ struct Registry {
 /// A block's session being joined (`Registry::joining`).
 #[derive(Default)]
 struct Joining {
-    /// The newest join of the block, the one whose answer lets the held events go. An earlier
-    /// one the server answers first, as it answers in order, and its answer is stale.
-    join: u64,
-    /// What the session told meanwhile, each change of host with the membership index it is as
-    /// of.
+    /// The joins on their way, by id. The server answers them in the order they were sent, so
+    /// the largest is answered last and its answer is the session as it is.
+    out: BTreeSet<u64>,
+    /// The join whose answer this connection took last; one answered after it is older, and
+    /// stale.
+    applied: u64,
+    /// What the session told while a join newer than `applied` was on its way, each change of
+    /// host with the membership index it is as of.
     held: Vec<(Event, Option<u64>)>,
 }
 
-/// Ends a join's hold on its block's events if it is dropped unanswered (`Connection::join`).
+impl Joining {
+    /// Whether a join newer than the one taken is on its way, whose answer what the session
+    /// tells now waits for.
+    fn holding(&self) -> bool {
+        self.out.last().is_some_and(|newest| *newest > self.applied)
+    }
+}
+
+/// Takes a join that was dropped unanswered off its block's (`Connection::join`).
 struct JoinHold {
     connection: Arc<Connection>,
     block: Uuid,
@@ -185,15 +196,25 @@ impl Drop for JoinHold {
         }
         let held = {
             let mut registry = self.connection.registry();
-            match registry.joining.get(&self.block) {
-                Some(joining) if joining.join == self.join => {
-                    registry.joining.remove(&self.block).map(|joining| joining.held)
-                }
-                _ => None,
+            let Some(joining) = registry.joining.get_mut(&self.block) else {
+                return;
+            };
+            joining.out.remove(&self.join);
+            // An earlier join still on its way answers for the session.
+            if joining.holding() {
+                return;
             }
+            let held = std::mem::take(&mut joining.held);
+            if joining.out.is_empty() {
+                registry.joining.remove(&self.block);
+            }
+            held
         };
-        // Nothing answered them, so they are told as they came.
-        for (event, _) in held.into_iter().flatten() {
+        // No answer is left to come before them, so they are told as they came. What the
+        // dropped join changed on the server (its leave and join again) the session's
+        // subscribers never hear, so its membership jumps an index and a replica joins again
+        // (`Replicas::heard`).
+        for (event, _) in held {
             let _ = self.connection.events.send(event);
         }
     }
@@ -469,7 +490,9 @@ impl Connection {
                     SessionEvent::Joiner(change) => Event::Joiner { block, change },
                 };
                 let mut registry = self.registry();
-                if let Some(joining) = registry.joining.get_mut(&block) {
+                if let Some(joining) = registry.joining.get_mut(&block)
+                    && joining.holding()
+                {
                     joining.held.push((event, index));
                     return None;
                 }
@@ -505,11 +528,11 @@ impl Connection {
     /// participant, or, below View, as a Join member, which hears only the host channel and who
     /// holds the lease (plans/hosted_blocks.md).
     ///
-    /// Of joins of one block on their way at once, the newest is the one the server answers
-    /// last: it takes over what the others held, and only its answer changes what this
-    /// connection knows of the session and lets the held events go. An earlier one is answered
-    /// to its caller and changes nothing. A join dropped unanswered stops holding, telling what
-    /// it held as it came.
+    /// Of joins of one block on their way at once, the server answers the newest last: it takes
+    /// over what the others held, and only its answer changes what this connection knows of
+    /// the session and lets the held events go. An earlier one answered after it is answered to
+    /// its caller and changes nothing. Dropping a join's future takes it off: once no join newer
+    /// than the last answered is on its way, what was held is told as it came.
     pub fn join(
         self: &Arc<Self>,
         organization: Uuid,
@@ -520,7 +543,7 @@ impl Connection {
             let mut registry = self.registry();
             registry.joins += 1;
             let join = registry.joins;
-            registry.joining.entry(block).or_default().join = join;
+            registry.joining.entry(block).or_default().out.insert(join);
             join
         };
         let mut hold = JoinHold {
@@ -541,19 +564,24 @@ impl Connection {
             let connection = Arc::clone(&hold.connection);
             let held = {
                 let mut registry = connection.registry();
-                if registry
-                    .joining
-                    .get(&block)
-                    .is_none_or(|joining| joining.join != join)
-                {
-                    // A newer join of the block answers for it.
+                let Some(joining) = registry.joining.get_mut(&block) else {
+                    return Ok(joined??);
+                };
+                joining.out.remove(&join);
+                // A newer join of the block answers for it, or answered already.
+                let newest = join > joining.applied
+                    && joining.out.last().is_none_or(|newer| *newer < join);
+                if !newest {
+                    if joining.out.is_empty() && joining.held.is_empty() {
+                        registry.joining.remove(&block);
+                    }
                     return Ok(joined??);
                 }
-                let held = registry
-                    .joining
-                    .remove(&block)
-                    .map(|joining| joining.held)
-                    .unwrap_or_default();
+                joining.applied = join;
+                let held = std::mem::take(&mut joining.held);
+                if joining.out.is_empty() {
+                    registry.joining.remove(&block);
+                }
                 match &joined {
                     Ok(Ok(joined)) => {
                         registry.sessions.insert(block, organization);
