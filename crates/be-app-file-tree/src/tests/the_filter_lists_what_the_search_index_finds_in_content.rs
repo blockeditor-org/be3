@@ -3,6 +3,7 @@ use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, Search, SearchHit, SearchR
 use super::*;
 
 #[test]
+#[allow(clippy::single_range_in_vec_init)] // a list of ranges, which here holds one
 fn the_filter_lists_what_the_search_index_finds_in_content() {
     let mut fixture = editor();
     containers_hold_blocks(&mut fixture);
