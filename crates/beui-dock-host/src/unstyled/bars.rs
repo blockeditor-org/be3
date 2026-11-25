@@ -1,5 +1,5 @@
 //! Tool bars (`DockBar`): bands, floating runs and popped-out windows, and carrying a bar the user
-//! drags. A carried bar is a carry on the drag board (plans/declarative_dragging.md, step 4): the
+//! drags. A carried bar is a carry on the drag board (decisions/beui_drags_are_reachable_places.md): the
 //! dock is a drop site whose places are the slots of every band the bar may dock in, read from the
 //! bars' laid-out rects, and, away from them, wherever it floats: `closest(band slots, sticky)
 //! .when_far(float).thrown()`. The bands draw the chosen place from the site's `over`, the bars

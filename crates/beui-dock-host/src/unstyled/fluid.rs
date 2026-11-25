@@ -1,4 +1,4 @@
-//! The fluid preview (plans/declarative_dragging.md, step 3b): a carried tab or pane chooses
+//! The fluid preview (decisions/beui_drags_are_reachable_places.md): a carried tab or pane chooses
 //! among the places the dock's layout offers, each carrying the state after its drop; the
 //! dock lays its panes out as that state would and springs between layouts, panels keep the
 //! size they were laid out at until the drop commits, and the carried item is drawn the shape

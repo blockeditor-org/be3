@@ -7,7 +7,7 @@ of its own data. The source hears only that its carry was dropped, as it does fo
 
 This covers sites over one app's data, such as two lists in one block. A move between
 blocks is not one edit of one app's data: there the source holds a tentative removal and
-the target writes the insert first (plans/declarative_dragging.md, step 6, Between blocks).
+the target writes the insert first (plans/declarative_dragging.md, Between blocks).
 
 ## Why
 

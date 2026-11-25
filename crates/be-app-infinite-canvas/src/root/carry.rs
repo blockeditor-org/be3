@@ -1,4 +1,4 @@
-//! Moving the selection on the drag board (plans/declarative_dragging.md, step 5): the
+//! Moving the selection on the drag board (decisions/beui_drags_are_reachable_places.md): the
 //! canvas is a `free` site whose area is its camera's world, unbounded and scrolled by the
 //! edge band. The place the board chooses is the world point under the pointer; the move
 //! applies it through the canvas's hold, so every view on this device follows it, and shows

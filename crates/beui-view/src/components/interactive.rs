@@ -248,7 +248,7 @@ struct Carrying {
 /// puts the item, raised above their siblings (a scroll around them still clips them), unless
 /// its `face` is a `preview`, which floats in a layer of its own, pinned by its top left corner
 /// and in this node's window (a carry crossing windows waits for the frame to name one,
-/// plans/declarative_dragging.md step 6), or `Site` (`Carry::drawn_by_site`), when nothing is
+/// plans/declarative_dragging.md), or `Site` (`Carry::drawn_by_site`), when nothing is
 /// drawn here for it. The source hears the carry keys while the focus is on it or within it
 /// (`carry_keys`, `step_keys`, `held_keys`). If this node goes while its carry is held, the carry is put down,
 /// dropping nothing.
