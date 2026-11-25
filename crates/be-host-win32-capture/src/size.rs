@@ -6,7 +6,7 @@ pub struct Size {
 
 impl Size {
     pub fn of(width: i32, height: i32) -> Option<Size> {
-        (width > 0 && height > 0).then(|| Size {
+        (width > 0 && height > 0).then_some(Size {
             width: width as u32,
             height: height as u32,
         })
