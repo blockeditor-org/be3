@@ -2028,8 +2028,10 @@ Each step lands on its own.
              search through be3:root.
            - Left: be-host's own rows (switch account, theme, lock): the root lists none of
              its own yet.
-           - Left: a canvas whose content moved into the workspace's dock tab lists none of
-             its frame's actions (File details), as be-host's `offers_actions` keeps them.
+           An editor a joined dock's tab shows is kept unplaced, the workspace's still
+           (`Children::opener_of`), and any screen its layout has offers its actions, painted
+           or not, as be-host's `offers_actions` keeps a main view's: a canvas on the
+           workspace lists its File details between its text's and the workspace's.
          - 4g7d2. Tab and F6 between surfaces.
        - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and
          win32 hosts' surfaces, which stay the host's.
