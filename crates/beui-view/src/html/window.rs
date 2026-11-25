@@ -14,6 +14,11 @@ pub(crate) fn placed_windows() -> ReadSignal<bool> {
     create_signal(false).read_only()
 }
 
+/// The HTML core opens no window of its own, so none needs to close while locked.
+pub(crate) fn locked() -> ReadSignal<bool> {
+    create_signal(false).read_only()
+}
+
 pub(crate) fn window_origin(_window: WindowId) -> Option<Pos2> {
     None
 }

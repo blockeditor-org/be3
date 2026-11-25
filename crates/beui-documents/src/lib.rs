@@ -12,7 +12,7 @@ pub use beui_view::escape;
 pub use beui_view::primitives;
 pub use beui_view::types::*;
 pub use beui_view::window::{
-    Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
+    Window, WindowAnchor, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
 };
 pub use beui_view::{CORE, Core, child_type, value_child_type};
 
