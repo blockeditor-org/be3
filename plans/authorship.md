@@ -3,7 +3,8 @@
 Depends on: none.
 
 Signing what a person writes, so nobody with Edit can post as someone else. The
-signing key and its verification are built (guides/blocks/keys.md, "Signing
+signing key and its verification are built, and the host signs each log entry an
+app appends (apps no longer sign or verify themselves) (guides/blocks/keys.md, "Signing
 what a person writes"; decisions/an_ed25519_signing_key_beside_the_identity_key.md),
 and so is the signed log every authored record lives in, with the server's
 arrival on each entry (decisions/a_blocks_records_that_only_grow_are_a_signed_log.md).

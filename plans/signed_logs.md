@@ -284,8 +284,8 @@ within one page: step 4's fold takes the first occurrence of an id.
      attachments }`, `Edit { message, time, body }`, `React { message,
      reaction, kept, takes_back, time }`, `Delete { message, time }`. A message
      is named by its entry id. Who wrote one, when the server took it and who signed it
-     are the log's (`LogItem`), so chat signs nothing itself: `EditorHost::sign`,
-     `verify` and `signing_block` lose their only user.
+     are the log's (`LogItem`), so chat signs nothing itself (the apps' `sign`,
+     `verify` and `signing-block` went in step 6).
    - **What a chat shows** is a fold of the entries the editor holds
      (`ChatLog`): each message with its author's latest edit, its kept
      reactions (each author's latest record of each reaction), and its

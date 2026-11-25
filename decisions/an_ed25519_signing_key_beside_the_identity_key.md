@@ -1,8 +1,8 @@
 # What a person writes is signed with an Ed25519 key derived beside the identity key
 
-An account signs what it authors (each entry of a block's signed log) with an Ed25519 key derived from
-its identity secret through HKDF (`RecoverySecret::signing`, info `be3.identity.signing.v1`),
-as `EscrowSecret` derives its signing key. The public half travels wherever the identity key
+An account signs what it authors (each entry of a block's signed log) with an Ed25519 key
+derived from its identity secret through HKDF (`RecoverySecret::signing`, info
+`be3.identity.signing.v1`), as `EscrowSecret` derives its signing key. The public half travels wherever the identity key
 does and is verified the same way: on the `ContactCard` a contact link carries, and in the key
 change (`seal_key_change`) a new recovery phrase sends each contact. The server keeps it beside
 the identity key (`recovery_keys.signing`) and names it to members who are not contacts
