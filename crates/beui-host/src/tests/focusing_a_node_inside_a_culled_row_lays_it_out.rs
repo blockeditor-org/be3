@@ -49,7 +49,13 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
         "the row holding the focus is laid out again"
     );
     assert!(
-        find_text(harness.document(), row, &format!("Row {FOCUSED}"), Match::Exact).is_some(),
+        find_text(
+            harness.document(),
+            row,
+            &format!("Row {FOCUSED}"),
+            Match::Exact
+        )
+        .is_some(),
         "what the focus moved onto is laid out"
     );
 }

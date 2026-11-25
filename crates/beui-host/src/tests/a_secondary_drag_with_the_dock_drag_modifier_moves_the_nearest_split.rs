@@ -46,7 +46,13 @@ fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
         moved.width()
     );
     assert!(
-        find_text(harness.document(), dock, "Pop out into a window", Match::Exact).is_none(),
+        find_text(
+            harness.document(),
+            dock,
+            "Pop out into a window",
+            Match::Exact
+        )
+        .is_none(),
         "the tab's menu did not open"
     );
 }

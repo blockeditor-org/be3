@@ -85,8 +85,13 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let sidebar = find_text(harness.document(), dock, "Show tabs in a sidebar", Match::Exact)
-        .expect("the grip's menu offers a sidebar");
+    let sidebar = find_text(
+        harness.document(),
+        dock,
+        "Show tabs in a sidebar",
+        Match::Exact,
+    )
+    .expect("the grip's menu offers a sidebar");
     harness.click(harness.center(sidebar));
     harness.settle();
     let state = harness.document().api::<DockApi>(dock).state();

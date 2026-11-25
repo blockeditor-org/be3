@@ -9,8 +9,13 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     right_click(&mut harness, dock, "Tab 2");
-    let row = find_text(harness.document(), dock, "Pop out into a window", Match::Exact)
-        .expect("the menu offers to pop the tab out");
+    let row = find_text(
+        harness.document(),
+        dock,
+        "Pop out into a window",
+        Match::Exact,
+    )
+    .expect("the menu offers to pop the tab out");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
     assert_eq!(

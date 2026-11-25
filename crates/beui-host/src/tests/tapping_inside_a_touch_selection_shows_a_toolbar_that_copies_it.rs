@@ -40,7 +40,8 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
             .is_none(),
         "the toolbar stands in for the menu"
     );
-    let copy = find_text(harness.document(), toolbar, "Copy", Match::Exact).expect("the toolbar copies");
+    let copy =
+        find_text(harness.document(), toolbar, "Copy", Match::Exact).expect("the toolbar copies");
     let row = harness.center(copy);
     harness.touch(TouchPhase::Start, row);
     let output = harness.touch(TouchPhase::End, row);

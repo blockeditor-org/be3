@@ -38,7 +38,13 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
         harness.key(Key::Tab, Modifiers::NONE);
         let focused = harness.document().focused.expect("Tab reaches every row");
         assert!(
-            find_text(harness.document(), focused, &format!("Row {row}"), Match::Exact).is_some(),
+            find_text(
+                harness.document(),
+                focused,
+                &format!("Row {row}"),
+                Match::Exact
+            )
+            .is_some(),
             "Tab number {} lands on row {row}",
             row + 1
         );
@@ -60,7 +66,8 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
         find_text(
             harness.document(),
             last,
-            &format!("Row {}", VIRTUAL_ITEM_COUNT - 1), Match::Exact
+            &format!("Row {}", VIRTUAL_ITEM_COUNT - 1),
+            Match::Exact
         )
         .is_some()
     );

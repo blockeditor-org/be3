@@ -47,7 +47,8 @@ fn a_dialog_opened_from_a_menu_row_hangs_from_what_the_menu_was_opened_on() {
     let label = find_text(
         harness.document(),
         harness.document().root.expect("a root"),
-        "Rename", Match::Exact,
+        "Rename",
+        Match::Exact,
     )
     .expect("the menu shows its row");
     let at = harness.center(label);

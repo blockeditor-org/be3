@@ -36,7 +36,13 @@ fn clicking_a_dock_bars_grip_again_closes_its_menu() {
         harness.frame(Vec::new());
         let menu_open = |harness: &Harness| {
             let root = harness.document().root().expect("the document has a root");
-            find_text(harness.document(), root, "Pop out into a window", Match::Exact).is_some()
+            find_text(
+                harness.document(),
+                root,
+                "Pop out into a window",
+                Match::Exact,
+            )
+            .is_some()
         };
 
         harness.click(harness.center(harness.find("dock.bar.9.grip")));

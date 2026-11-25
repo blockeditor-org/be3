@@ -7,8 +7,8 @@ use beui::dock;
 use beui::dock_host;
 use beui::primitives::{Canvas, CanvasItem, Frame};
 use beui::reactive::*;
-use beui::{Color32, Modifiers, Rect, pos2, vec2};
 use beui::unstyled;
+use beui::{Color32, Modifiers, Rect, pos2, vec2};
 
 use super::{Document, build};
 
@@ -17,9 +17,7 @@ pub fn build_node(view: impl FnOnce() -> NodeId) -> Document {
     build(|| {
         let content = view();
         view! {
-            <beui::primitives::Root clear_color={Color32::BLACK}>
-                {content}
-            </beui::primitives::Root>
+            <beui::primitives::Root clear_color={Color32::BLACK}>{content}</beui::primitives::Root>
         }
     })
 }
@@ -42,42 +40,42 @@ pub fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
 fn WindowedDock(drag_modifier: Option<Modifiers>, dock: NodeRef) -> NodeId {
     let layout = dock::DockingLayout::<u64>::new();
     view! {
-            <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
-                <dock::Docking layout>
-                    <dock::DockSplit id="split">
-                        <dock::DockPane id="left">
-                            <dock::DockTab id=1u64 title="Tab 1">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                        <dock::DockPane id="right">
-                            <dock::DockTab id=2u64 title="Tab 2">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockSplit>
-                    <dock::DockWindow
-                        id="first"
-                        rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
-                    >
-                        <dock::DockPane id="third">
-                            <dock::DockTab id=3u64 title="Tab 3">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockWindow>
-                    <dock::DockWindow
-                        id="second"
-                        rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
-                    >
-                        <dock::DockPane id="fourth">
-                            <dock::DockTab id=4u64 title="Tab 4">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockWindow>
-                </dock::Docking>
-            </dock_host::styled::DockHost>
+        <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
+            <dock::Docking layout>
+                <dock::DockSplit id="split">
+                    <dock::DockPane id="left">
+                        <dock::DockTab id=1u64 title="Tab 1">
+                            <Frame />
+                        </dock::DockTab>
+                    </dock::DockPane>
+                    <dock::DockPane id="right">
+                        <dock::DockTab id=2u64 title="Tab 2">
+                            <Frame />
+                        </dock::DockTab>
+                    </dock::DockPane>
+                </dock::DockSplit>
+                <dock::DockWindow
+                    id="first"
+                    rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
+                >
+                    <dock::DockPane id="third">
+                        <dock::DockTab id=3u64 title="Tab 3">
+                            <Frame />
+                        </dock::DockTab>
+                    </dock::DockPane>
+                </dock::DockWindow>
+                <dock::DockWindow
+                    id="second"
+                    rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
+                >
+                    <dock::DockPane id="fourth">
+                        <dock::DockTab id=4u64 title="Tab 4">
+                            <Frame />
+                        </dock::DockTab>
+                    </dock::DockPane>
+                </dock::DockWindow>
+            </dock::Docking>
+        </dock_host::styled::DockHost>
     }
 }
 

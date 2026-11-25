@@ -26,7 +26,8 @@ fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
     let trigger = find_text(
         harness.document(),
         harness.document().root().expect("the popover built a root"),
-        "Filters", Match::Exact,
+        "Filters",
+        Match::Exact,
     )
     .expect("the trigger shows its label");
 

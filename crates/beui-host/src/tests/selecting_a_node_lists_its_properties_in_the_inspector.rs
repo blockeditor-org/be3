@@ -12,7 +12,9 @@ fn selecting_a_node_lists_its_properties_in_the_inspector() {
         inspector
             .document
             .find_test_id("inspector.properties")
-            .is_some_and(|properties| find_text(&inspector.document, properties, text, Match::Exact).is_some())
+            .is_some_and(|properties| {
+                find_text(&inspector.document, properties, text, Match::Exact).is_some()
+            })
     };
     assert!(!shows(&harness, "Properties"));
 

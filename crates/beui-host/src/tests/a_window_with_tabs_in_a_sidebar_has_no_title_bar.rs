@@ -59,8 +59,13 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = find_text(harness.document(), dock, "Show tabs across the top", Match::Exact)
-        .expect("the grip at the top of the sidebar offers the title bar back");
+    let row = find_text(
+        harness.document(),
+        dock,
+        "Show tabs across the top",
+        Match::Exact,
+    )
+    .expect("the grip at the top of the sidebar offers the title bar back");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
 

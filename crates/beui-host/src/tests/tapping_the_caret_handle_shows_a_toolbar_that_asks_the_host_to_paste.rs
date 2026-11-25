@@ -41,7 +41,8 @@ fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
         find_text(harness.document(), toolbar, "Copy", Match::Exact).is_none(),
         "there is nothing to copy without a selection"
     );
-    let paste = find_text(harness.document(), toolbar, "Paste", Match::Exact).expect("the toolbar pastes");
+    let paste =
+        find_text(harness.document(), toolbar, "Paste", Match::Exact).expect("the toolbar pastes");
     let row = harness.center(paste);
     harness.touch(TouchPhase::Start, row);
     let output = harness.touch(TouchPhase::End, row);

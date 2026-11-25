@@ -55,7 +55,8 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     harness.click(at);
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
-    let row = find_text(harness.document(), root, "Rename", Match::Exact).expect("the menu lists Rename");
+    let row =
+        find_text(harness.document(), root, "Rename", Match::Exact).expect("the menu lists Rename");
     harness.click(harness.center(row));
     harness.settle();
     assert_eq!(
