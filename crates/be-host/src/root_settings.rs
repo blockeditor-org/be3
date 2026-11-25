@@ -9,6 +9,7 @@ use be_block::{
 };
 use be_block_content::{BlockContent, BlockMetadata, LiveEdit, NAME, Root, VIEW_EDITOR, VIEW_TYPE};
 use be_block_graph::BlockParent;
+use be_block::root_settings::SettingsGraph;
 use uuid::Uuid;
 
 pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
@@ -56,7 +57,8 @@ fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
 /// (`RootSettings::heard`).
 #[derive(Default)]
 struct Cache {
-    owned: Option<Vec<Uuid>>,
+    /// The roots with their types and authors.
+    roots: Option<Vec<(Uuid, Uuid, Uuid)>>,
     settings: HashMap<Uuid, Settings>,
     profiles: HashMap<Uuid, SettingsProfile>,
     editors: HashMap<Uuid, Uuid>,
@@ -81,7 +83,7 @@ impl Cache {
 
     fn heard(&mut self, changes: &be_host_stack::Changes) {
         if changes.graph {
-            self.owned = None;
+            self.roots = None;
             // A session's editor is read from its metadata in the graph.
             self.editors.clear();
         }
@@ -92,9 +94,91 @@ impl Cache {
     }
 }
 
+/// The settings rules apps follow too (`be_block::root_settings`), over the host stack and what
+/// be-host read of it.
+struct Stack<'a>(&'a RefCell<Cache>);
+
+impl SettingsGraph for Stack<'_> {
+    fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
+        be_host_stack::account()?;
+        let mut cache = self.0.borrow_mut();
+        let roots = cache.roots.get_or_insert_with(|| {
+            // A listing answered offline from what the device keeps carries each root's author
+            // too, as the server gave it or as this device made the block (be-host-stack's
+            // `roots_listed_offline_after_a_restart_keep_their_author`).
+            be_host_stack::query(be_host_stack::Query::Roots)
+                .into_iter()
+                .filter_map(|node| Some((node.id, node.content_type, node.author?)))
+                .collect()
+        });
+        Some(roots.clone())
+    }
+
+    fn listed(&self) -> bool {
+        // The stack answers `ready` as it is now, while what was read of the roots may be from
+        // before they were listed, until the host hears that the graph changed.
+        let listed = be_host_stack::ready(be_host_stack::Query::Roots);
+        if listed {
+            self.0.borrow_mut().roots = None;
+        }
+        listed
+    }
+
+    fn account(&self) -> Uuid {
+        be_host_stack::account().unwrap_or_default()
+    }
+
+    fn settings(&self, block: Uuid) -> Option<Settings> {
+        let mut cache = self.0.borrow_mut();
+        Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
+            decode::<SettingsContent>(block).map(|document| document.root())
+        })
+    }
+
+    fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile> {
+        let mut cache = self.0.borrow_mut();
+        Cache::read(
+            &mut cache.profiles,
+            block,
+            SettingsProfile::CONTENT_TYPE,
+            || decode::<SettingsProfileContent>(block).map(|document| document.root()),
+        )
+    }
+
+    fn create(
+        &self,
+        block: Uuid,
+        block_type: Uuid,
+        content: Vec<u8>,
+        under: Option<Uuid>,
+        owner_only: bool,
+    ) -> Uuid {
+        let parent = under.map_or(BlockParent::Root, BlockParent::Block);
+        // A guest's settings only it reads (`be_host_stack::guest`).
+        let owner_only = owner_only || (parent == BlockParent::Root && be_host_stack::guest());
+        be_host_stack::create(
+            block,
+            block_type,
+            parent,
+            BlockMetadata::default(),
+            Some(content),
+            owner_only,
+        );
+        block
+    }
+
+    fn edit_settings(&self, block: Uuid, edit: be_block_content::Edit) {
+        be_host_stack::operate(block, SettingsContent::encode_operation(&edit));
+    }
+
+    fn edit_settings_profile(&self, block: Uuid, edit: be_block_content::Edit) {
+        be_host_stack::operate(block, SettingsProfileContent::encode_operation(&edit));
+    }
+}
+
 pub(crate) struct RootSettings {
     shell: Uuid,
-    created: Option<Uuid>,
+    root: be_block::root_settings::RootSettings,
     created_files: Option<Uuid>,
     created_unfiled: Option<Uuid>,
     created_session: Option<Uuid>,
@@ -112,7 +196,7 @@ impl RootSettings {
     pub(crate) fn new(shell: Uuid) -> Self {
         Self {
             shell,
-            created: None,
+            root: be_block::root_settings::RootSettings::default(),
             created_files: None,
             created_unfiled: None,
             created_session: None,
@@ -134,53 +218,16 @@ impl RootSettings {
         self.shell
     }
 
-    /// The account's settings at the root, told by their author: a listing answered offline from
-    /// what the device keeps carries it too, as the server gave it or as this device made the
-    /// block (be-host-stack's `roots_listed_offline_after_a_restart_keep_their_author`).
-    fn owned(&self) -> Option<Vec<Uuid>> {
-        let account = be_host_stack::account()?;
-        let mut cache = self.cache.borrow_mut();
-        if let Some(owned) = &cache.owned {
-            return Some(owned.clone());
-        }
-        let mut owned: Vec<Uuid> = be_host_stack::query(be_host_stack::Query::Roots)
-            .into_iter()
-            .filter(|node| {
-                node.content_type == Settings::CONTENT_TYPE && node.author == Some(account)
-            })
-            .map(|node| node.id)
-            .collect();
-        owned.sort_unstable();
-        cache.owned = Some(owned.clone());
-        Some(owned)
+    fn graph(&self) -> Stack<'_> {
+        Stack(&self.cache)
     }
 
     pub(crate) fn find(&self) -> Option<Uuid> {
-        self.owned()?.first().copied().or(self.created)
+        self.root.find(&self.graph())
     }
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
-        if self.find().is_none() && be_host_stack::ready(be_host_stack::Query::Roots) {
-            // The stack answers `ready` as it is now, while `owned` may still be what was read
-            // before the roots were listed, until the host hears that the graph changed: read
-            // them again from the listing that made them ready before making a second settings.
-            self.cache.borrow_mut().owned = None;
-            if let Some(found) = self.find() {
-                return Some(found);
-            }
-            let block = Uuid::now_v7();
-            be_host_stack::create(
-                block,
-                SettingsContent::CONTENT_TYPE,
-                BlockParent::Root,
-                BlockMetadata::default(),
-                Some(SettingsContent::default().encode()),
-                // A guest's settings only it reads (`be_host_stack::guest`).
-                be_host_stack::guest(),
-            );
-            self.created = Some(block);
-        }
-        self.find()
+        self.root.ensure(&Stack(&self.cache))
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
@@ -272,37 +319,11 @@ impl RootSettings {
     }
 
     pub(crate) fn settings(&self) -> Option<Settings> {
-        let mut blocks = self.owned()?;
-        if blocks.is_empty() {
-            blocks.extend(self.created);
-        }
-        if blocks.is_empty() {
-            return None;
-        }
-        let mut cache = self.cache.borrow_mut();
-        let held = blocks
-            .into_iter()
-            .map(|block| {
-                Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
-                    decode::<SettingsContent>(block).map(|document| document.root())
-                })
-            })
-            .collect::<Option<Vec<Settings>>>()?;
-        Some(Settings::merged(held))
+        self.root.read(&self.graph()).map(|held| held.settings)
     }
 
     pub(crate) fn loaded(&self) -> bool {
         self.settings().is_some()
-    }
-
-    fn settings_profile(&self, profile: Uuid) -> Option<SettingsProfile> {
-        let mut cache = self.cache.borrow_mut();
-        Cache::read(
-            &mut cache.profiles,
-            profile,
-            SettingsProfile::CONTENT_TYPE,
-            || decode::<SettingsProfileContent>(profile).map(|document| document.root()),
-        )
     }
 
     pub(crate) fn session_editor(&self, session: Uuid) -> Option<Uuid> {
@@ -342,12 +363,7 @@ impl RootSettings {
         );
         let held = block
             .filter(|block| be_host_stack::node(*block).is_some_and(|node| node.access.can_view()));
-        let held = held.and_then(|block| {
-            let mut cache = self.cache.borrow_mut();
-            Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
-                decode::<SettingsContent>(block).map(|document| document.root())
-            })
-        });
+        let held = held.and_then(|block| self.graph().settings(block));
         let own = self.layers(kind, client);
         Resolution::resolve(ResolutionLayers {
             organization_policy: self
@@ -372,7 +388,7 @@ impl RootSettings {
         let Some(block) = self.find() else {
             return;
         };
-        be_host_stack::operate(block, SettingsContent::encode_operation(edit));
+        self.graph().edit_settings(block, edit.clone());
     }
 
     fn named(block: Uuid, fallback: &str) -> String {
@@ -387,7 +403,7 @@ impl RootSettings {
         };
         let profile = self
             .current_profile(&settings, client)
-            .and_then(|profile| self.settings_profile(profile));
+            .and_then(|profile| self.graph().settings_profile(profile));
         settings.layers(kind, profile.as_ref())
     }
 

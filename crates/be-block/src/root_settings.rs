@@ -1,26 +1,37 @@
-use be_block::SettingsContent;
-use be_block::settings::{Settings, SettingsProfile};
+//! The rules every reader of an account's settings follows, in be-host and in apps alike
+//! (guides/settings.md): the settings blocks the account authored at the root, sorted and
+//! merged, made once when there are none, and a kind's every-device and this-device layers
+//! under them. Each reader implements `SettingsGraph` over what it reads blocks through.
+
 use be_block_content::{BlockContent, Edit, Root, SettingsLayer};
 use uuid::Uuid;
 
-use crate::BlockParent;
+use crate::SettingsContent;
+use crate::settings::{Settings, SettingsProfile};
 
 pub trait SettingsGraph {
     fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>>;
     fn account(&self) -> Uuid;
     fn settings(&self, block: Uuid) -> Option<Settings>;
     fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile>;
-    /// Makes `block`; `owner_only` makes one only this account reads (`KindVisibility::Owner`).
+    /// Makes `block` under the block `under`, or at the root when it is `None`; `owner_only`
+    /// makes one only this account reads (`KindVisibility::Owner`).
     fn create(
         &self,
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        parent: BlockParent,
+        under: Option<Uuid>,
         owner_only: bool,
     ) -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
     fn edit_settings_profile(&self, block: Uuid, edit: Edit);
+    /// Whether the roots have been listed, so settings the account authored would be among
+    /// them and it may be given its first. A reader that keeps what it read of the roots drops
+    /// what it read before this listing, so `roots` reads them from it.
+    fn listed(&self) -> bool {
+        self.roots().is_some()
+    }
 }
 
 pub fn own_settings_blocks(graph: &dyn SettingsGraph) -> Option<Vec<Uuid>> {
@@ -95,13 +106,20 @@ impl RootSettings {
         if let Some(block) = self.find(graph) {
             return Some((block, false));
         }
-        graph.roots()?;
+        if !graph.listed() {
+            return None;
+        }
+        // What was read before the listing may have missed the account's settings: look again
+        // in it before making a second beside them.
+        if let Some(block) = self.find(graph) {
+            return Some((block, false));
+        }
         let block = Uuid::now_v7();
         graph.create(
             block,
             SettingsContent::CONTENT_TYPE,
             content.encode(),
-            BlockParent::Root,
+            None,
             false,
         );
         self.created = Some(block);
@@ -112,15 +130,11 @@ impl RootSettings {
 pub use be_block_content::Layers;
 
 pub fn layers(graph: &dyn SettingsGraph, held: &HeldSettings, kind: Uuid, client: Uuid) -> Layers {
-    let own = held
+    let profile = held
         .settings
         .profile(client)
-        .and_then(|profile| graph.settings_profile(profile))
-        .and_then(|profile| profile.kind(kind));
-    Layers {
-        every_device: held.settings.kind(kind),
-        this_device: own,
-    }
+        .and_then(|profile| graph.settings_profile(profile));
+    held.settings.layers(kind, profile.as_ref())
 }
 
 pub struct RootSetting<C> {
@@ -226,7 +240,7 @@ impl<C: BlockContent + Default> RootSetting<C> {
             block,
             C::CONTENT_TYPE,
             content.encode(),
-            BlockParent::Block(parent),
+            Some(parent),
             self.owner_only,
         );
         match layer {

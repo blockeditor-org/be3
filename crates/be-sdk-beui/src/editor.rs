@@ -1590,14 +1590,14 @@ impl crate::root_settings::SettingsGraph for Editor {
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        parent: BlockParent,
+        under: Option<Uuid>,
         owner_only: bool,
     ) -> Uuid {
         self.blocks().create_at(
             block,
             block_type,
             Some(content),
-            parent,
+            under.map_or(BlockParent::Root, BlockParent::Block),
             be_block_content::BlockMetadata::default(),
             owner_only,
         )

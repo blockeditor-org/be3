@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::SettingsProfileContent;
+use crate::SettingsProfileContent;
 
 /// The account's `Settings` and the kind are made together, so the kind is listed in the
 /// `Settings` from its first version: nothing waits on reading back a block just made.

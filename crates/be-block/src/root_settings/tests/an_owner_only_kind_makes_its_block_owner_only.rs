@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::SettingsProfileContent;
+use crate::SettingsProfileContent;
 
 #[test]
 fn an_owner_only_kind_makes_its_block_owner_only() {
