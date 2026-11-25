@@ -504,13 +504,14 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn refresh_contacts(&self) -> Result<Vec<crate::Contact>, ClientError> {
         let pinned = self.refs.contacts().into_iter().collect();
-        let contacts = crate::contacts::contacts(
+        let (contacts, retired) = crate::contacts::contacts_and_retired(
             &self.connection(),
             self.account,
             self.keys.identity(),
             &pinned,
         )
         .await?;
+        self.keys.retire(retired);
         let contacts = self.named(contacts).await;
         self.adopt_contacts(&contacts);
         // Keys a contact sealed before this device verified it open now, and arrive as any key

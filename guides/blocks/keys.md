@@ -828,9 +828,14 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   account's block (`AccountBlock::retired`, written before the new phrase, and
   read only with it once the block's keys are sealed again), and every device
   opens a key change with the current secret or a retired one
-  (`contacts::Secrets`). An agent has no block to keep one in, and needs none:
-  the server refuses an agent a new phrase (its maker makes it again), so no
-  change is ever sealed to a key it replaced. The server, in
+  (`contacts::Secrets`). Keys too: a grant follows the retirement in its log, but
+  a contact that has not followed the change seals to the old key whatever it
+  seals by its record (a kind opened to anyone inside, offered to a contact
+  viewing inside, `Peer::sealing_target`), so the `KeyBook` (`KeyBook::retire`, from
+  `Peer::refresh_contacts`) and `reseal_from` open a key sealed to this account
+  with a retired secret too. An agent has no block to keep one in, and needs none:
+  the server refuses an agent a new phrase (its maker makes it again), so nothing
+  is ever sealed to a key it replaced. The server, in
   the same write, seals again from its own account each key the account sealed
   to it (the settings' keys, `ServerKey::reseal_from`): it opens such a wrap by
   its sender's current key, so it would otherwise stop reading the policies
