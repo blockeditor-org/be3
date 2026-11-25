@@ -867,11 +867,15 @@ impl Document {
             .collect()
     }
 
+    /// Leaves out the windows of its own over the window: they take their own input and are
+    /// drawn over it, so a cover of the whole window (a dialog's) is not lifted over its dialog.
     pub fn overlay_rects(&self, window: WindowId) -> Vec<Rect> {
+        let over = self.windows_over(window);
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_covers(layer))
             .chain(self.above_embeds_in(window, false).map(|(_, rect)| rect))
+            .flat_map(|rect| outside(rect, &over))
             .collect()
     }
 
@@ -879,10 +883,12 @@ impl Document {
     /// the host draws scrims), plus nodes marked `Paints` or `Raised`. `overlay_rects` is
     /// where they take input. Escaped layers are in neither.
     pub fn overlay_painted_rects(&self, window: WindowId) -> Vec<Rect> {
+        let over = self.windows_over(window);
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_paints(layer))
             .chain(self.above_embeds_in(window, true).map(|(_, rect)| rect))
+            .flat_map(|rect| outside(rect, &over))
             .collect()
     }
 
@@ -1038,4 +1044,36 @@ impl Document {
                 inside.then_some(layer.overlay?)
             })
     }
+}
+
+/// The parts of `rect` outside every rect of `holes`, as at most four rects per hole.
+fn outside(rect: Rect, holes: &[Rect]) -> Vec<Rect> {
+    let mut parts = vec![rect];
+    for hole in holes.iter().filter(|hole| hole.is_positive()) {
+        parts = parts
+            .into_iter()
+            .flat_map(|part| {
+                let cut = part.intersect(*hole);
+                if !cut.is_positive() {
+                    return vec![part];
+                }
+                [
+                    Rect::from_min_max(part.min, Pos2::new(part.max.x, cut.min.y)),
+                    Rect::from_min_max(Pos2::new(part.min.x, cut.max.y), part.max),
+                    Rect::from_min_max(
+                        Pos2::new(part.min.x, cut.min.y),
+                        Pos2::new(cut.min.x, cut.max.y),
+                    ),
+                    Rect::from_min_max(
+                        Pos2::new(cut.max.x, cut.min.y),
+                        Pos2::new(part.max.x, cut.max.y),
+                    ),
+                ]
+                .into_iter()
+                .filter(Rect::is_positive)
+                .collect()
+            })
+            .collect();
+    }
+    parts
 }

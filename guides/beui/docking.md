@@ -429,17 +429,23 @@ with it: a window the person moved keeps that `at`. `blocks` blocks its owner (n
 `own_window=false`
 keeps it an overlay, sized to its content, even where windows are hosted. A window the host opens
 as its own and that has an `anchor` opens `WindowPlacement::Over` the window its owner is in, where
-the anchor puts it (as `layer::resolve_rect` would place the overlay), and is placed again as the
-anchor moves; it draws no beak. One that `blocks` covers its owner, in the owner's window, with an
+the anchor puts it (as `layer::resolve_rect` would place the overlay, kept inside that window only
+when what it points at is: an app's dialog hung from the host's tab may cross its region's edge),
+and is placed again as the anchor moves; it draws no beak. One that `blocks` covers its owner, in the owner's window, with an
 empty overlay that shuts out presses there, asks it to close and draws the scrim. Either closes
 while the document is locked (`Document::watch_locked`, published as a lock layer opens or
 closes), since the lock layer of a display's window does not paint over a window of its own, and
 opens again once unlocked, at a fresh place from its anchor; a dock's windows are left to the
 host. Its anchor's rect, in the points of the window it is built in, is moved into its owner's
 window's points through where the host shows both (`window_origin`). With no owner it blocks
-only its own window, never another window of its own.
-A `DockDialog` asks for one (`own_window`) only where a host opens windows, so in an app it
-stays an overlay; a `Dialog` is still an overlay everywhere.
+only its own window, never another window of its own, and opens at `WindowLevel::Above`, as its
+overlay was over everything in that window. The cover is laid out in the window it is shown in
+even while that window's node is out of the arena being laid out (`laying_out_window`), and
+shown in a window its document holds no node for (an app's editor, whose region is a window of
+the document around it) it is shown in its document's main window.
+A `DockDialog` or `Dialog` asks for one (`own_window`) only where a host opens windows
+(`opens_windows()`) and not as a sheet; where it only places them (an app whose region has no
+windows) it stays an overlay, an anchored view.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,
 and then the caller moves it itself.
 
