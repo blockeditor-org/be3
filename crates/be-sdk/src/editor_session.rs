@@ -479,7 +479,7 @@ impl EditorSession {
                 state.tree = None;
             }
             state.placement = Some(*placement);
-            state.metrics = Some(request.metrics.clone());
+            state.metrics = Some(request.metrics);
             state.frame = request.frame;
             state.windows = request.windows;
             state.fit = request.fit;
@@ -879,7 +879,7 @@ impl EditorSession {
             fit: state.is_some_and(|state| state.fit),
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
-            anchor_space: state.and_then(|state| state.anchor_space.clone()),
+            anchor_space: state.and_then(|state| state.anchor_space),
             origin: state.and_then(|state| state.origin),
         }
     }

@@ -167,7 +167,7 @@ pub mod __private {
                     .editors
                     .iter()
                     .find(|editor| editor.name == entry.name)
-                    .map(|editor| (editor.id, editor.capabilities.clone()))
+                    .map(|editor| (editor.id, editor.capabilities))
                     .or_else(|| {
                         manifest
                             .hosts

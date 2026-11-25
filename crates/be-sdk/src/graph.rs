@@ -295,6 +295,7 @@ pub enum GraphCommand {
     },
 }
 
+#[derive(Default)]
 pub(crate) struct GraphState {
     watched: RefCell<BTreeMap<BlockQuery, usize>>,
     watch_changed: Cell<bool>,
@@ -311,25 +312,6 @@ pub(crate) struct GraphState {
     on_info: Callbacks<Uuid, dyn Fn()>,
 }
 
-impl Default for GraphState {
-    fn default() -> Self {
-        Self {
-            watched: RefCell::default(),
-            watch_changed: Cell::default(),
-            results: RefCell::default(),
-            retired: RefCell::default(),
-            known: RefCell::default(),
-            revision: Cell::default(),
-            changed_queries: RefCell::default(),
-            changed_blocks: RefCell::default(),
-            changes: crate::state::ChangeFlags::default(),
-            ready: RefCell::default(),
-            commands: RefCell::default(),
-            on_query: Callbacks::default(),
-            on_info: Callbacks::default(),
-        }
-    }
-}
 
 impl GraphState {
     pub(crate) fn defer_unless(&self, ready: Rc<dyn Fn() -> bool>) {

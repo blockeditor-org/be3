@@ -117,7 +117,7 @@ impl ViewHandler for AnchoringViews {
                     .seen
                     .borrow_mut()
                     .spaces
-                    .push(region.anchor_space.clone());
+                    .push(region.anchor_space);
                 if let Some(layer) = *self.shared.child_in.borrow() {
                     self.host.in_view(View::anchored(layer), || {
                         let rect = Rect::from_min_size(pos2(230.0, 140.0), vec2(30.0, 20.0));
@@ -514,7 +514,7 @@ fn resolved(
     encoder.copy_buffer_to_buffer(&resolve, 0, &destination, 0, size);
     queue.submit([encoder.finish()]);
     read_back(device, &destination)
-        .chunks_exact(8)
+        .as_chunks::<8>().0.iter()
         .map(|value| u64::from_le_bytes(value.try_into().unwrap()))
         .collect()
 }
