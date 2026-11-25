@@ -31,14 +31,16 @@ not shared yet, or, offline, a block this device has never read
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 
-A block placed in several places at once shares one editor instance, the one
+Under be-host's own UI, a block placed in several places at once shares one
+editor instance, the one
 under the block's own id that the host's own requests (focus, menus, renaming a
 new block) reach, so a shared instance draws one view for all of them. A
 placement that asks for another editor than the one holding the block (a
 settings page in a tab beside the settings list) gets an instance of its own,
 a twin under a key of its own in be-host's `Editors` (`compositor/editors.rs`;
 `Editors::block` maps it back), closed when that placement goes. Previews are
-never twinned.
+never twinned. Under a root each place gets a live editor of its own instead,
+the rule going forward (below).
 
 ## Under a root
 
@@ -50,11 +52,10 @@ that block's editor, which the host opens and serves as it does the root's
 other editors (`be3:root`'s `host.open-editor`, and `host.close-editor` once no
 place shows it). Each staged app runs once for every child, holding every
 editor of it the root shows, each asked for screens of its own; the app
-showing the session's block is not one of them. A block placed in several
-places shares one editor, a twin aside, as above: its main view is one place's
-(one placed active takes it), its preview view the largest preview's, and the
-other places show a copy of that screen scaled to their place, hit nowhere,
-without the editor's own children. Its screen is the size of its place, at its
+showing the session's block is not one of them. Each place gets a live editor
+of its own: a block placed twice is edited in each place, as two editor views
+of one open block each get their own, and what one changes reaches the other
+through the block. Its screen is the size of its place, at its
 placer's raster, composited under the placer's layer (over it when placed
 `Above`), and the placer is hit everywhere but where a child that takes input
 is. The root tells the host through `be3:root`'s `host.show-children` which

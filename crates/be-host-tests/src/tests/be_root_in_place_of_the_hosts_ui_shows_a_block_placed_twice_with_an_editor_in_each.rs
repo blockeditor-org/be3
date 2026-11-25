@@ -6,11 +6,11 @@ const ROOT: &str = "be3.root";
 const PANE: &str = "Pane \"Checklist\"";
 
 #[test]
-fn be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor() {
+fn be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_an_editor_in_each() {
     // be-host's own UI puts a checklist on a canvas and duplicates its card, which places the
-    // same block twice; started again with the root in place of its UI, the root shows both
-    // places with one editor, as be-host does: the first place shows its view, the second a
-    // copy of it, so what is typed in the first shows in both.
+    // same block twice; started again with the root in place of its UI, each place shows a
+    // live editor of its own, as two views of one open block each get their own, and what is
+    // typed in the first reaches the second through the block they both edit.
     let mut host = HostTest::start(Options {
         previews: true,
         ..Options::default()
@@ -41,8 +41,8 @@ fn be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor()
     host.restart_as_root(ROOT);
     host.run(&["resize", "1700x900"]);
     host.run(&["settle"]);
-    host.snapshot("be_root_shows_a_block_placed_twice_with_one_editor");
-    // A task added in the first place shows in the second too: both show the one editor.
+    host.snapshot("be_root_shows_a_block_placed_twice_with_an_editor_in_each");
+    // A task added in the first place shows in the second too: both edit the one block.
     host.run(&["click", &draft]);
     host.type_text("buy milk");
     host.run(&["click", &add]);

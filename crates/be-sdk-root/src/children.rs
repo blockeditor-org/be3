@@ -9,11 +9,9 @@
 //!
 //! Each staged app runs once for every child (`Pool`), holding every editor of it the root
 //! shows, each asked for screens of its own (`main_screen`, `preview_screen_of`), and closed in
-//! it once no place shows it (`Embedded::close_editor`). A block placed in several places shares
-//! one editor, as under be-host (`EditorKey`), unless a place asks for another editor than the
-//! one holding the block, which gets a twin of its own; previews are never twinned. Its main view
-//! is one place's and its preview view the largest preview's (`Editor::show`); every other place
-//! shows a copy of that screen, scaled to its place and hit nowhere.
+//! it once its place lets go of it (`Embedded::close_editor`). Each place has a live editor of its
+//! own: a block placed in several places gets one in each, as two editor views of one open block
+//! each get their own (plans/host_as_platform_adapter.md, 4g7b3i).
 //!
 //! The host tells each placer how its children are as its own children's statuses
 //! (`be3:root`'s `host.show-children`): available once an editor shows the child, with what its
@@ -68,7 +66,7 @@ use std::{
     cell::{Cell, RefCell},
     future::Future,
     pin::Pin,
-    rc::{Rc, Weak},
+    rc::Rc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -235,21 +233,7 @@ pub enum KeyboardMove {
     Out,
 }
 
-/// Where a child is placed: the editor that placed it, its view and the child's id there. Editor
-/// instances are the host's, unique across apps, so this names one place among every app's.
-type PlaceKey = (EditorInstanceId, ViewId, ChildId);
-
-/// What names an editor the root shows, as be-host's `Editors` keys them: a block's own, which
-/// every place showing the block shares, or a twin of a place asking for another editor than
-/// the one holding its block, which only that place shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum EditorKey {
-    Block([u8; 16]),
-    Twin(PlaceKey),
-}
-
-/// A block child placed to run its editor: one place showing an editor (`Editor`), which other
-/// places may show too.
+/// A child placed to run an editor: one place, showing an editor of its own (`Editor`).
 struct Child {
     editor: EditorInstanceId,
     view: ViewId,
@@ -280,12 +264,8 @@ struct Child {
     occluders: Vec<Rect>,
 }
 
-/// An editor the root shows, and every place showing it: a block placed in several places at
-/// once shares one editor, as under be-host (guides/apps/children.md). Its main view is the one
-/// place's that shows it first, kept while it does, and its preview view the largest preview's;
-/// every other place shows a copy of the same screen, scaled to its place and hit nowhere.
+/// The editor a place shows, its own: a block placed in several places gets one in each.
 struct Editor {
-    key: Option<EditorKey>,
     /// What it shows, as the place that opened it named it.
     shown: Shown,
     showing: RefCell<Showing>,
@@ -299,20 +279,12 @@ struct Editor {
     /// The size it is laid out at, placed with an intrinsic size, as the host was told last
     /// (`host.assign-size`).
     told_size: Cell<Option<be_lib_geometry::Vec2>>,
-    /// The settle that visited it last (`Pool::pass`), and the place first visited then, which
-    /// follows its own children for it.
+    /// The settle that visited it last (`Pool::pass`).
     visited: Cell<u64>,
-    owner: Cell<Option<PlaceKey>>,
-    /// What the places showing it asked of it in the settle under way, in the order visited.
+    /// What its place asked of it in the settle under way.
     asks: RefCell<Vec<PlaceAsk>>,
     /// The views of its dock the joined docks place, asked in the settle under way.
     tab_asks: RefCell<Vec<TabAsk>>,
-    /// The places showing its main view and its preview view.
-    main_place: Cell<Option<PlaceKey>>,
-    /// Whether the place showing its main view takes its placer's frame, whose screen is the
-    /// placer's size: no other place shows a copy of it then.
-    main_framed: Cell<bool>,
-    preview_place: Cell<Option<PlaceKey>>,
     /// Its main view and its preview view as asked last: a docked editor no place shows is asked
     /// for its main view still.
     main: RefCell<Option<ScreenRequest>>,
@@ -322,7 +294,6 @@ struct Editor {
 /// What one place asked of the editor it shows in a settle.
 #[derive(Clone)]
 struct PlaceAsk {
-    key: PlaceKey,
     placement: ChildPlacement,
     raster: f32,
     /// Its placer's screen, while it takes that frame over.
@@ -354,9 +325,8 @@ enum Showing {
 }
 
 impl Editor {
-    fn new(key: Option<EditorKey>, shown: Shown, showing: Showing) -> Rc<Self> {
+    fn new(shown: Shown, showing: Showing) -> Rc<Self> {
         Rc::new(Self {
-            key,
             shown,
             showing: RefCell::new(showing),
             nested: RefCell::new(Children::default()),
@@ -364,12 +334,8 @@ impl Editor {
             told_content: Cell::new(None),
             told_size: Cell::new(None),
             visited: Cell::new(0),
-            owner: Cell::new(None),
             asks: RefCell::new(Vec::new()),
             tab_asks: RefCell::new(Vec::new()),
-            main_place: Cell::new(None),
-            main_framed: Cell::new(false),
-            preview_place: Cell::new(None),
             main: RefCell::new(None),
             preview: RefCell::new(None),
         })
@@ -443,36 +409,14 @@ impl Editor {
         screen
     }
 
-    /// Asks its app for the screens its places asked for in the settle just made, once it is
-    /// open (`Embedded::show_editor`): its main view at the place showing it, one asking for it
-    /// active, else the one that showed it before while that still asks for it, else the first; its preview view at the largest
-    /// place asking for it, as be-host draws a block previewed in several places once at the
-    /// largest; and the views of its dock the joined docks place. Then tells the host where its
-    /// content shows and the size it is laid out at, from the place showing its main view.
+    /// Asks its app for the screens its place asked for in the settle just made, once it is
+    /// open (`Embedded::show_editor`): its main view, or its preview view while placed as a
+    /// preview, and the views of its dock the joined docks place. Then tells the host where its
+    /// content shows and the size it is laid out at.
     fn show(&self, docks: &Docks) {
         let asks = self.asks.borrow();
-        let mains: Vec<&PlaceAsk> = asks.iter().filter(|ask| !ask.previewed()).collect();
-        // A place asking for it active (the card a canvas focuses) takes its main view from the
-        // one that showed it, which is a copy meanwhile: the person works where they pressed.
-        let main_place = mains
-            .iter()
-            .find(|ask| ask.placement.mode == ChildMode::Active)
-            .or_else(|| {
-                mains
-                    .iter()
-                    .find(|ask| Some(ask.key) == self.main_place.get())
-            })
-            .or(mains.first())
-            .copied();
-        self.main_place.set(main_place.map(|ask| ask.key));
-        self.main_framed
-            .set(main_place.is_some_and(|ask| ask.framing.is_some()));
-        let area = |ask: &&PlaceAsk| ask.placement.rect.width() * ask.placement.rect.height();
-        let preview_place = asks
-            .iter()
-            .filter(|ask| ask.previewed())
-            .max_by(|a, b| area(a).total_cmp(&area(b)));
-        self.preview_place.set(preview_place.map(|ask| ask.key));
+        let main_place = asks.iter().find(|ask| !ask.previewed());
+        let preview_place = asks.iter().find(|ask| ask.previewed());
         let Some((app, editor)) = self.hosted() else {
             self.tabs.borrow_mut().clear();
             return;
@@ -587,15 +531,12 @@ impl Editor {
     }
 }
 
-/// The apps and editors the children a root shows share, at every level: each staged app runs
-/// once, as one instance holding every editor of it the root shows, and each editor is shown
-/// in every place that shows it.
+/// The apps the children a root shows share, at every level: each staged app runs once, as one
+/// instance holding every editor of it the root shows, one for each place.
 #[derive(Default)]
 struct Pool {
     /// Each staged app the root runs for its children, by its id.
     apps: HashMap<String, PooledApp>,
-    /// Each editor shown, by its key.
-    editors: HashMap<EditorKey, Weak<Editor>>,
     /// The settles so far: the one under way.
     pass: u64,
     /// The editors the settle under way visited, in order.
@@ -678,7 +619,6 @@ fn sweep_apps(embedding: &mut Embedding) {
             }
             keep
         });
-        pool.editors.retain(|_, editor| editor.strong_count() > 0);
     });
 }
 
@@ -731,7 +671,7 @@ impl Child {
             editor,
             view,
             child: placement.child,
-            shared: Editor::new(None, shown.clone(), Showing::Opening),
+            shared: Editor::new(shown.clone(), Showing::Opening),
             shown,
             block,
             placement,
@@ -748,14 +688,9 @@ impl Child {
     fn in_sheet(mut self) -> Self {
         if let Shown::Dialog(dialog) = &mut self.shown {
             dialog.sheet = true;
-            self.shared = Editor::new(None, self.shown.clone(), Showing::Opening);
+            self.shared = Editor::new(self.shown.clone(), Showing::Opening);
         }
         self
-    }
-
-    /// Where it is placed.
-    fn place(&self) -> PlaceKey {
-        (self.editor, self.view, self.child)
     }
 
     /// What names the editor it keeps while placed: its place, and what it shows. A child placed
@@ -778,48 +713,27 @@ impl Child {
         (self.editor, self.view, self.child, shows)
     }
 
-    /// Whether it is the place that follows its editor's own children (`Editor::owner`): the
-    /// first of the editor's places the last settle visited.
-    fn owns(&self) -> bool {
-        self.shared.owner.get() == Some(self.place())
-    }
-
-    /// Whether it shows a copy of a screen another place of its editor shows: hit nowhere, with
-    /// none of the editor's own children.
-    fn copy(&self) -> bool {
-        let own = match self.previewed() {
-            true => self.shared.preview_place.get(),
-            false => self.shared.main_place.get(),
-        };
-        own.is_some_and(|own| own != self.place())
-    }
-
-    /// The layer showing it, once its editor opened: its editor's screen's, or a copy's.
+    /// The layer showing it, once its editor opened: its editor's screen's.
     fn shown_layer(&self) -> Option<LayerId> {
         let (app, editor) = self.hosted()?;
-        let layer = app.layer_id(self.screen(editor));
-        Some(match self.copy() {
-            true => copy_layer(layer, self.place()),
-            false => layer,
-        })
+        Some(app.layer_id(self.screen(editor)))
     }
 
     /// Whether `layer` shows it or one of its own children, any number of levels deep.
     fn holds(&self, layer: LayerId) -> bool {
-        self.shows(layer) || (!self.copy() && self.shared.nested.borrow().holds(layer))
+        self.shows(layer) || self.shared.nested.borrow().holds(layer)
     }
 
     /// Whether `layer` shows one of its views: its place, or a view of its editor's dock.
     fn shows(&self, layer: LayerId) -> bool {
         self.layer.filter(|_| self.placed) == Some(layer)
-            || (self.owns() && self.shared.tab_layers().contains(&layer))
+            || self.shared.tab_layers().contains(&layer)
     }
 
     /// Whether it shows its screen: its editor opened and its app painted it, so the frame it
-    /// takes over is drawn. A copy takes no frame.
+    /// takes over is drawn.
     fn shows_frame(&self) -> bool {
         self.placed
-            && !self.copy()
             && self.up
             && self.hosted().is_some_and(|(app, editor)| {
                 app.layer(main_screen(editor), pos2(0.0, 0.0)).is_some()
@@ -856,7 +770,7 @@ impl Child {
     /// The size it is laid out at and the zoom it is drawn at (`placed_zoom`), when it shows its
     /// editor's main view itself.
     fn zoom(&self) -> Option<(be_lib_geometry::Vec2, f32)> {
-        if !self.placed || self.framing || self.previewed() || self.copy() {
+        if !self.placed || self.framing || self.previewed() {
             return None;
         }
         placed_zoom(&self.placement, self.shared.pans())
@@ -946,12 +860,9 @@ impl Child {
         }
     }
 
-    /// Whether it takes the input where it is placed: placed to, not taken back (`revoked`), and
-    /// showing its editor's screen itself rather than a copy of it.
+    /// Whether it takes the input where it is placed: placed to, and not taken back (`revoked`).
     fn takes_input(&self, revoked: &HashSet<(EditorInstanceId, ViewId, ChildId)>) -> bool {
-        takes_input(self.placement.mode)
-            && !revoked.contains(&(self.editor, self.view, self.child))
-            && !(self.hosted().is_some() && self.copy())
+        takes_input(self.placement.mode) && !revoked.contains(&(self.editor, self.view, self.child))
     }
 }
 
@@ -961,7 +872,7 @@ type ChildKey = (EditorInstanceId, ViewId, ChildId, Vec<u8>);
 /// What a `settle` makes of the children shown and those placed now (`reconcile`).
 struct Reconciled {
     /// The children placed now, in their order, each keeping the editor it had if it showed
-    /// the same before, else showing the editor its block's other places show.
+    /// the same before, else with an editor of its own to open.
     kept: Vec<Child>,
     /// The editors to open, of the children of `kept` (by index).
     opened: Vec<usize>,
@@ -971,10 +882,9 @@ struct Reconciled {
 
 /// Matches the children `wanted` now with those `shown` before by what names their editor
 /// (`Child::key`): one that matches keeps its editor and its own children at its new place. One
-/// that does not shows the editor its block's other places show, as be-host's `Editors::place`
-/// shares it, unless it asks for another editor than that one (a twin of its own), or its block
-/// is open `above` it, which it shows instead; with none, its editor is opened. The rest go. An
-/// editor shown as its block's label, placed now to show its main view, is opened again.
+/// that does not gets an editor of its own, opened, unless its block is open `above` it, which it
+/// shows instead. The rest go. An editor shown as its block's label, placed now to show its main
+/// view, is opened again.
 fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Reconciled {
     let mut before: HashMap<ChildKey, Child> = shown
         .into_iter()
@@ -984,39 +894,22 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
     let mut opened = Vec::new();
     for mut child in wanted {
         match before.remove(&child.key()) {
-            Some(shown) => child.shared = shown.shared,
+            Some(shown) => {
+                child.shared = shown.shared;
+                let relabelled =
+                    matches!(&*child.shared.showing.borrow(), Showing::Label) && !child.previewed();
+                if relabelled {
+                    *child.shared.showing.borrow_mut() = Showing::Opening;
+                    opened.push(kept.len());
+                }
+            }
             None if child.block.is_some_and(|block| above.contains(&block)) => {
                 child.shared = Editor::new(
-                    None,
                     child.shown.clone(),
                     Showing::Failed(ALREADY_OPEN_ABOVE.to_owned()),
                 );
             }
-            None => {
-                let key = editor_key(&child);
-                let held = POOL.with_borrow(|pool| pool.editors.get(&key).and_then(Weak::upgrade));
-                match held {
-                    Some(editor) => child.shared = editor,
-                    None => {
-                        let editor = Editor::new(Some(key), child.shown.clone(), Showing::Opening);
-                        POOL.with_borrow_mut(|pool| {
-                            pool.editors.insert(key, Rc::downgrade(&editor));
-                        });
-                        child.shared = editor;
-                        opened.push(kept.len());
-                    }
-                }
-            }
-        }
-        let relabelled = matches!(&*child.shared.showing.borrow(), Showing::Label)
-            && !child.previewed()
-            && !opened.iter().any(|index| {
-                kept.get(*index)
-                    .is_some_and(|opening: &Child| Rc::ptr_eq(&opening.shared, &child.shared))
-            });
-        if relabelled {
-            *child.shared.showing.borrow_mut() = Showing::Opening;
-            opened.push(kept.len());
+            None => opened.push(kept.len()),
         }
         kept.push(child);
     }
@@ -1024,33 +917,6 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
         kept,
         opened,
         gone: before.into_values().collect(),
-    }
-}
-
-/// The key of the editor `child` shows (`EditorKey`): its block's, unless it asks for another
-/// editor than the one holding its block, when it is a twin of its own, as be-host's
-/// `Editors::place` says: the editor that holds it, once open, else the one its place named.
-/// One asking for none, or for the editor holding it, shares it, whatever view block it names;
-/// a preview is never a twin.
-fn editor_key(child: &Child) -> EditorKey {
-    // A dialog is its placer's own, never shared.
-    let (Some(block), Shown::Block(shown)) = (child.block, &child.shown) else {
-        return EditorKey::Twin(child.place());
-    };
-    let block = EditorKey::Block(block);
-    let holder = POOL.with_borrow(|pool| pool.editors.get(&block).and_then(Weak::upgrade));
-    let held = holder.map(|holder| match &*holder.showing.borrow() {
-        Showing::Shown { hosted, .. } => Some(hosted.shows),
-        Showing::Opening | Showing::Label | Showing::Failed(_) => match &holder.shown {
-            Shown::Block(holding) => holding.editor,
-            Shown::Dialog(_) => None,
-        },
-    });
-    match (held, shown.editor) {
-        (Some(held), Some(asked)) if !child.previewed() && held != Some(asked) => {
-            EditorKey::Twin(child.place())
-        }
-        _ => block,
     }
 }
 
@@ -1092,15 +958,6 @@ fn menu_view(editor: &Editor) -> ViewId {
         .iter()
         .find(|tab| app.content(tab.screen).is_some())
         .map_or(ViewId::MAIN, |tab| ViewId(tab.tab))
-}
-
-/// The layer showing a copy of the layer `layer` at the place `place`: hashed from both under a
-/// tag of its own, so it is no other layer's id.
-fn copy_layer(layer: LayerId, place: PlaceKey) -> LayerId {
-    LayerId(std::hash::BuildHasher::hash_one(
-        &be_lib_stable_hash::State::default(),
-        ("copy", layer.0, place.0.0, place.1.0, place.2.0),
-    ))
 }
 
 impl Children {
@@ -1333,7 +1190,6 @@ impl Children {
             let editor = Rc::clone(&child.shared);
             let first = editor.visited.replace(settling.pass) != settling.pass;
             if first {
-                editor.owner.set(Some(child.place()));
                 editor.asks.borrow_mut().clear();
                 editor.tab_asks.borrow_mut().clear();
                 POOL.with_borrow_mut(|pool| pool.visited.push(Rc::clone(&editor)));
@@ -1359,7 +1215,6 @@ impl Children {
                     .find(|screen| (screen.instance, screen.view) == (child.editor, child.view));
                 let framing = placer.filter(|_| child.framing).cloned();
                 editor.asks.borrow_mut().push(PlaceAsk {
-                    key: child.place(),
                     placement: child.placement.clone(),
                     raster: child.raster,
                     framing,
@@ -1478,7 +1333,7 @@ impl Children {
         }
         self.tell(views);
         for child in &self.shown {
-            if child.owns() && child.hosted().is_some() {
+            if child.hosted().is_some() {
                 child.shared.nested.borrow_mut().tell_all();
             }
         }
@@ -1590,22 +1445,17 @@ impl Children {
     }
 
     /// The place that shows the editor `editor`, any number of levels deep, as the handle of
-    /// its placer's app, its placer and its id there: its own place, not a copy, first.
+    /// its placer's app, its placer and its id there.
     fn placer_of(&self, editor: EditorInstanceId) -> Option<(u64, EditorInstanceId, ChildId)> {
         let shows = |child: &&Child| {
             child.placed && child.hosted().is_some_and(|(_, shown)| shown == editor)
         };
-        let place = self
-            .shown
-            .iter()
-            .filter(shows)
-            .min_by_key(|child| child.copy());
+        let place = self.shown.iter().find(shows);
         if let Some(child) = place {
             return Some((self.instance, child.editor, child.child));
         }
         self.shown
             .iter()
-            .filter(|child| child.owns())
             .find_map(|child| child.shared.nested.borrow().placer_of(editor))
     }
 
@@ -1632,7 +1482,6 @@ impl Children {
         }
         self.shown
             .iter()
-            .filter(|child| child.owns())
             .any(|child| child.shared.nested.borrow().pick_child_menu(placer, choice))
     }
 
@@ -1657,7 +1506,7 @@ impl Children {
             }
         }
         for child in &self.shown {
-            if child.owns() {
+            {
                 child.shared.nested.borrow_mut().leave_frame(editor);
             }
         }
@@ -1783,7 +1632,7 @@ impl Children {
             }
         }
         for child in &self.shown {
-            if child.owns() {
+            {
                 child.shared.nested.borrow_mut().revoke(pressed);
             }
         }
@@ -1887,7 +1736,7 @@ impl Children {
             }
         }
         for child in &self.shown {
-            if child.owns() {
+            {
                 let inner = child.shared.nested.borrow_mut().keyboard(focused, drawn);
                 moved = moved.or(inner);
             }
@@ -1918,7 +1767,7 @@ impl Children {
     /// the layer. Empty for a layer that shows none of these children.
     pub fn focused_into(&self, layer: LayerId) -> Vec<(u64, EditorInstanceId, ChildId)> {
         for child in &self.shown {
-            let mut into = match child.shows(layer) || child.copy() {
+            let mut into = match child.shows(layer) {
                 true => Vec::new(),
                 false => child.shared.nested.borrow().focused_into(layer),
             };
@@ -1943,7 +1792,7 @@ impl Children {
                         embedded: false,
                         ..
                     }
-            ) || (child.owns() && child.shared.nested.borrow().opening())
+            ) || child.shared.nested.borrow().opening()
         })
     }
 
@@ -1978,7 +1827,7 @@ impl Children {
             if let (Some(_), Some(layer)) = (app.layer(screen, pos2(0.0, 0.0)), child.layer) {
                 screens.push((app.clone(), screen, layer));
             }
-            if child.owns() {
+            {
                 for tab in child.shared.tabs.borrow().iter() {
                     if let Some(layer) = app.layer(tab.screen, pos2(0.0, 0.0)) {
                         screens.push((app.clone(), tab.screen, layer.id));
@@ -2006,7 +1855,7 @@ impl Children {
     /// The apps of every child shown, any number of levels deep, each once.
     pub fn apps(&self) -> Vec<Embedded> {
         let mut apps: Vec<Embedded> = Vec::new();
-        for child in self.shown.iter().filter(|child| child.owns()) {
+        for child in self.shown.iter() {
             let held = child
                 .hosted()
                 .map(|(app, _)| app)
@@ -2051,7 +1900,7 @@ impl Children {
                 hung.push((view.opened, layers));
             }
         }
-        for child in self.shown.iter().filter(|child| child.owns()) {
+        for child in self.shown.iter() {
             if let Some((app, editor)) = child.hosted() {
                 child
                     .shared
@@ -2095,19 +1944,7 @@ impl Children {
             let Some(mut shown_child) = app.layer(child.screen(editor), pos2(0.0, 0.0)) else {
                 continue;
             };
-            // A place showing a copy of its editor's screen, which another place of the editor
-            // shows itself, is drawn scaled to its own place, hit nowhere, and without the
-            // editor's own children, which that place shows.
-            let copy = child.copy();
-            // The main view taking its placer's frame is the placer's size: other places show
-            // none of it.
-            if copy && !child.previewed() && child.shared.main_framed.get() {
-                continue;
-            }
-            if copy {
-                shown_child.id = copy_layer(shown_child.id, child.place());
-            }
-            let framing = child.framing && !copy;
+            let framing = child.framing;
             // From its view's points to its placer's, and what of its placer's it may show: the
             // whole of its placer's view while it takes the frame, else its place, laid out at
             // its zoom and turned by its rotation about its middle, within its clip.
@@ -2121,20 +1958,8 @@ impl Children {
                     1.0,
                 ),
                 false => {
-                    let laid = be_lib_geometry::vec2(
-                        request.metrics.logical.x.max(f32::EPSILON),
-                        request.metrics.logical.y.max(f32::EPSILON),
-                    );
-                    let scale = match copy {
-                        true => be_lib_geometry::vec2(
-                            placement.rect.width() / laid.x,
-                            placement.rect.height() / laid.y,
-                        ),
-                        false => {
-                            let zoom = child.zoom().map_or(1.0, |(_, zoom)| zoom);
-                            be_lib_geometry::vec2(zoom, zoom)
-                        }
-                    };
+                    let zoom = child.zoom().map_or(1.0, |(_, zoom)| zoom);
+                    let scale = be_lib_geometry::vec2(zoom, zoom);
                     let to_placer = placed_transform(placement, scale);
                     let swept = to_placer.bounds(Rect::from_min_size(
                         pos2(0.0, 0.0),
@@ -2202,14 +2027,11 @@ impl Children {
                 (false, ChildLayer::Below) => &mut below,
                 (true, _) | (false, ChildLayer::Above) => &mut over,
             };
-            match copy {
-                true => into.push(shown_child),
-                false => child
-                    .shared
-                    .nested
-                    .borrow()
-                    .layers(&request, shown_child, into),
-            }
+            child
+                .shared
+                .nested
+                .borrow()
+                .layers(&request, shown_child, into);
         }
         for ask in &self.bodies {
             if !placed_in(ask.editor, ask.view) {
@@ -2343,8 +2165,7 @@ fn without(size: (u32, u32), occluded: &[Rect]) -> Area {
 }
 
 /// From the points of a child's view to its placer's: at its place as `placement` says, scaled
-/// by `scale` (its zoom, or, for a copy of a screen laid out for another place, from that
-/// screen's size to its place's) and turned by its rotation (radians, clockwise on screen) about
+/// by `scale` (its zoom) and turned by its rotation (radians, clockwise on screen) about
 /// the middle of its place, as be-host draws a placed child.
 fn placed_transform(placement: &ChildPlacement, scale: be_lib_geometry::Vec2) -> Affine {
     let (sin, cos) = match placement.rotation.is_finite() {
@@ -2775,10 +2596,7 @@ async fn open(shown: Shown, preview: bool, with: &SpawnWith) -> Result<Hosted, U
 
 /// Lets go of the place `child`: its editor closes once no other place shows it (`close`).
 fn release(child: &Child, embedding: &mut Embedding, docks: Option<&mut Docks>) {
-    // The pool holds editors weakly: this place is the last to show it.
-    if Rc::strong_count(&child.shared) == 1 {
-        close(&child.shared, embedding, docks);
-    }
+    close(&child.shared, embedding, docks);
 }
 
 /// Closes `editor` in its app, which stops once it runs no editor, lets go of its own children
@@ -2794,17 +2612,6 @@ fn close(editor: &Editor, embedding: &mut Embedding, mut docks: Option<&mut Dock
     }
     editor.tabs.borrow_mut().clear();
     editor.nested.borrow_mut().release_in(embedding, docks);
-    if let Some(key) = editor.key {
-        POOL.with_borrow_mut(|pool| {
-            let held = pool
-                .editors
-                .get(&key)
-                .is_some_and(|held| std::ptr::eq(held.as_ptr(), editor));
-            if held {
-                pool.editors.remove(&key);
-            }
-        });
-    }
 }
 
 /// Every one of a list of futures, polled together until each finished.

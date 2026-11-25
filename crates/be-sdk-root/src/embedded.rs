@@ -300,6 +300,9 @@ impl Embedded {
         let mut all = self.screens();
         all.retain(|screen| screen.instance != editor);
         all.extend(screens);
+        // In the order of their ids, whichever editor asked last: the app is asked again only
+        // once what it shows changed.
+        all.sort_by_key(|screen| screen.screen.0);
         self.show(all);
     }
 
