@@ -13,6 +13,7 @@ fn ranges(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
 }
 
 #[test]
+#[allow(clippy::single_range_in_vec_init)] // a list of ranges, which here holds one
 fn a_line_just_wide_enough_for_its_words_hangs_its_trailing_space_and_newline() {
     let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
