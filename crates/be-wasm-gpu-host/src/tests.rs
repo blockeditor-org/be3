@@ -21,6 +21,7 @@ fn configuration(width: u32, height: u32) -> abi::SurfaceConfiguration {
         width,
         height,
         format: abi::TextureFormat::Rgba8Unorm,
+        view_formats: Vec::new(),
     }
 }
 

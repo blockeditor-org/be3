@@ -4056,9 +4056,11 @@ dependencies = [
  "beui-paint-raster",
  "beui-runner",
  "beui-types",
+ "beui-vello",
  "beui-view",
  "bytemuck",
  "pollster",
+ "vello_gpu",
  "web-sys",
  "wgpu",
 ]

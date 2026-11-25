@@ -8828,6 +8828,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
             "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -17041,6 +17050,11 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
             "wasi-guest": {
                 "features": [
                     "std",
@@ -21062,6 +21076,11 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "wasi": {
                 "deps": [
                     ":euclid-0.22.14",
                 ],
@@ -29937,6 +29956,11 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
             "wasi-guest": {
                 "features": [
                     "std",
@@ -38180,6 +38204,19 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi": {
                 "deps": [
                     ":bytemuck-1.25.0",
                     ":color-0.3.3",
@@ -63304,6 +63341,21 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -63589,6 +63641,24 @@ third_party = {
                     "wgpu_external_texture",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
             "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -63709,6 +63779,14 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi": {
                 "features": [
                     "blurred_rounded_rect",
                     "full_image_support",

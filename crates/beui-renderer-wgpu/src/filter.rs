@@ -424,7 +424,7 @@ impl Effects {
             dimension: wgpu::TextureDimension::D2,
             format: self.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
+            view_formats: crate::view_formats(self.format),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {

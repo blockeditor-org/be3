@@ -233,7 +233,7 @@ impl Bench {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
+            view_formats: beui_renderer_wgpu::view_formats(FORMAT),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
