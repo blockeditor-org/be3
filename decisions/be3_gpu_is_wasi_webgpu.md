@@ -1,13 +1,15 @@
 # be3:gpu is wasi:webgpu
 
-An app's gpu is `wasi:webgpu` (github.com/WebAssembly/wasi-gfx, `wit/webgpu.wit`), vendored
-at a pinned version, beside one small `be3:gpu` interface for what an app needs from its
+An app's gpu is `wasi:webgpu` (github.com/WebAssembly/wasi-gfx, `wit/webgpu.wit`), pinned
+and fetched at build time, never copied into the repository, beside one small `be3:gpu` interface for what an app needs from its
 host and wasi:webgpu leaves out. It replaces `be3:gpu/device`, the hand-written interface
 shaped after it. It is the means to decisions/be3_gpu_matches_webgpu.md: an app gets what JS
 WebGPU gives a page. plans/be3_gpu_is_wasi_webgpu.md is the work.
 
-The pinned version is 0.3.0-rc.2 (commit `6a776bada0b66d3dbf9da304a49ff2947ce4e1f8`).
-Moving to a later one is a deliberate change, made like any other ABI change.
+The pinned version is 0.3.0-rc.2 (commit `6a776bada0b66d3dbf9da304a49ff2947ce4e1f8`): buck2
+fetches that commit's `wit/webgpu.wit` by its URL and checks its sha256, and the generator
+reads the fetched file. It is never patched. Moving to a later one is a deliberate change,
+made like any other ABI change: a new URL and sha256.
 
 The `be3:gpu` interface beside it holds:
 
@@ -43,8 +45,12 @@ streams settle through the one poll our binding generator gives every local inte
 ## What it costs
 
 - It is a Phase 2 proposal at a release candidate, and it has had breaking changes in 2026
-  (it dropped graphics-context and surface, and moved to WASI 0.3's async). Pinning a vendored
-  copy keeps that churn out until we choose to take it.
+  (it dropped graphics-context and surface, and moved to WASI 0.3's async). Pinning one
+  commit by its hash keeps that churn out until we choose to take it.
+- The build fetches it from raw.githubusercontent.com, so a fresh build needs that host (as
+  it needs others for toolchains), and the file is not in the repository to grep: an agent
+  reads it by building its buck target (plans/be3_gpu_is_wasi_webgpu.md, "Reading the
+  pinned WIT").
 - It uses WASI 0.3's `async` funcs, `future` and `stream`, which our runtime (V8, no
   component model) does not have. Our `local` binding generator lowers them to tickets
   settled by one generated poll, which is not the canonical ABI's lowering: a binary built
@@ -63,6 +69,8 @@ streams settle through the one poll our binding generator gives every local inte
   natively and in browser workers, with the gpu answered on the app's own thread by fast
   host calls; a component runtime adds a layer to every per-draw call and does not exist
   for a browser worker.
-- **Editing the vendored WIT** (dropping the record resources, adding a canvas constructor,
+- **Vendoring a copy.** A copy in the repository invites edits and drifts from the commit it
+  claims to be; a fetched file checked by its hash is the upstream file by construction.
+- **Editing the pinned WIT** (dropping the record resources, adding a canvas constructor,
   making async funcs sync). What wasi:webgpu lacks goes in our own interface beside it,
-  so the vendored file stays the upstream file.
+  so the pinned file stays the upstream file.
