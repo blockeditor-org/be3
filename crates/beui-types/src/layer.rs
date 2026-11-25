@@ -156,6 +156,10 @@ impl Placement {
     pub const RIGHT_START: Placement = Placement::beside(AnchorSide::Right, AnchorAlign::Start);
     pub const RIGHT_CENTER: Placement = Placement::beside(AnchorSide::Right, AnchorAlign::Center);
     pub const RIGHT_END: Placement = Placement::beside(AnchorSide::Right, AnchorAlign::End);
+    /// A card hung below the centre of what it points at, 4 points off it (where a beak points
+    /// back) and 8 inside the window's edges: a small dialog, a dock dialog, an editor's child
+    /// popover.
+    pub const CARD: Placement = Placement::BELOW_CENTER.gap(4).margin(8);
 
     const fn beside(side: AnchorSide, align: AnchorAlign) -> Placement {
         Placement::Beside {
@@ -201,6 +205,14 @@ impl Placement {
     }
 
     /// The side a `Beside` placement opens on, and `Below` for a `Menu`.
+    /// How far a `Beside` placement keeps inside its window's edges; 0 for any other.
+    pub const fn edge_margin(self) -> u16 {
+        match self {
+            Placement::Beside { margin, .. } => margin,
+            _ => 0,
+        }
+    }
+
     pub fn side(self) -> Option<AnchorSide> {
         match self {
             Placement::Beside { side, .. } => Some(side),

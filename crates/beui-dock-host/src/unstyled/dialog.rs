@@ -17,8 +17,6 @@ use super::{DockState, State, TabId};
 use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
-const DIALOG_GAP: u16 = 4;
-const DIALOG_MARGIN: u16 = 8;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DialogParts {
@@ -392,9 +390,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let placed = create_memo(move || {
         let node = anchor.get();
         let moved = offset.get();
-        let popover = Placement::BELOW_CENTER
-            .gap(DIALOG_GAP)
-            .margin(DIALOG_MARGIN);
+        let popover = Placement::CARD;
         match pointed.get() {
             Some(rect) => (
                 OverlayAnchor::Pinned {
