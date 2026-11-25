@@ -265,9 +265,11 @@ impl<S: ObjectStore> Peer<S> {
     /// Sends the entries of `block` that wait in the outbox, in order, a batch per write: each
     /// one taken leaves the outbox, and one refused does too, told as `NotAppended` and kept
     /// until let go (`refused_entries`). The server refuses an append whole, so the entries of
-    /// a refused batch go again one at a time, and only those refused alone are kept as
-    /// refused: each entry goes at most twice. Stops at the first failure to reach the server,
-    /// leaving the rest.
+    /// a batch refused for what one entry can cause (`InvalidRequest`: over a size limit, an id
+    /// taken) go again one at a time, and only those refused alone are kept as refused: each
+    /// entry goes at most twice. A refusal of the whole call (access, a quota, the entries a
+    /// minute) refuses the batch at once, since each entry alone would spend the same.
+    /// Stops at the first failure to reach the server, leaving the rest.
     pub(super) async fn send_appends(&self, block: Uuid) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes = Vec::new();
         // How many of the entries next in the outbox go one at a time, a refused batch's.
@@ -344,7 +346,9 @@ impl<S: ObjectStore> Peer<S> {
                 }
                 Ok(_) => return Err(ClientError::Unexpected),
                 // Nothing of it was taken, and they are still first in the outbox.
-                Err(ClientError::Refused(..)) if batch.len() > 1 => singly = batch.len(),
+                Err(ClientError::Refused(ErrorCode::InvalidRequest, _)) if batch.len() > 1 => {
+                    singly = batch.len();
+                }
                 Err(ClientError::Refused(code, why)) => {
                     // Kept until the app lets it go, so what it shows of the refusal outlives
                     // the editor that appended it.

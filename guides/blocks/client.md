@@ -302,8 +302,10 @@ taken unproven.
   arrival; otherwise `Appended::Kept`, and the drain sends it in order
   (`Drained::Appended`). A log's entries wait only behind the block's
   creation, never behind its content: a diverged publish holds none back. The
-  server refuses an append whole, so a refused batch's entries go again one at
-  a time (each goes at most twice). One
+  server refuses an append whole, so a batch refused for what one entry can
+  cause (`InvalidRequest`) goes again one entry at a time (each goes at most
+  twice); one refused for the whole call (access, a quota, the entries a
+  minute) is refused at once. One
   the server refuses alone leaves the outbox (`Drained::NotAppended`,
   `Appended::Refused`) and is kept, with why, until the app lets it go
   (`refused_entries`, `let_go_refused`; `Table::NotAppended`), so what the app
