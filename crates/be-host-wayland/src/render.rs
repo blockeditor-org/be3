@@ -308,24 +308,37 @@ impl Gpu {
     }
 }
 
-pub struct WindowDraw {
+/// What a window shows, or its popups: each of its surfaces' textures where it is in the
+/// window, bottom first, with the buffers they came from, held until the gpu is done with them.
+/// Its `WindowDraw` draws it in the window's view; a host that composites the window itself
+/// (be-host's `RootShell`) draws it from the window store (`Windows::picture`), and says once
+/// it did (`painted`), as the drawing says it, which the program's frame callbacks wait for.
+pub struct WindowPicture {
     gpu: Rc<Gpu>,
     layers: Vec<(Rc<SurfaceTexture>, Layer)>,
     buffers: Vec<Buffer>,
-    quads: Quads,
-    /// Its surfaces as layers of the window (`Surface::Host`), where its renderer composites.
-    placed: std::cell::RefCell<Vec<beui::native::compose::Placed>>,
     painted: Rc<Cell<bool>>,
     waker: Option<Waker>,
 }
 
-impl WindowDraw {
-    pub fn drawing(
+/// One of a window's surfaces as it shows (`WindowPicture::surfaces`): its texture, where it is
+/// in the window's logical pixels, and the part of the texture shown there.
+pub struct ShownSurface<'a> {
+    pub texture: &'a wgpu::Texture,
+    pub opaque: bool,
+    pub rect: Rect,
+    /// The part of the texture shown, from 0 to 1 across and down.
+    pub uv: Rect,
+    pub alpha: f32,
+}
+
+impl WindowPicture {
+    pub fn new(
         gpu: Rc<Gpu>,
         layers: Vec<(Current, Layer)>,
         painted: Rc<Cell<bool>>,
         waker: Option<Waker>,
-    ) -> Drawing {
+    ) -> Self {
         let buffers = layers
             .iter()
             .filter_map(|(current, _)| current.buffer.clone())
@@ -334,14 +347,89 @@ impl WindowDraw {
             .into_iter()
             .map(|(current, layer)| (current.texture, layer))
             .collect();
-        beui::native::painted_drawing(Self {
+        Self {
             gpu,
             layers,
             buffers,
-            quads: Quads::default(),
-            placed: std::cell::RefCell::new(Vec::new()),
             painted,
             waker,
+        }
+    }
+
+    /// Its surfaces with something to show, bottom first.
+    pub fn surfaces(&self) -> impl Iterator<Item = ShownSurface<'_>> {
+        self.layers
+            .iter()
+            .filter(|(_, layer)| layer.buffer.w > 0.0 && layer.buffer.h > 0.0)
+            .map(|(texture, layer)| {
+                let (width, height) = (layer.buffer.w, layer.buffer.h);
+                let source = layer.source;
+                ShownSurface {
+                    texture: &texture.texture,
+                    opaque: texture.opaque,
+                    rect: Rect::from_min_size(
+                        beui::pos2(layer.rect.loc.x as f32, layer.rect.loc.y as f32),
+                        beui::vec2(layer.rect.size.w as f32, layer.rect.size.h as f32),
+                    ),
+                    uv: Rect::from_min_max(
+                        beui::pos2(
+                            (source.loc.x / width) as f32,
+                            (source.loc.y / height) as f32,
+                        ),
+                        beui::pos2(
+                            ((source.loc.x + source.size.w) / width) as f32,
+                            ((source.loc.y + source.size.h) / height) as f32,
+                        ),
+                    ),
+                    alpha: layer.alpha,
+                }
+            })
+    }
+
+    /// The pixels of `texture`, one of its surfaces', for a painting: none for one the gpu
+    /// cannot copy from.
+    pub fn pixels(&self, texture: &wgpu::Texture) -> Option<Pixels> {
+        if !texture.usage().contains(wgpu::TextureUsages::COPY_SRC) {
+            return None;
+        }
+        let capture = beui_host::native::read_texture(&self.gpu.device, &self.gpu.queue, texture)?;
+        Some(Pixels {
+            size: [capture.width, capture.height],
+            rgba: capture.rgba.as_chunks::<4>().0.to_vec(),
+        })
+    }
+
+    /// It was drawn: the program hears so with its next frame callbacks.
+    pub fn painted(&self) {
+        self.painted.set(true);
+        if let Some(waker) = &self.waker {
+            waker.wake();
+        }
+    }
+}
+
+impl Drop for WindowPicture {
+    fn drop(&mut self) {
+        let buffers = std::mem::take(&mut self.buffers);
+        if !buffers.is_empty() {
+            self.gpu.queue.on_submitted_work_done(move || drop(buffers));
+        }
+    }
+}
+
+pub struct WindowDraw {
+    picture: Rc<WindowPicture>,
+    quads: Quads,
+    /// Its surfaces as layers of the window (`Surface::Host`), where its renderer composites.
+    placed: std::cell::RefCell<Vec<beui::native::compose::Placed>>,
+}
+
+impl WindowDraw {
+    pub fn drawing(picture: Rc<WindowPicture>) -> Drawing {
+        beui::native::painted_drawing(Self {
+            picture,
+            quads: Quads::default(),
+            placed: std::cell::RefCell::new(Vec::new()),
         })
     }
 }
@@ -391,6 +479,7 @@ impl Draw for WindowDraw {
         at: DrawAt,
     ) {
         let quads = self
+            .picture
             .layers
             .iter()
             .filter(|(_, layer)| layer.buffer.w > 0.0 && layer.buffer.h > 0.0)
@@ -434,7 +523,7 @@ impl Draw for WindowDraw {
             }
         }
         self.quads.prepare(
-            &self.gpu.quads,
+            &self.picture.gpu.quads,
             queue,
             at.format,
             [at.screen.x, at.screen.y],
@@ -450,10 +539,7 @@ impl Draw for WindowDraw {
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
         self.quads.paint(pass);
-        self.painted.set(true);
-        if let Some(waker) = &self.waker {
-            waker.wake();
-        }
+        self.picture.painted();
     }
 }
 
@@ -461,29 +547,12 @@ impl Paints for WindowDraw {
     fn painting(&self, rect: Rect) -> Option<Painting> {
         let mut textures = BTreeMap::new();
         let mut primitives = Vec::new();
-        for (texture, layer) in &self.layers {
-            if !texture
-                .texture
-                .usage()
-                .contains(wgpu::TextureUsages::COPY_SRC)
-            {
-                continue;
-            }
-            let Some(capture) = beui_host::native::read_texture(
-                &self.gpu.device,
-                &self.gpu.queue,
-                &texture.texture,
-            ) else {
+        for (texture, layer) in &self.picture.layers {
+            let Some(pixels) = self.picture.pixels(&texture.texture) else {
                 continue;
             };
             let key = std::ptr::from_ref(texture.as_ref()) as u64;
-            textures.insert(
-                key,
-                Pixels {
-                    size: [capture.width, capture.height],
-                    rgba: capture.rgba.as_chunks::<4>().0.to_vec(),
-                },
-            );
+            textures.insert(key, pixels);
             let left = rect.min.x + layer.rect.loc.x as f32;
             let top = rect.min.y + layer.rect.loc.y as f32;
             let right = left + layer.rect.size.w as f32;
@@ -530,15 +599,6 @@ impl Paints for WindowDraw {
             },
             textures,
         })
-    }
-}
-
-impl Drop for WindowDraw {
-    fn drop(&mut self) {
-        let buffers = std::mem::take(&mut self.buffers);
-        if !buffers.is_empty() {
-            self.gpu.queue.on_submitted_work_done(move || drop(buffers));
-        }
     }
 }
 
