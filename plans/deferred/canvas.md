@@ -32,7 +32,7 @@ decisions/canvas_raster_layers_replace_the_pixel_art_editor.md record why.
 guides/canvas.md describes what is built.
 
 The canvas is not a frozen format yet (guides/frozen_formats.md), so its model
-can change freely until step 4.
+can change freely until step 5.
 
 ## 1. As quick to open as a URL
 
@@ -62,7 +62,21 @@ Vector and Raster exist. Next is Interactivity: a 2D level editor, where
 entities carry components (they can already, through `CanvasComponent`) and a
 live preview runs modular wasm behaviour. It gets its own plan when it starts.
 
-## 4. Freeze the format
+## 4. A new text box written on its first keystroke
+
+The Text tool adds its entity at once, in an undo group that its typing joins;
+a box left empty when editing ends is cancelled. Closing the canvas while one
+is still empty keeps it (the host commits an undo group its editor leaves
+open), an invisible empty Text entity as a step (plans/backlog.md, Canvas).
+Draft it locally instead: a draft entity of the canvas's own, merged into
+`Entities` (its ids, `all`, `among`, `near_untracked`, the catalog and region,
+drawing and hit testing) and edited in place like a written one, written with
+its first keystroke (keys, IME composition, a paste) as the group's first edit.
+Done: the Text tool, a click and the editor detaching leave no entity; typing
+into the draft undoes as one step with its box; peers see nothing until the
+first keystroke.
+
+## 5. Freeze the format
 
 Once the model and the prototyping profile have settled, add the canvas to guides/frozen_formats.md
 with its tests.

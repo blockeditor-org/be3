@@ -307,7 +307,8 @@ impl PendingCreation for AppCreation {
 const CREATION_DIALOG_HEIGHT: f32 = 96.0;
 const UNSUPPORTED_EDITOR_SIZE: Vec2 = vec2(400.0, 120.0);
 
-/// The size an editor that tells none is taken to want.
+/// The size an editor that tells none is taken to want, and the one an empty canvas tells
+/// (be-app-infinite-canvas's `EMPTY_SIZE`).
 const DEFAULT_EDITOR_SIZE: Vec2 = vec2(420.0, 240.0);
 
 /// The intrinsic size an app's editor told, or, once it has reported a frame without telling

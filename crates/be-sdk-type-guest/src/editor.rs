@@ -221,8 +221,9 @@ pub enum ToEditor {
     /// `cancelled`, none of its edits are kept: the editor stops previewing it, sends no more
     /// edits in it, and answers with a `Gesture::Cancel` for it, which is what ends it for the
     /// host and the replica alike (only a commit sent before this arrived can cross it).
-    /// Without, an undo or redo committed the undo group first: it is no longer open, and the
-    /// editor's later edits in it are each recorded outside it.
+    /// Without, an undo or redo committed the undo group first: it is no longer open, the
+    /// editor answers with a `Gesture::Commit`, which ends it for the host, and its later
+    /// edits in it are each recorded outside it.
     GestureEnded {
         id: u64,
         cancelled: bool,
@@ -470,8 +471,9 @@ pub struct EditorMirror<C: LiveEdit> {
     /// editor: what the editor sends in them is dropped until it ends them itself.
     voided: BTreeSet<u64>,
     /// The undo groups an undo or redo committed (`ToEditor::GestureEnded` without
-    /// `cancelled`): no longer open, and what the editor sends in them is written outside any
-    /// gesture, as the replica records it, until it ends them itself.
+    /// `cancelled`), which this answered with their commit: no longer open, and what the
+    /// editor sends in them is written outside any gesture until it ends them itself, which
+    /// sends nothing.
     committed: BTreeSet<u64>,
     /// Those the replica ended since `take_ended`.
     ended: Vec<u64>,
@@ -784,8 +786,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             }
             Gesture::Commit | Gesture::Cancel => {
                 self.gesturing.remove(&id);
-                self.committed.remove(&id);
-                if self.voided.remove(&id) {
+                if self.voided.remove(&id) | self.committed.remove(&id) {
                     return None;
                 }
             }
@@ -928,15 +929,20 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             // gesture end: the cancel answering is what ends it for the host and the replica,
             // so only a commit already on its way crosses it.
             // An undo or redo committed the undo group: it is closed for `gesture_open`, and
-            // the editor ends it in its own time.
+            // the commit answering ends it for the host too, so nothing waits on the editor
+            // ending it.
             ToEditor::GestureEnded {
                 id,
                 cancelled: false,
             } => {
-                if self.gesturing.remove(&id) {
-                    self.committed.insert(id);
+                if !self.gesturing.remove(&id) {
+                    return None;
                 }
-                None
+                self.committed.insert(id);
+                Some(FromEditor::Gesture {
+                    id,
+                    gesture: Gesture::Commit,
+                })
             }
             ToEditor::GestureEnded { id, cancelled } => {
                 if !cancelled || !self.gesturing.remove(&id) {

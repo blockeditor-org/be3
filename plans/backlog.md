@@ -822,3 +822,12 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   said no one hosts, and a held `Host { Some(us) }` then named this device host
   again. Done: a held Host event older than the join's answer is dropped, and a
   test sends one in that window and sees the answer stand.
+
+## 33. Canvas
+
+- **An empty text box left open at close is kept.** A text box the Text tool
+  adds is written at once, in an undo group its typing joins, and dropped if
+  editing ends with it empty; but the host commits an undo group its editor
+  leaves open, so closing the canvas while the box is still empty keeps an
+  invisible empty Text entity, as an undo step. Done: plans/deferred/canvas.md,
+  step 4 (a draft written on its first keystroke), with its test.
