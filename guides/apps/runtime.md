@@ -755,8 +755,13 @@ button, and the host shows a toast. A panic in host code working for one app
 (inside `Runtime::contain`), a wasm trap, a failed session, and a step not
 finished within `STEP_TIMEOUT` stop that app the same way.
 
-`be_host_base::panic_guard::contain` is what catches the host's panics. In be-host its
-panic hook (`panic_guard::install`) logs a contained panic with its backtrace. In a process
+`be_wasm_panic::contain` is what catches the host's panics, and the one way any thread
+catches one: the host's own work for an app (`Runtime::contain`), every guest thread
+(`be_wasm_guest_host::thread::spawn`, which runs apps, type modules and sandbox workers) and
+in-process guests. While it runs, a panic hook hears the panic as contained
+(`be_wasm_panic::containing`), so a guest's panic is that guest's failure and never the whole
+host's crash screen or last-panic.txt. In be-host its panic hook (`panic_guard::install`,
+through `be_wasm_panic::set_hook`) logs a contained panic with its backtrace. In a process
 without that hook, such as a test's, `contain` logs a contained panic as one line and does
 not use the hook that was there before. With RUST_BACKTRACE set, that earlier hook would
 symbolize the whole debug test binary for every expected panic, which takes most of a second

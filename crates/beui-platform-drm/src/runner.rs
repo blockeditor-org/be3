@@ -18,7 +18,7 @@ use beui_core::window::{WindowHosting, WindowState};
 use beui_runner::Incoming;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, PlatformServices};
-use beui_runner::{Runner, panic_message};
+use beui_runner::Runner;
 use beui_types::{Motion, PreferenceLayer, ThemeKind};
 use beui_types::{WindowId, WindowPlacement, WindowReport, WindowRequest};
 use smithay::backend::allocator::gbm::GbmDevice;
@@ -342,7 +342,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         Err(payload) => {
             return Err(format!(
                 "the session ended after a panic: {}",
-                panic_message(&*payload)
+                be_wasm_panic::message(&*payload)
             )
             .into());
         }

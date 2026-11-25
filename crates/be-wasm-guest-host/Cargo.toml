@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-panic = { path = "../be-wasm-panic" }
 
 # The browser runs a guest in a web worker of its own.
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -42,7 +42,7 @@ pub fn spawn(task: impl Future<Output = ()> + Send + 'static) {
     });
     EXECUTOR
         .spawn(async move {
-            if let Err(panic) = be_host_base::panic_guard::contain_task(task).await {
+            if let Err(panic) = be_wasm_panic::contain_task(task).await {
                 be_host_base::notices::report(format!("A part of the desktop stopped: {panic}"));
             }
         })

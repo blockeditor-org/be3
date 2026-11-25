@@ -1,6 +1,5 @@
 use std::{
     cell::RefCell,
-    panic::{AssertUnwindSafe, catch_unwind},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -10,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{Channel, Event, Presented, Produced, Received, Wake, panic_message, wakes};
+use crate::{Channel, Event, Presented, Produced, Received, Wake, wakes};
 
 pub trait Runnable {
     type Presented: Presented + Send + 'static;
@@ -26,18 +25,11 @@ pub trait Runnable {
     fn stop(&mut self);
 }
 
-pub type Contain = fn(Box<dyn FnOnce() + Send>) -> Result<(), String>;
-
 pub struct Spawn {
     pub name: String,
     pub wake: Wake,
     pub waiting: Arc<AtomicBool>,
     pub interrupt: Box<dyn Fn() + Send>,
-    pub contain: Contain,
-}
-
-pub fn catch(run: Box<dyn FnOnce() + Send>) -> Result<(), String> {
-    catch_unwind(AssertUnwindSafe(run)).map_err(|panic| panic_message(&*panic))
 }
 
 thread_local! {
@@ -124,7 +116,6 @@ pub fn spawn<R: Runnable + 'static>(
         wake,
         waiting,
         interrupt,
-        contain,
     } = options;
     let (steps, orders) = mpsc::channel();
     let (reports, events) = mpsc::channel();
@@ -144,9 +135,11 @@ pub fn spawn<R: Runnable + 'static>(
             let _ending: Sender<()> = ending;
             let failed = reports.clone();
             let failing = Arc::clone(&wake);
-            let ran = contain(Box::new(move || {
+            // Contained, so a host's panic hook hears it as the guest's failure, which it is
+            // reported as, rather than a crash of the whole host.
+            let ran = be_wasm_panic::contain(move || {
                 run(load, guest_wake, orders, reports, wake, waiting);
-            }));
+            });
             if let Err(panic) = ran {
                 let _ = failed.send(Event::Failed(format!(
                     "be-host failed while running it: {panic}"

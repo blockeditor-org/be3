@@ -1576,6 +1576,7 @@ dependencies = [
  "be-type-text",
  "be-type-workspace",
  "be-wasm-host",
+ "be-wasm-panic",
  "be-wasm-password",
  "be-wasm-root-api",
  "be-wasm-root-host",
@@ -1622,6 +1623,8 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-ui-types",
  "be-sdk-api",
+ "be-wasm-guest-host",
+ "be-wasm-panic",
  "be-wasm-threads",
  "jni 0.22.4",
  "js-sys",
@@ -1734,6 +1737,7 @@ dependencies = [
  "be-wasm-dylink",
  "be-wasm-guest-host",
  "be-wasm-host",
+ "be-wasm-panic",
  "be-wasm-sandbox-api",
  "be-wasm-sandbox-host",
  "beui-documents",
@@ -1770,6 +1774,7 @@ dependencies = [
  "be-host-base",
  "be-host-programs",
  "be-sdk-api",
+ "be-wasm-panic",
  "beui-types",
  "futures-util",
  "image",
@@ -3283,6 +3288,7 @@ version = "0.1.0"
 dependencies = [
  "be-wasm-guest-abi",
  "be-wasm-guest-echo",
+ "be-wasm-panic",
  "js-sys",
  "wasm-bindgen",
  "web-sys",
@@ -3341,6 +3347,10 @@ dependencies = [
  "syn 2.0.117",
  "wit-parser 0.254.0",
 ]
+
+[[package]]
+name = "be-wasm-panic"
+version = "0.1.0"
 
 [[package]]
 name = "be-wasm-password"
@@ -3885,6 +3895,7 @@ dependencies = [
  "be-lib-layers",
  "be-lib-stable-hash",
  "be-lib-ui-types",
+ "be-wasm-panic",
  "beui",
  "beui-core",
  "beui-host",
@@ -3990,6 +4001,7 @@ name = "beui-runner"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-wasm-panic",
  "beui-core",
  "beui-reactive",
  "beui-types",

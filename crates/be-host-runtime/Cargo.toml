@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-block = { path = "../be-block" }
 be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }

@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-lib-dmabuf = { path = "../be-lib-dmabuf" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }

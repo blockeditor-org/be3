@@ -39,6 +39,7 @@ config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
 exported = true
 
 [dependencies]
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-lib-quoted-name = { path = "../be-lib-quoted-name" }
 be-block-input = { path = "../be-block-input" }
 # The block stack. The app is a peer of it on every platform: be-block-client's socket

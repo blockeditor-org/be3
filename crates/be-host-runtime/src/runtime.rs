@@ -757,7 +757,7 @@ impl Runtime {
     }
 
     fn contain<R: Default>(&mut self, act: impl FnOnce(&mut Self) -> R) -> R {
-        match be_host_base::panic_guard::contain(|| act(self)) {
+        match be_wasm_panic::contain(|| act(self)) {
             Ok(done) => done,
             Err(panic) => {
                 self.crashed(format!("be-host failed while running it: {panic}"));
@@ -784,7 +784,7 @@ impl Runtime {
         }
         self.error = Some(error);
         self.held_frame = None;
-        let _ = be_host_base::panic_guard::contain(|| self.backend.shutdown());
+        let _ = be_wasm_panic::contain(|| self.backend.shutdown());
         self.instances.forget_fetches(None);
         previews::forget(&self.app.identity.id);
         heard_stop(&self.app.identity.id);

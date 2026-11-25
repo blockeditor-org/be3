@@ -11,6 +11,7 @@ async-lock = "3"
 be-host-programs = { path = "../be-host-programs" }
 beui-types = { path = "../beui-types" }
 be-host-base = { path = "../be-host-base" }
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-sdk-api = { path = "../be-sdk-api" }
 futures-util = { version = "0.3", features = ["io"] }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
