@@ -24,6 +24,7 @@ suite(
         "canvas-bench": "//crates/be-app-infinite-canvas:example-canvas-bench",
         "host-bench": "//crates/be-host-bench:bin",
         "open-bench": "//crates/beui-demo:example-open-bench",
+        "render-bench": "//crates/beui-renderer-wgpu:example-render-bench",
         "space-bench": "//crates/beui-demo:example-space-bench",
         "text-bench": "//crates/beui-host:example-text-bench",
         "text-snapshot-bench": "//crates/be-block-model:example-text-snapshot-bench",
