@@ -117,8 +117,10 @@ pub fn Window(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] fullscreen: Prop<bool>,
     /// The node the window belongs to (a frame, a tab's panel): it hangs from it, follows it
-    /// as it moves and, while it `blocks`, keeps presses and focus off it.
-    owner: Option<NodeRef>,
+    /// as it moves and, while it `blocks`, keeps presses and focus off it. It may change while
+    /// the window is open (an owner built after the window).
+    #[prop(default = None)]
+    owner: Prop<Option<NodeId>>,
     /// What it points at while it is not a window of its own; `None` opens it at `at`.
     #[prop(default = None)]
     anchor: Prop<Option<WindowAnchor>>,
@@ -190,16 +192,25 @@ pub fn Window(
         (true, None) => Extent::px(shown.get().y),
     });
     let viewport = use_viewport_size();
-    let owned = create_memo(move || {
-        let node = owner?.try_get()?;
-        Some(measure(node).get()?.rect)
-    });
+    let owner = create_memo(move || owner.get());
+    // The overlay hangs from this, filled with the owner whenever the owner changes; a pinned
+    // anchor reads it again at each layout.
+    let hangs_from = NodeRef::new();
+    let owned = create_memo(move || Some(measure(owner.get()?).get()?.rect));
     // Where the overlay goes, how, and whether its beak may point: hosted windows are placed by
     // their host, at `placement`, so this is only the overlay's.
     let placed = create_memo(move || {
         let point = |at: Pos2| Rect::from_min_size(at, Vec2::ZERO);
-        let pinned = |rect: Rect| match owner {
-            Some(node) => OverlayAnchor::Pinned { node, rect },
+        let pinned = |rect: Rect| match owner.get() {
+            Some(node) => {
+                if hangs_from.try_get() != Some(node) {
+                    hangs_from.fill(node);
+                }
+                OverlayAnchor::Pinned {
+                    node: hangs_from,
+                    rect,
+                }
+            }
             None => OverlayAnchor::Rect(rect),
         };
         match anchor.get() {

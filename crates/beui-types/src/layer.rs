@@ -204,7 +204,6 @@ impl Placement {
         }
     }
 
-    /// The side a `Beside` placement opens on, and `Below` for a `Menu`.
     /// How far a `Beside` placement keeps inside its window's edges; 0 for any other.
     pub const fn edge_margin(self) -> u16 {
         match self {
@@ -213,6 +212,7 @@ impl Placement {
         }
     }
 
+    /// The side a `Beside` placement opens on, and `Below` for a `Menu`.
     pub fn side(self) -> Option<AnchorSide> {
         match self {
             Placement::Beside { side, .. } => Some(side),

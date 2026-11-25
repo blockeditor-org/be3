@@ -5,7 +5,7 @@ fn a_beside_overlay_is_placed_from_its_measured_size_as_a_menu_is() {
     let styled = |placement: Placement| anchored_styles(placement, Some("--anchor"));
     for placement in [
         Placement::ABOVE_START,
-        Placement::BELOW_CENTER.gap(4).margin(8),
+        Placement::CARD,
         Placement::LEFT_END,
         Placement::RIGHT_START,
     ] {

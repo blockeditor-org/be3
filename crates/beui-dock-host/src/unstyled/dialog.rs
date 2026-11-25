@@ -6,7 +6,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::PointerPress;
-use beui_view::types::Dismiss;
+use beui_view::types::{Dismiss, Placement};
 use beui_view::types::{Pos2, Rect, Vec2};
 use beui_view::measure::measure;
 use beui_view::window::{Window, WindowAnchor, WindowHandle, opens_windows};
@@ -176,6 +176,18 @@ impl super::State {
         }
     }
 
+    /// Where the hosted dock window that holds `node` lies in its own points, when one does.
+    fn window_area(&self, node: NodeId) -> Option<Rect> {
+        let window = window_of(node);
+        let frames: Vec<NodeRef> = self.windows.value().borrow().values().copied().collect();
+        frames
+            .into_iter()
+            .filter_map(|frame| frame.try_get())
+            .find(|frame| window_of(*frame) == window)
+            .and_then(|frame| measure(frame).get_untracked())
+            .map(|measured| Rect::from_min_size(Pos2::ZERO, measured.rect.size()))
+    }
+
     fn anchor_ref(&self, parent: TabId) -> Option<NodeRef> {
         if self.is_dialog(parent) {
             return self.dialog_frames.value().borrow().get(&parent).copied();
@@ -255,18 +267,17 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let shown = create_memo(move || dock.dialog_shown(tab));
-    // What the dialog belongs to: its parent's panel, or the parent dialog's frame.
-    let owner = NodeRef::new();
+    // What the dialog belongs to: its parent's panel, or the parent dialog's frame. A signal,
+    // since the parent's panel can be built after the dialog.
+    let owner = create_signal(None::<NodeId>);
     create_effect(move || {
         if !shown.get() {
             return;
         }
-        // Again once the parent's panel is built, which can be after the dialog.
         dock.panels.with(|panels| panels.get(&parent).copied());
-        if let Some(node) = untrack(|| dock.anchor_ref(parent)).and_then(|node| node.try_get())
-            && owner.try_get() != Some(node)
-        {
-            owner.fill(node);
+        let found = untrack(|| dock.anchor_ref(parent)).and_then(|node| node.try_get());
+        if found.is_some() && untrack(|| owner.get()) != found {
+            owner.set(found);
         }
     });
     let pointed = create_memo(move || {
@@ -328,6 +339,12 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let detached = create_memo(move || moved.with(Option::is_some));
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let viewport = use_viewport_size();
+    let hosting = opens_windows();
+    create_effect(move || {
+        if !shown.get() {
+            untrack(|| moved.set(None));
+        }
+    });
     let grab = Callback::new(move |at: Pos2| {
         let from = frame
             .try_get()
@@ -336,16 +353,29 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         grabbed.set(from.map(|from| (from, at)));
         dock.focus_dialog(tab);
     });
-    // Dragged by its bar, it moves with the pointer and stays in its window.
+    // Dragged by its bar, it moves with the pointer and stays inside the window it shows in,
+    // as far off its edges as a card keeps.
     let drag = Callback::new(move |at: Pos2| {
-        if let Some((from, start)) = grabbed.get() {
-            let room = (viewport.get_untracked() - from.size()).max(Vec2::ZERO);
-            let to = from.min + (at - start);
-            moved.set(Some(Pos2::new(
-                to.x.clamp(0.0, room.x),
-                to.y.clamp(0.0, room.y),
-            )));
-        }
+        let Some((from, start)) = grabbed.get() else {
+            return;
+        };
+        let area = untrack(|| {
+            hosting
+                .get()
+                .then(|| owner.get().and_then(|owner| dock.window_area(owner)))
+                .flatten()
+                .unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, viewport.get()))
+        });
+        let area = area.shrink(f32::from(Placement::CARD.edge_margin()));
+        let most = Pos2::new(
+            (area.max.x - from.width()).max(area.min.x),
+            (area.max.y - from.height()).max(area.min.y),
+        );
+        let to = from.min + (at - start);
+        moved.set(Some(Pos2::new(
+            to.x.clamp(area.min.x, most.x),
+            to.y.clamp(area.min.y, most.y),
+        )));
     });
     let chrome = dock.dialog_chrome;
     let notice = create_memo(move || dock.notice(tab));
@@ -388,7 +418,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let shown_in = create_memo(move || {
         hosted
             .get()
-            .then(|| owner.try_get().map(window_of))
+            .then(|| owner.get().map(window_of))
             .flatten()
     });
     let anchor = create_memo(move || match (moved.get(), pointed.get()) {

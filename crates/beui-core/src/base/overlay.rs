@@ -794,6 +794,10 @@ impl Document {
     pub fn set_overlay_traps_focus(&mut self, overlay: NodeOf<OverlayNode>, traps_focus: bool) {
         if self.arena.get_as::<OverlayNode>(overlay).traps_focus != traps_focus {
             self.arena.touch_mut_as::<OverlayNode>(overlay).traps_focus = traps_focus;
+            // An open layer that starts or stops trapping keeps the focus it gives back.
+            if self.arena.get_as::<OverlayNode>(overlay).open {
+                self.set_layer_scope_traps(overlay.id(), traps_focus);
+            }
             self.layers_changed();
         }
     }

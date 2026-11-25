@@ -19,17 +19,14 @@ stays an anchored view, so the app protocol does not change
 
 ## Steps
 
-1. **A window can point at its anchor.** A `Window` (and so a `DockDialog`) may be anchored to a rect:
-   it opens next to it with a beak, as `Anchored`'s card does, follows the anchor while
-   unmoved, and keeps where the person moved it once they move it. With no visible anchor it
-   opens at the top centre of its owning frame and draws no beak
-   (decisions/dialogs_are_presented_by_kind.md's fallback).
-2. **A window may block its owner.** `blocks` is a window's policy: its owner (a frame or a
-   tab) takes no presses and shows a scrim while the window is open; focus is trapped in it and
-   given back on close. `DockDialog`'s `modal` is this.
-3. **Phones show windows as sheets.** In the stacked and gathered modes the dock shows a window
+1. **A window of its own points and blocks too.** A `Window` a host opens as its own window
+   (`own_window`, where windows are hosted) opens at its `placement` and ignores `anchor`, `beak`
+   and `blocks`, so `DockDialog` stays an overlay there (`own_window=false`). Place it beside its
+   anchor through `WindowPlacement::Over`, and block its owner across windows, before a dialog
+   may be one.
+2. **Phones show windows as sheets.** In the stacked and gathered modes the dock shows a window
    as a sheet (a `ModalSheet`, one `Scroll`), full height for a large form.
-4. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
+3. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
    - Small forms (1): an anchored window with a beak.
    - Confirmations (2): a window centred on its frame that blocks it.
    - Large forms and embedded editors (3): a window attached to its frame, blocking it.
@@ -40,11 +37,11 @@ stays an anchored view, so the app protocol does not change
    decisions/app_dialogs_are_drawn_by_the_app_with_dialog_body.md holds for an app's.
    decisions/beui_modal_asks_before_it_slides_away.md holds for a blocking window: dismissal is
    reported at once and the window goes only when its owner closes it.
-5. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
+4. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
    4) are not windows: the lock screen is a security boundary and must never move, dock or be
    covered. They keep the host's lock layer and a plain full-window overlay; that is `Modal`'s
    only remaining use, and it shrinks to it.
-6. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
+5. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
    for windows; guides/beui/overlays.md and guides/beui/docking.md describe one way.
 
 ## The test
