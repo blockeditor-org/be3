@@ -104,7 +104,7 @@ beui has no per-frame hook. Anything time-based uses `create_timer(work)` (work 
 
 ## Drawing with the gpu
 
-A viewport no arrangement of nodes can make (a 3D scene, a map) is a `Drawing` painting `draw_gpu(drawing)`; its `Draw` runs in paint order with `prepare` (device, queue, encoder) and `paint` (beui's own render pass). `be_app_scene_3d` is the worked example, and `beui::native::texture_quad` shows a texture with no pipeline of your own. Traps:
+A viewport no arrangement of nodes can make (a 3D scene, a map) is a `Drawing` painting `draw_gpu(drawing)`; its `Draw` runs in paint order with `prepare` (device, queue, encoder) and `paint`. beui draws everything else with Vello, which it renders up to each drawing; `paint` then gets a render pass of its own on the target (or on the layer of a group at an opacity that holds it), and Vello goes on after it. So a drawing and the shapes around it never mix in one pass: a punch drawn later does not erase it. `be_app_scene_3d` is the worked example, and `beui::native::texture_quad` shows a texture with no pipeline of your own. Traps:
 
 - Key shared gpu resources by `DrawAt::renderer`: devices of two wgpu instances can compare equal.
 - Leave the pass's viewport and scissor as found; beui keeps painting into it.
