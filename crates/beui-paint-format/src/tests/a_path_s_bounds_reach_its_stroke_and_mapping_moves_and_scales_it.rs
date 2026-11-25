@@ -45,7 +45,10 @@ fn a_path_s_bounds_reach_its_stroke_and_mapping_moves_and_scales_it() {
         ..filled.clone()
     };
     let [left, top, right, bottom] = empty.bounds();
-    assert!(left >= right && top >= bottom, "an empty path covers nothing");
+    assert!(
+        left >= right && top >= bottom,
+        "an empty path covers nothing"
+    );
 
     let mapped = mitred.mapped(|[x, y]| [x * 2.0 + 1.0, y * 2.0], 2.0);
     assert_eq!(

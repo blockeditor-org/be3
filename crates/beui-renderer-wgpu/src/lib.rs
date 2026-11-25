@@ -1614,8 +1614,7 @@ impl Renderer {
                     rect,
                     clip,
                 });
-            }
-            // Paths are encoded whole (`encode_shape`), never as the triangles of a mesh.
+            } // Paths are encoded whole (`encode_shape`), never as the triangles of a mesh.
         }))
     }
 

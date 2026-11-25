@@ -46,7 +46,10 @@ fn a_path_is_filled_or_stroked_and_seamed_fills_paint_as_one() {
     assert_eq!(square.get_pixel(1, 8).0, [0, 0, 0, 255]);
 
     let line = drawn(vec![PathShape {
-        commands: vec![PathCommand::MoveTo([2.0, 8.0]), PathCommand::LineTo([14.0, 8.0])],
+        commands: vec![
+            PathCommand::MoveTo([2.0, 8.0]),
+            PathCommand::LineTo([14.0, 8.0]),
+        ],
         style: PathStyle::Stroke(PathStroke {
             width: 2.0,
             join: Join::Miter,
@@ -65,7 +68,12 @@ fn a_path_is_filled_or_stroked_and_seamed_fills_paint_as_one() {
     // An even-odd ring leaves its inner square empty, where a nonzero one fills it.
     let ring = |even_odd: bool| {
         let mut commands = polygon(&[[2.0, 2.0], [14.0, 2.0], [14.0, 14.0], [2.0, 14.0]]);
-        commands.extend(polygon(&[[5.0, 5.0], [11.0, 5.0], [11.0, 11.0], [5.0, 11.0]]));
+        commands.extend(polygon(&[
+            [5.0, 5.0],
+            [11.0, 5.0],
+            [11.0, 11.0],
+            [5.0, 11.0],
+        ]));
         drawn(vec![PathShape {
             commands,
             style: PathStyle::Fill { even_odd },
@@ -73,7 +81,11 @@ fn a_path_is_filled_or_stroked_and_seamed_fills_paint_as_one() {
             seamed: false,
         }])
     };
-    assert_eq!(ring(true).get_pixel(8, 8).0, [0, 0, 0, 255], "even-odd leaves a hole");
+    assert_eq!(
+        ring(true).get_pixel(8, 8).0,
+        [0, 0, 0, 255],
+        "even-odd leaves a hole"
+    );
     assert_eq!(ring(true).get_pixel(3, 8).0, [255, 255, 255, 255]);
     assert_eq!(ring(false).get_pixel(8, 8).0, [255, 255, 255, 255]);
 
@@ -88,7 +100,11 @@ fn a_path_is_filled_or_stroked_and_seamed_fills_paint_as_one() {
         color: [255, 255, 255, 255],
         seamed: false,
     }]);
-    assert_eq!(bulge.get_pixel(8, 6).0, [255, 255, 255, 255], "inside the curve");
+    assert_eq!(
+        bulge.get_pixel(8, 6).0,
+        [255, 255, 255, 255],
+        "inside the curve"
+    );
     assert_eq!(bulge.get_pixel(8, 2).0, [0, 0, 0, 255], "past its peak");
     assert_eq!(bulge.get_pixel(2, 4).0, [0, 0, 0, 255], "outside it");
 
@@ -96,11 +112,18 @@ fn a_path_is_filled_or_stroked_and_seamed_fills_paint_as_one() {
     // the seam shows; seamed, they fill as one, as the renderer fills them.
     let halves = |seamed: bool| {
         drawn(vec![
-            fill(polygon(&[[2.0, 2.0], [7.0, 2.0], [9.0, 14.0], [2.0, 14.0]]), seamed),
-            fill(polygon(&[[7.0, 2.0], [14.0, 2.0], [14.0, 14.0], [9.0, 14.0]]), seamed),
+            fill(
+                polygon(&[[2.0, 2.0], [7.0, 2.0], [9.0, 14.0], [2.0, 14.0]]),
+                seamed,
+            ),
+            fill(
+                polygon(&[[7.0, 2.0], [14.0, 2.0], [14.0, 14.0], [9.0, 14.0]]),
+                seamed,
+            ),
         ])
     };
-    let seam = |image: &image::RgbaImage| (2..14).any(|y| image.get_pixel(8, y).0 != [128, 128, 128, 255]);
+    let seam =
+        |image: &image::RgbaImage| (2..14).any(|y| image.get_pixel(8, y).0 != [128, 128, 128, 255]);
     assert!(seam(&halves(false)), "the halves apart show their seam");
     assert!(!seam(&halves(true)), "seamed halves paint as one fill");
 }

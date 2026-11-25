@@ -628,10 +628,7 @@ impl LiveStroke {
         let end = spline_point(joined - 1);
         let run = end.run;
         if run < size || joined == 1 {
-            return vec![fill(
-                smooth_closed(&dot_of(first, size, THINNING)),
-                false,
-            )];
+            return vec![fill(smooth_closed(&dot_of(first, size, THINNING)), false)];
         }
         if self.spline.len() >= 2 {
             let edges = self
@@ -680,10 +677,7 @@ impl LiveStroke {
         }
         if (self.left.is_empty() && left.is_empty()) || (self.right.is_empty() && right.is_empty())
         {
-            return vec![fill(
-                smooth_closed(&dot_of(first, size, THINNING)),
-                false,
-            )];
+            return vec![fill(smooth_closed(&dot_of(first, size, THINNING)), false)];
         }
         let cap = end_cap(end, edges.radius, false);
         self.settle_pieces(&fill);
