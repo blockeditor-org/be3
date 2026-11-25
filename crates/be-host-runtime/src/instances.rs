@@ -1204,7 +1204,9 @@ impl Instances {
 
     /// Whether the instance `instance` opened in its app.
     pub(super) fn is_open(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_some_and(|entry| entry.opened)
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.opened)
     }
 
     fn editable(&self, block: Uuid) -> bool {
@@ -2214,6 +2216,20 @@ impl Instances {
 
     pub(super) fn artifact_failure(&self, instance: EditorInstanceId) -> Option<String> {
         self.entries.get(&instance)?.artifact.failure.clone()
+    }
+
+    /// Gives the instance `instance`, opened as an artifact, the exporter that makes it and the
+    /// settings it was made with, which it opens with (`OpeningKind::Artifact`).
+    pub(super) fn seed_artifact(
+        &mut self,
+        instance: EditorInstanceId,
+        exporter: &str,
+        data: &[u8],
+    ) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.artifact.exporter = exporter.to_owned();
+            entry.artifact.data = data.to_vec();
+        }
     }
 
     pub(super) fn artifact_draft(&self, instance: EditorInstanceId) -> Option<Vec<u8>> {

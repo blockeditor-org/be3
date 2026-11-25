@@ -142,7 +142,9 @@ status says (its pick, its answer) the root relays to the host
 (`host.tell-shell`). It is available at once, as under be-host, and registers
 no dock. A creation child is opened the same way, in the template's editor:
 the placer's `commit-child` reaches the host through the root, which makes the
-block once the editor is open, and the child's status says how far it got.
+block once the editor is open, and the child's status says how far it got. An
+artifact's settings open in the editor that exports its source, at its
+settings view; their commit applies the draft to the artifact.
 
 The root hands every view an anchor space (`screen-request.anchor-space`): the
 session's screen anchors anywhere in the window, and a child hands on its

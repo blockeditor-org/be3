@@ -1875,8 +1875,22 @@ Each step lands on its own.
                creation dialog's height (be-host's `CREATION_DIALOG_HEIGHT` and
                `view_size`) is not reported yet, nor is its dismissal (`dismiss-child`);
                no test makes a block through a creation dialog (an image's import) yet.
-             - Left, in this order: artifact settings (be-host's own settings UI), and host
-               panels. be-host keeps no beui but its platform adapters,
+             - 4g7b3l. Built: artifact settings. The workspace's settings dialog places an
+               artifact settings child (`ChildContent::ArtifactSettings`), a dialog the root
+               opens in the editor that exports the artifact's source, as an artifact
+               (`InstanceRole::Artifact`, `Forwarded::open_artifact` with its exporter and
+               settings, `EditorRegistry::artifact_editor`), asking for its settings view
+               (`ViewId::ARTIFACT_SETTINGS`), whose height its placer hears as be-host's
+               status says it (the room the view used). Apply commits the child; the host
+               takes the editor's draft (`Forwarded::artifact_draft`) and keeps it as the
+               artifact's settings, making it again through its session
+               (`HostCore::apply_root_artifact_settings`). Host test
+               `be_root_in_place_of_the_hosts_ui_shows_an_artifacts_settings`. Under the root
+               the workspace hears no artifact states yet (`ArtifactWatch`,
+               `set_artifact_states` reach be-host's own editors only), so its artifact bar
+               says Loading and be-host may hold no session to make the artifact again; left
+               for later.
+             - Left: host panels. be-host keeps no beui but its platform adapters,
                so it draws no panel: be-root draws the block stack, performance, apps and menu
                panels itself, as its own surfaces (the user's decision).
              - One app crashing fails every child it runs: expected, as the pool shares one

@@ -286,6 +286,9 @@ impl RootShell {
         };
         clipboard(context, root, &self.pasted);
         serve_editors(&mut self.core, root, &mut self.editors);
+        for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {
+            self.core.apply_root_artifact_settings(id, data);
+        }
         refuse_unserved(root);
         // What the root asked of the block stack in this frame, done at once; what that changed
         // reaches it with its next frame, which showing it wakes the host for.
@@ -821,6 +824,18 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         };
         // A root that encodes what no editor can read has nothing to relay.
         if let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) {
+            // Accepted artifact settings its placer committed, which the host applies.
+            if let Some(artifact) = editors
+                .opened
+                .get(&(instance, editor))
+                .and_then(|opened| opened.artifact)
+                && messages
+                    .iter()
+                    .any(|message| matches!(message, ShellMessage::CommitChild(_)))
+                && let Some(draft) = forwarded.artifact_draft(EditorInstanceId(editor))
+            {
+                editors.artifact_applies.push((artifact, draft));
+            }
             // The commit of a creation its placer sent, which makes its block.
             if let Some(creation) = editors
                 .opened
@@ -1044,6 +1059,8 @@ enum Shows {
     Rename(Uuid, bool),
     Export(EditorBlock, be_sdk_api::ExportRequest),
     Creation(crate::editors::app::CreationTarget),
+    /// An artifact's settings: the artifact, and the exporter and settings that make it.
+    ArtifactSettings(EditorBlock, Uuid, String, Vec<u8>),
 }
 
 /// The app and editor that run what the root's child shows, and how it is opened: a block's
@@ -1099,6 +1116,29 @@ fn shown_editor(
             };
             Ok((app, editor, Shows::Export(opened, request)))
         }
+        be_sdk_api::ChildContent::ArtifactSettings { block_id } => {
+            let block = Uuid::from_bytes(block_id);
+            let artifact = crate::artifact_of(block).ok_or("the block is no artifact")?;
+            let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
+            let (app, editor) = core
+                .registry
+                .artifact_editor(artifact.source_type, &artifact.exporter)?;
+            let opened = EditorBlock {
+                id: block,
+                block_type: node.content_type,
+                view_block: None,
+            };
+            Ok((
+                app,
+                editor,
+                Shows::ArtifactSettings(
+                    opened,
+                    *artifact.source,
+                    artifact.exporter,
+                    artifact.settings,
+                ),
+            ))
+        }
         be_sdk_api::ChildContent::Creation { editor, template } => {
             let (app, target) = core
                 .registry
@@ -1138,6 +1178,9 @@ struct Editors {
     /// (`host.show-children`), each by the root's instance and the editor: what a show request
     /// climbs to find its handler.
     placers: HashMap<(u64, u64), (u64, u64)>,
+    /// The settings artifact settings children accepted, by the artifact, for the host to apply
+    /// (`HostCore::apply_root_artifact_settings`).
+    artifact_applies: Vec<(Uuid, Vec<u8>)>,
 }
 
 /// Forgets what the dialog `editor` was opened to run (`ask_picker`, `ask_export`) once it
@@ -1157,6 +1200,8 @@ struct OpenedFor {
     block: Option<Uuid>,
     /// For a creation dialog (`InstanceRole::Creation`), how its block is being made.
     creation: Option<RootCreation>,
+    /// For an artifact's settings, the artifact.
+    artifact: Option<Uuid>,
 }
 
 /// A creation a root's child runs, as be-host's `CreationChild` steps one: the template, the
@@ -1375,6 +1420,7 @@ fn open_editor(
         }),
         _ => None,
     };
+    let mut artifact = None;
     let (role, block) = match shows {
         Shows::Block(opened) => (
             InstanceRole::Editor(
@@ -1397,6 +1443,10 @@ fn open_editor(
             (InstanceRole::Export(editor, block), None)
         }
         Shows::Creation(target) => (InstanceRole::Creation(target.editor, target.template), None),
+        Shows::ArtifactSettings(block, source, ref exporter, ref data) => {
+            artifact = Some((block.id, exporter.clone(), data.clone()));
+            (InstanceRole::Artifact(editor, block, source), None)
+        }
     };
     opened_for.insert(
         (opening.instance, instance.0),
@@ -1405,17 +1455,28 @@ fn open_editor(
             editor,
             block,
             creation,
+            artifact: artifact.as_ref().map(|(id, ..)| *id),
         },
     );
-    let frames = served
+    let forwarded = served
         .entry(opening.instance)
-        .or_insert_with(|| Forwarded::new(&app))
-        .open(
+        .or_insert_with(|| Forwarded::new(&app));
+    let frames = match &artifact {
+        Some((_, exporter, data)) => forwarded.open_artifact(
+            instance,
+            role,
+            exporter,
+            data,
+            core.client_id,
+            core.registry.app_block_types(),
+        ),
+        None => forwarded.open(
             instance,
             role,
             core.client_id,
             core.registry.app_block_types(),
-        );
+        ),
+    };
     Ok(OpenedEditor {
         editor: instance.0,
         frames,

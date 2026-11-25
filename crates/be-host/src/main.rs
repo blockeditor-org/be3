@@ -3460,6 +3460,26 @@ impl HostCore {
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
+    /// Applies the settings `data` a root's artifact settings child accepted to the artifact
+    /// `id`, as `apply_artifact_settings` applies those of be-host's own dialog: kept as the
+    /// artifact's, which its session makes it again with.
+    fn apply_root_artifact_settings(&mut self, id: Uuid, data: Vec<u8>) {
+        let Some(descriptor) = artifact_of(id) else {
+            return;
+        };
+        set_artifact(
+            id,
+            Some(be_block_content::Artifact {
+                settings: data.clone(),
+                ..descriptor
+            }),
+        );
+        if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
+            session.regenerate(&data);
+        }
+        self.dynamic_artifact_errors.remove(&id);
+    }
+
     fn apply_artifact_settings(&mut self, id: Uuid) {
         if self.dynamic_artifact_settings_open != Some(id) {
             return;
