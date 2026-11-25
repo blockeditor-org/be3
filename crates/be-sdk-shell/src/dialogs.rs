@@ -215,8 +215,6 @@ fn ExportDialog(workspace: Workspace) -> NodeId {
             anchor={move || DialogAnchor::Rect(tab.get())}
             on_dismiss={dismiss}
         >||
-            // The child fills the card inside its border, so the card's border and corners
-            // show around what the child draws.
             <Frame padding={card::INSIDE_BORDER}>
                 <Frame height={move || Length::Size(Size::Custom(height.get()))}>
                     <Subregion
