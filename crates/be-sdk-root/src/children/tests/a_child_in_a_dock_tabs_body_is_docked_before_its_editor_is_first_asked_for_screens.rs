@@ -24,7 +24,11 @@ fn a_child_in_a_dock_tabs_body_is_docked_before_its_editor_is_first_asked_for_sc
     // Known to them as the root's settle makes it known (`register_in_tab`), before it shows,
     // it is docked, so its first screens ask for its frame docked.
     let mut docks = Docks::default();
-    docks.register(EditorInstanceId(1), &app_key(5), Some(Uuid::from_bytes([9; 16])));
+    docks.register(
+        EditorInstanceId(1),
+        &app_key(5),
+        Some(Uuid::from_bytes([9; 16])),
+    );
     docks.register(EditorInstanceId(2), &app_key(6), Some(block));
     assert_eq!(docks.block_editor(block), Some(EditorInstanceId(2)));
     let placements = [ChildPlacements {
