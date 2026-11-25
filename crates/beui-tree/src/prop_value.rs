@@ -483,6 +483,14 @@ impl<C: SlotChild> Takes<ChildSegment<C>, ByInto> for Children<C> {
     }
 }
 
+/// Segments written by hand, as `children={[into_segment(a), into_segment(b)]}`; `view!` never
+/// writes one.
+impl<C: SlotChild, const N: usize> Takes<[ChildSegment<C>; N], ByInto> for Children<C> {
+    fn take(value: [ChildSegment<C>; N]) -> Self {
+        value.into()
+    }
+}
+
 impl<C: SlotChild> AbsentProp for Children<C> {
     fn absent() -> Self {
         Children::default()
