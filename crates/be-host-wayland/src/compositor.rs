@@ -15,10 +15,10 @@ use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
 
 use crate::presentation::{Place, Presented};
-use crate::render::{Gpu, Textures, WindowDraw};
+use crate::render::{Gpu, Textures, WindowDraw, WindowPicture};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
+use crate::windows::{Command, Drawn, Launch, Popups, WindowInfo, Windows};
 
 /// The desktop's name in `XDG_CURRENT_DESKTOP`, as the login session's entry
 /// names it, given to programs when be-host started without one; under it
@@ -559,8 +559,8 @@ impl Compositor {
             self.server.state.presentation.drawn(*id, callbacks);
         }
         let store = self.windows;
-        for (id, (drawing, popups)) in drawings {
-            store.draw(id, drawing, popups);
+        for (id, drawn) in drawings {
+            store.draw(id, drawn);
         }
     }
 
@@ -611,24 +611,39 @@ impl Compositor {
         })
     }
 
-    fn drawing(&self, id: WindowId) -> (Option<beui::native::Drawing>, Option<Popups>) {
+    /// What `id` shows: its drawing, its popups' drawing, and the whole of it (its own surfaces
+    /// and then its popups', where each is in the window) for a host that composites it itself.
+    fn drawing(&self, id: WindowId) -> Drawn {
         let textures = self.textures.borrow();
         let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
-            return (None, None);
+            return Drawn::default();
         };
-        let (popups, own): (Vec<_>, Vec<_>) = self
+        let layers: Vec<_> = self
             .server
             .state
             .layers(id)
             .into_iter()
             .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
-            .partition(|(_, layer)| layer.popup);
-        let drawing = WindowDraw::drawing(
-            gpu.clone(),
-            own,
-            signals.painted.clone(),
-            self.waker.clone(),
+            .collect();
+        let picture = |layers| {
+            Rc::new(WindowPicture::new(
+                gpu.clone(),
+                layers,
+                signals.painted.clone(),
+                self.waker.clone(),
+            ))
+        };
+        let whole = picture(
+            layers
+                .iter()
+                .filter(|(_, layer)| !layer.popup)
+                .chain(layers.iter().filter(|(_, layer)| layer.popup))
+                .cloned()
+                .collect(),
         );
+        let (popups, own): (Vec<_>, Vec<_>) =
+            layers.into_iter().partition(|(_, layer)| layer.popup);
+        let drawing = WindowDraw::drawing(picture(own));
         let bounds = popups
             .iter()
             .map(|(_, layer)| layer.rect)
@@ -657,15 +672,14 @@ impl Compositor {
                     Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
                     Vec2::new(bounds.size.w as f32, bounds.size.h as f32),
                 ),
-                drawing: WindowDraw::drawing(
-                    gpu,
-                    layers,
-                    signals.painted.clone(),
-                    self.waker.clone(),
-                ),
+                drawing: WindowDraw::drawing(picture(layers)),
             }
         });
-        (Some(drawing), popups)
+        Drawn {
+            drawing: Some(drawing),
+            popups,
+            picture: Some(whole),
+        }
     }
 
     fn input(&mut self, now: Instant) {
