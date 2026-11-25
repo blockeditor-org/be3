@@ -24,6 +24,7 @@ use be_sdk_api::{
     shell_types::{DragStart, ShellMessage},
 };
 use be_sdk_app_host::{
+    accessibility::{Graft, Placing},
     calls::{AppCall, Heard, Outbound},
     holds::Held,
     pacing::{Ask, Asking, FRAME_TIMEOUT, Pacing},
@@ -171,6 +172,11 @@ struct State {
     palette_asked: Option<(EditorInstanceId, be_sdk_api::PaletteMode)>,
     /// The screens whose layer has the keyboard, as the root's router last said.
     keyboard: HashSet<ScreenId>,
+    /// Each screen's accessibility tree, as its reports described it while the root's host asks
+    /// for the root's (`describing`), grafted into the root's in a document of its own.
+    described: HashMap<ScreenId, Graft>,
+    /// Whether the app was told to describe its screens, as `describing` said when it last was.
+    told_describing: bool,
     /// The editors the person picked from a frame menu of, each with how many of its layout
     /// commits the pick still lets it open the palette (`MENU_PICK_COMMITS`).
     menu_picked: HashMap<EditorInstanceId, u32>,
@@ -440,6 +446,8 @@ impl Embedded {
             actions: HashMap::default(),
             palette_asked: None,
             keyboard: HashSet::default(),
+            described: HashMap::default(),
+            told_describing: false,
             menu_picked: HashMap::default(),
             drag: None,
             accepting: HashSet::default(),
@@ -586,6 +594,14 @@ impl Embedded {
             state.restyled = false;
             state.run.session.tick(millis(now));
             state.failed_session();
+            // Asked to describe its screens while the root's host asks for the root's tree.
+            if state.run.session.running() && state.told_describing != describing() {
+                state.tell();
+                state.run.pacing.need();
+                if !describing() {
+                    state.described.clear();
+                }
+            }
         }
         // Asked once the session runs, and again while the app has yet to take in its input.
         let mut asked = None;
@@ -925,6 +941,31 @@ impl Embedded {
             .send_for_frame(vec![AppCall::RunAction { screen, id }.into()], Some);
         state.wire.send(send);
         state.flush();
+    }
+
+    /// The tree its screen showing on `surface` last described, placed at `placing`, in the
+    /// root's ids: every node of it, its focus only while that screen has the keyboard. None
+    /// while it described nothing, or the surface shows no screen. `placing.scale` is how many
+    /// window points a pixel of the surface is drawn at, which the screen's raster turns into
+    /// its points'.
+    pub(crate) fn grafted(
+        &self,
+        surface: u32,
+        placing: Placing,
+    ) -> Option<be_sdk_app_host::accessibility::Grafted> {
+        let mut state = self.state.borrow_mut();
+        let placement = state.surfaces.get(&surface)?;
+        let (screen, raster) = (placement.screen, raster(placement));
+        let focused = state.keyboard.contains(&screen);
+        let graft = state.described.get_mut(&screen)?;
+        Some(graft.grafted(
+            Placing {
+                scale: placing.scale * raster,
+                ..placing
+            },
+            focused,
+            true,
+        ))
     }
 
     /// The person picked from a frame menu of its editor `editor` (`editor.menu-pick`), which
@@ -1308,6 +1349,7 @@ impl State {
                 self.windows.retain(|screen, _| laid_out(screen));
                 self.contents.retain(|screen, _| laid_out(screen));
                 self.actions.retain(|screen, _| laid_out(screen));
+                self.described.retain(|screen, _| laid_out(screen));
                 self.used.retain(|screen, _| laid_out(screen));
                 self.anchored.retain(|screen, _| laid_out(screen));
                 // A view the layout no longer has (an anchored view that closed) places nothing.
@@ -1344,6 +1386,17 @@ impl State {
                     self.contents.insert(report.screen, report.content);
                     if let Some(actions) = &report.actions {
                         self.actions.insert(report.screen, actions.clone());
+                    }
+                    if let Some(tree) = report
+                        .description
+                        .as_ref()
+                        .and_then(|description| description.tree.clone())
+                        .map(be_sdk_api::accesskit::TreeUpdate::from)
+                    {
+                        self.described
+                            .entry(report.screen)
+                            .or_insert_with(|| Graft::new(next_document()))
+                            .update(tree);
                     }
                     match &report.anchored {
                         Some(anchored) => {
@@ -1527,10 +1580,11 @@ impl State {
         let fonts = Rc::clone(&self.fonts);
         let telling = Telling {
             fonts: || (*fonts).clone(),
-            describing: false,
+            describing: describing(),
             preferences: self.run.preferences(),
             utc_offset: CLOCK.get().2,
         };
+        self.told_describing = telling.describing;
         let told = self.run.tell(telling);
         let send = self
             .run
@@ -1833,6 +1887,33 @@ thread_local! {
 /// reaches only apps that start after).
 pub fn set_clock(now: Duration, wall: Duration, utc_offset: i32) {
     CLOCK.set((now, wall, utc_offset));
+}
+
+thread_local! {
+    /// Whether the root's host asks for the root's accessibility tree (`set_describing`).
+    static DESCRIBING: Cell<bool> = const { Cell::new(false) };
+    /// The next document a grafted tree's nodes are numbered in (`next_document`).
+    static NEXT_DOCUMENT: Cell<u32> = const { Cell::new(1) };
+}
+
+/// Whether the root's host asks for the root's accessibility tree this frame, as its frame
+/// request says (`frame-request.describe`): while it does, the apps the root embeds are asked
+/// to describe their screens, which the root grafts into its own tree (`Embedding::describe`).
+pub fn set_describing(describing: bool) {
+    DESCRIBING.set(describing);
+}
+
+/// Whether the root's host asks for its accessibility tree (`set_describing`).
+pub fn describing() -> bool {
+    DESCRIBING.get()
+}
+
+/// A document of its own for a tree the root grafts into its own: no two share one, and none is
+/// 0, which the root's own window node is in.
+pub fn next_document() -> u32 {
+    let document = NEXT_DOCUMENT.get();
+    NEXT_DOCUMENT.set(document + 1);
+    document
 }
 
 /// The wall clock at the frame clock's `now`, from the last the root was told.

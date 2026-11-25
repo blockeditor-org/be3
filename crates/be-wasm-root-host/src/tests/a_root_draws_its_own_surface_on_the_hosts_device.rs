@@ -18,6 +18,7 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
                 wall_clock: 0,
                 utc_offset: 0,
                 window: window(),
+                describe: false,
             },
             Instant::now() + PATIENT,
         )
@@ -47,6 +48,7 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
             wall_clock: 0,
             utc_offset: 0,
             window: window(),
+            describe: false,
         },
         Instant::now() + PATIENT,
     )
@@ -70,6 +72,7 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
             wall_clock: 0,
             utc_offset: 0,
             window: window(),
+            describe: false,
         },
         Instant::now() + PATIENT,
     )

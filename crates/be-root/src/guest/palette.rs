@@ -326,6 +326,13 @@ impl Root {
         self.palette.borrow().as_ref()?.surface.next()
     }
 
+    /// What the palette describes of itself, while it is open.
+    pub(super) fn palette_described(&self) -> Option<(u32, be_sdk_api::accesskit::TreeUpdate)> {
+        let palette = self.palette.borrow();
+        let surface = &palette.as_ref()?.surface;
+        Some((surface.id(), surface.describe()?))
+    }
+
     /// What the palette painted last, while it is open.
     pub(super) fn palette_painted(&self) -> Option<(u64, Painting)> {
         let palette = self.palette.borrow();

@@ -11,6 +11,7 @@ fn a_child_that_lets_its_surface_go_names_nothing_there_any_more() {
                     wall_clock: 0,
                     utc_offset: 0,
                     window: window(),
+                    describe: false,
                 },
                 Instant::now() + PATIENT,
             )

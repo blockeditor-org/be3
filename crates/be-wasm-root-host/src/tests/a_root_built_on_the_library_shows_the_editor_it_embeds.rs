@@ -15,6 +15,7 @@ fn drawn(root: &mut Root, time: u64) -> Vec<Layer> {
                 wall_clock: 0,
                 utc_offset: 0,
                 window: window(),
+                describe: false,
             },
             Instant::now() + PATIENT,
         )

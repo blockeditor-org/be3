@@ -1453,6 +1453,7 @@ impl frames::Guest for Root {
             let time = Duration::from_nanos(request.time);
             root.resize(Window::of(&request.window));
             root.utc_offset.set(request.utc_offset);
+            be_sdk_root::set_describing(request.describe);
             be_sdk_root::set_clock(
                 time,
                 Duration::from_nanos(request.wall_clock),
@@ -1642,7 +1643,7 @@ impl frames::Guest for Root {
             root.heard(&given);
             root.heard(&focus);
             root.follow_focus();
-            let embedding = root.embedding.borrow();
+            let mut embedding = root.embedding.borrow_mut();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
             let documents = [&root.toasts, &root.menu, &root.session_notice]
@@ -1688,7 +1689,15 @@ impl frames::Guest for Root {
                     _ => None,
                 }
             });
+            // Its accessibility tree while its host asks for it: its own surfaces' and its
+            // apps' screens', in the order its layers are drawn.
+            let accessibility = request.describe.then(|| {
+                let window = root.window.get();
+                let size = be_lib_geometry::vec2(window.width, window.height);
+                be_wasm_ops::encode(&embedding.describe(None, size, root.described()))
+            });
             FrameDone {
+                accessibility,
                 layers: drawn.layers,
                 next: next.map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
                 owed: wants.owed || root.session_loading(),
@@ -1716,6 +1725,33 @@ impl input::Guest for Root {
             self.waker.wake();
         }
         Box::pin(async {})
+    }
+}
+
+impl Root {
+    /// What each surface of its own describes of itself (`BeuiSurface::describe`), by surface:
+    /// those its layers do not show are left out of its tree (`Embedding::describe`).
+    fn described(&self) -> Vec<(u32, be_sdk_api::accesskit::TreeUpdate)> {
+        let described = |surface: &BeuiSurface| Some((surface.id(), surface.describe()?));
+        let mut trees: Vec<(u32, be_sdk_api::accesskit::TreeUpdate)> = [
+            &self.toasts,
+            &self.menu,
+            &self.session_notice,
+        ]
+        .into_iter()
+        .filter_map(|surface| surface.borrow().as_ref().and_then(described))
+        .collect();
+        trees.extend(self.dialog.borrow().as_ref().and_then(|dialog| described(&dialog.surface)));
+        trees.extend(
+            self.onboarding
+                .borrow()
+                .as_ref()
+                .and_then(|accounts| described(&accounts.surface)),
+        );
+        trees.extend(self.lock.borrow().as_ref().and_then(|locked| described(&locked.surface)));
+        trees.extend(self.palette_described());
+        trees.extend(self.panels_described());
+        trees
     }
 }
 
