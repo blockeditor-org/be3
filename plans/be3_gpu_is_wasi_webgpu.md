@@ -2,8 +2,8 @@
 
 Depends on: none.
 
-decisions/be3_gpu_is_wasi_webgpu.md: an app's gpu becomes wasi:webgpu 0.3.0-rc.2 (vendored,
-pinned), beside a small `be3:gpu/host` interface for surfaces and shared images, replacing
+decisions/be3_gpu_is_wasi_webgpu.md: an app's gpu becomes wasi:webgpu 0.3.0-rc.2 (pinned
+and fetched, never copied into the repository), beside a small `be3:gpu/host` interface for surfaces and shared images, replacing
 `be3:gpu/device` (`crates/be-wasm-gpu-abi/wit/device.wit`). Each step lands on its own.
 
 ## 1. The local generator handles what wasi:webgpu uses
@@ -35,8 +35,24 @@ Test each in be-wasm-ops-bindgen with a small interface, run natively and on the
 
 ## 2. The host implements wasi:webgpu
 
-Vendor `wit/webgpu.wit` at commit `6a776bada0b66d3dbf9da304a49ff2947ce4e1f8` under
-`crates/be-wasm-gpu-abi/wit/deps/webgpu/`, add `be3:gpu/host` (below), and implement both in
+Fetch `wit/webgpu.wit` at commit `6a776bada0b66d3dbf9da304a49ff2947ce4e1f8` with a buck2
+`http_file` in `crates/be-wasm-gpu-abi/BUCK`, as `buck/cargo/BUCK` fetches
+`rust-project.zst`:
+
+```python
+http_file(
+    name = "webgpu.wit",
+    sha256 = "8e34bf2a365bc0bbcdd16d0b30a55f1e5c7b26246728e7e5516f74ff9eb968b7",
+    size_bytes = 35321,
+    urls = ["https://raw.githubusercontent.com/WebAssembly/wasi-gfx/6a776bada0b66d3dbf9da304a49ff2947ce4e1f8/wit/webgpu.wit"],
+)
+```
+
+It is one file with no `use` of other packages. be-wasm-gpu-abi's library and test take it as
+a `foreign_resources` entry placed at `crates/be-wasm-gpu-abi/wit/deps/webgpu/webgpu.wit`, so
+the generator finds it under `wit/deps/` as it would a copy, though none is in the
+repository (`.gitignore` that path, for builds outside buck). It is never patched: what it
+lacks goes in `be3:gpu/host`. Add `be3:gpu/host` (below), and implement both in
 be-wasm-gpu-host beside `be3:gpu/device` (which apps still use until step 3), sharing its
 tables, per-app device loss, coarsened timestamps, render bundles recorded at `finish`, and
 the per-app checks. What changes:
@@ -145,9 +161,21 @@ where it draws translucent surfaces.
 
 ## 5. Taking a later wasi:webgpu
 
-When upstream moves (a new release candidate or a release), re-vendor it at the new commit,
-regenerate, and fix the host and guest; record the version in
-decisions/be3_gpu_is_wasi_webgpu.md. Nothing else in the repository names its version.
+When upstream moves (a new release candidate or a release), change the `http_file`'s URL to
+the new commit and its `sha256` and `size_bytes` to the new file's, regenerate, and fix the
+host and guest; record the version in decisions/be3_gpu_is_wasi_webgpu.md. Nothing else in
+the repository names its version.
+
+## Reading the pinned WIT
+
+The file is not in the repository. To read it, build its target and open the path buck2
+prints:
+
+```sh
+./scripts/buck build //crates/be-wasm-gpu-abi:webgpu.wit --show-output
+```
+
+Step 2 adds this to guides/app_libraries.md ("The gpu").
 
 ## Not in wasi:webgpu, and deferred
 
