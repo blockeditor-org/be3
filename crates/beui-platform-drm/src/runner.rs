@@ -451,6 +451,8 @@ fn open_gpu(node: u64) -> Result<(wgpu::Device, wgpu::Queue, beui_host::native::
         beui_host::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
             .ok_or("the Vulkan device could not be opened")?;
     let lost = beui_host::native::Lost::watch(&device);
+    // Until `idle` ends the session, a lost device's calls fail without panicking.
+    lost.panic_on_errors(&device);
     Ok((device, queue, lost))
 }
 
