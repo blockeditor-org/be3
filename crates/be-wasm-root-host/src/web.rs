@@ -676,33 +676,36 @@ fn wasi_calls(transport: &Rc<Transport>) -> Vec<(&'static str, Closure<WasiCall>
         .into_iter()
         .map(|name| {
             let held = Rc::clone(transport);
-            let call = Closure::<WasiCall>::new(move |a: JsValue, b: JsValue, c: JsValue, d: JsValue| {
-                // Every argument a pure guest's call reads is an i32; the clock's i64 precision,
-                // a BigInt, is never read.
-                let words: Vec<u64> = [a, b, c, d]
-                    .iter()
-                    .map(|value| value.as_f64().map_or(0, |word| word as i64 as u32 as u64))
-                    .collect();
-                let answered = match held.memory.borrow().clone() {
-                    Some(memory) => held.wasi.borrow_mut().call(
-                        name,
-                        &words,
-                        &mut PageMemory(memory),
-                        &mut |line| web_sys::console::error_1(&format!("the root: {line}").into()),
-                    ),
-                    None => Err(be_wasm_pure_wasi::Stopped::Fault(
-                        "the root has no memory".to_owned(),
-                    )),
-                };
-                match answered {
-                    Ok(errno) => Ok(errno.into()),
-                    Err(stopped) => {
-                        let stopped = stopped.to_string();
-                        *held.panicked.borrow_mut() = Some(stopped.clone());
-                        Err(js_sys::Error::new(&stopped).into())
+            let call =
+                Closure::<WasiCall>::new(move |a: JsValue, b: JsValue, c: JsValue, d: JsValue| {
+                    // Every argument a pure guest's call reads is an i32; the clock's i64 precision,
+                    // a BigInt, is never read.
+                    let words: Vec<u64> = [a, b, c, d]
+                        .iter()
+                        .map(|value| value.as_f64().map_or(0, |word| word as i64 as u32 as u64))
+                        .collect();
+                    let answered = match held.memory.borrow().clone() {
+                        Some(memory) => held.wasi.borrow_mut().call(
+                            name,
+                            &words,
+                            &mut PageMemory(memory),
+                            &mut |line| {
+                                web_sys::console::error_1(&format!("the root: {line}").into())
+                            },
+                        ),
+                        None => Err(be_wasm_pure_wasi::Stopped::Fault(
+                            "the root has no memory".to_owned(),
+                        )),
+                    };
+                    match answered {
+                        Ok(errno) => Ok(errno.into()),
+                        Err(stopped) => {
+                            let stopped = stopped.to_string();
+                            *held.panicked.borrow_mut() = Some(stopped.clone());
+                            Err(js_sys::Error::new(&stopped).into())
+                        }
                     }
-                }
-            });
+                });
             (name, call)
         })
         .collect()

@@ -311,8 +311,8 @@ async fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() -> Result<St
     Ok("a module compiled from bytes echoed from a worker of its own".to_owned())
 }
 
-async fn a_module_that_imports_more_than_a_pure_guest_may_does_not_compile() -> Result<String, JsValue>
-{
+async fn a_module_that_imports_more_than_a_pure_guest_may_does_not_compile()
+-> Result<String, JsValue> {
     // The echo guest as a staged app imports the whole of WASI and its libraries.
     let bytes = fetch(CHILD_ENTRY).await?;
     let mut pump = Pump::new();
@@ -332,8 +332,8 @@ async fn a_module_that_imports_more_than_a_pure_guest_may_does_not_compile() -> 
     }
 }
 
-async fn a_module_from_bytes_is_answered_a_pure_guests_wasi_as_natively()
--> Result<String, JsValue> {
+async fn a_module_from_bytes_is_answered_a_pure_guests_wasi_as_natively() -> Result<String, JsValue>
+{
     use be_wasm_pure_wasi::vectors;
     let bytes = fetch(PURE_WASI).await?;
     // Across a block's end and the next's start, as be-wasm-host's native test draws them.
@@ -363,16 +363,20 @@ async fn a_module_from_bytes_is_answered_a_pure_guests_wasi_as_natively()
             Ok::<_, String>(received)
         })
         .await?;
-    check(received.first().map(Vec::as_slice) == Some(&[0, 52, 0, 24]), || {
-        format!("the guest started with {:?}", received.first())
-    })?;
+    check(
+        received.first().map(Vec::as_slice) == Some(&[0, 52, 0, 24]),
+        || format!("the guest started with {:?}", received.first()),
+    )?;
     let drawn = received[1..].concat();
     check(
         vectors::hex(&drawn[..64]) == vectors::ZERO_BLOCK_0
             && vectors::hex(&drawn[64..128]) == vectors::ZERO_BLOCK_1,
         || format!("the guest drew {}", vectors::hex(&drawn)),
     )?;
-    Ok("a module from bytes was answered a pure guest's WASI and drew ChaCha20's stream".to_owned())
+    Ok(
+        "a module from bytes was answered a pure guest's WASI and drew ChaCha20's stream"
+            .to_owned(),
+    )
 }
 
 async fn a_module_from_bytes_that_reads_a_file_does_not_compile() -> Result<String, JsValue> {

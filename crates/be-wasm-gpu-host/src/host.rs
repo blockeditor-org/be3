@@ -1,5 +1,5 @@
-use be_wasm_gpu_convert::{Convert, TryConvert};
 use be_wasm_gpu_abi::{device as abi, embed::device::Host};
+use be_wasm_gpu_convert::{Convert, TryConvert};
 
 mod compute;
 
@@ -161,7 +161,9 @@ impl Gpu {
                 },
                 primitive: wgpu::PrimitiveState {
                     topology: Convert::<wgpu::PrimitiveTopology>::convert(primitive.topology),
-                    strip_index_format: primitive.strip_index_format.map(Convert::<wgpu::IndexFormat>::convert),
+                    strip_index_format: primitive
+                        .strip_index_format
+                        .map(Convert::<wgpu::IndexFormat>::convert),
                     front_face: Convert::<wgpu::FrontFace>::convert(primitive.front_face),
                     cull_mode: primitive.cull_mode.map(Convert::<wgpu::Face>::convert),
                     unclipped_depth: primitive.unclipped_depth,
@@ -173,7 +175,9 @@ impl Gpu {
                     .map(|state| wgpu::DepthStencilState {
                         format: Convert::<wgpu::TextureFormat>::convert(state.format),
                         depth_write_enabled: Some(state.depth_write_enabled),
-                        depth_compare: state.depth_compare.map(Convert::<wgpu::CompareFunction>::convert),
+                        depth_compare: state
+                            .depth_compare
+                            .map(Convert::<wgpu::CompareFunction>::convert),
                         stencil: wgpu::StencilState {
                             front: Convert::<wgpu::StencilFaceState>::convert(state.stencil.front),
                             back: Convert::<wgpu::StencilFaceState>::convert(state.stencil.back),
@@ -408,17 +412,29 @@ impl Host for Gpu {
             |gpu| {
                 Ok(gpu.device.create_sampler(&wgpu::SamplerDescriptor {
                     label: convert::label(&descriptor.label),
-                    address_mode_u: Convert::<wgpu::AddressMode>::convert(descriptor.address_mode_u),
-                    address_mode_v: Convert::<wgpu::AddressMode>::convert(descriptor.address_mode_v),
-                    address_mode_w: Convert::<wgpu::AddressMode>::convert(descriptor.address_mode_w),
+                    address_mode_u: Convert::<wgpu::AddressMode>::convert(
+                        descriptor.address_mode_u,
+                    ),
+                    address_mode_v: Convert::<wgpu::AddressMode>::convert(
+                        descriptor.address_mode_v,
+                    ),
+                    address_mode_w: Convert::<wgpu::AddressMode>::convert(
+                        descriptor.address_mode_w,
+                    ),
                     mag_filter: Convert::<wgpu::FilterMode>::convert(descriptor.mag_filter),
                     min_filter: Convert::<wgpu::FilterMode>::convert(descriptor.min_filter),
-                    mipmap_filter: Convert::<wgpu::MipmapFilterMode>::convert(descriptor.mipmap_filter),
+                    mipmap_filter: Convert::<wgpu::MipmapFilterMode>::convert(
+                        descriptor.mipmap_filter,
+                    ),
                     lod_min_clamp: descriptor.lod_min_clamp,
                     lod_max_clamp: descriptor.lod_max_clamp,
-                    compare: descriptor.compare.map(Convert::<wgpu::CompareFunction>::convert),
+                    compare: descriptor
+                        .compare
+                        .map(Convert::<wgpu::CompareFunction>::convert),
                     anisotropy_clamp: descriptor.anisotropy_clamp,
-                    border_color: descriptor.border_color.map(Convert::<wgpu::SamplerBorderColor>::convert),
+                    border_color: descriptor
+                        .border_color
+                        .map(Convert::<wgpu::SamplerBorderColor>::convert),
                 }))
             },
         )
@@ -722,8 +738,12 @@ impl Host for Gpu {
                 let texture = gpu.textures.get(this.0, "texture")?;
                 Ok(texture.create_view(&wgpu::TextureViewDescriptor {
                     label: convert::label(&descriptor.label),
-                    format: descriptor.format.map(Convert::<wgpu::TextureFormat>::convert),
-                    dimension: descriptor.dimension.map(Convert::<wgpu::TextureViewDimension>::convert),
+                    format: descriptor
+                        .format
+                        .map(Convert::<wgpu::TextureFormat>::convert),
+                    dimension: descriptor
+                        .dimension
+                        .map(Convert::<wgpu::TextureViewDimension>::convert),
                     usage: descriptor
                         .usage
                         .map(wgpu::TextureUsages::from_bits_truncate),
@@ -1095,9 +1115,9 @@ impl Host for Gpu {
             .cloned()
             .and_then(|buffer| {
                 let slice = slice(&buffer, offset, size)?;
-                self.passes
-                    .get_mut(this.0, "render pass")
-                    .map(|pass| pass.set_index_buffer(slice, Convert::<wgpu::IndexFormat>::convert(format)))
+                self.passes.get_mut(this.0, "render pass").map(|pass| {
+                    pass.set_index_buffer(slice, Convert::<wgpu::IndexFormat>::convert(format))
+                })
             });
         self.fail(result, ());
     }

@@ -26,7 +26,10 @@ fn run(seed: [u8; 32], draws: &[u8]) -> (Vec<u8>, Vec<u8>, String) {
     let mut received: Vec<Vec<u8>> = Vec::new();
     while received.iter().map(Vec::len).sum::<usize>() < wanted {
         let deadline = be_wasm_guest_host::Deadline::after(std::time::Duration::from_secs(60));
-        assert!(worker.wait(deadline).expect("the guest runs"), "the guest went quiet");
+        assert!(
+            worker.wait(deadline).expect("the guest runs"),
+            "the guest went quiet"
+        );
         received.extend(worker.take_received());
     }
     let started = received.remove(0);

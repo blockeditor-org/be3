@@ -1,6 +1,8 @@
 use std::io::Write as _;
 
-use wayland_client::protocol::{wl_buffer, wl_compositor, wl_registry, wl_shm, wl_shm_pool, wl_surface};
+use wayland_client::protocol::{
+    wl_buffer, wl_compositor, wl_registry, wl_shm, wl_shm_pool, wl_surface,
+};
 use wayland_client::{Connection, Dispatch, QueueHandle, delegate_noop};
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base};
 
@@ -33,9 +35,11 @@ pub(super) fn run(title: &str) -> Result<(), String> {
     queue
         .roundtrip(&mut state)
         .map_err(|error| format!("the compositor did not answer: {error}"))?;
-    let (Some(compositor), Some(shm), Some(wm_base)) =
-        (state.compositor.clone(), state.shm.clone(), state.wm_base.clone())
-    else {
+    let (Some(compositor), Some(shm), Some(wm_base)) = (
+        state.compositor.clone(),
+        state.shm.clone(),
+        state.wm_base.clone(),
+    ) else {
         return Err("the compositor offers no wl_compositor, wl_shm or xdg_wm_base".to_owned());
     };
     let surface = compositor.create_surface(&handle, ());
@@ -77,7 +81,15 @@ fn draw(
     file.write_all(&pixels)
         .map_err(|error| format!("its buffer was not written: {error}"))?;
     let pool = shm.create_pool(std::os::fd::AsFd::as_fd(&file), length, handle, ());
-    let buffer = pool.create_buffer(0, width, height, stride, wl_shm::Format::Xrgb8888, handle, ());
+    let buffer = pool.create_buffer(
+        0,
+        width,
+        height,
+        stride,
+        wl_shm::Format::Xrgb8888,
+        handle,
+        (),
+    );
     pool.destroy();
     surface.attach(Some(&buffer), 0, 0);
     surface.damage_buffer(0, 0, width, height);

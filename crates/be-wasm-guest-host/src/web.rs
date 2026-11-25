@@ -69,7 +69,11 @@ impl<P: Pictures> WebGuest<P> {
     ) -> Result<Self, String> {
         let message = message("start");
         set(&message, "url", &absolute(url).into());
-        set(&message, "seed", &js_sys::Uint8Array::from(&seed[..]).into());
+        set(
+            &message,
+            "seed",
+            &js_sys::Uint8Array::from(&seed[..]).into(),
+        );
         Self::starting(&message, wake, waiting)
     }
 

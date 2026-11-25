@@ -270,10 +270,7 @@ impl Future for Compiling {
         let module = ManuallyDrop::new(gpu::ShaderModule::from_handle(self.module));
         match module.get_compilation_info() {
             Some(messages) => Poll::Ready(wgpu::CompilationInfo {
-                messages: messages
-                    .iter()
-                    .map(Convert::convert)
-                    .collect(),
+                messages: messages.iter().map(Convert::convert).collect(),
             }),
             None => {
                 COMPILING.with(|compiling| compiling.borrow_mut().push(context.waker().clone()));

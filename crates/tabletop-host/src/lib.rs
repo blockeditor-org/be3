@@ -312,9 +312,13 @@ fn answer_wasi(linker: &mut Linker<Presented>) -> Result<(), Error> {
                     .and_then(Extern::into_memory)
                     .ok_or_else(|| Error::new("this game exports no memory"))?;
                 let (bytes, presented) = memory.data_and_store_mut(&mut caller);
-                let Presented { wasi, name: game, .. } = presented;
+                let Presented {
+                    wasi, name: game, ..
+                } = presented;
                 let errno = wasi
-                    .call(name, &words, &mut Bytes(bytes), &mut |line| eprintln!("{game}: {line}"))
+                    .call(name, &words, &mut Bytes(bytes), &mut |line| {
+                        eprintln!("{game}: {line}")
+                    })
                     .map_err(|stopped| Error::new(stopped.to_string()))?;
                 if let Some(result) = results.first_mut() {
                     *result = Val::I32(errno);

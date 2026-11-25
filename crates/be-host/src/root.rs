@@ -61,6 +61,7 @@ use std::{
 use std::collections::HashMap;
 
 use be_host_base::notices;
+use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{EditorBlock, Forwarded, HostChildStatus, InstanceRole};
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
@@ -77,7 +78,6 @@ use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
-use be_host_desktop::desktop_host::{DesktopHost, Host};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, Input, WindowId};

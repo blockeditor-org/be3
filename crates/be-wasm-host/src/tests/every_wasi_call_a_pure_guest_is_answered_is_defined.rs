@@ -18,7 +18,10 @@ fn importing_all() -> String {
                 true => "(result i32)",
                 false => "",
             };
-            format!(r#"(import "{}" "{name}" (func (param{parameters}) {result}))"#, be_wasm_pure_wasi::MODULE)
+            format!(
+                r#"(import "{}" "{name}" (func (param{parameters}) {result}))"#,
+                be_wasm_pure_wasi::MODULE
+            )
         })
         .collect();
     format!(
@@ -47,6 +50,9 @@ fn every_wasi_call_a_pure_guest_is_answered_is_defined() {
         }
     }
     for name in be_wasm_pure_wasi::ANSWERED {
-        assert!(imported.iter().any(|import| import == name), "pure_wasi.wat leaves out {name}");
+        assert!(
+            imported.iter().any(|import| import == name),
+            "pure_wasi.wat leaves out {name}"
+        );
     }
 }

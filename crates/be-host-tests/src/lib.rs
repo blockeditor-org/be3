@@ -572,7 +572,10 @@ impl HostTest {
             "WAYLAND_TEST_WINDOW names the test's program window; run these through ./scripts/buck test //crates/be-host-tests:test",
         );
         let mut command = std::process::Command::new(program);
-        command.arg(title).env_remove("WAYLAND_DISPLAY").env_remove("DISPLAY");
+        command
+            .arg(title)
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("DISPLAY");
         // It loads the Wayland client library from the test's sysroot, as the host loads its own.
         if let Ok(libraries) = std::env::var("HOST_LIBRARIES") {
             command.env("LD_LIBRARY_PATH", libraries);

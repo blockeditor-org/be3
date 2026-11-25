@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-use be_wasm_gpu_convert::Convert;
 use be_wasm_gpu_abi::device as abi;
+use be_wasm_gpu_convert::Convert;
 
 use crate::{Outcome, convert, slice};
 

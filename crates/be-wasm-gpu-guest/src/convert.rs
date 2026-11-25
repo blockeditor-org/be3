@@ -1,5 +1,5 @@
-use be_wasm_gpu_convert::TryConvert;
 use be_wasm_gpu_abi::device as abi;
+use be_wasm_gpu_convert::TryConvert;
 
 use crate::objects::{
     BindGroupLayout, Buffer, PipelineLayout, Sampler, ShaderModule, Texture, TextureView,

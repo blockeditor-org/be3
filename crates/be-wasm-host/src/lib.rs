@@ -720,7 +720,9 @@ impl App {
         let setup = Setup {
             wasi: match host.flavor {
                 Flavor::Pure => Wasi::pure(
-                    host.name.clone().unwrap_or_else(|| "a pure guest".to_owned()),
+                    host.name
+                        .clone()
+                        .unwrap_or_else(|| "a pure guest".to_owned()),
                     host.seed,
                 ),
                 Flavor::App => Wasi::app(),

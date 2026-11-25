@@ -1017,12 +1017,13 @@ fn pure_answer(
     let view = state.view_in(scope);
     let wasi = Arc::clone(&state.wasi);
     let answered = match &wasi.pure {
-        Some(pure) => pure.wasi.lock().unwrap_or_else(PoisonError::into_inner).call(
-            name,
-            &words,
-            &mut PureMemory(&view),
-            &mut |line| eprintln!("{}: {line}", pure.name),
-        ),
+        Some(pure) => pure
+            .wasi
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .call(name, &words, &mut PureMemory(&view), &mut |line| {
+                eprintln!("{}: {line}", pure.name)
+            }),
         None => Err(be_wasm_pure_wasi::Stopped::Fault(format!(
             "{MODULE}.{name} is a pure guest's, and this guest is not one"
         ))),

@@ -44,12 +44,7 @@ pub struct WorkerChannel {
 
 impl WorkerChannel {
     pub(super) fn start(url: &str, waiting: Arc<AtomicBool>) -> Result<Self, String> {
-        let guest = WebGuest::start(
-            url,
-            "./app.js",
-            Arc::new(be_host_base::host::wake),
-            waiting,
-        )?;
+        let guest = WebGuest::start(url, "./app.js", Arc::new(be_host_base::host::wake), waiting)?;
         Ok(Self {
             guest,
             canvases: Canvases::default(),
