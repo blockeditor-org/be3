@@ -104,6 +104,7 @@ Landed on 2026-11-24:
 - `authorship-1d`: one person's devices compare log heads through the account's block (bounded at 512, forward only on agreement); log-head signatures bind the organization.
 - `clippy-design`: the clippy lints that need a decision per site, fixed or allowed with a reason at each one.
 - `drag-dock-tabs`: declarative_dragging step 3 landed; the plan keeps only the cross-app step.
+- `authorship-4`: a block's log doubt shows as a bar above it, with Details and Dismiss; dismissing hides only the verdict shown, and only the workspace may dismiss. The authorship plan's open items are set aside in plans/deferred/authorship.md.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
