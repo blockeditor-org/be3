@@ -59,13 +59,17 @@ def _configuration(ctx: bxl.Context, platform: str, release: bool) -> str:
 
 # The roots on a platform cargo plans: every first-party Rust library and
 # binary but proc macros, which are built for the execution platform alone,
-# and tests' harnesses, which their tests build. Those incompatible with the
-# platform drop out when configured (_targets).
+# tests' harnesses, which their tests build, and the wasm test modules those
+# harnesses run, which their tests build as guests (wasm_test_harness's
+# transition), with their test dependencies, and which a host wasm plan has
+# no dev-dependencies for. Those incompatible with the platform drop out when
+# configured (_targets).
 def _planned(ctx: bxl.Context) -> list[str]:
     targets = ctx.uquery().kind("^rust_(library|binary)$", "root//crates/...")
     proc_macros = ctx.uquery().attrfilter("proc_macro", "True", targets)
-    harnesses = {str(test.get_attr("harness")): True for test in ctx.uquery().kind("^_be_test$", "root//crates/...")}
-    return [str(target.label) for target in targets - proc_macros if str(target.label) not in harnesses]
+    tested = {str(test.get_attr("harness")): True for test in ctx.uquery().kind("^_be_test$", "root//crates/...")}
+    tested |= {str(harness.get_attr("module")): True for harness in ctx.uquery().kind("^wasm_test_harness$", "root//crates/...")}
+    return [str(target.label) for target in targets - proc_macros if str(target.label) not in tested]
 
 # The first-party Rust libraries and binaries the roots build in this
 # configuration, themselves included. A root that does not exist, or is
