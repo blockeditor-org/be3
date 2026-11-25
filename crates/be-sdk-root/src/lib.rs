@@ -69,7 +69,7 @@ pub use windows::{Delivery, Windows};
 
 use be_lib_geometry::{Pos2, Rect, pos2};
 use be_lib_input_router::Drag;
-use be_lib_layers::{Layer, LayerId, LayerList, Surface};
+use be_lib_layers::{Area, Layer, LayerId, LayerList, Surface};
 use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 use be_sdk_api::{
     DropAction, EditorInstanceId, Pos2 as ViewPos2,
@@ -541,6 +541,39 @@ impl Embedding {
     pub fn focus(&mut self, window: Option<u64>, target: Option<LayerId>) -> Vec<Delivery> {
         let told = self.windows.focus(window, target);
         self.forward(told)
+    }
+
+    /// Moves the keyboard in `window` to the next app's screen that takes it, in the order the
+    /// layers drawn last show them, or the previous while `back`, wrapping, as F6 and
+    /// Shift+F6 move it between the views of be-host's apps (beui's `forward::cycle_focus`):
+    /// from a surface of the root's own, or from none, to the first or the last. A popup, a
+    /// layer hidden or one no pointer lands on is skipped. Nothing moves while no screen takes
+    /// the keyboard.
+    pub fn cycle_focus(&mut self, window: Option<u64>, back: bool) -> Vec<Delivery> {
+        let screens: Vec<LayerId> = self
+            .windows
+            .layers(window)
+            .iter()
+            .filter(|layer| {
+                matches!(layer.surface, Surface::Screen { .. })
+                    && layer.shown
+                    && layer.input.focuses
+                    && layer.input.hit != Area::Nowhere
+            })
+            .map(|layer| layer.id)
+            .collect();
+        if screens.is_empty() {
+            return Vec::new();
+        }
+        let count = screens.len();
+        let focused = self.focused(window).map(|layer| layer.id);
+        let next = match focused.and_then(|focused| screens.iter().position(|id| *id == focused)) {
+            Some(index) if back => (index + count - 1) % count,
+            Some(index) => (index + 1) % count,
+            None if back => count - 1,
+            None => 0,
+        };
+        self.focus(window, Some(screens[next]))
     }
 
     /// The input method's area in `window`, in its points: the field the app focused there

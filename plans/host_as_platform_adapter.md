@@ -2043,7 +2043,21 @@ Each step lands on its own.
            (`Children::opener_of`), and any screen its layout has offers its actions, painted
            or not, as be-host's `offers_actions` keeps a main view's: a canvas on the
            workspace lists its File details between its text's and the workspace's.
-         - 4g7d2. Tab and F6 between surfaces.
+         - 4g7d2. Built: F6 between surfaces. The root intercepts F6 and Shift+F6 but while
+           locked, and moves the keyboard to the next app's screen or the previous
+           (`Embedding::cycle_focus`), in the order the layers drawn last show them, as beui's
+           `forward::cycle_focus` moves it between be-host's app views in the order they are
+           drawn (the files', the text's under the canvas's hole for it, the canvas's and its
+           tool bars', the workspace's); not while the root's palette, dialog or onboarding
+           holds the keyboard. A `Delivery` carries the modifiers held as it was routed, which
+           tell Shift+F6 from F6. Host tests
+           `be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6` and
+           `the_host_moves_the_keyboard_between_views_with_f6`, with the same paintings.
+           - Left: Tab between surfaces. Under be-host an app's view takes Tab, as it takes
+             every key, and Tab in the host's own UI reaches the app views among its controls;
+             under the root, Tab in a surface of its own (its menu, a host panel) wraps within
+             that surface's document. Handing Tab on at a document's ends needs beui to say
+             when Tab would wrap.
        - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and
          win32 hosts' surfaces, which stay the host's.
        - 4g7f. drive's commands split as The root guest says: `tree`, `find`, `paint`,

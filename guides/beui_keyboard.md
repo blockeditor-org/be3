@@ -350,6 +350,11 @@ document as input the root's router hands its focused layer, and the root
 names the focused field's area (`BeuiSurface::ime`) as `frame-done`'s `ime`,
 where the host shows the input method and its keyboard
 (guides/apps/runtime.md, The root guest).
+The root intercepts F6 and Shift+F6 as the router's chords and moves the keyboard
+between the apps' screens as beui's `forward::cycle_focus` does
+(`Embedding::cycle_focus`: in the order the layers are drawn, skipping popups and
+layers no pointer lands on); a `Delivery` carries the modifiers held as it was
+routed, since a batch of input ends with the modifiers already released.
 
 ## Touch
 
