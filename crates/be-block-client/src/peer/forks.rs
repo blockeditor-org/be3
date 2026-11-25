@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::Peer;
 use crate::{
     Answer, ClientError,
-    refs::{HeadFrom, KeptLogHead, LogFork},
+    refs::{ForkKind, HeadFrom, KeptLogHead, LogFork},
 };
 
 /// The head of a block's signed log a device of `account` kept, signed with the account's key
@@ -119,20 +119,26 @@ impl<S: ObjectStore> Peer<S> {
     /// Compares `theirs`, a head of `block`'s signed log another device kept, with the head
     /// this device kept (guides/blocks/keys.md, "Forks").
     ///
-    /// It takes nothing on the server's word: `theirs` must be signed with a key this device
-    /// verified for its account (this account's own, or a contact's), else it is
-    /// `ClientError::Forged` and nothing is kept, so a server cannot plant a fork. A head of
-    /// size 0 whose root is not the empty tree's is `Tampered`. Then this device reads the
-    /// log's head as the server serves it now, proved to extend the one it kept (`read_log`):
-    /// a head of the same size must be that one; for a shorter one the server answers its root
-    /// at that size with a proof that the head just read extends it (`log-page.known-root`),
-    /// and a proof that does not check is `Tampered`, the server misbehaving, not a fork. It is
-    /// a fork when that proved root is not theirs (kept as evidence, `LogFork::prefix`), and
-    /// when theirs is longer: this assumes one linearizable server per log, which only grows,
-    /// so this device, reading after the other kept its head, holds a head at least as long.
-    /// A fork is kept, the first per block (`Refs::found_fork`), and told once
-    /// (`Event::LogForked`); one found later answers that one. Needs the server: offline, or
-    /// for a local account, `ClientError::Disconnected`.
+    /// It takes nothing on the server's word: `theirs` must be signed with the key this device
+    /// holds as current for its account (this account's own, or a contact's newest verified key
+    /// that no broken chain superseded), else it is `ClientError::Forged` and nothing is kept,
+    /// so a server cannot plant a fork. A device that has not followed its own account's new
+    /// phrase so finds the heads its other devices sign with the new key `Forged`, which is
+    /// intended: it cannot tell them from the server's. A head of size 0 whose root is not the
+    /// empty tree's is `Tampered`, and the empty head agrees with every log, asking nothing.
+    /// Then this device reads the log's head as the server serves it now, proved to extend the
+    /// one it kept (`read_log`): a head of the same size must be that one; for a shorter one
+    /// the server answers its root at that size with a proof that the head just read extends it
+    /// (`log-page.known-root`). It is a fork when that proved root is not theirs (kept as
+    /// evidence with the proof, `LogFork::prefix`, `LogFork::proof`), and when theirs is longer:
+    /// this assumes one linearizable server per log, which only grows, so this device, reading
+    /// after the other kept its head, holds a head at least as long. A proof that does not
+    /// check is `Tampered`, kept as a verdict of its own (`ForkKind::Misbehaved`): the server
+    /// proved it misbehaves, though not what it hides. A head the server served this device
+    /// that a later read does not reach is a rollback, kept as a fork of its own log
+    /// (`HeadFrom::Server`). A verdict is kept, the first per block (`Refs::found_fork`), and
+    /// told once (`Event::LogForked`); one found later answers that one. Needs the server:
+    /// offline, or for a local account, `ClientError::Disconnected`.
     pub async fn compare_log_head(
         &self,
         block: Uuid,
@@ -142,8 +148,11 @@ impl<S: ObjectStore> Peer<S> {
         if !self.vouched(block, &theirs) {
             return Err(ClientError::Forged(block));
         }
-        if theirs.head.size == 0 && *theirs.head.root.as_bytes() != merkle::empty_root() {
-            return Err(ClientError::Tampered(theirs.head.root));
+        if theirs.head.size == 0 {
+            return match *theirs.head.root.as_bytes() == merkle::empty_root() {
+                true => Ok(LogAgreement::Agrees),
+                false => Err(ClientError::Tampered(theirs.head.root)),
+            };
         }
         if self.local || !self.is_attached() {
             return Err(ClientError::Disconnected(
@@ -161,12 +170,17 @@ impl<S: ObjectStore> Peer<S> {
             },
         };
         let head = theirs.head;
+        // The longest head the server named meanwhile, which every later read must reach.
+        let mut named: Option<LogHead> = None;
         for _ in 0..COMPARES_WHILE_GROWING {
             let ours = self.read_log(block, u64::MAX, 1).await?.head;
+            if let Some(named) = named.filter(|named| named.size > ours.size) {
+                return Err(self.own_fork(block, &named, &ours));
+            }
             if head.size >= ours.size {
                 return match head == ours {
                     true => Ok(LogAgreement::Agrees),
-                    false => self.forked(block, &ours, &head, None, from),
+                    false => self.forked(block, (&ours, &head), (None, Vec::new()), from),
                 };
             }
             // Their size's root as the server holds it, proved a prefix of the head the server
@@ -186,6 +200,7 @@ impl<S: ObjectStore> Peer<S> {
             ))
             .await?;
             if page.head.size > ours.size {
+                named = Some(page.head);
                 continue;
             }
             if page.head != ours {
@@ -203,11 +218,16 @@ impl<S: ObjectStore> Peer<S> {
                     &proof,
                 )
             }) else {
-                return Err(ClientError::Tampered(page.head.root));
+                return Err(self.misbehaved(block, &ours, &head, from));
             };
             return match prefix == head.root {
                 true => Ok(LogAgreement::Agrees),
-                false => self.forked(block, &ours, &head, Some(*prefix.as_bytes()), from),
+                false => self.forked(
+                    block,
+                    (&ours, &head),
+                    (Some(*prefix.as_bytes()), proof),
+                    from,
+                ),
             };
         }
         Err(ClientError::Contended)
@@ -296,49 +316,87 @@ impl<S: ObjectStore> Peer<S> {
         if signed.account == self.account() {
             return verifies(self.keys.identity().signing());
         }
+        // The newest verified key is the contact's current one, as `verify_authored` holds it;
+        // one it replaced, or one a broken chain superseded, vouches for nothing new.
         self.refs
             .signers(signed.account)
             .iter()
-            .any(|known| known.verified && verifies(SigningPublic(known.key)))
+            .filter(|known| known.verified)
+            .next_back()
+            .is_some_and(|current| !current.superseded && verifies(SigningPublic(current.key)))
     }
 
     /// The server served this device `served`, which does not extend `kept`: kept as the
     /// block's fork (`HeadFrom::Server`), so one place answers whether it forked, and answered
     /// as `ClientError::LogForked`.
     pub(crate) fn own_fork(&self, block: Uuid, kept: &LogHead, served: &LogHead) -> ClientError {
-        if let Err(error) = self.forked(block, kept, served, None, HeadFrom::Server) {
+        if let Err(error) = self.forked(block, (kept, served), (None, Vec::new()), HeadFrom::Server)
+        {
             return error;
         }
         ClientError::LogForked(block)
     }
 
-    fn forked(
+    /// The server answered a proof about `block`'s log that does not check: kept as a verdict
+    /// of its own (`ForkKind::Misbehaved`), and answered as `ClientError::Tampered`.
+    pub(crate) fn misbehaved(
         &self,
         block: Uuid,
         ours: &LogHead,
         theirs: &LogHead,
-        prefix: Option<[u8; 32]>,
+        from: HeadFrom,
+    ) -> ClientError {
+        let fork = self.verdict(block, (ours, theirs), (None, Vec::new()), from, ForkKind::Misbehaved);
+        if let Err(error) = self.keep_verdict(fork) {
+            return error;
+        }
+        ClientError::Tampered(ours.root)
+    }
+
+    fn forked(
+        &self,
+        block: Uuid,
+        (ours, theirs): (&LogHead, &LogHead),
+        evidence: (Option<[u8; 32]>, Vec<merkle::TreeHash>),
         from: HeadFrom,
     ) -> Result<LogAgreement, ClientError> {
+        let fork = self.verdict(block, (ours, theirs), evidence, from, ForkKind::Forked);
+        let kept = self.keep_verdict(fork)?;
+        Ok(LogAgreement::Forked(kept))
+    }
+
+    fn verdict(
+        &self,
+        block: Uuid,
+        (ours, theirs): (&LogHead, &LogHead),
+        (prefix, proof): (Option<[u8; 32]>, Vec<merkle::TreeHash>),
+        from: HeadFrom,
+        kind: ForkKind,
+    ) -> LogFork {
         let kept = |head: &LogHead| KeptLogHead {
             size: head.size,
             root: *head.root.as_bytes(),
             frontier: None,
         };
-        let fork = LogFork {
+        LogFork {
             block,
             ours: kept(ours),
             theirs: kept(theirs),
             prefix,
+            proof,
             from,
+            kind,
             found: self.server_now(),
-        };
+        }
+    }
+
+    /// Keeps `fork` as its block's verdict unless one is kept already, telling it once:
+    /// answers the verdict kept.
+    fn keep_verdict(&self, fork: LogFork) -> Result<LogFork, ClientError> {
         if self.refs.found_fork(fork.clone())? {
             self.connection().fork_found(fork.clone());
-            return Ok(LogAgreement::Forked(fork));
+            return Ok(fork);
         }
-        Ok(LogAgreement::Forked(
-            self.refs.log_fork(block).unwrap_or(fork),
-        ))
+        Ok(self.refs.log_fork(fork.block).unwrap_or(fork))
     }
 }

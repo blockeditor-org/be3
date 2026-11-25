@@ -2,8 +2,9 @@ use super::*;
 
 /// A device keeps the head of each log it verified, and takes a later head only with a proof
 /// that it extends the kept one. A server that serves the log shorter than that head (cut it),
-/// or a log of the same length or longer with other entries (rewrote or forked it), is
-/// reported, and nothing of what it served is kept.
+/// or a push of the same length with other entries (forked it), is reported as a fork; a
+/// longer log it cannot prove extends the head is a proof that does not check, `Tampered`; and
+/// nothing of what it served is kept.
 #[tokio::test]
 async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
     let harness = Harness::start().await;
@@ -93,7 +94,8 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
     );
     rewrite(5);
     assert!(
-        matches!(owner.read_log(chat, 3, 10).await, Err(ClientError::LogForked(block)) if block == chat),
+        // Longer, it does not prove it extends the kept head: the server's proof does not check.
+        matches!(owner.read_log(chat, 3, 10).await, Err(ClientError::Tampered(_))),
         "a forked log was taken"
     );
     assert_eq!(

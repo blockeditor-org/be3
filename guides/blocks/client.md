@@ -345,19 +345,24 @@ taken unproven.
   signed with its account's key in a domain of its own (`signed_log_head`,
   `RecoverySecret::sign_log_head`; the account's devices share the key, so it
   names the account, not the device). `Peer::compare_log_head(block, theirs,
-  via)` takes nothing on the server's word: `theirs` must verify under a key this
-  device verified for its account (its own, or a contact's), else `Forged`, and
-  an empty head with a root is `Tampered`, so the server can plant no fork. It
+  via)` takes nothing on the server's word: `theirs` must verify under the key
+  this device holds as current for its account (its own, or a contact's newest
+  verified key no broken chain superseded), else `Forged`; an empty head with a
+  root is `Tampered`, and the empty head agrees with every log, asking nothing,
+  so the server can plant no fork. It
   then reads the log's head as served now (proved against the kept one), and
   takes a head of the same size only if it is that head, a shorter one only if
   the root the server proves its log had at that size (`log-page.known-root`,
-  with `known`; a proof that does not check is `Tampered`, not a fork) is
-  theirs, and no longer one. That last assumes one linearizable server per log,
-  which only grows: this device read after the other kept its head. A pair that
-  does not prove is a fork (`LogAgreement::Forked`, the server's root at their
-  size kept as evidence, `LogFork::prefix`); so is a head the server serves this
-  device that does not extend the kept one (`ClientError::LogForked`,
-  `HeadFrom::Server`), so one place answers whether a block forked. The first
+  with `known`) is theirs, and no longer one. That last assumes one linearizable
+  server per log, which only grows: this device read after the other kept its
+  head. A pair that does not prove is a fork (`LogAgreement::Forked`, the
+  server's root at their size and its proof kept as evidence, `LogFork::prefix`
+  and `proof`); so is a head the server serves this device shorter than the
+  kept one, or than one it named meanwhile, or of its size with another root
+  (`ClientError::LogForked`, `HeadFrom::Server`). A proof that does not check,
+  in a comparison or a read against the kept head, is `Tampered`, kept as a
+  verdict of its own (`ForkKind::Misbehaved`), so one place answers whether a
+  block's log is in doubt. The first
   per block is kept in the refs database (`LogFork`, `Peer::log_fork`), written
   before it is held, and told once as `Event::LogForked`; one found later
   answers it, and a later `Agrees` leaves it. It needs the server; offline it

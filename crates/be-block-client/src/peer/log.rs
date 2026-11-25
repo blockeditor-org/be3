@@ -577,8 +577,10 @@ impl<S: ObjectStore> Peer<S> {
     /// Verifies entries from `from` against `head` with `proof`, and `head` against `kept` with
     /// `consistency`, then keeps them and the head: a page that does not match the head it
     /// names, names an id twice, or whose arrivals go back (within it, or against the entries
-    /// kept beside it) is tampered, and a head that does not extend the kept one is the server
-    /// cutting or forking the log (`ClientError::LogForked`), and nothing of it is kept. None,
+    /// kept beside it) is tampered; a head shorter than the kept one, or of its size with another
+    /// root, is the server cutting or forking the log (`ClientError::LogForked`), and a longer
+    /// one it does not prove extends the kept one
+    /// is `Tampered`, each kept as the block's verdict, and nothing of the page is kept. None,
     /// keeping nothing, when the kept head moved from `kept` meanwhile (`Refs::keep_entries`).
     #[allow(clippy::too_many_arguments)]
     fn take_entries(
@@ -602,7 +604,15 @@ impl<S: ObjectStore> Peer<S> {
                 &tree_hashes(consistency),
             )
         {
-            return Err(self.own_fork(block, &forks_head(kept), &head));
+            // A head shorter than the kept one, or of its size with another root, is the log
+            // cut or forked; a longer one that does not prove it extends it is a proof that does
+            // not check, which shows the server misbehaving and no more, as `compare_log_head`
+            // holds it.
+            let kept = forks_head(kept);
+            return Err(match head.size <= kept.size {
+                true => self.own_fork(block, &kept, &head),
+                false => self.misbehaved(block, &kept, &head, crate::refs::HeadFrom::Server),
+            });
         }
         let mut ids = std::collections::HashSet::with_capacity(entries.len());
         let distinct = entries.iter().all(|entry| ids.insert(entry.id));

@@ -236,8 +236,12 @@ pub fn consistent(
     if old > new {
         return false;
     }
+    // The empty tree is a prefix of every tree, but only the empty tree's root is its root: a
+    // made-up root for size 0 proves nothing.
     if old == 0 {
-        return proof.is_empty() && (new > 0 || *new_root == empty_root());
+        return proof.is_empty()
+            && *old_root == empty_root()
+            && (new > 0 || *new_root == empty_root());
     }
     if old == new {
         return proof.is_empty() && old_root == new_root;
