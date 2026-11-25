@@ -18,7 +18,7 @@ async fn hosted(events: &mut tokio::sync::broadcast::Receiver<Event>, block: Uui
 
 /// A member of a hosted block's channel that starts a new handshake over a channel it holds
 /// (a reconnect, a message lost) is taken as one: its old channel goes and it is admitted again
-/// (plans/hosted_blocks.md, "Hosting"). A viewer another editor bans goes too, though no grant
+/// (guides/blocks/hosted.md, "Hosting"). A viewer another editor bans goes too, though no grant
 /// of its changed: the server takes it out of the session, and the host drops its channel.
 #[test]
 fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {

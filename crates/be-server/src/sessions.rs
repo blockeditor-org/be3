@@ -5,7 +5,7 @@
 //! holder of the lease follows from them (`be_block_session::Membership`), here as on every
 //! replica. After a restart every session is empty and rebuilds from joins.
 //!
-//! Join members (plans/hosted_blocks.md) are in a session too, but in no membership: each hears
+//! Join members (guides/blocks/hosted.md) are in a session too, but in no membership: each hears
 //! only who holds the lease (`Push::Host`) and what the holder sends it on the host channel, and
 //! only the holder hears that it came or went (`Push::Joiner`).
 

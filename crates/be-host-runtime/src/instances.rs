@@ -78,7 +78,7 @@ thread_local! {
         std::cell::RefCell::new(HashMap::default());
 }
 
-/// Says this device hosts `block` (plans/hosted_blocks.md, "Hosting"), keeps hosting it, or no
+/// Says this device hosts `block` (guides/blocks/hosted.md, "Hosting"), keeps hosting it, or no
 /// longer hosts it (`HostingHere::No`): its editors hear it as `editor-event.hosting`.
 pub fn set_hosting(block: Uuid, hosting: be_sdk_api::blocks::HostingHere) {
     HOSTING.with(|held| match hosting {
@@ -2577,7 +2577,7 @@ impl Instances {
                 }
             }
             // A host component hears its block's host channel members come, speak and go
-            // (plans/hosted_blocks.md, "Hosting"), as the stack admits them.
+            // (guides/blocks/hosted.md, "Hosting"), as the stack admits them.
             // Taken on every pass it reaches, so news queued while it was skipped (no
             // connection yet) waits for it rather than being passed over.
             if let InstanceRole::Host(_, block) = entry.role {

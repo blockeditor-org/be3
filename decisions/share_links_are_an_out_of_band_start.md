@@ -15,7 +15,7 @@ plans/deferred/anonymous_share_links.md).
   "Trust"): the grant names the grantee's keys as a member with the
   right level verified them, so a sealer needs no contact row of its own, and
   the grantee accepts a key from a sender a checked record names.
-- A Join member (plans/hosted_blocks.md) may message the block's host over the
+- A Join member (guides/blocks/hosted.md) may message the block's host over the
   channel the server relays, and the app may show which account hosts. The link
   that admitted them started the relationship, and the channel reaches only
   that block's host.

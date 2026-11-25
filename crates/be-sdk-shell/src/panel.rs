@@ -253,7 +253,8 @@ pub(crate) fn BlockPanel(
                             <Kept>
                                 <Dynamic
                                     value={move || match info.get() {
-                                        Some(info) if !info.access.can_view() => Content::Denied,
+                                        // A Join member's editor opens with no content.
+                                        Some(info) if !info.access.can_join() => Content::Denied,
                                         Some(info) if info.out_of_reach => Content::OutOfReach,
                                         Some(_) | None => Content::Block,
                                     }}

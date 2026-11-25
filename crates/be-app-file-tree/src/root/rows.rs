@@ -1283,7 +1283,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => "",
         AccessLevel::View => "You can view this block, but not change it.",
-        AccessLevel::Join => "You can join whoever hosts this block, but not open it.",
+        AccessLevel::Join => "You can join whoever hosts this block, but not read what it holds.",
         AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
         }

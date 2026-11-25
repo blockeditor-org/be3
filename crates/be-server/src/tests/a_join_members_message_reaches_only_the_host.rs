@@ -23,7 +23,7 @@ async fn heard(client: &mut TestClient, block: Uuid) -> Vec<Notice> {
     heard
 }
 
-/// A Join member joins a block's session as a member of its own kind (plans/hosted_blocks.md):
+/// A Join member joins a block's session as a member of its own kind (guides/blocks/hosted.md):
 /// it learns who hosts, and nothing of the membership or the order; only the lease holder hears
 /// it came or went; what it sends on the host channel reaches the holder alone, and what the
 /// holder sends it reaches it alone, so another Join member hears nothing of either, not even

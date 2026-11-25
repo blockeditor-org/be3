@@ -3,7 +3,7 @@ use super::*;
 use be_block_graph::Access;
 use be_block_keys::Level;
 
-/// A ban record in a hosted block's log (plans/hosted_blocks.md, "Hosting"), which any editor
+/// A ban record in a hosted block's log (guides/blocks/hosted.md, "Hosting"), which any editor
 /// signs, bars its account from joining: the server refuses it the session and the host refuses
 /// its handshake. A grant signed after it lifts it.
 #[tokio::test]

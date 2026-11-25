@@ -15,7 +15,7 @@ const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A player that is no device: an account of a test [`Server`] reaching it as a raw
 /// be-block-client peer, with no be-host, as a game's own client would. It opens a Join link
-/// and speaks to whoever hosts the block on its host channel (plans/hosted_blocks.md,
+/// and speaks to whoever hosts the block on its host channel (guides/blocks/hosted.md,
 /// "Hosting"), so a test can watch members carry on across hosts.
 pub struct Player {
     name: String,
@@ -159,7 +159,7 @@ impl Player {
     }
 
     /// Handshakes with `host` on `block`'s host channel and says `said` on the channel it
-    /// opens, which has the host admit this player (plans/hosted_blocks.md, "Hosting").
+    /// opens, which has the host admit this player (guides/blocks/hosted.md, "Hosting").
     pub fn handshake(&mut self, block: Uuid, host: SessionHost, said: &[u8]) -> Channel {
         let peer = Arc::clone(&self.peer);
         let (joining, first) = self

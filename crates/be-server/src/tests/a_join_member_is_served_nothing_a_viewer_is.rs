@@ -2,7 +2,7 @@ use be_block_graph::Access;
 
 use super::*;
 
-/// A Join member (plans/hosted_blocks.md) may connect to whoever hosts the block and nothing
+/// A Join member (guides/blocks/hosted.md) may connect to whoever hosts the block and nothing
 /// more: it finds the block in Shared with me by its type, as one known to exist, and is served
 /// none of what a viewer is: no name or head, contents, history, keys or objects.
 #[tokio::test]

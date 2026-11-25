@@ -202,7 +202,7 @@ pub struct EditorRegistry {
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, be_sdk_api::BlockTypeDescriptor>,
     app_block_types: Arc<AppCatalog>,
-    /// The host component of each hosted block type (plans/hosted_blocks.md, "Hosting").
+    /// The host component of each hosted block type (guides/blocks/hosted.md, "Hosting").
     hosted: crate::hosting::HostedTypes,
 }
 

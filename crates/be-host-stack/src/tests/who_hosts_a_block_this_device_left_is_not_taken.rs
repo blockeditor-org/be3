@@ -3,7 +3,7 @@ use super::*;
 /// Who hosts a block counts only while this device's replica of it is in its session: told of a
 /// block it left (the answer to a join the replica left before it came, such as the rejoin that
 /// dropped a claim as its editor closed), the device keeps no word of it, so a component does
-/// not start there on that word as the block opens again (plans/hosted_blocks.md, step 4d2).
+/// not start there on that word as the block opens again (guides/blocks/hosted.md, "Who hosts").
 #[test]
 fn who_hosts_a_block_this_device_left_is_not_taken() {
     let harness = Harness::start();

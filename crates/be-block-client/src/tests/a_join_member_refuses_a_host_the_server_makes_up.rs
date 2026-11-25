@@ -27,7 +27,7 @@ pub(super) async fn hosted(
 }
 
 /// A Join member checks the account the server names as a hosted block's host in the block's
-/// access log before it speaks to it (plans/hosted_blocks.md, "The channel"): only an account
+/// access log before it speaks to it (guides/blocks/hosted.md, "The channel"): only an account
 /// the log gives Edit or above may host, and only with the identity key that log names for it,
 /// so a server that names an account without Edit, answers with a key of its own, or serves a
 /// log of its own making with a host of its own, is refused. Holding no key of the block, the

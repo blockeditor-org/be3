@@ -690,7 +690,7 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   whether the account joins as a guest (judged from the account's own organizations, not the
   server's word), refuses the opening if the link changed since, and opens that organization
   when it is not the one open.
-- **Join links** (plans/hosted_blocks.md): a link of level Join carries no key, and its opener
+- **Join links** (guides/blocks/hosted.md): a link of level Join carries no key, and its opener
   reads nothing stored. Every link hands the root of the block's log, which its maker pinned,
   sealed with the code; the opener keeps it in the account's block (`KeptShare::root`), refuses
   the opening as forged when the log its grant went into starts elsewhere, and, holding no key
@@ -938,7 +938,7 @@ so nobody with Edit can write as someone else.
 ### Hosted channels
 
 A hosted block's members speak to its host over a private channel
-(plans/hosted_blocks.md, "The channel"; `be_block_keys::noise`,
+(guides/blocks/hosted.md, "The channel"; `be_block_keys::noise`,
 `be_block_client::peer::hosted`), carried by the session's `host` send
 (guides/blocks/server.md, "Live sessions"), which the server routes and
 cannot read.
@@ -1095,7 +1095,7 @@ who lost access. Cited from code by these names.
   making and stand in a host of theirs, as a contact can hand a device new to a
   block a key of it naming any heads. A member checks the host on a proof
   path, which can hide a later revocation of the host's Edit behind a hash
-  (plans/hosted_blocks.md, "Accepted limits").
+  (guides/blocks/hosted.md, "Accepted limits").
 - **A leaked phrase** acts as the account until a retirement lands: it reads
   and writes what the account may and signs records, which stay valid after.
   The thief who retires first wins those logs, and a retirement's endorsement

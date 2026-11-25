@@ -910,7 +910,7 @@ pub(crate) fn block_head(
 }
 
 /// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a ban
-/// barring `account` from joining the block's host (plans/hosted_blocks.md, "Hosting"), which the
+/// barring `account` from joining the block's host (guides/blocks/hosted.md, "Hosting"), which the
 /// log takes only from a signer with Edit or above.
 pub(crate) fn append_ban(
     connection: &Connection,

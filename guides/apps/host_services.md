@@ -339,7 +339,7 @@ A host component is a component of the app's wasm with no frame: the manifest
 names it under `hosts` (an id; `edits`, the one block type it runs on, one its
 own app declares; and `levels`, what the share dialog offers on a block of that
 type, Join among them, each with a `name` and a `line` saying what it adds for
-the stored block: `HostManifest::levels`, plans/hosted_blocks.md, "The share
+the stored block: `HostManifest::levels`, guides/blocks/hosted.md, "The share
 dialog"), and the app's `beui_app!` map pairs the name with a root as it does an
 editor's; the framework refuses to start unless the roots cover the editors and
 hosts together. The root's `BeuiRoot::host(editor)` runs once it is attached,
@@ -368,7 +368,7 @@ app asks (`Instances::hosting`):
 - of the host services, only its app's own data (`list-data`, `read-data`);
 - no shell message but a failure report, no web view, no `open-url`, and no
   gpu. A fetch is the manifest's `network` as for any instance. It is how a
-hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
+hosted block's host runs (guides/blocks/hosted.md), in be-host or headless in
 `be` (guides/apps/runtime.md, "Headless").
 
 be-host runs a block's host component while it hosts the block
@@ -443,6 +443,12 @@ access falls to Join, or rises from it, is closed at the app and opened again
 as the other kind, so a participant that falls to Join handshakes as a member.
 One just opened hears first who hosts now (`be_host_stack::channel_host`).
 In be-sdk-beui, `Editor::joined`, `Editor::on_channel` and `Editor::tell_host`.
+
+`BeuiTest::hosting` runs an app's host component with no screen and
+`BeuiTest::joined` its editor as a Join member; `hear_member` and
+`hear_channel` speak to each as be-host would, and `take_block_commands`
+reads what they tell (`tell-member`, `tell-host`). be-app-gem-hunt's tests use
+both (guides/blocks/hosted.md, "The gem hunt").
 
 ## Workers
 

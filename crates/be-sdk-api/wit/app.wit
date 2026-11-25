@@ -77,7 +77,7 @@ interface app {
         /// selects it and brings it into view, where it supports a location.
         reveal(search-location),
         /// To a host component only: a member of its block's host channel came,
-        /// spoke or went (plans/hosted_blocks.md, "Hosting").
+        /// spoke or went (guides/blocks/hosted.md, "Hosting").
         member(member-event),
         /// To an editor opened as a Join member only: its block's host channel
         /// opened, closed, or carried what the host said.

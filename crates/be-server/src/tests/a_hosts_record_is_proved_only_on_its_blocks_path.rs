@@ -20,7 +20,7 @@ async fn granted(client: &mut TestClient, block: Uuid) -> Vec<Uuid> {
 }
 
 /// A member of a hosted block's session is served the lease holder's records on that block's
-/// path (plans/hosted_blocks.md), to check its right to host there, and nowhere else: the path
+/// path (guides/blocks/hosted.md), to check its right to host there, and nowhere else: the path
 /// of an unrelated block the member reads still reduces the host's grant there.
 #[tokio::test]
 async fn a_hosts_record_is_proved_only_on_its_blocks_path() {

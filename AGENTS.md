@@ -63,6 +63,7 @@ Guides:
 - guides/blocks/apps.md: blocks on the app protocol: content frames, state and change callbacks, the region driver, graph queries and commands, presence, peer messages, LiveText
 - guides/blocks/version_control.md: repositories, checkouts, snapshots, conflicts as data, local ids
 - guides/blocks/keys.md: keys, scopes, rotation, escrow, identity and pairing, contacts, what the server can and cannot do
+- guides/blocks/hosted.md: hosted blocks: the Join level, the share dialog's levels, the host channel, who hosts and when, banning, the gem hunt
 - guides/blocks/workspaces.md: organizations, workspaces and the files pane, device profiles and host-applied settings, sessions and view state
 - guides/tracker.md: the issue tracker in be-host, and `be`, the command line tool agents use to read and change it
 - guides/type_modules.md: block types as app wasm modules: the host-to-type protocol (`be-sdk-type-api`) and the replica library types link (`be-sdk-type-guest`)

@@ -1253,7 +1253,7 @@ impl Editor {
     }
 
     /// For a host component (`BeuiRoot::host`): calls `receive` with each member of the
-    /// block's host channel that comes, speaks or goes (plans/hosted_blocks.md, "Hosting"), in
+    /// block's host channel that comes, speaks or goes (guides/blocks/hosted.md, "Hosting"), in
     /// order. A member is known by the number the host gives it while it stays.
     pub fn on_member(&self, receive: impl Fn(be_sdk_api::blocks::MemberEvent) + 'static) {
         let core = self.core();
@@ -1305,7 +1305,7 @@ impl Editor {
         self.core().host().tell_host(self.block_id(), payload);
     }
 
-    /// Whether this device hosts the block (plans/hosted_blocks.md, "Hosting"): runs its host
+    /// Whether this device hosts the block (guides/blocks/hosted.md, "Hosting"): runs its host
     /// component, and keeps hosting it after its editors here close (`keep_hosting`).
     pub fn hosting(&self) -> Memo<be_sdk_api::blocks::HostingHere> {
         let core = self.core();

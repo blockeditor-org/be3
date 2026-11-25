@@ -821,7 +821,7 @@ impl EditorHost {
     }
 
     /// What a host component's block's host channel members did since this was last taken
-    /// (`Pushed::MemberEvents`; plans/hosted_blocks.md, "Hosting"), in order.
+    /// (`Pushed::MemberEvents`; guides/blocks/hosted.md, "Hosting"), in order.
     pub fn take_member_events(&self) -> Vec<be_sdk_api::blocks::MemberEvent> {
         std::mem::take(&mut self.member_events.borrow_mut())
     }
@@ -832,7 +832,7 @@ impl EditorHost {
     }
 
     /// Whether the editor opened as a Join member of its block (`opening-kind.join`;
-    /// plans/hosted_blocks.md, "Hosting"): it is given no content, and speaks to whoever hosts
+    /// guides/blocks/hosted.md, "Hosting"): it is given no content, and speaks to whoever hosts
     /// the block on its host channel (`take_channel_events`, `tell_host`).
     pub fn joined(&self) -> bool {
         self.joined.get()
@@ -853,7 +853,7 @@ impl EditorHost {
         self.push(Pushed::Channel);
     }
 
-    /// Whether this device hosts the editor's block (plans/hosted_blocks.md, "Hosting"): runs
+    /// Whether this device hosts the editor's block (guides/blocks/hosted.md, "Hosting"): runs
     /// its host component, and keeps hosting it after its editors here close
     /// (`keep_hosting`). `No` until the host says otherwise.
     pub fn hosting(&self) -> be_sdk_api::blocks::HostingHere {

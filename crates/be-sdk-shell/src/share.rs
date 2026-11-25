@@ -11,7 +11,7 @@ const GRANTABLE: [AccessLevel; 3] = [AccessLevel::Manage, AccessLevel::Edit, Acc
 const LINK_GRANTABLE: [AccessLevel; 2] = [AccessLevel::Edit, AccessLevel::View];
 
 /// The levels the share dialog offers on a block, and what it calls each: a hosted type's own
-/// levels, names and lines from its manifest (plans/hosted_blocks.md, "The share dialog"), or
+/// levels, names and lines from its manifest (guides/blocks/hosted.md, "The share dialog"), or
 /// the core levels by their own names.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Offered(Vec<OfferedLevel>);
@@ -349,7 +349,7 @@ impl Share {
     }
 
     /// What the next share link grants: what the person chose, else Join on a hosted block
-    /// (plans/hosted_blocks.md, "The share dialog") and View on any other.
+    /// (guides/blocks/hosted.md, "The share dialog") and View on any other.
     pub(crate) fn link_access(&self, listing: Option<&AccessListing>) -> AccessLevel {
         self.chosen_link_access.unwrap_or_else(|| {
             listing

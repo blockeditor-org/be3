@@ -88,7 +88,7 @@ fn admit(
 }
 
 /// An editor here that joins a hosted block as a Join member (`want_channel`;
-/// plans/hosted_blocks.md, "Hosting") handshakes with whoever holds its lease: it hears the
+/// guides/blocks/hosted.md, "Hosting") handshakes with whoever holds its lease: it hears the
 /// channel open to that account and what the host says, and what it tells the host arrives in
 /// order. A message that does not open breaks the channel, and a stray one of the old channel
 /// does not end the new handshake. When the host leaves and another account's device claims the
@@ -116,7 +116,7 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     assert_eq!(status().error, None);
 
     // The first claims the lease and hosts, and the second stands by: a device hosts only by a
-    // claim, as its host component starts (plans/hosted_blocks.md, step 4d2).
+    // claim, as its host component starts (guides/blocks/hosted.md, "Who hosts").
     let mut first_events = join_as_editor(&first, block, true);
     let mut second_events = join_as_editor(&second, block, false);
     let joiner = Owner::Editor(1);

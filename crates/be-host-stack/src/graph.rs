@@ -1969,7 +1969,9 @@ impl Graph {
                 .into_iter()
                 .flat_map(|listed| listed.members.iter())
                 .filter_map(|block| self.nodes.get(block))
-                .filter(|node| node.access.can_view())
+                // A Join member lists the block too, by its type, and opens it as a Join
+                // member (guides/blocks/hosted.md, "Access").
+                .filter(|node| node.access.can_join())
                 .map(|node| Node::clone(node))
                 .collect(),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),

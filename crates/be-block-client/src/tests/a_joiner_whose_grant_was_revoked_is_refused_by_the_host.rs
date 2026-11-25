@@ -4,7 +4,7 @@ use be_block_graph::Access;
 use be_block_keys::Level;
 
 /// A host admits a member only while the block's log grants its account Join or above now, with
-/// the identity key it speaks with (plans/hosted_blocks.md, "The channel"): one revoked since it
+/// the identity key it speaks with (guides/blocks/hosted.md, "The channel"): one revoked since it
 /// began the handshake is refused, and so is a first message with another account's key.
 #[tokio::test]
 async fn a_joiner_whose_grant_was_revoked_is_refused_by_the_host() {

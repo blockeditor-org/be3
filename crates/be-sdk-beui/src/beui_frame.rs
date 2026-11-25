@@ -402,7 +402,7 @@ struct FrameActions {
     rename: Action,
     share: Action,
     details: Action,
-    /// Only while this device hosts the block (plans/hosted_blocks.md, "Hosting"), so the
+    /// Only while this device hosts the block (guides/blocks/hosted.md, "Hosting"), so the
     /// palette lists it only then too.
     keep_hosting: ReadSignal<Option<Action>>,
     close: Action,

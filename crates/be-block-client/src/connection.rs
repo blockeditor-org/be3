@@ -95,7 +95,7 @@ pub enum Event {
         block: Uuid,
         entry: JournalEntry,
     },
-    /// A message on a block's host channel (`session-event.hosted`; plans/hosted_blocks.md):
+    /// A message on a block's host channel (`session-event.hosted`; guides/blocks/hosted.md):
     /// from the lease holder to this member, or to this holder from a member. Sealed end to end
     /// (`hosted::Channel`).
     Hosted {
@@ -526,7 +526,7 @@ impl Connection {
 
     /// Joins a block's session as `join_session` does, answering all the server said: as a
     /// participant, or, below View, as a Join member, which hears only the host channel and who
-    /// holds the lease (plans/hosted_blocks.md).
+    /// holds the lease (guides/blocks/hosted.md).
     ///
     /// Of joins of one block on their way at once, the server answers the newest last: it takes
     /// over what the others held, and only its answer changes what this connection knows of

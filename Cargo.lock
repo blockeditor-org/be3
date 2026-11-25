@@ -1009,6 +1009,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-app-gem-hunt"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-gem-hunt",
+ "beui",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "be-app-image"
 version = "0.1.0"
 dependencies = [
@@ -3061,6 +3074,16 @@ name = "be-type-example-triangle"
 version = "0.1.0"
 dependencies = [
  "be-block-commit",
+ "be-block-content",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-gem-hunt"
+version = "0.1.0"
+dependencies = [
  "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",

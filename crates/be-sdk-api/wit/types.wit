@@ -877,7 +877,7 @@ interface types {
     }
 
     /// An editor opening on a block its account may only join
-    /// (`access-level.join`; plans/hosted_blocks.md, "Hosting"): it is given no
+    /// (`access-level.join`; guides/blocks/hosted.md, "Hosting"): it is given no
     /// content, only the block's host channel (`editor-event.channel`,
     /// `block-command.tell-host`). An editor open on a block whose access
     /// falls to Join, or rises from it, is closed and opened again as the

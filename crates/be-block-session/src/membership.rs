@@ -34,7 +34,7 @@ pub trait Membership {
         self.holder() == Some(client)
     }
 
-    /// Who hosts the block (plans/hosted_blocks.md, "Hosting"): the holder, but only by a
+    /// Who hosts the block (guides/blocks/hosted.md, "Hosting"): the holder, but only by a
     /// claim, never by having joined first, since a device claims as its host component
     /// starts. None while no such participant claimed.
     fn claimed_holder(&self) -> Option<ClientId>;

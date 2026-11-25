@@ -1,7 +1,7 @@
 use super::*;
 
 /// The host menu lists each block this device keeps hosting with no editor open
-/// (plans/hosted_blocks.md, "Hosting"), saying whether it hosts it now or stands by while
+/// (guides/blocks/hosted.md, "Hosting"), saying whether it hosts it now or stands by while
 /// another device does, and picking one stops hosting it.
 #[test]
 fn the_menu_lists_what_this_device_keeps_hosting_with_stop() {

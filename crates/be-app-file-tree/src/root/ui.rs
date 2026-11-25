@@ -83,7 +83,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             zoom.enter(key);
             return;
         }
-        let (Some(id), true) = (row.id, row.access.can_view()) else {
+        // A block this account may only join opens as a Join member (guides/blocks/hosted.md).
+        let (Some(id), true) = (row.id, row.access.can_join()) else {
             return;
         };
         match row.container {

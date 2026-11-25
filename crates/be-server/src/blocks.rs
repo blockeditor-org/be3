@@ -642,7 +642,7 @@ impl ServerStore {
     /// Edit below, else a proof path of the caller's own right, of that of each lease holder in
     /// `hosts` (each session the caller is in, by its block, with its holder's account) whose
     /// session's block is `block` or lies below it, whom a Join member or viewer checks before it
-    /// speaks to it (plans/hosted_blocks.md), and, for a block above what the caller views, of
+    /// speaks to it (guides/blocks/hosted.md), and, for a block above what the caller views, of
     /// whoever signs below on authority from it. A host is proved nowhere else, so a member of
     /// one session learns nothing of its host's records on unrelated blocks. Served whole, only
     /// the entries after `held` when the log holds it (`access::served_log`).
@@ -2341,7 +2341,7 @@ impl ServerStore {
     }
 
     /// Appends a ban (`Record::Ban`) of `account` to `block`'s log, signed by the caller, who
-    /// holds Edit or above (plans/hosted_blocks.md, "Hosting").
+    /// holds Edit or above (guides/blocks/hosted.md, "Hosting").
     pub async fn ban(
         &self,
         identity: Identity,

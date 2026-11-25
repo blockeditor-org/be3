@@ -3,7 +3,7 @@
 A block whose readers must not see all of it (a game world with secret state)
 is run by a host: whichever member with Edit holds its live session. Others
 reach it through a Join level that grants no keys, over a private channel to
-the host (plans/hosted_blocks.md). Edit means "may change the stored block and
+the host (guides/blocks/hosted.md). Edit means "may change the stored block and
 so may host it"; what a member may do inside the block is the app's own role,
 kept in the content and checked by the host.
 

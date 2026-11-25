@@ -8,7 +8,7 @@ pub enum Access {
     None,
     KnowExists,
     /// May connect to whoever hosts the block over a private channel, and is served nothing of
-    /// it: no keys, objects or name (plans/hosted_blocks.md). Like `KnowExists`, it reaches only
+    /// it: no keys, objects or name (guides/blocks/hosted.md). Like `KnowExists`, it reaches only
     /// the block it is granted on, never the blocks below.
     Join,
     View,
