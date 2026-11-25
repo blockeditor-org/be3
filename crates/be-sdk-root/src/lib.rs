@@ -76,7 +76,7 @@ use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 use be_sdk_api::{
     DropAction, EditorInstanceId, Pos2 as ViewPos2,
     app::EditorEvent,
-    clipboard::{Blocks, ClipBlock, ClipFormat},
+    clipboard::{Blocks, ClipBlock, ClipFile, ClipFormat, Files},
     shell_types::{DragOver, DragStart},
 };
 use be_sdk_app_host::anchored::{Hung, dismissed_by_press};
@@ -98,6 +98,9 @@ pub struct Embedding {
     /// The block an app's editor drags out of itself, carried over the screens under the
     /// pointer until it is dropped (`Embedding::carry`).
     carried: Option<Carried>,
+    /// Files dragged over a window from outside it, carried over the screens under the pointer
+    /// until they are dropped or the drag ends (`Embedding::drag_files`).
+    files: Option<FilesOver>,
     /// The anchored views that ask for the keyboard (`anchored-placement.keyboard`), while
     /// their apps keep them open.
     keyed: Vec<Keyed>,
@@ -141,6 +144,15 @@ struct Over {
     view: be_sdk_api::ViewId,
 }
 
+/// Files dragged over a window from outside it (`input.drag-files`), as be-host's views hear
+/// them (be-host-runtime's `file_drop`): the view of an app's editor under the pointer that
+/// takes a drag hears them there, with no files yet, and the files once they are dropped.
+struct FilesOver {
+    window: Option<u64>,
+    /// The editor's view they are over, the layer showing it, and where in it, in its points.
+    over: Option<(Over, ViewPos2)>,
+}
+
 /// What a window's input did (`Embedding::input`).
 #[derive(Debug, Default)]
 pub struct Routed {
@@ -167,6 +179,7 @@ impl Embedding {
             apps: Vec::new(),
             windows: Windows::new(compositor),
             carried: None,
+            files: None,
             keyed: Vec::new(),
             own_trees: Default::default(),
             host_input: Vec::new(),
@@ -239,6 +252,7 @@ impl Embedding {
         let mut routed = self.windows.route(window, events);
         routed.splice(0..0, lifted);
         self.carry();
+        self.follow_files(window, &routed);
         let pressed = routed
             .iter()
             .filter_map(|delivery| {
@@ -516,6 +530,124 @@ impl Embedding {
             self.end_carry();
             self.carried = None;
         }
+    }
+
+    /// Takes files dragged over `window` from outside it, as the host says
+    /// (`input.drag-files`): from when they are over it, the view under the pointer that takes a
+    /// drag hears them as the pointer moves (`follow_files`); dropped, that view hears them with
+    /// what each holds, as a copy; put down or gone, it hears them leave.
+    pub fn drag_files(&mut self, window: Option<u64>, drag: be_wasm_root_api::input::FileDrag) {
+        use be_wasm_root_api::input::FileDrag;
+        match drag {
+            FileDrag::Hovered => {
+                if self.files.as_ref().is_none_or(|files| files.window != window) {
+                    self.leave_files();
+                    self.files = Some(FilesOver { window, over: None });
+                }
+            }
+            FileDrag::Cancelled => {
+                self.leave_files();
+                self.files = None;
+            }
+            FileDrag::Dropped(dropped) => {
+                let over = self
+                    .files
+                    .take()
+                    .filter(|files| files.window == window)
+                    .and_then(|files| files.over);
+                let Some((over, at)) = over else {
+                    return;
+                };
+                let files = Files {
+                    files: dropped
+                        .into_iter()
+                        .map(|file| ClipFile {
+                            name: file.name,
+                            data: file.data,
+                        })
+                        .collect(),
+                };
+                let dropped = DragOver {
+                    view: over.view,
+                    pos: at,
+                    items: vec![ClipFormat::encode(&files)],
+                    action: DropAction::Copy,
+                    dropped: true,
+                };
+                tell_editor(over.app.instance(), over.editor, &EditorEvent::Drag(Some(dropped)));
+                over.app.end_drag(over.editor);
+            }
+        }
+    }
+
+    /// Follows files dragged over `window` with the pointer's moves `routed` there: the view of
+    /// an app's editor it is over that takes a drag hears them there (`editor-event.drag`, with
+    /// no files yet), and the one it left hears them leave.
+    fn follow_files(&mut self, window: Option<u64>, routed: &[Delivery]) {
+        if self.files.as_ref().is_none_or(|files| files.window != window) {
+            return;
+        }
+        for delivery in routed {
+            let input::Input::PointerMoved(at) = delivery.input else {
+                continue;
+            };
+            let site = match delivery.surface {
+                Surface::Screen { instance, surface } => self
+                    .apps
+                    .iter()
+                    .find(|app| app.instance() == instance)
+                    .and_then(|app| {
+                        let (editor, view, at) = app.drop_site(surface, at)?;
+                        Some((app.clone(), editor, view, at))
+                    }),
+                _ => None,
+            };
+            let moved = self
+                .files
+                .as_ref()
+                .and_then(|files| files.over.as_ref())
+                .is_some_and(|(over, _)| {
+                    site.as_ref().is_none_or(|(app, editor, view, _)| {
+                        (over.app.instance(), over.editor, over.view)
+                            != (app.instance(), *editor, *view)
+                    })
+                });
+            if moved {
+                self.leave_files();
+            }
+            let Some((app, editor, view, at)) = site else {
+                continue;
+            };
+            let pos = ViewPos2 { x: at.x, y: at.y };
+            let hovering = DragOver {
+                view,
+                pos,
+                items: vec![ClipFormat::encode(&Files { files: Vec::new() })],
+                action: DropAction::Copy,
+                dropped: false,
+            };
+            tell_editor(app.instance(), editor, &EditorEvent::Drag(Some(hovering)));
+            if let Some(files) = self.files.as_mut() {
+                files.over = Some((
+                    Over {
+                        layer: delivery.target,
+                        app,
+                        editor,
+                        view,
+                    },
+                    pos,
+                ));
+            }
+        }
+    }
+
+    /// Tells the view the files dragged from outside are over that they left it.
+    fn leave_files(&mut self) {
+        let Some((over, _)) = self.files.as_mut().and_then(|files| files.over.take()) else {
+            return;
+        };
+        tell_editor(over.app.instance(), over.editor, &EditorEvent::Drag(None));
+        over.app.end_drag(over.editor);
     }
 
     /// Tells the view the carried block is over that it left it.

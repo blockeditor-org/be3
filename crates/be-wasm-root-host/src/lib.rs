@@ -392,6 +392,21 @@ impl<G: Inline> Core<G> {
         Ok(())
     }
 
+    /// Hands the root files dragged over `window` from outside it (`input.drag-files`), in order
+    /// with its input, which it takes in as it does that. A root that stopped hears nothing,
+    /// and says why.
+    fn drag_files(
+        &mut self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> Result<(), String> {
+        if let Some(failure) = &self.failure {
+            return Err(failure.clone());
+        }
+        let _answered = embed::exports::input::drag_files(&mut self.connection, window, drag);
+        Ok(())
+    }
+
     /// Asks the root what its own surfaces painted, which it answers as it steps through the
     /// next frame (`take_paintings`). A root that stopped says why.
     fn ask_paintings(&mut self) -> Result<(), String> {

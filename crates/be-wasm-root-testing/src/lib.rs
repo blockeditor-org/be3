@@ -202,6 +202,11 @@ impl input::Guest for Frames {
         self.routed.borrow_mut().extend(routed);
         Box::pin(async {})
     }
+
+    /// It carries no files: its child takes no drags.
+    fn drag_files(&self, _window: Option<u64>, _drag: be_wasm_root_api::input::FileDrag) -> LocalFuture<()> {
+        Box::pin(async {})
+    }
 }
 
 impl paintings::Guest for Frames {

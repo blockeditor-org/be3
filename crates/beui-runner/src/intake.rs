@@ -172,7 +172,15 @@ pub(crate) struct Drain<'a> {
     pub layer_target: &'a dyn Fn(u64) -> Option<(WindowId, HostTransform)>,
     /// Whether the program takes an input itself (`Program::input`), in its window's points,
     /// with when the platform sampled it, if it said.
-    pub take: &'a mut dyn FnMut(WindowId, &Input, Option<Instant>) -> bool,
+    pub take: &'a mut dyn FnMut(Taken<'_>) -> bool,
+}
+
+/// What the intake offers the program to take itself (`Drain::take`).
+pub(crate) enum Taken<'a> {
+    /// An input in `window`, with when it was sampled (`Program::input`).
+    Input(WindowId, &'a Input, Option<Instant>),
+    /// Files dragged over the windows from outside them (`Program::file_drag`).
+    Files(&'a FileDrag),
 }
 
 impl Intake {
@@ -240,11 +248,16 @@ impl Intake {
         for Queued { entry, time } in queue {
             let before = events.len();
             match entry {
-                Entry::FileDrag(drag) => events.push(match drag {
-                    FileDrag::Hovered => Event::FileHovered,
-                    FileDrag::Cancelled => Event::FileHoverCancelled,
-                    FileDrag::Dropped(file) => Event::FileDropped(file),
-                }),
+                Entry::FileDrag(drag) => {
+                    if (drain.take)(Taken::Files(&drag)) {
+                        continue;
+                    }
+                    events.push(match drag {
+                        FileDrag::Hovered => Event::FileHovered,
+                        FileDrag::Cancelled => Event::FileHoverCancelled,
+                        FileDrag::Dropped(file) => Event::FileDropped(file),
+                    });
+                }
                 Entry::Input {
                     units,
                     window,
@@ -260,7 +273,7 @@ impl Intake {
                         1.0 => input,
                         scale => input.scaled(1.0 / scale),
                     };
-                    if (drain.take)(window, &input, time) {
+                    if (drain.take)(Taken::Input(window, &input, time)) {
                         self.taken(&input, drain);
                         continue;
                     }
@@ -271,7 +284,7 @@ impl Intake {
                     self.input(input, drain, events);
                 }
                 Entry::Layer { window, input, .. } => {
-                    if (drain.take)(window, &input, time) {
+                    if (drain.take)(Taken::Input(window, &input, time)) {
                         self.taken(&input, drain);
                         continue;
                     }
@@ -298,7 +311,7 @@ impl Intake {
     fn taken(&mut self, input: &Input, drain: &Drain<'_>) {
         let mut unheard = Vec::new();
         // A press the program took is no emulated finger the document must later see lifted.
-        let mut take = |_: WindowId, _: &Input, _: Option<Instant>| false;
+        let mut take = |_: Taken<'_>| false;
         let drain = Drain {
             touch_emulation: false,
             take: &mut take,

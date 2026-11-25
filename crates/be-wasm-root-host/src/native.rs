@@ -451,6 +451,17 @@ impl Root {
         self.core.input(window, events)
     }
 
+    /// Hands the root files dragged over `window` from outside it, in order with `input`: the
+    /// root carries them to the view under the pointer that takes a drag. A root that stopped
+    /// says why.
+    pub fn drag_files(
+        &mut self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> Result<(), String> {
+        self.core.drag_files(window, drag)
+    }
+
     /// Draws a frame for `request`, waiting for the root's children until `deadline` and for the
     /// root itself as long as it takes, up to its patience past the deadline. A root that
     /// trapped, panicked or took longer says why, and draws nothing again.

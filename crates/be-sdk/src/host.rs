@@ -2000,13 +2000,18 @@ impl EditorHost {
             })
     }
 
+    /// Files dragged over any of the editor's views, as a block dragged over one is
+    /// (`drag`): a view a dock shows its content in (a tab's body) hears them as its main view
+    /// would.
     pub fn files(&self) -> Option<FileDrop> {
         self.read();
-        let view = self.shown_view()?;
-        match &self.drops.borrow().get(&view)?.dragged {
-            Some(Dragged::Files(drop)) => Some(drop.clone()),
-            _ => None,
-        }
+        self.drops
+            .borrow()
+            .values()
+            .find_map(|drops| match &drops.dragged {
+                Some(Dragged::Files(drop)) => Some(drop.clone()),
+                _ => None,
+            })
     }
 
     fn shown_view(&self) -> Option<ViewId> {

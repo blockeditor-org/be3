@@ -113,8 +113,9 @@ struct RootShell {
     /// What the window shows of the root's last frame.
     shown: Signal<Option<GpuDrawing>>,
     /// The windows' input since the root was last handed it, each in its window's points, with
-    /// when the platform sampled it, if it said.
-    input: Vec<(WindowId, Input, Option<Instant>)>,
+    /// when the platform sampled it, if it said, and the files dragged over the window from
+    /// outside it, in order.
+    input: Vec<Taken>,
     root: Option<Root>,
     /// Where the frame clock's time the root is asked for starts.
     time_origin: Option<Instant>,
@@ -303,17 +304,30 @@ impl RootShell {
         let Some(root) = &mut self.root else {
             return;
         };
-        for run in input.chunk_by(|(left, ..), (right, ..)| left == right) {
-            let window = run[0].0;
-            let window = (!window.is_main()).then(|| window.raw());
-            let events: Vec<Timed> = run
-                .iter()
-                .map(|(_, input, time)| Timed {
-                    input: input.clone(),
-                    time: time.map(|at| nanos(at.saturating_duration_since(origin))),
-                })
-                .collect();
-            if let Err(why) = root.input(window, be_lib_ui_types::input::encode(&events)) {
+        for run in input.chunk_by(|left, right| match (left, right) {
+            (Taken::Input(left, ..), Taken::Input(right, ..)) => left == right,
+            _ => false,
+        }) {
+            let handed = match &run[0] {
+                // Files dragged over the window: the platform names no window, and the host
+                // opens the root one.
+                Taken::Files(drag) => root.drag_files(None, drag.clone()),
+                Taken::Input(window, ..) => {
+                    let window = (!window.is_main()).then(|| window.raw());
+                    let events: Vec<Timed> = run
+                        .iter()
+                        .filter_map(|taken| match taken {
+                            Taken::Input(_, input, time) => Some(Timed {
+                                input: input.clone(),
+                                time: time.map(|at| nanos(at.saturating_duration_since(origin))),
+                            }),
+                            Taken::Files(_) => None,
+                        })
+                        .collect();
+                    root.input(window, be_lib_ui_types::input::encode(&events))
+                }
+            };
+            if let Err(why) = handed {
                 return self.stopped(&why);
             }
         }
@@ -612,7 +626,35 @@ impl beui::native::Program for RootShell {
     /// document, which only shows what the root drew, hears none of it.
     fn input(&mut self, window: WindowId, input: &Input, time: Option<Instant>) -> bool {
         self.active |= activity(input);
-        self.input.push((window, input.clone(), time));
+        self.input.push(Taken::Input(window, input.clone(), time));
+        true
+    }
+
+    /// The root takes files dragged over the window from outside it too, which it carries to
+    /// the view under the pointer: dropped, each with what it holds, read here (as be-host's
+    /// own views read them, be-host-runtime's `file_drop`); those dropped together reach it
+    /// together.
+    fn file_drag(&mut self, drag: &beui::FileDrag) -> bool {
+        use be_wasm_root_api::input::{DroppedFile, FileDrag};
+        let drag = match drag {
+            beui::FileDrag::Hovered => FileDrag::Hovered,
+            beui::FileDrag::Cancelled => FileDrag::Cancelled,
+            beui::FileDrag::Dropped(file) => {
+                let Some(dropped) = be_host_runtime::read_dropped(file.clone()) else {
+                    return true;
+                };
+                let dropped = DroppedFile {
+                    name: dropped.name,
+                    data: dropped.data,
+                };
+                if let Some(Taken::Files(FileDrag::Dropped(held))) = self.input.last_mut() {
+                    held.push(dropped);
+                    return true;
+                }
+                FileDrag::Dropped(vec![dropped])
+            }
+        };
+        self.input.push(Taken::Files(drag));
         true
     }
 
@@ -725,6 +767,13 @@ fn activity(input: &Input) -> bool {
             | Input::Touch { .. }
             | Input::Pen { .. }
     )
+}
+
+/// What `RootShell` hands the root in order: an input in a window, or files dragged over the
+/// window from outside it.
+enum Taken {
+    Input(WindowId, Input, Option<Instant>),
+    Files(be_wasm_root_api::input::FileDrag),
 }
 
 /// Starts `app`'s entry point as the root on the window's device, which it and its staged apps,

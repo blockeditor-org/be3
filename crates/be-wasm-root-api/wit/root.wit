@@ -1358,6 +1358,29 @@ interface input {
     /// is input for, and steps the root through it with that frame, or with
     /// the frame being drawn if one is.
     deliver: async func(window: option<u64>, events: list<u8>);
+
+    /// A file the host read that was dropped on its window from outside it.
+    record dropped-file {
+        name: string,
+        data: list<u8>,
+    }
+
+    /// Files dragged over the host's window from outside it (from a file
+    /// manager), as the platform said: over the window, at the pointer its
+    /// input moves (`hovered`); put down or gone from it (`cancelled`); or
+    /// dropped at the pointer, with what each file holds (`dropped`). The host
+    /// calls it in order with `deliver`, the input before it delivered first.
+    variant file-drag {
+        hovered,
+        cancelled,
+        dropped(list<dropped-file>),
+    }
+
+    /// Hands the root files dragged over `window` from outside it, which it
+    /// carries to the view under the pointer that takes a drag, as an editor's
+    /// dragged block is carried (`editor-event.drag`, its items a `Files`
+    /// clip): it answers once it has.
+    drag-files: async func(window: option<u64>, drag: file-drag);
 }
 
 /// The root's frame entry, which the host calls inline on its frame thread.

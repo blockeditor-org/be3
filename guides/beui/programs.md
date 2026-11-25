@@ -119,7 +119,8 @@ is `choose_platform` and `stack` in crates/beui-host-window/src/runner.rs.
   inspector's). It is for a program that routes its windows' input itself:
   be-host's root (`--root`) takes all of it, IME composition, raw touches and
   pens included. A layer rewrites input for whatever is above it; this hook
-  only takes it for the program.
+  only takes it for the program. `file_drag(&FileDrag)` is its like for files
+  dragged over the windows from outside them, which the root takes too.
 - `busy`, `drawing` and `environment` are read only by a driver (below).
 
 From inside a frame the program asks the window for things through `Context`:
