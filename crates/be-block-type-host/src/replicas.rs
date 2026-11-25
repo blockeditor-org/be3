@@ -526,6 +526,14 @@ impl std::fmt::Display for NotSearched {
     }
 }
 
+/// Where `Replicas::change_now` sent a change: to its module, as an op, or nowhere yet, its
+/// replica `withheld`.
+enum ChangeSent {
+    Sent(usize, OpId),
+    /// Kept under its serial (`Replayed::Change::withheld`).
+    Withheld(ReplicaId, u64),
+}
+
 #[derive(Clone, Copy)]
 enum Asked {
     Content,
@@ -582,6 +590,9 @@ pub(crate) enum Replayed {
     Change {
         change: Change,
         op: Option<OpId>,
+        /// The serial its answer waits under in `Open::withheld_answers`, made while its
+        /// replica was `withheld`, until it is given.
+        withheld: Option<u64>,
     },
 }
 
@@ -672,6 +683,24 @@ fn resend(
         pending.insert((module, sent), (replica, request));
         if let Some(answer) = answer {
             replies.insert((module, sent), answer);
+        }
+    }
+}
+
+/// Owes each change made while `open` was `withheld` its answer, under the op `resend` gave it
+/// as. An answer whose change was cut from `replay` meanwhile is dropped, answering nothing.
+fn answer_withheld(replies: &mut HashMap<(usize, OpId), Waiting>, module: usize, open: &mut Open) {
+    let mut answers = std::mem::take(&mut open.withheld_answers);
+    for replayed in &mut open.replay {
+        if let Replayed::Change {
+            op: Some(op),
+            withheld,
+            ..
+        } = replayed
+            && let Some(serial) = withheld.take()
+            && let Some(answer) = answers.remove(&serial)
+        {
+            replies.insert((module, *op), answer);
         }
     }
 }
@@ -785,6 +814,19 @@ struct Open {
     /// The parts its module may read and reuse (`reach`).
     reach: Arc<Mutex<Reach>>,
     early: Vec<Replayed>,
+    /// Opened again after its module restarted, in a live session, and given none of its local
+    /// edits until its rejoin opens it on the server's journal (`Replicas::restart`): the
+    /// edits it is sent meanwhile are kept in `replay` and counted as sent, as those it holds
+    /// are, but reach its module only with them. Given one now, the replica would submit it,
+    /// and the opening on the server's journal, which then holds it, would be given it again
+    /// from `replay`.
+    withheld: bool,
+    /// The answers owed for the changes made while `withheld`, by their serial
+    /// (`Replayed::Change::withheld`): each waits on the op the change goes as once it is
+    /// given, and one whose change is cut from `replay` before then is dropped with it.
+    withheld_answers: HashMap<u64, Waiting>,
+    /// The serial of the last change made while `withheld`.
+    withheld_serial: u64,
     /// How many local edits (`Replayed::local_edit`) were sent its module since the replica
     /// was opened or opened again, which the module counts too: those past what its status
     /// says it took (`Status::taken`) a status does not yet reflect.
@@ -1625,14 +1667,25 @@ impl<H: Host> Replicas<H> {
         &mut self,
         ctx: Ctx<'_, H>,
         ticket: Ticket<T, E>,
-        mut answered: tokio::sync::oneshot::Receiver<Outcome>,
+        answered: tokio::sync::oneshot::Receiver<Outcome>,
     ) -> Result<T, OpError> {
+        self.wait_for(ctx, answered)
+            .await
+            .and_then(|outcome| ticket.decode(outcome))
+    }
+
+    /// Drives the replicas until `answered` is answered, and answers its outcome.
+    async fn wait_for(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        mut answered: tokio::sync::oneshot::Receiver<Outcome>,
+    ) -> Result<Outcome, OpError> {
         let (_, shared) = ctx;
         loop {
             self.drain(ctx).await;
             if let Some(outcome) = answer_in(&mut answered) {
                 H::asking(shared, Vec::new());
-                return outcome.and_then(|outcome| ticket.decode(outcome));
+                return outcome;
             }
             H::asking(shared, self.asking());
             self.woken().await;
@@ -2027,6 +2080,7 @@ impl<H: Host> Replicas<H> {
                 be_block_client::KeptEdit::Change(change) => Replayed::Change {
                     change: api_change(change),
                     op: None,
+                    withheld: None,
                 },
             })
             .collect();
@@ -2138,6 +2192,9 @@ impl<H: Host> Replicas<H> {
                 made_up,
                 reach: Arc::default(),
                 early: Vec::new(),
+                withheld: false,
+                withheld_answers: HashMap::new(),
+                withheld_serial: 0,
                 sent,
                 journaled_taken: 0,
                 origin,
@@ -2397,6 +2454,8 @@ impl<H: Host> Replicas<H> {
                 waiting.insert(*op, answer);
             }
         }
+        // Opened on the server's journal, it is given every local edit kept.
+        open.withheld = false;
         let (replies, pending, replay, departed) = (
             &mut self.replies,
             &mut self.asked,
@@ -2431,6 +2490,7 @@ impl<H: Host> Replicas<H> {
                 handle.resent(connection, editor);
             }
         });
+        answer_withheld(&mut self.replies, module, open);
     }
 
     /// Tells the host whether the replica's editors are attached read-only as its block is
@@ -2496,10 +2556,48 @@ impl<H: Host> Replicas<H> {
     }
 
     /// Sends `replayed` to the replica's module without keeping it to give again.
+    /// Gives a `withheld` replica the local edits kept for it once its rejoin failed, so no
+    /// join opens it on the server's journal: as a module restarted offline is given them.
+    fn give_withheld(&mut self, replica: ReplicaId) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        if !std::mem::take(&mut open.withheld) {
+            return;
+        }
+        let (module, handle) = (open.module, open.handle);
+        let mut waiting = HashMap::new();
+        let (replies, pending, replay, departed) = (
+            &mut self.replies,
+            &mut self.asked,
+            &mut open.replay,
+            &open.departed,
+        );
+        self.modules.call(module, |connection| {
+            resend(
+                handle,
+                connection,
+                module,
+                replica,
+                replay,
+                departed,
+                Vec::new(),
+                &mut waiting,
+                replies,
+                pending,
+            );
+        });
+        answer_withheld(&mut self.replies, module, open);
+    }
+
     fn send_only(&mut self, replica: ReplicaId, replayed: &Replayed) {
         let Some(open) = self.open.get(&replica) else {
             return;
         };
+        // What ends a gesture is had from `replay`, which the gesture's end already changed.
+        if open.withheld {
+            return;
+        }
         let (module, handle) = (open.module, open.handle);
         self.modules.call(module, |connection| {
             replayed.send(handle, connection);
@@ -2528,6 +2626,10 @@ impl<H: Host> Replicas<H> {
             open.replay.push(replayed.clone());
         }
         let (module, handle) = (open.module, open.handle);
+        if open.withheld && (replayed.local_edit() || replayed.held()) {
+            open.sent += u64::from(replayed.local_edit());
+            return;
+        }
         let sent = self
             .modules
             .call(module, |connection| {
@@ -2842,15 +2944,25 @@ impl<H: Host> Replicas<H> {
         self.wait(ctx, ticket, answered).await
     }
 
-    fn change_now(&mut self, block: Uuid, change: Change) -> Option<(usize, OpId)> {
+    /// Sends `change` to `block`'s replica and keeps it to give again, answering the module and
+    /// the op it went as, or, while the replica is `withheld`, only keeps it: `Withheld`.
+    fn change_now(&mut self, block: Uuid, change: Change) -> Option<ChangeSent> {
         let (replica, open) = self.replica_of(block)?;
-        let (module, handle) = (open.module, open.handle);
+        let (module, handle, withheld) = (open.module, open.handle, open.withheld);
         let undo = matches!(change, Change::Undo);
-        let replayed = Replayed::Change { change, op: None };
-        let op = self
-            .modules
-            .call(module, |connection| replayed.send(handle, connection))
-            .flatten()?;
+        let replayed = Replayed::Change {
+            change,
+            op: None,
+            withheld: None,
+        };
+        let op = match withheld {
+            true => None,
+            false => Some(
+                self.modules
+                    .call(module, |connection| replayed.send(handle, connection))
+                    .flatten()?,
+            ),
+        };
         let open = self.open.get_mut(&replica)?;
         // An undo while a tentative layer is held cancels the layer, as its replica does once
         // its module has it.
@@ -2860,14 +2972,25 @@ impl<H: Host> Replicas<H> {
         }
         open.sent += 1;
         open.edits_changed = true;
+        let serial = match op {
+            Some(_) => None,
+            None => {
+                open.withheld_serial += 1;
+                Some(open.withheld_serial)
+            }
+        };
         open.replay.push(match replayed {
             Replayed::Change { change, .. } => Replayed::Change {
                 change,
-                op: Some(op),
+                op,
+                withheld: serial,
             },
             replayed => replayed,
         });
-        Some((module, op))
+        Some(match op {
+            Some(op) => ChangeSent::Sent(module, op),
+            None => ChangeSent::Withheld(replica, open.withheld_serial),
+        })
     }
 
     pub fn change_later(&mut self, block: Uuid, change: Change) {
@@ -2883,16 +3006,37 @@ impl<H: Host> Replicas<H> {
         block: Uuid,
         change: Change,
     ) -> Option<impl Future<Output = bool> + 'static> {
-        let (module, op) = self.change_now(block, change)?;
-        let (answer, answered) = tokio::sync::oneshot::channel();
-        self.replies.insert((module, op), answer);
+        let answered = self.change_owed(block, change)?;
         Some(async move {
             answered
                 .await
                 .ok()
-                .and_then(|outcome| Ticket::<bool>::new(op).decode(outcome).ok())
+                .and_then(|outcome| outcome.decode::<bool>().ok())
                 .unwrap_or(false)
         })
+    }
+
+    /// Sends `change` as `change_now` does, and the receiver its answer comes to, once its
+    /// replica answers the op it goes as.
+    fn change_owed(
+        &mut self,
+        block: Uuid,
+        change: Change,
+    ) -> Option<tokio::sync::oneshot::Receiver<Outcome>> {
+        let sent = self.change_now(block, change)?;
+        let (answer, answered) = tokio::sync::oneshot::channel();
+        match sent {
+            ChangeSent::Sent(module, op) => {
+                self.replies.insert((module, op), answer);
+            }
+            ChangeSent::Withheld(replica, serial) => {
+                self.open
+                    .get_mut(&replica)?
+                    .withheld_answers
+                    .insert(serial, answer);
+            }
+        }
+        Some(answered)
     }
 
     /// Whether `block`'s replica found its head's objects not to be had now and waits to open
@@ -2910,13 +3054,12 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn change(&mut self, ctx: Ctx<'_, H>, block: Uuid, change: Change) -> bool {
-        let Some((module, op)) = self.change_now(block, change) else {
+        let Some(answered) = self.change_owed(block, change) else {
             return false;
         };
-        let (answer, answered) = tokio::sync::oneshot::channel();
-        self.replies.insert((module, op), answer);
-        self.wait(ctx, Ticket::<bool>::new(op), answered)
+        self.wait_for(ctx, answered)
             .await
+            .and_then(Outcome::decode::<bool>)
             .unwrap_or(false)
     }
 
@@ -4831,6 +4974,7 @@ impl<H: Host> Replicas<H> {
             Ok(joined) => joined,
             Err(error) => {
                 H::record(shared, error);
+                self.give_withheld(replica);
                 for replayed in not_taken_early(early, heard_through) {
                     self.replay(replica, replayed);
                 }
@@ -4979,6 +5123,7 @@ impl<H: Host> Replicas<H> {
             // and only then given its edits: one still on its way to the server when the
             // module stopped would otherwise be made again before the order shows it.
             let rejoins = !open.made_up && !open.joining;
+            open.withheld = rejoins;
             let mut none = Vec::new();
             let (replies, pending, replay, departed) = (
                 &mut self.replies,
@@ -5019,6 +5164,9 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             open.handle = handle;
+            if !rejoins {
+                answer_withheld(&mut self.replies, module, open);
+            }
             self.handles.insert((module, handle.op()), replica);
             if rejoins {
                 let rejoin = self.rejoins;
