@@ -80,6 +80,7 @@ type Prepare<C, S> = Rc<dyn Fn(Editor) -> Maker<C, S>>;
 pub struct ExporterOf<C, S: 'static> {
     name: &'static str,
     prepare: Prepare<C, S>,
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     settings: Option<Rc<dyn Fn(ExportSettings<S>) -> Build<NodeId>>>,
     describe: Rc<dyn Fn(&S) -> String>,
     initial: Rc<dyn Fn(Editor) -> S>,
