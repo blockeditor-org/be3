@@ -198,10 +198,10 @@ impl Editor {
         if blocks.info(block).is_none() {
             let state = self.state();
             let mut cache = state.settings.borrow_mut();
-            if !cache.held.contains_key(&block) {
+            cache.held.entry(block).or_insert_with(|| {
                 let list = state._scope.run(|| blocks.watch(BlockQuery::Block(block)));
-                cache.held.insert(block, list);
-            }
+                list
+            });
         }
         blocks.info(block).is_some_and(|info| {
             info.block_type == block_type && info.parent == Some(BlockParent::Block(parent))
