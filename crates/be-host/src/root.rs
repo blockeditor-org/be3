@@ -159,9 +159,6 @@ struct RootShell {
     /// document of beui's the host reserves for it: what drive's `tree`, `find` and presses
     /// by name read under `--root`, and a screen reader hears.
     tree: be_sdk_app_host::accessibility::Graft,
-    /// Whether the root has described itself (`tree` holds what it sent), before which there is
-    /// no tree to publish.
-    tree_heard: bool,
     /// Whether the root was last asked for its tree (`frame-request.describe`).
     describing: bool,
     /// Whether the last frame was hurried (`Context::hurried`), as be-host's own UI keeps it:
@@ -181,7 +178,6 @@ struct RootShell {
 /// what that frame changed.
 fn publish_tree(
     graft: &mut be_sdk_app_host::accessibility::Graft,
-    heard: &mut bool,
     context: &beui::native::Context,
     area: beui::Rect,
     tree: Option<&[u8]>,
@@ -191,9 +187,8 @@ fn publish_tree(
     if let Some(tree) = tree.and_then(be_sdk_api::ops::decode::<be_sdk_api::accesskit::TreeUpdate>)
     {
         graft.update(tree);
-        *heard = true;
     }
-    if !*heard {
+    if !graft.described() {
         return;
     }
     let grafted = graft.grafted(
@@ -271,7 +266,6 @@ impl RootShell {
             tree: be_sdk_app_host::accessibility::Graft::new(
                 beui::native::accessibility::next_document_id(),
             ),
-            tree_heard: false,
             describing: false,
             hurried: false,
         }
@@ -369,7 +363,6 @@ impl RootShell {
         };
         publish_tree(
             &mut self.tree,
-            &mut self.tree_heard,
             context,
             area,
             done.accessibility.as_deref(),
