@@ -1003,6 +1003,7 @@ fn import(
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             },
+            wgpu::TextureUses::UNINITIALIZED,
         )
     })
 }

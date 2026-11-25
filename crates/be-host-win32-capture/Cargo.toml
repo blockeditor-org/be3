@@ -7,7 +7,7 @@ license.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 ash = "0.38"
-wgpu = { version = "29", default-features = false, features = ["vulkan"] }
+wgpu = { version = "30", default-features = false, features = ["vulkan"] }
 windows = { version = "0.62", features = [
     "Foundation",
     "Graphics",

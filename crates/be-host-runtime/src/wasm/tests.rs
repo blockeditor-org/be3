@@ -21,6 +21,7 @@ fn device() -> (wgpu::Device, wgpu::Queue) {
         &wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
             compatible_surface: None,
         },
     ))
@@ -190,7 +191,7 @@ fn read_back(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .expect("the device never finished the copy");
-    let mapped = readback.slice(..).get_mapped_range();
+    let mapped = readback.slice(..).get_mapped_range().unwrap();
     mapped
         .chunks(row as usize)
         .flat_map(|line| line[..(width * 4) as usize].to_vec())

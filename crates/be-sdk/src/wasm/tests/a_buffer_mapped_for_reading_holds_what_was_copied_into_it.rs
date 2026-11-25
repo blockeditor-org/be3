@@ -27,11 +27,11 @@ fn a_buffer_mapped_for_reading_holds_what_was_copied_into_it() {
     device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
     assert_eq!(*answer.lock().unwrap(), Some(Ok(())));
     assert_eq!(
-        destination.get_mapped_range(..).to_vec(),
+        destination.get_mapped_range(..).unwrap().to_vec(),
         [0, 0, 0, 0, 0, 0, 0, 0, 5, 6, 7, 8, 9, 10, 11, 12]
     );
     assert_eq!(
-        destination.get_mapped_range(8..16).to_vec(),
+        destination.get_mapped_range(8..16).unwrap().to_vec(),
         [5, 6, 7, 8, 9, 10, 11, 12],
         "a part of the mapped range reads only that part"
     );

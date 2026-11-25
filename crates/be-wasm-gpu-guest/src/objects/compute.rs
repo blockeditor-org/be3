@@ -75,6 +75,16 @@ impl ComputePassInterface for ComputePass {
         unimplemented!("immediate data is not in browser WebGPU")
     }
 
+    /// WebGPU tracks resource states itself, as the command encoder's does.
+    fn transition_resources<'a>(
+        &mut self,
+        _buffer_transitions: &mut dyn Iterator<Item = wgpu::BufferTransition<&'a DispatchBuffer>>,
+        _texture_transitions: &mut dyn Iterator<
+            Item = wgpu::TextureTransition<&'a DispatchTextureView>,
+        >,
+    ) {
+    }
+
     fn insert_debug_marker(&mut self, label: &str) {
         self.0.insert_debug_marker(label);
     }

@@ -97,8 +97,8 @@ impl Gpu {
             .iter()
             .map(|buffer| {
                 buffer
-                    .attributes
                     .iter()
+                    .flat_map(|buffer| &buffer.attributes)
                     .map(|attribute| wgpu::VertexAttribute {
                         format: Convert::<wgpu::VertexFormat>::convert(attribute.format),
                         offset: attribute.offset,
@@ -112,10 +112,12 @@ impl Gpu {
             .buffers
             .iter()
             .zip(&attributes)
-            .map(|(buffer, attributes)| wgpu::VertexBufferLayout {
-                array_stride: buffer.array_stride,
-                step_mode: Convert::<wgpu::VertexStepMode>::convert(buffer.step_mode),
-                attributes,
+            .map(|(buffer, attributes)| {
+                buffer.as_ref().map(|buffer| wgpu::VertexBufferLayout {
+                    array_stride: buffer.array_stride,
+                    step_mode: Convert::<wgpu::VertexStepMode>::convert(buffer.step_mode),
+                    attributes,
+                })
             })
             .collect();
         let targets: Vec<_> = descriptor
@@ -691,9 +693,13 @@ impl Host for Gpu {
     fn buffer_read_mapped(&mut self, this: abi::Buffer, offset: u64, size: u64) -> Vec<u8> {
         let read = self
             .mapped_range(this, offset, size, false)
-            .map(|(buffer, range)| match range.is_empty() {
-                true => Vec::new(),
-                false => buffer.slice(range).get_mapped_range().to_vec(),
+            .and_then(|(buffer, range)| match range.is_empty() {
+                true => Ok(Vec::new()),
+                false => buffer
+                    .slice(range)
+                    .get_mapped_range()
+                    .map(|mapped| mapped.to_vec())
+                    .map_err(|error| error.to_string()),
             });
         self.fail(read, Vec::new())
     }
@@ -701,13 +707,15 @@ impl Host for Gpu {
     fn buffer_write_mapped(&mut self, this: abi::Buffer, offset: u64, data: &[u8]) {
         let written = self
             .mapped_range(this, offset, data.len() as u64, true)
-            .map(|(buffer, range)| {
+            .and_then(|(buffer, range)| {
                 if !range.is_empty() {
                     buffer
                         .slice(range)
                         .get_mapped_range_mut()
+                        .map_err(|error| error.to_string())?
                         .copy_from_slice(data);
                 }
+                Ok(())
             });
         self.fail(written, ());
     }
@@ -1126,16 +1134,18 @@ impl Host for Gpu {
         &mut self,
         this: abi::RenderPass,
         slot: u32,
-        buffer: abi::Buffer,
+        buffer: Option<abi::Buffer>,
         offset: u64,
         size: Option<u64>,
     ) {
-        let result = self
-            .buffers
-            .get(buffer.0, "buffer")
-            .cloned()
+        let result = buffer
+            .map(|buffer| self.buffers.get(buffer.0, "buffer").cloned())
+            .transpose()
             .and_then(|buffer| {
-                let slice = slice(&buffer, offset, size)?;
+                let slice = buffer
+                    .as_ref()
+                    .map(|buffer| slice(buffer, offset, size))
+                    .transpose()?;
                 self.passes
                     .get_mut(this.0, "render pass")
                     .map(|pass| pass.set_vertex_buffer(slot, slice))
@@ -1545,12 +1555,14 @@ impl Host for Gpu {
         &mut self,
         this: abi::RenderBundleEncoder,
         slot: u32,
-        buffer: abi::Buffer,
+        buffer: Option<abi::Buffer>,
         offset: u64,
         size: Option<u64>,
     ) {
         self.bundle(this, |gpu| {
-            let buffer = gpu.buffers.get(buffer.0, "buffer")?.clone();
+            let buffer = buffer
+                .map(|buffer| gpu.buffers.get(buffer.0, "buffer").cloned())
+                .transpose()?;
             Ok(Command::VertexBuffer(slot, buffer, offset, size))
         });
     }

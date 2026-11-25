@@ -19,7 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -31,7 +31,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -43,7 +43,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -55,7 +55,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -67,7 +67,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -79,7 +79,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -91,7 +91,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -103,7 +103,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
                 "//crates/be-wasm-gpu-convert:be-wasm-gpu-convert",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],

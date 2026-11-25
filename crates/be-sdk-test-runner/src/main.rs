@@ -92,6 +92,7 @@ fn gpu() -> Result<(wgpu::Device, wgpu::Queue), String> {
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::LowPower,
         force_fallback_adapter: false,
+        apply_limit_buckets: false,
         compatible_surface: None,
     }))
     .map_err(|error| format!("no graphics adapter is available: {error}"))?;
