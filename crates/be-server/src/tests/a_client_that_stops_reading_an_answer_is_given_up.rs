@@ -2,7 +2,7 @@ use super::*;
 
 /// hyper writes an answer for as long as the client takes to read it. A client that asks for a
 /// large one (an S3 object) and reads none of it is given up once the answer has made no
-/// progress for `IDLE_TIMEOUT`, as `http::serve` serves every connection, rather than holding
+/// progress for `IDLE_TIMEOUT`, in the connection `http::serve` serves each with, rather than holding
 /// its connection and place until it goes.
 #[tokio::test(start_paused = true)]
 async fn a_client_that_stops_reading_an_answer_is_given_up() {
@@ -12,17 +12,8 @@ async fn a_client_that_stops_reading_an_answer_is_given_up() {
             vec![7u8; 16 << 20],
         )))
     });
-    let serving = tokio::spawn(
-        hyper::server::conn::http1::Builder::new()
-            .timer(hyper_util::rt::TokioTimer::new())
-            .serve_connection(
-                hyper_util::rt::TokioIo::new(crate::http::stalled::WriteDeadline::new(
-                    server,
-                    IDLE_TIMEOUT,
-                )),
-                service,
-            ),
-    );
+    // The connection `http::serve` serves each accepted stream with.
+    let serving = tokio::spawn(crate::http::connection(server, service));
     client
         .write_all(b"GET /storage/objects/large HTTP/1.1\r\nHost: server\r\n\r\n")
         .await

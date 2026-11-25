@@ -268,8 +268,8 @@ impl<S: ObjectStore> Peer<S> {
     /// the first failure to reach the server, leaving the rest.
     pub(super) async fn send_appends(&self, block: Uuid) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes = Vec::new();
-        // The server refuses an append whole, so the entries of a refused batch of several go
-        // again one at a time: only an entry refused alone is kept as refused.
+        // The server refuses an append whole, so the entries of a batch of several refused for
+        // one of them go again one at a time: only an entry refused alone is kept as refused.
         let mut alone = 0;
         loop {
             let mut batch = Vec::new();
@@ -341,7 +341,20 @@ impl<S: ObjectStore> Peer<S> {
                     }));
                 }
                 Ok(_) => return Err(ClientError::Unexpected),
-                Err(ClientError::Refused(..)) if batch.len() > 1 => alone = batch.len(),
+                // An entry the server refuses (over a limit, a redaction it will not take)
+                // refuses the batch it came in: the rest go again alone. A refusal of the whole
+                // call (no access, no block) would refuse each alone just the same.
+                Err(ClientError::Refused(ErrorCode::InvalidRequest, _)) if batch.len() > 1 => {
+                    alone = batch.len();
+                }
+                // Over a quota, a rate limit's among them, the entries wait in the outbox for a
+                // later drain rather than being refused for good.
+                Err(error @ ClientError::Refused(ErrorCode::OverQuota, _)) => {
+                    return match outcomes.is_empty() {
+                        true => Err(error),
+                        false => Ok(outcomes),
+                    };
+                }
                 Err(ClientError::Refused(code, why)) => {
                     // Kept until the app lets it go, so what it shows of the refusal outlives
                     // the editor that appended it.
