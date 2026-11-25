@@ -3640,7 +3640,12 @@ async fn create_agent(
             recovery: public.0,
             signing: secret.signing().0,
             contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
-            record: be_block_client::contacts::OwnContact::new(card, 0).seal(identity),
+            // The agent takes this account's key from `me`.
+            record: be_block_client::contacts::OwnContact {
+                holds: Some(me.public),
+                ..be_block_client::contacts::OwnContact::new(card, 0)
+            }
+            .seal(identity),
             escrow: be_block_client::contacts::seal_pin(
                 &secret,
                 organization,

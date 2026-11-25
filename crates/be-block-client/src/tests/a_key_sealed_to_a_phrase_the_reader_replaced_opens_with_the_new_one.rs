@@ -9,7 +9,9 @@ use be_type_workspace::FolderContent;
 /// inside, sealed to the key the admin holds for it: the guest's old one. A grantee's key
 /// follows the retirement in each log naming it, but a contact's only its key change. A device
 /// of the guest's on the new phrase opens the kind's key all the same, with the secret the
-/// guest's block keeps from the old phrase (`AccountBlock::retired`, `KeyBook::retire`).
+/// guest's block keeps from the old phrase (`AccountBlock::retired`, `KeyBook::retire`), as its
+/// record of the admin holds the guest's old key (`OwnContact::holds`), and seals it again to the
+/// new one.
 #[tokio::test]
 async fn a_key_sealed_to_a_phrase_the_reader_replaced_opens_with_the_new_one() {
     let harness = Harness::start().await;
@@ -85,6 +87,20 @@ async fn a_key_sealed_to_a_phrase_the_reader_replaced_opens_with_the_new_one() {
         renewed.keys().scope_key(kind),
         Some(key),
         "the guest's new phrase did not open the key sealed to its old one"
+    );
+    // Opened with a retired secret once, then sealed again to the new one, from the guest.
+    let sender: String = harness
+        .database()
+        .query_row(
+            "SELECT sender FROM wrapped_keys WHERE key_id = ?1 AND wrapped_by = ?2",
+            [key.to_string(), format!("account:{}", guest.account())],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        sender,
+        guest.account().to_string(),
+        "the key a retired secret opened was not sealed again to the new phrase"
     );
 
     harness.stop().await;

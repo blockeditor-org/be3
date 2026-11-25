@@ -32,6 +32,8 @@ pub struct Contact {
     /// How the server's record of this contact differed from the newest this device had
     /// seen, which it kept and seals to; `None` when it served that one or a newer one.
     pub mismatch: Option<Mismatch>,
+    /// This account's key the contact is known to hold (`OwnContact::holds`).
+    pub holds: Option<RecoveryPublic>,
 }
 
 /// What was wrong with the record the server served for a contact this device had pinned.
@@ -57,6 +59,7 @@ impl Contact {
             },
             verified: self.verified,
             through: self.through,
+            holds: self.holds,
         })
     }
 }
@@ -74,6 +77,12 @@ pub struct OwnContact {
     /// deleted unread, so a device that stops between writing the record and deleting what it
     /// followed never follows a change twice nor takes back a removal.
     pub through: u64,
+    /// This account's key the contact is known to hold: the one on the card this account gave
+    /// it by the link that made the record, or the one its newest key change followed was sealed
+    /// to. A contact only ever moves on to this account's newer keys, so while this is the
+    /// account's current key nothing the contact seals to it opens with a retired secret
+    /// (`open_by_any`); `None` when the device cannot tell.
+    pub holds: Option<RecoveryPublic>,
 }
 
 impl OwnContact {
@@ -86,6 +95,7 @@ impl OwnContact {
             card,
             verified: now.max(after.saturating_add(1)),
             through: 0,
+            holds: None,
         }
     }
 
@@ -222,43 +232,50 @@ impl<'a> Secrets<'a> {
         }
     }
 
-    /// `sealed`, a key `from` sealed to this account, opened with the current secret or a
-    /// retired one: a contact that still held this account's old key sealed it to that.
-    fn open_from(
+    /// What `open` opens with the current secret, else, when the sender may still hold a key
+    /// this account replaced (`behind`, `OwnContact::holds`), with a retired one (`open_by_any`);
+    /// and the secret it opened with.
+    fn open<T>(
         &self,
-        from: &Party,
-        to: [u8; 16],
-        key: &[u8],
-        sealed: &[u8],
-    ) -> Result<Vec<u8>, be_block_keys::KeyError> {
-        let current = self.current.open_from(from, to, key, sealed);
-        if current.is_ok() {
-            return current;
-        }
-        self.retired
-            .iter()
-            .map(|secret| secret.open_from(from, to, key, sealed))
-            .find(Result::is_ok)
-            .unwrap_or(current)
+        behind: bool,
+        open: impl Fn(&RecoverySecret) -> Result<T, be_block_keys::KeyError>,
+    ) -> Result<(T, &RecoverySecret), be_block_keys::KeyError> {
+        open_by_any(self.current, &self.retired, behind, open)
     }
+}
 
-    fn open_key_change(
-        &self,
-        from: &Party,
-        to: [u8; 16],
-        sealed: &[u8],
-    ) -> Result<PublicIdentity, be_block_keys::KeyError> {
-        let current = self.current.open_key_change(from, to, sealed);
-        if current.is_ok() {
-            return current;
+/// What `open` opens of something sealed to this account: with `current`, else, only when the
+/// sender may still hold a key the account replaced (`behind`), with each of `retired`; and the
+/// secret it opened with. When none opens it, why `current` did not.
+///
+/// A retired secret is tried only for such a sender because a seal to this account is
+/// ephemeral-static and static-static Diffie-Hellman: whoever holds the secret it is sealed to
+/// can make one "from" anyone, so a replaced phrase, if it leaked, could forge a key or a key
+/// change from any contact (guides/blocks/keys.md, "Accepted limits").
+pub(crate) fn open_by_any<'s, T>(
+    current: &'s RecoverySecret,
+    retired: &'s [RecoverySecret],
+    behind: bool,
+    open: impl Fn(&RecoverySecret) -> Result<T, be_block_keys::KeyError>,
+) -> Result<(T, &'s RecoverySecret), be_block_keys::KeyError> {
+    let refused = match open(current) {
+        Ok(opened) => return Ok((opened, current)),
+        Err(refused) => refused,
+    };
+    if behind {
+        for secret in retired {
+            if let Ok(opened) = open(secret) {
+                return Ok((opened, secret));
+            }
         }
-        // When none opens it, why the current one did not.
-        self.retired
-            .iter()
-            .map(|secret| secret.open_key_change(from, to, sealed))
-            .find(Result::is_ok)
-            .unwrap_or(current)
     }
+    Err(refused)
+}
+
+/// Whether a contact whose record holds `holds` (`OwnContact::holds`) may still seal to a key
+/// this account, now on `current`, replaced.
+pub(crate) fn behind(holds: Option<RecoveryPublic>, current: &RecoverySecret) -> bool {
+    holds != Some(current.public())
 }
 
 /// Where `public`'s secret is kept once retired (`AccountBlock::retired`).
@@ -337,6 +354,9 @@ pub struct KeptLink {
     pub kind: LinkKind,
     /// When it was made, in milliseconds since the epoch.
     pub made: u64,
+    /// The key on the card the link carries, which its accepter takes for this account
+    /// (`OwnContact::holds`).
+    pub public: RecoveryPublic,
 }
 
 /// Leaves out the code, a bearer secret, so no log ever holds it.
@@ -347,6 +367,7 @@ impl std::fmt::Debug for KeptLink {
             .field("code", &"..")
             .field("kind", &self.kind)
             .field("made", &self.made)
+            .field("public", &self.public)
             .finish()
     }
 }
@@ -833,9 +854,10 @@ async fn pass(
             .partition(|(id, _)| *id <= record.through);
         taken.extend(already.iter().map(|(id, _)| *id));
         let sealed: Vec<Vec<u8>> = letters.iter().map(|(_, sealed)| sealed.clone()).collect();
-        let (changed, followed) = follow(account, &secrets, &record.card, &sealed);
+        let stale = behind(record.holds, identity);
+        let (changed, followed) = follow(account, &secrets, stale, &record.card, &sealed);
         let broken = readable && followed < letters.len();
-        if let Some(changed) = changed {
+        if let Some((changed, holds)) = changed {
             if held_keys.is_none() {
                 held_keys = Some(sealed_to_me(connection).await?);
             }
@@ -843,6 +865,7 @@ async fn pass(
                 connection,
                 account,
                 &secrets,
+                stale,
                 &record.card,
                 held_keys.as_deref().unwrap_or_default(),
             )
@@ -852,6 +875,7 @@ async fn pass(
             card.signing = changed.signing;
             *record = OwnContact {
                 through: letters[followed - 1].0,
+                holds: Some(holds),
                 ..OwnContact::new(card, record.verified)
             };
         }
@@ -869,6 +893,7 @@ async fn pass(
                 verified: 0,
                 through: record.through,
                 mismatch: None,
+                holds: record.holds,
             },
             false => Contact {
                 account: contact,
@@ -879,6 +904,7 @@ async fn pass(
                 verified: record.verified,
                 through: record.through,
                 mismatch,
+                holds: record.holds,
             },
         });
     }
@@ -928,41 +954,54 @@ async fn pass(
     ))
 }
 
-/// Follows `changes` in order from `card`'s key: the key they lead to, if another, and how many
-/// of them lie up to the last that opened, which the device may delete.
+/// Follows `changes` in order from `card`'s key, with a retired secret only while the contact
+/// may still hold a replaced key of this account (`stale`, then by what each change was sealed
+/// to): the key they lead to, if another, with this account's key the last was sealed to
+/// (`OwnContact::holds`), and how many of them lie up to the last that opened, which the device
+/// may delete.
 fn follow(
     account: Uuid,
     secrets: &Secrets,
+    stale: bool,
     card: &ContactCard,
     changes: &[Vec<u8>],
-) -> (Option<PublicIdentity>, usize) {
+) -> (Option<(PublicIdentity, RecoveryPublic)>, usize) {
     let held = PublicIdentity {
         public: card.public,
         signing: card.signing,
     };
     let mut current = held;
+    let mut holds = None;
+    let mut stale = stale;
     let mut followed = 0;
     for (index, sealed) in changes.iter().enumerate() {
         let from = Party {
             account: card.account,
             public: current.public,
         };
-        if let Ok(next) = secrets.open_key_change(&from, account.into_bytes(), sealed) {
+        if let Ok((next, secret)) = secrets.open(stale, |secret| {
+            secret.open_key_change(&from, account.into_bytes(), sealed)
+        }) {
             current = next;
+            holds = Some(secret.public());
+            stale = behind(holds, secrets.current);
             followed = index + 1;
         }
     }
-    ((current != held).then_some(current), followed)
+    let changed = (current != held).then_some(current);
+    (changed.zip(holds), followed)
 }
 
 /// Deletes of the key changes `card`'s account left in the mailbox that a record made from
 /// `card` by a link outdates: those before the first that opens from its key (all, when none
-/// does), as a chain broken before the link no longer counts. Any it leads on to stay, for
+/// does), with a retired secret only when the contact may hold a replaced key of this account
+/// (`stale`), as a chain broken before the link no longer counts. Any it leads on to stay, for
 /// `contacts` to follow.
 fn outdated(
     mailbox: &[be_block_protocol::Message],
     account: Uuid,
     secrets: &Secrets,
+    stale: bool,
     card: &ContactCard,
 ) -> Vec<be_block_protocol::Op> {
     let from = Party {
@@ -981,7 +1020,9 @@ fn outdated(
         })
         .take_while(|(_, sealed)| {
             secrets
-                .open_key_change(&from, account.into_bytes(), sealed)
+                .open(stale, |secret| {
+                    secret.open_key_change(&from, account.into_bytes(), sealed)
+                })
                 .is_err()
         })
         .map(|(id, _)| be_block_protocol::Op::DeleteMessage(id))
@@ -1000,10 +1041,15 @@ async fn sealed_to_me(connection: &Arc<Connection>) -> Result<Vec<SealedKey>, Cl
     )
 }
 
+/// Seals again to this account, from itself, each key in `held` that `card`'s account sealed by
+/// the key on `card`, which it just replaced: once this device follows the change, that key no
+/// longer opens what was sealed from it. With a retired secret too while the contact may hold a
+/// replaced key of this account (`stale`).
 async fn reseal_from(
     connection: &Arc<Connection>,
     account: Uuid,
     secrets: &Secrets<'_>,
+    stale: bool,
     card: &ContactCard,
     held: &[SealedKey],
 ) -> Result<(), ClientError> {
@@ -1020,8 +1066,10 @@ async fn reseal_from(
         .iter()
         .filter(|key| key.sender.into_bytes() == card.account)
         .filter_map(|key| {
-            let plain = secrets
-                .open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+            let (plain, _) = secrets
+                .open(stale, |secret| {
+                    secret.open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+                })
                 .ok()?;
             Some(SealedKey {
                 sealed: identity
@@ -1361,6 +1409,7 @@ pub(crate) async fn make_link_with(
             code: code.to_bytes().to_vec(),
             kind: kind.clone(),
             made: now_milliseconds(),
+            public: me.public,
         },
     )
     .await?;
@@ -1503,10 +1552,16 @@ pub async fn accept_link(
             seal_pin(identity, invitation.organization, &opened.stamped(after))
         }
     };
+    // The link's owner takes this account's key from `me`, its card the accepter seals.
+    let record = OwnContact {
+        holds: Some(me.public),
+        ..OwnContact::new(card.clone(), after)
+    };
     let changes = outdated(
         &mailbox(connection).await?,
         Uuid::from_bytes(me.account),
         &Secrets::held(connection, Uuid::from_bytes(me.account), identity).await,
+        behind(record.holds, identity),
         &card,
     );
     // The log may move between reading the link and accepting it: a few tries, each after the
@@ -1529,7 +1584,7 @@ pub async fn accept_link(
         let mut ops = vec![be_block_protocol::Op::AcceptLink {
             link: link.id,
             card: me.seal(code, CardRole::Accepter),
-            contact: OwnContact::new(card.clone(), after).seal(identity),
+            contact: record.seal(identity),
             key: key.clone(),
             member,
         }];
@@ -1640,8 +1695,10 @@ pub(crate) async fn finish_links(
                 }
                 // Newer than whatever the block held, a removal included.
                 let pin = pins.get(&accepter).map_or(0, |pin| pin.verified);
+                // The accepter took this account's key from the card the link carries.
                 let record = OwnContact {
                     through: letter,
+                    holds: Some(own.public),
                     ..OwnContact::new(
                         card.clone(),
                         before.map_or(0, |before| before.verified()).max(pin),
@@ -1659,7 +1716,13 @@ pub(crate) async fn finish_links(
             Err(error) => return Err(error),
         }
         let secrets = Secrets::held(connection, account, identity).await;
-        let ops = outdated(&held, account, &secrets, &card);
+        let ops = outdated(
+            &held,
+            account,
+            &secrets,
+            behind(Some(own.public), identity),
+            &card,
+        );
         if !ops.is_empty() {
             be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
         }
@@ -1739,6 +1802,7 @@ pub async fn invite(
             code: code.to_bytes().to_vec(),
             kind: kind.clone(),
             made: now_milliseconds(),
+            public: me.public,
         },
     )
     .await?;

@@ -511,13 +511,36 @@ impl<S: ObjectStore> Peer<S> {
             &pinned,
         )
         .await?;
-        self.keys.retire(retired);
+        let current = self.keys.identity();
+        let behind = contacts
+            .iter()
+            .filter(|contact| crate::contacts::behind(contact.holds, current))
+            .map(|contact| contact.account)
+            .collect();
+        self.keys.retire(retired, behind);
         let contacts = self.named(contacts).await;
         self.adopt_contacts(&contacts);
         // Keys a contact sealed before this device verified it open now, and arrive as any key
         // that opens does (`KeyBook::on_opened`).
         self.keys.absorb(KeySet::default());
+        self.reseal_retired().await;
         Ok(contacts)
+    }
+
+    /// Writes the keys `KeyBook` opened with a retired secret, sealed again to the current one
+    /// (`KeyBook::take_resealed`), so each opens with a retired secret once. Best-effort: each
+    /// is already open here, and one the server refuses (gone since) needs no other.
+    pub(crate) async fn reseal_retired(&self) {
+        let keys = self.keys.take_resealed();
+        if keys.is_empty() {
+            return;
+        }
+        let _ = be_block_protocol::write::<(), _>(
+            &self.connection(),
+            None,
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Reseal(keys)),
+        )
+        .await;
     }
 
     /// `contacts`, each confirmed one named by the newest name card its verified signing key

@@ -837,8 +837,19 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   a contact that has not followed the change seals to the old key whatever it
   seals by its record (a kind opened to anyone inside, offered to a contact
   viewing inside, `Peer::sealing_target`), so the `KeyBook` (`KeyBook::retire`, from
-  `Peer::refresh_contacts`) and `reseal_from` open a key sealed to this account
-  with a retired secret too. An agent has no block to keep one in, and needs none:
+  `Peer::refresh_contacts`) and `reseal_from` (a contact's change, followed,
+  leaves what its old key sealed opening by no key of it the device holds) open
+  a key sealed to this account with a retired secret too. One loop does all of
+  it (`contacts::open_by_any`), and tries a retired secret only for a contact
+  that may not have followed: each record keeps the account's key the contact is
+  known to hold (`OwnContact::holds`: the one on the card the link that made the
+  record gave it, or the one its newest change followed was sealed to), and a
+  contact only ever moves on to newer keys, so once that is the current key
+  nothing it seals opens with a retired secret. Members who are no contact seal
+  by the key a log names, which follows the retirement, so never get one. A
+  key the `KeyBook` opens with a retired secret it seals again to the current
+  one, from the account, and writes (`KeyBook::take_resealed`,
+  `Peer::reseal_retired`), so each opens so once. An agent has no block to keep one in, and needs none:
   the server refuses an agent a new phrase (its maker makes it again), so nothing
   is ever sealed to a key it replaced. The server, in
   the same write, seals again from its own account each key the account sealed
@@ -1130,6 +1141,20 @@ who lost access. Cited from code by these names.
   The thief who retires first wins those logs, and a retirement's endorsement
   is bound to no time, so an old phrase can be retired in any log where it is
   still current.
+- **A leaked replaced phrase forges in a contact's name.** A key or a key
+  change sealed to this account is ephemeral-static and static-static
+  Diffie-Hellman, which whoever holds the secret it is sealed to can make as
+  well as its sender, so a phrase the account replaced, with the server
+  storing what it makes under a contact's account, can pass a key or a key
+  change off as that contact's, which the account's devices open with the
+  retired secret (`AccountBlock::retired`). They do so only for a contact
+  whose record does not show it holds the current key (`OwnContact::holds`),
+  which for a contact that has sent no key change since, and was not linked
+  again, is any time after the new phrase: nothing on the device tells when it
+  followed. A forged change would move its record to a key of the thief's, as
+  the race of two key changes does (below). No retired secret is ever dropped:
+  the device seals again what it opens with one, but cannot tell when every
+  contact has followed.
 - **Two key changes from one old phrase race.** Whoever holds an old phrase
   can leave a contact a key change of their own, sealed with the old key as
   the owner's is. A contact's device follows the first its mailbox holds; the

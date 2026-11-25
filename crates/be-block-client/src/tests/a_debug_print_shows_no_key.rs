@@ -22,6 +22,7 @@ fn a_debug_print_shows_no_key() {
         code: vec![0xab; 25],
         kind: be_block_protocol::LinkKind::Contact,
         made: 0,
+        public: be_block_keys::RecoveryPublic([0; 32]),
     };
     let greeting = be_block_protocol::Greeting {
         token: Some("GREETINGTOKEN".into()),
