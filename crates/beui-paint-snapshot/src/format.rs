@@ -8,7 +8,7 @@ use flate2::write::DeflateEncoder;
 use serde::{Deserialize, Serialize};
 
 const MAGIC: &[u8; 8] = b"BE3PAINT";
-const VERSION: u32 = 5;
+const VERSION: u32 = 6;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {

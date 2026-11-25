@@ -502,6 +502,7 @@ fn overlaps(primitive: &Primitive) -> bool {
                 ]
             },
         ),
+        Content::Path(path) => path.bounds(),
         Content::Callback(_) => return false,
         Content::Group(_) => return true,
     };

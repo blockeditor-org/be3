@@ -2327,16 +2327,8 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "std",
-                ],
-            },
+            "wasi": {},
+            "wasi-guest": {},
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -16533,90 +16525,45 @@ third_party = {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "linux-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "macos-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "wasi": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
             "wasi-guest": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "windows-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
         },
@@ -17760,40 +17707,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.9.0",
-    },
-    "float_next_after-1.0.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Bronson Brown-deVost <bronsonbdevost@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A trait for native rust f64/f32 nextafter",
-            "CARGO_PKG_HOMEPAGE": "https://gitlab.com/bronsonbdevost/next_afterf",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://gitlab.com/bronsonbdevost/next_afterf",
-        },
-        "library": {
-            "crate": "float_next_after",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "float_next_after",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "wasi": {},
-            "wasi-guest": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.0.0",
     },
     "fnv-1.0.7": {
         "build_script": None,
@@ -29580,12 +29493,7 @@ third_party = {
                     "default",
                 ],
             },
-            "wasi-guest": {
-                "features": [
-                    "arch",
-                    "default",
-                ],
-            },
+            "wasi-guest": {},
             "wasm32-bindgen": {
                 "features": [
                     "arch",
@@ -30513,375 +30421,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.16.1",
-    },
-    "lyon_geom-1.0.20": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
-            "CARGO_PKG_DESCRIPTION": "2D quadratic and cubic bézier arcs and line segment math on top of euclid.",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
-        },
-        "library": {
-            "crate": "lyon_geom",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "lyon_geom",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.0.20",
-    },
-    "lyon_path-1.0.19": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Types and utilities to store, build and iterate over 2D paths.",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
-        },
-        "library": {
-            "crate": "lyon_path",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "lyon_path",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.0.19",
-    },
-    "lyon_tessellation-1.0.22": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A low level path tessellation library.",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
-        },
-        "library": {
-            "crate": "lyon_tessellation",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "lyon_tessellation",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.0.22",
     },
     "mach2-0.4.3": {
         "build_script": None,
@@ -33936,12 +33475,8 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":libm-0.2.16",
-                ],
                 "features": [
                     "default",
-                    "libm",
                     "std",
                 ],
             },
