@@ -45,14 +45,14 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
             Modifiers::NONE,
         )
     };
-    with_reactive_scope(&mut harness.document_mut(), || reorder.hover(Some(over)));
+    with_reactive_scope(harness.document_mut(), || reorder.hover(Some(over)));
     harness.settle();
     assert_eq!(
         top_of(&harness, "row.3"),
         3.0 * REORDER_ROW,
         "a drag the editor follows itself, such as the host's block drag, opens the same gap"
     );
-    with_reactive_scope(&mut harness.document_mut(), || reorder.hover(None));
+    with_reactive_scope(harness.document_mut(), || reorder.hover(None));
     harness.settle();
     assert_eq!(
         top_of(&harness, "row.3"),
