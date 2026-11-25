@@ -1,7 +1,7 @@
 //! A Merkle tree over an append-only log, as RFC 6962 (Certificate Transparency) keeps one: a
 //! log's head is its size and the root hash of the tree over its leaves, so any range of
 //! entries is tied to a head by O(log n) hashes (`range_proof`), and a newer head to an older
-//! one by O(log n) more (`consistency_proof`). Signed logs (plans/signed_logs.md) use it, and
+//! one by O(log n) more (`consistency_proof`). Signed logs (guides/blocks/server.md, "Signed logs") use it, and
 //! access logs may (plans/deferred/proof_paths_with_inclusion_proofs.md).
 //!
 //! Hashes are SHA-256 with RFC 6962's prefixes: a leaf is `H(0x00 || data)`, a node

@@ -306,8 +306,9 @@ and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_it
 ### Signed logs
 
 A type with `type-info.log` keeps a signed log beside its content
-(plans/signed_logs.md; guides/blocks/client.md, "Signed logs"): content is
-what anyone with Edit may rewrite, a log what its authors add. A types crate
+(decisions/a_blocks_records_that_only_grow_are_a_signed_log.md;
+guides/blocks/client.md, "Signed logs"): content is what anyone with Edit may
+rewrite, a log what its authors add. A types crate
 says so with `be_block_types![T { log }]` (`Registration::log`), and the
 content implements `be_block_content::LogFold`: how an entry
 (`be_block_content::LogItem`: place, id, author, arrival, the app's bytes and

@@ -1,4 +1,4 @@
-//! Blocks' signed logs on a device (plans/signed_logs.md; guides/blocks/client.md, "Signed
+//! Blocks' signed logs on a device (guides/blocks/client.md, "Signed
 //! logs"): entries made here wait in the outbox until the server takes them, and every page or
 //! push the server serves is tied to the head it names by a Merkle proof, and that head to the
 //! one this device kept by a consistency proof, so a page anywhere in a log costs that page and

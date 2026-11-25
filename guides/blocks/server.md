@@ -854,8 +854,7 @@ quarter of a frame.
 
 ### Signed logs
 
-A block may have a signed log beside its content (plans/signed_logs.md;
-`log.rs`): entries the server numbers, stamps and hashes into a Merkle tree,
+A block may have a signed log beside its content (`log.rs`): entries the server numbers, stamps and hashes into a Merkle tree,
 which no commit changes. Content is what anyone with Edit may rewrite; a log
 is what its authors add, and only they (or a manager) may take back
 (decisions/a_blocks_records_that_only_grow_are_a_signed_log.md).

@@ -1,6 +1,6 @@
 package be3:server@0.1.0;
 
-/// Blocks' signed logs (plans/signed_logs.md; guides/blocks/server.md, "Signed
+/// Blocks' signed logs (guides/blocks/server.md, "Signed
 /// logs"): beside a block's content, entries the server orders, stamps and
 /// hashes into a Merkle tree (RFC 6962) that no commit can change. Each entry
 /// is its author's, sealed under the block's data key and signed by its

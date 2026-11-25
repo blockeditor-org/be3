@@ -88,8 +88,8 @@ interface types {
         /// The type merges by parts (`replicas.merge-parts`) rather than whole bytes
         /// (`replicas.merge3`). Only a type with `first-part` does.
         merges-parts: bool,
-        /// The type keeps a signed log beside its content (plans/signed_logs.md):
-        /// its replicas read it with `host.read-log`, hear it with
+        /// The type keeps a signed log beside its content
+        /// (guides/type_modules.md, "Signed logs"): its replicas read it with `host.read-log`, hear it with
         /// `replica.logged`, append with `host.append`, and fold it into what
         /// they describe (`be_block_content::LogFold`).
         log: bool,

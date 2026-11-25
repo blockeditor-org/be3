@@ -163,7 +163,7 @@ pub enum ClientError {
     /// so nothing is taken from it (guides/blocks/keys.md, "Epochs name their heads").
     Withheld(uuid::Uuid),
     /// The server served a head of the block's signed log that does not extend the head this
-    /// device verified before: it cut, rewrote or forked the log (plans/signed_logs.md), so
+    /// device verified before: it cut, rewrote or forked the log (guides/blocks/keys.md, "Forks"), so
     /// nothing of it is taken.
     LogForked(uuid::Uuid),
     /// What would be sent of the block is sealed under a key epoch its access log shows
