@@ -772,18 +772,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   `first_end()`, so opening a large blob is O(depth), with that test's bound
   on the objects held after reading the header back to a constant.
 
-## 31. Wire types
-
-- **The shared WIT spells hash and uuid as tuples no wire uses.** be-wasm-ops's
-  shared WIT declares `hash` and `uuid` as byte tuples, but every world maps
-  them with `with:` onto `be_block_store::Hash` and `uuid::Uuid`, which encode
-  as length-prefixed bytes, so the tuple form describes nothing on the wire.
-  It touches the protocol world (be-block-protocol), the apps world (be-sdk-api)
-  and the type-module world (be-sdk-type-api). Done: the shared WIT says
-  `type hash = list<u8>` and `type uuid = list<u8>`, with their lengths in their
-  docs, those `with:` entries are gone, and be-sdk-type-api's
-  `every_type_the_wit_maps_onto_the_stacks_has_its_wire_form` covers them, with
-  the same `root`-based check on the protocol and apps worlds.
 ## 32. Host events
 
 - **A Host event held during a join can override the join's answer.**
