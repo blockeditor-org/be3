@@ -144,7 +144,7 @@ pub fn Interactive(
                     carry.active,
                     carry.cancelled,
                     on_key,
-                    Some(face.into()),
+                    Some(face),
                 )
             }
             None => (

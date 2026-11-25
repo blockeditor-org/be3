@@ -156,7 +156,7 @@ pub fn Window(
     let opens = opens_windows();
     let placed = crate::core::placed_windows();
     let asked = placement.clone();
-    let separate = own_window.clone();
+    let separate = own_window;
     let hosted = create_memo(move || {
         separate.get()
             && (opens.get() || (placed.get() && matches!(asked.get(), WindowPlacement::Host(_))))
@@ -183,15 +183,15 @@ pub fn Window(
         }
         on_report.call(report);
     });
-    let sized = own_window.clone();
-    let fitting = fit.clone();
+    let sized = own_window;
+    let fitting = fit;
     let width = create_memo(move || match (sized.get(), fitting.get()) {
         (false, _) => Extent::INTRINSIC,
         (true, Some(_)) => Extent::fraction(1.0),
         (true, None) => Extent::px(shown.get().x),
     });
-    let sized = own_window.clone();
-    let fitting = fit.clone();
+    let sized = own_window;
+    let fitting = fit;
     let height = create_memo(move || match (sized.get(), fitting.get()) {
         (false, _) => Extent::INTRINSIC,
         (true, Some(_)) => Extent::fraction(1.0),
@@ -255,15 +255,15 @@ pub fn Window(
         (true, false) => LayerPolicy::BlocksAll,
         (false, _) => LayerPolicy::Pass,
     });
-    let blocking = blocks.clone();
+    let blocking = blocks;
     let dims = create_memo(move || match blocking.get() {
         true => scrim.get(),
         false => Color::TRANSPARENT,
     });
     let traps = create_memo(move || blocks.get());
     let dismiss = on_dismiss.unwrap_or_default();
-    let leveled = level.clone();
-    let separate = own_window.clone();
+    let leveled = level;
+    let separate = own_window;
     let spec = create_memo(move || {
         if !separate.get() {
             return None;
