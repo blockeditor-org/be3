@@ -6,7 +6,11 @@ fn a_new_world_hides_its_gems_again_and_fills_every_cell_in() {
     let gems = start.root().gems;
     assert_eq!(gems.len(), GEMS as usize);
     assert!(gems.iter().all(|&cell| cell < CELLS));
-    assert_eq!(Hunt::scattered(7).gems, gems, "a seed scatters the same way each time");
+    assert_eq!(
+        Hunt::scattered(7).gems,
+        gems,
+        "a seed scatters the same way each time"
+    );
 
     let player = Uuid::from_u128(1);
     let dug = edited(&start, [Hunt::dig(gems[0], player), Hunt::dig(35, player)]);

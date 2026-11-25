@@ -77,7 +77,11 @@ fn the_host_digs_where_a_player_asks_and_tells_each_only_what_is_dug() {
     test.hear_member(MemberEvent::Left(2));
     ask(&mut test, 2, 35);
     assert!(
-        !test.content::<HuntContent>(None).root().dug.contains_key(&35),
+        !test
+            .content::<HuntContent>(None)
+            .root()
+            .dug
+            .contains_key(&35),
         "one that left digs nothing"
     );
 }

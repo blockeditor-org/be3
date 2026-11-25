@@ -7,7 +7,7 @@ use super::*;
 /// and tells her what she dug up.
 #[test]
 fn a_player_digs_through_the_editor_that_hosts_the_hunt() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let ada = server.account("Ada");
     let mut laptop = HostTest::device(&dev);

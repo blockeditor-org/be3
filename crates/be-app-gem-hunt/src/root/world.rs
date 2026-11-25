@@ -20,12 +20,14 @@ pub fn World(editor: Editor) -> NodeId {
     let looks = create_memo(move || {
         world.with(|world| {
             (0..CELLS)
-                .map(|cell| match (world.dug.contains_key(&cell), world.has_gem(cell)) {
-                    (true, true) => Look::Gem,
-                    (true, false) => Look::Near(world.near(cell)),
-                    (false, true) => Look::Buried,
-                    (false, false) => Look::Hidden { diggable: false },
-                })
+                .map(
+                    |cell| match (world.dug.contains_key(&cell), world.has_gem(cell)) {
+                        (true, true) => Look::Gem,
+                        (true, false) => Look::Near(world.near(cell)),
+                        (false, true) => Look::Buried,
+                        (false, false) => Look::Hidden { diggable: false },
+                    },
+                )
                 .collect::<Vec<_>>()
         })
     });

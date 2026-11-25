@@ -14,7 +14,10 @@ fn a_player_sees_only_what_the_host_tells_it_and_digs_by_asking() {
     test.hear_channel(ChannelEvent::Open(host.into_bytes()));
     assert_eq!(shown(&test, "hunt.status"), "\"Joining the hunt.\"");
 
-    let board = Board::of(&world(test.host().account_id()).root(), test.host().account_id());
+    let board = Board::of(
+        &world(test.host().account_id()).root(),
+        test.host().account_id(),
+    );
     test.hear_channel(ChannelEvent::Said(encode(&board)));
     assert_eq!(
         shown(&test, "hunt.status"),

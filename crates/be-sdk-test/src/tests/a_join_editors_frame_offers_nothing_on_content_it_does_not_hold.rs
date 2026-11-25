@@ -41,7 +41,11 @@ fn a_join_editors_frame_offers_nothing_on_content_it_does_not_hold() {
     ];
     let offered = |test: &BeuiTest<WorldRoot>| -> Vec<String> {
         let mut ids = test.menu_ids();
-        ids.extend(test.described_actions().iter().map(|action| action.id.clone()));
+        ids.extend(
+            test.described_actions()
+                .iter()
+                .map(|action| action.id.clone()),
+        );
         content
             .iter()
             .filter(|id| ids.iter().any(|offered| offered == *id))
@@ -52,7 +56,11 @@ fn a_join_editors_frame_offers_nothing_on_content_it_does_not_hold() {
     let editing = BeuiTest::<WorldRoot>::editing(Uuid::new_v4())
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
-    assert_eq!(offered(&editing), content, "an editor of the block offers each");
+    assert_eq!(
+        offered(&editing),
+        content,
+        "an editor of the block offers each"
+    );
     drop(editing);
 
     let joined = BeuiTest::<WorldRoot>::joined(Uuid::new_v4())
@@ -62,7 +70,11 @@ fn a_join_editors_frame_offers_nothing_on_content_it_does_not_hold() {
         !joined.menu_ids().is_empty(),
         "a Join editor's frame still has a menu"
     );
-    assert_eq!(offered(&joined), Vec::<String>::new(), "a Join editor offers none");
+    assert_eq!(
+        offered(&joined),
+        Vec::<String>::new(),
+        "a Join editor offers none"
+    );
 }
 
 test_editor!(WorldRoot);

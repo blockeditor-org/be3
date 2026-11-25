@@ -621,7 +621,14 @@ pub(crate) fn FrameMenu(
         }
         let mut listed: Vec<MenuNode> = content
             .iter()
-            .flat_map(|content| [&content.undo, &content.redo, &content.rename, &content.share])
+            .flat_map(|content| {
+                [
+                    &content.undo,
+                    &content.redo,
+                    &content.rename,
+                    &content.share,
+                ]
+            })
             .chain([&palette])
             .map(MenuNode::action)
             .collect();

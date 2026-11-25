@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use be_sdk_beui::Editor;
 use be_sdk_beui::ChannelEvent;
+use be_sdk_beui::Editor;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -35,11 +35,18 @@ pub fn Players(editor: Editor) -> NodeId {
         board.with(|board| {
             let playing = open.get() && board.as_ref().is_some_and(|board| !board.over());
             (0..CELLS)
-                .map(|cell| match board.as_ref().and_then(|board| board.dug(cell)) {
-                    Some(Dug { found: Found::Gem, .. }) => Look::Gem,
-                    Some(Dug { found: Found::Near(near), .. }) => Look::Near(near),
-                    None => Look::Hidden { diggable: playing },
-                })
+                .map(
+                    |cell| match board.as_ref().and_then(|board| board.dug(cell)) {
+                        Some(Dug {
+                            found: Found::Gem, ..
+                        }) => Look::Gem,
+                        Some(Dug {
+                            found: Found::Near(near),
+                            ..
+                        }) => Look::Near(near),
+                        None => Look::Hidden { diggable: playing },
+                    },
+                )
                 .collect::<Vec<_>>()
         })
     });
