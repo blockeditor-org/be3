@@ -62,14 +62,19 @@ fn an_open_chat_shows_every_message_appended_past_a_page_while_this_device_was_a
     let peer = std::sync::Arc::clone(&other.peer.borrow());
     other.runtime.block_on(async {
         for n in 0..PAST_A_PAGE {
-            peer.append(
-                chat,
-                "be3.chat",
-                &said(format!("away {n}")).encode(),
-                Default::default(),
-            )
-            .await
-            .expect("the other device appends");
+            let appended = peer
+                .append(
+                    chat,
+                    "be3.chat",
+                    &said(format!("away {n}")).encode(),
+                    Default::default(),
+                )
+                .await
+                .expect("the other device appends");
+            assert!(
+                matches!(appended, be_block_client::Appended::Logged { .. }),
+                "the server took message {n}: {appended:?}"
+            );
         }
     });
 

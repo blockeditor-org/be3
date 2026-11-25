@@ -17,10 +17,10 @@ async fn one_bad_entry_among_good_ones_is_the_only_one_refused() {
         .await
         .unwrap();
     drop(online);
-    let laptop = harness.offline(&owner, &refs, &store);
     let append = |text: &'static str| {
-        let laptop = &laptop;
+        let (harness, owner, refs, store) = (&harness, &owner, &refs, &store);
         async move {
+            let laptop = harness.offline(owner, refs, store);
             match laptop
                 .append(
                     chat,
@@ -39,18 +39,26 @@ async fn one_bad_entry_among_good_ones_is_the_only_one_refused() {
     let first = append("one").await;
     // What a device checks before keeping it is the limit the server holds it to: an entry
     // over it reaches the outbox only as a device the server's limit has since changed for.
+    // The device's refs, scoped as it scopes them while no peer holds them, take it past the
+    // checks `append` makes.
     let bad = Uuid::new_v4();
-    laptop.keep_in_outbox(refs::Op::Append(refs::Appending {
-            block: chat,
-            id: bad,
-            payload: vec![0; be_block_protocol::MAX_LOG_ENTRY_BYTES + 1],
-            signature: vec![0; 64],
-            announces: None,
-            redacts: None,
-        }));
+    refs.scope(refs::Scope {
+        server: harness.url.clone(),
+        account: owner.account(),
+        organization: owner.organization(),
+    })
+    .unwrap()
+    .push(refs::Op::Append(refs::Appending {
+        block: chat,
+        id: bad,
+        payload: vec![0; be_block_protocol::MAX_LOG_ENTRY_BYTES + 1],
+        signature: vec![0; 64],
+        announces: None,
+        redacts: None,
+    }))
+    .unwrap();
     let last = append("two").await;
 
-    drop(laptop);
     let laptop = harness.device(&owner, &refs, &store).await;
     let drained = laptop.drain(|_| false).await.unwrap();
     let appended: Vec<Uuid> = drained
