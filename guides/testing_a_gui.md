@@ -121,6 +121,11 @@ says `impl Wraps for Fixture {}` to be one too.
 - The date and time of day are pinned too, to `beui_core::timer::TEST_WALL_CLOCK`: editors
   read `be_sdk_beui::wall_clock()` and beui `beui::reactive::wall_clock()`, never
   `SystemTime::now()`, which would paint differently every run.
+- A test that drives be-host-stack itself (be-host-runtime's instance tests,
+  `be_host_stack::testing`) is answered a stack command (such as `remove_member`) only while it
+  takes the stack's updates: the reply's callback runs as updates are taken. Wait on it with
+  `be_host_stack::take_updates_or_wait(what, done)`; a blocking `recv` on a channel the callback
+  fills hangs.
 
 ### The region
 
