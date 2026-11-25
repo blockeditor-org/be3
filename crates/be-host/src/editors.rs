@@ -90,6 +90,60 @@ pub(super) enum ArtifactStatus {
     Failed(String),
 }
 
+/// Why the creation `name` could not make its block, as both of be-host's hosts word it.
+pub(crate) fn creation_failed(name: &str, error: &str) -> String {
+    format!("{name} could not be created: {error}")
+}
+
+/// Steps a creation child, as be-host's own compositor and a root's children do: still
+/// offering its options until its placer commits it; then, once its parent resolves, making its
+/// block (`create`: none while it works on it, or why it could not), which is put where the
+/// commit says and named as it says. A failure lets go of the commit and stays until its placer
+/// commits it again, which tries anew; a block made is final. Answers whether `progress`
+/// changed, which its placer's status says.
+pub(crate) fn step_creation(
+    name: &str,
+    commit: &mut Option<be_host_runtime::ChildCommit>,
+    progress: &mut Option<be_sdk_api::CreationProgress>,
+    create: impl FnOnce() -> Result<Option<Uuid>, String>,
+) -> bool {
+    use be_sdk_api::CreationProgress;
+    let next = match commit.as_ref() {
+        _ if matches!(progress, Some(CreationProgress::Created(_))) => return false,
+        None if matches!(progress, Some(CreationProgress::Failed(_))) => return false,
+        None => CreationProgress::Options,
+        Some(held) => match be_host_stack::app_graph::parent_of(held.parent) {
+            // Only Unfiled resolves to nothing, and only before the host has made it
+            // (`RootSettings::ensure_unfiled`), which waits for the organization's blocks:
+            // offline on a first run that is never, so fail rather than wait.
+            None => {
+                *commit = None;
+                CreationProgress::Failed("Your files are still loading".to_owned())
+            }
+            Some(parent) => {
+                let named = held.name.clone();
+                match create() {
+                    Ok(Some(block)) => {
+                        be_host_stack::set_parent(block, parent);
+                        if let Some(named) = named {
+                            be_host_stack::name_when_created(block, named);
+                        }
+                        CreationProgress::Created(block.into_bytes())
+                    }
+                    Ok(None) => CreationProgress::Working,
+                    Err(error) => {
+                        *commit = None;
+                        CreationProgress::Failed(creation_failed(name, &error))
+                    }
+                }
+            }
+        },
+    };
+    let changed = progress.as_ref() != Some(&next);
+    *progress = Some(next);
+    changed
+}
+
 pub(crate) trait PendingCreation {
     fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedView>;
     fn source(&self) -> app::InstanceSource;
@@ -97,11 +151,16 @@ pub(crate) trait PendingCreation {
     fn dialog(&self) -> be_sdk_api::DialogStatus;
     fn dismiss(&mut self);
     fn height(&self) -> Option<f32>;
+    /// What it makes, as its template names it.
+    fn name(&self) -> &'static str;
+    /// Makes its block once committed: none while it works on it, or why it could not.
     fn create(&mut self) -> Result<Option<Uuid>, String>;
 }
 
 pub(crate) struct TemplateEntry {
     pub(crate) target: app::CreationTarget,
+    /// The app whose editor makes it.
+    app: Arc<AppManifest>,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
     pub(crate) debug: bool,
@@ -253,6 +312,7 @@ impl EditorRegistry {
             let app = Arc::clone(manifest);
             self.templates.push(TemplateEntry {
                 target,
+                app: Arc::clone(&app),
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
                 debug: template.debug,
@@ -362,6 +422,21 @@ impl EditorRegistry {
     pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<app::AppPicker> {
         let (app, editor) = self.accepting(ShellRequest::Rename)?;
         Some(app::AppPicker::rename(app, editor, block, sheet))
+    }
+
+    /// The app whose editor `editor` makes a block from its template `template`, and what it
+    /// makes: what a root's creation child opens in that app (`InstanceRole::Creation`).
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    pub(crate) fn creation_app(
+        &self,
+        editor: Uuid,
+        template: &str,
+    ) -> Option<(Arc<AppManifest>, app::CreationTarget)> {
+        let entry = self
+            .templates
+            .iter()
+            .find(|entry| entry.target.editor == editor && entry.target.template == template)?;
+        Some((Arc::clone(&entry.app), entry.target))
     }
 
     pub(crate) fn create(

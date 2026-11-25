@@ -600,43 +600,15 @@ impl Editors {
         let client_id = self.client_id();
         let mut changed = false;
         for child in state.creations.borrow_mut().values_mut() {
-            if matches!(
-                child.progress,
-                Some(CreationProgress::Created(_) | CreationProgress::Failed(_))
-            ) {
-                continue;
+            if !matches!(child.progress, Some(CreationProgress::Created(_))) {
+                child.creation.step(&registry, client_id);
             }
-            child.creation.step(&registry, client_id);
-            let progress = match &child.commit {
-                None => CreationProgress::Options,
-                Some(commit) => match be_host_stack::app_graph::parent_of(commit.parent) {
-                    // Only Unfiled resolves to nothing, and only before the host has made it
-                    // (`RootSettings::ensure_unfiled`), which waits for the organization's
-                    // blocks: offline on a first run that is never, so fail rather than wait.
-                    None => {
-                        child.commit = None;
-                        CreationProgress::Failed("Your files are still loading".to_owned())
-                    }
-                    Some(parent) => match child.creation.create() {
-                        Ok(Some(block)) => {
-                            be_host_stack::set_parent(block, parent);
-                            if let Some(name) = commit.name.clone() {
-                                be_host_stack::name_when_created(block, name);
-                            }
-                            CreationProgress::Created(block.into_bytes())
-                        }
-                        Ok(None) => CreationProgress::Working,
-                        Err(error) => {
-                            child.commit = None;
-                            CreationProgress::Failed(error)
-                        }
-                    },
-                },
-            };
-            if child.progress.as_ref() != Some(&progress) {
-                child.progress = Some(progress);
-                changed = true;
-            }
+            let name = child.creation.name();
+            let creation = &mut child.creation;
+            changed |=
+                crate::editors::step_creation(name, &mut child.commit, &mut child.progress, || {
+                    creation.create()
+                });
         }
         if changed {
             be_host_base::host::changed();

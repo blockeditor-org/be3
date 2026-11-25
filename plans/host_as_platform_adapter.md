@@ -1866,9 +1866,30 @@ Each step lands on its own.
                message in a browser tab yet: its editor hears the failure on the wire, but
                its page shows nothing (not yet understood). Host test
                `be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone`.
-             - Left, in this order: creations (be-host steps a `PendingCreation` per child,
-               with the placer's `commit-child`, host-side), artifact settings (be-host's own
-               settings UI), and host panels. be-host keeps no beui but its platform adapters,
+             - 4g7b3k. Built: creations. A creation child (`ChildContent::Creation`) is a
+               dialog the root opens like a picker: the host opens the template's editor in
+               it (`EditorRegistry::creation_app`, `InstanceRole::Creation`) and steps it
+               through the one `step_creation` be-host's compositor steps its own with
+               (editors.rs: the "Your files are still loading" policy, parent and name, the
+               "could not be created" wording). Its placer's `commit-child` reaches the root
+               (`Embedded::hear_tell`), which hands it to the host under the child's editor
+               once that opened (`Children::relay_commits`, `host.tell-shell`; dropped once
+               the child failed); once the editor is open (a dialog's accepted), the host asks
+               it to make the block (`Forwarded::commit_creation`), whose answer reaches the
+               creation's `Inbox` as be-host's `AppCreation` hears it (`InstanceEvent::Created`).
+               A failure is not final in either host: the placer committing again tries anew.
+               A creation whose editor fails says it could not be created, as be-host does.
+               Host test `be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates`.
+               Under the root `Forwarded` now answers an editor's answers as `Runtime` does
+               (`Instances::answered`), so `ArtifactOutcome` and `Rendered` reach their
+               listeners too.
+               - Left: a creation dialog's height (be-host's `CREATION_DIALOG_HEIGHT` and
+                 `view_size`, which the root's child status does not carry yet).
+               - Left: dismissing a creation dialog (`dismiss-child`, be-host's
+                 `dismiss_creations`), which the root does not relay yet.
+               - Left: no test makes a block through a creation dialog (an image's import).
+             - Left, in this order: artifact settings (be-host's own settings UI), and host
+               panels. be-host keeps no beui but its platform adapters,
                so it draws no panel: be-root draws the block stack, performance, apps and menu
                panels itself, as its own surfaces (the user's decision).
              - One app crashing fails every child it runs: expected, as the pool shares one
