@@ -86,6 +86,11 @@ impl InputForwarder {
         self.replay.focused()
     }
 
+    /// The input that tells the view the modifiers held now, if the app does not know them.
+    pub(super) fn modifiers_now(&mut self) -> Option<Input> {
+        self.replay.modifiers_now()
+    }
+
     /// Counts no pointer button as held, as for an app that has heard none go down.
     pub(super) fn forget_presses(&mut self) {
         self.replay.forget_presses();
