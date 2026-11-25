@@ -2115,35 +2115,27 @@ Each step lands on its own.
            a `Surface::Host` layer, which the host composites and routes input to, and relays
            its status (title, icon, raised, fullscreen) to its placer. Under be-host's own UI
            the platform's `DesktopHost` (be-host-desktop; the Wayland compositor on Linux)
-           is driven by be-host's shell (`create`, `start`, `before`, `after`, `frame`,
-           `exiting`), and a window is a forwarding catcher it draws (`WindowView`); under the
-           root none of it runs yet, and no host test runs a program. In parts:
-           - 4g7e3a. Built: the compositor under the root. `RootShell` drives `DesktopHost`
-             under `--desktop` (`create` in its document, `start`, `before` and `after` around
-             its document's frame, `exiting`, and `environment` for `drive exec`), and the
-             core publishes the window list and steps the desktop host as under be-host's UI
-             (`HostCore::publish_windows`, `Host::frame`). The root's apps hear what the host
-             publishes (`Forwarded::step`, which be-host's own runtimes hear through
-             `Watches::published`), and the session's editor is the shell
-             (`Forwarded::set_shell`), which alone hears be3:desktop's windows. Host tests run a
-             program of their own, be-tool-wayland-window (`HostTest::open_test_window`, one
-             window filled with one color), stopped before the host restarts. Host test
-             `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop`: the
-             windows bar lists it and the desktop opens it in a tab, under be-host and the root.
-             - Left, for 4g7e3b and 4g7e3d: under the root the tab shows nothing of the window,
-               and both are named by the program (its app id) rather than its window's title.
-             - Left, under 4g7e3c: programs own their windows' input while the session shows
-               (`DesktopSettings::owned`), but the root's router routes none to them yet.
-           - 4g7e3b. The root places a window child as a `Surface::Host` layer at its place,
-             which be-host composites from the compositor's texture of it and configures to
-             its place's size; `drive paint` paints it as the placeholder it paints for a
-             program window today. Under be-host's UI a window is drawn by its `WindowView`
-             catcher's beui drawing (be-host-wayland's `WindowDraw`, its surfaces' textures and
-             subsurfaces placed in the view) and configured to the rect the view is laid out
-             at (be-host-desktop's `WindowBody`, `window_kind`); under the root neither the
-             view nor the drawing exists, so be-host-desktop needs to hand `RootShell` each
-             window's surfaces as textures placed in the window's pixels, for its layer, and to
-             configure a window to a size it is told, rather than to its view's.
+           is driven by be-host's shell, and a window is a forwarding catcher it draws
+           (`WindowView`). Under the root, `RootShell` drives `DesktopHost` under `--desktop`
+           as be-host's shell does (`create`, `start`, `before` and `after` around its
+           document's frame, `exiting`, `environment`), the core publishes the window list
+           (`HostCore::publish_windows`), which the root's apps hear (`Forwarded::step`) and
+           the session's editor alone as the shell (`Forwarded::set_shell`). A window an
+           editor places is a `Surface::Host` layer at its place (be-sdk-root's `Children`),
+           whose pixels are the window's logical pixels: `RootShell` configures the window to
+           the layer's size (`DesktopHost::place_windows`) and draws its surfaces' textures
+           where the layer shows it (`DesktopHost::picture`, the compositor's
+           `Windows::picture`), and `drive paint` paints them as under be-host. Host tests run
+           a program of their own, be-tool-wayland-window (`HostTest::open_test_window`),
+           stopped before the host restarts. Host test
+           `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop`: the
+           windows bar lists it and the desktop shows it in a tab, under be-host and the root.
+           - Left, for 4g7e3d: under the root the tab and the chip are named by the program
+             (its app id) rather than its window's title.
+           - Left, for 4g7e3c: programs own their windows' input while the session shows
+             (`DesktopSettings::owned`), but the root's router routes none to them yet.
+           - Left: a window's popups (menus) show only within its place, clipped by its layer,
+             where under be-host they hang outside the window's view.
            - 4g7e3c. Input to `Surface::Host` layers: what the root's router delivers to one
              goes to the compositor (pointer, keys, the keyboard's focus), as a
              `WindowView`'s catcher forwards it.

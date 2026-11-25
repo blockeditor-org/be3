@@ -72,7 +72,7 @@ use std::{
 };
 
 use be_lib_geometry::{Rect, pos2};
-use be_lib_layers::{Affine, Area, Layer, LayerId};
+use be_lib_layers::{Affine, Area, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements,
@@ -167,6 +167,9 @@ pub struct Children {
     /// The children placed that the root shows nothing of, by the view placing each, as the
     /// host is told them.
     unshown: Vec<((EditorInstanceId, ViewId), ShownChild)>,
+    /// The program windows placed (`ChildContent::Window`), which the host composites itself
+    /// where they show (`Surface::Host`), each with its placement in its placer's view.
+    windows: Vec<(WindowPlace, ChildPlacement)>,
     /// The host panels placed (`ChildContent::Host`), which the root draws itself
     /// (`Children::panels`), each with the layer of the root's own surface showing it, its top
     /// left at its surface's origin, once the root handed it (`Children::show_panels`).
@@ -1021,6 +1024,29 @@ impl PanelPlace {
     }
 }
 
+/// A program window an editor placed (`ChildContent::Window`): the host composites it where it
+/// is placed, as be-host composites one its own UI places, and configures it to its place's size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WindowPlace {
+    /// The editor that placed it and its view.
+    editor: EditorInstanceId,
+    view: ViewId,
+    window: be_sdk_api::HostWindowId,
+    /// The size of its place, in its placer's view's points: the size the window is given, in
+    /// its own logical pixels.
+    size: be_lib_geometry::Vec2,
+}
+
+impl WindowPlace {
+    /// The layer showing it, `Surface::Host` of its window, by its window: a window shows once.
+    fn layer(&self) -> LayerId {
+        LayerId(std::hash::BuildHasher::hash_one(
+            &be_lib_stable_hash::State::default(),
+            ("window", self.window.0),
+        ))
+    }
+}
+
 /// Whether `shown` is an artifact's settings (`ChildContent::ArtifactSettings`), a dialog its
 /// editor runs in its settings view.
 fn settings_dialog(shown: &Shown) -> bool {
@@ -1183,6 +1209,7 @@ impl Children {
         self.bodies.clear();
         self.unshown.clear();
         self.panels.clear();
+        self.windows.clear();
         for placements in &placed {
             let placer = self.requests.iter().find(|screen| {
                 (screen.instance, screen.view) == (placements.instance, placements.view)
@@ -1253,6 +1280,23 @@ impl Children {
                         },
                     ));
                     continue;
+                }
+                // A program window the host composites where it is placed (`layers`); what
+                // the placer hears of it is the same as before it showed (4g7e3d).
+                if let ChildContent::Window(window) = &placement.content
+                    && placement.mode != ChildMode::Hidden
+                {
+                    let place = WindowPlace {
+                        editor: placements.instance,
+                        view: placements.view,
+                        window: *window,
+                        size: be_lib_geometry::vec2(
+                            placement.rect.width(),
+                            placement.rect.height(),
+                        ),
+                    };
+                    self.windows
+                        .push((place, in_view(placement, placements.view)));
                 }
                 let occluders = occluders_of(placements, index);
                 match Child::placed(
@@ -2336,6 +2380,56 @@ impl Children {
             match placement.layer {
                 ChildLayer::Below => below.push(shown_panel),
                 ChildLayer::Above => over.push(shown_panel),
+            }
+        }
+        // The program windows placed here, each a surface the host owns (`Surface::Host`),
+        // whose pixels are the window's logical pixels, as many as its place has points:
+        // placed as a panel is, at its place, within its clip.
+        for (place, placement) in &self.windows {
+            if !placed_in(place.editor, place.view) {
+                continue;
+            }
+            let size = (
+                place.size.x.round().max(1.0) as u32,
+                place.size.y.round().max(1.0) as u32,
+            );
+            let whole = Rect::from_min_size(
+                pos2(0.0, 0.0),
+                be_lib_geometry::vec2(size.0 as f32, size.1 as f32),
+            );
+            let to_placer = placed_transform(placement, be_lib_geometry::vec2(1.0, 1.0));
+            let transform = to_placer.then(&to_window);
+            let Some(from_window) = transform.inverse() else {
+                continue;
+            };
+            let clip = to_window
+                .bounds(placement.clip.intersect(to_placer.bounds(whole)))
+                .intersect(shown);
+            let active = takes_input(placement.mode);
+            if active && placement.layer == ChildLayer::Below {
+                holes.push((hole(placement, pixels, layer.clip), Vec::new()));
+            }
+            let shown_window = Layer {
+                id: place.layer(),
+                surface: Surface::Host(place.window.0),
+                size,
+                transform,
+                clip: whole.intersect(from_window.bounds(clip)),
+                corner_radius: 0.0,
+                opacity: layer.opacity * placement.opacity.clamp(0.0, 1.0),
+                shown: true,
+                input: LayerInput {
+                    hit: match active {
+                        true => Area::Whole,
+                        false => Area::Nowhere,
+                    },
+                    placer: Some(layer.id),
+                    ..LayerInput::default()
+                },
+            };
+            match placement.layer {
+                ChildLayer::Below => below.push(shown_window),
+                ChildLayer::Above => over.push(shown_window),
             }
         }
         for ask in &self.bodies {
