@@ -6,7 +6,7 @@ use be_type_example_counter::CounterContent;
 /// read from the bundle BE_BUNDLE names, as a `be` that was not deployed reads the apps staged
 /// beside it, rather than downloaded: no window, no presenter, no
 /// gpu; the component adds one once the content arrives, and the block shows it
-/// (plans/headless_apps.md, step 1).
+/// (guides/apps/runtime.md, "Headless").
 #[test]
 fn be_runs_an_apps_host_component_with_no_display() {
     let harness = be_host_testing::Harness::start();

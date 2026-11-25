@@ -565,7 +565,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
 ## 22. Headless runtime
 
 - **be-host-runtime without its gpu and presenter.** `be` links
-  be-host-runtime to run host components headless (plans/headless_apps.md),
+  be-host-runtime to run host components headless (guides/apps/runtime.md, "Headless"),
   which brings beui-documents, wgpu and the font stack into its binary though
   it never starts them. Done when `be`'s build time or size hurts: the runtime
   split so `be` links no gpu or presenter crate, which also cuts a caching
@@ -577,6 +577,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   feature cannot split it, since buck builds one be-host-runtime per platform
   for every crate. Done when `be` runs on a machine with no ALSA: audio behind
   a crate edge `be` does not take, or loaded at run time on first play.
+- **A deployed `be` running apps.** Reading manifests and type modules from a
+  deployed `be`'s release (checked against the `app-hashes.json` its
+  `build-info.json` pins) and `be BLOCK host` have run only against apps staged
+  beside a `be` built here, never a real deploy: only releases deployed after
+  them name their `apps`. Done when a deployed `be` has read a block type and
+  hosted a block from its release, or a test serves a release as the mirror does.
 
 ## 23. Sandbox
 

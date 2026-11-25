@@ -2,7 +2,7 @@ use super::*;
 
 use be_type_example_counter::CounterContent;
 
-/// `be BLOCK host` (plans/headless_apps.md, step 2) holds the block's replica open, and once no
+/// `be BLOCK host` (guides/apps/runtime.md, "Headless") holds the block's replica open, and once no
 /// other device hosts it starts the type's host component, which claims the lease: this device
 /// hosts the block, and the counter's component adds one to it.
 #[test]

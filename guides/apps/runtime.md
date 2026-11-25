@@ -673,8 +673,8 @@ screen, host components (guides/apps/host_services.md, "Host components").
 The runtime keeps passing while one runs (`Instances::has_hosts`) without
 asking for frames.
 
-`be` runs them this way, one host component per `be_tool_cli::hosting::Hosting`
-(plans/headless_apps.md), on a block stack it has already started and connected:
+`be` runs them this way, one host component per `be_tool_cli::hosting::Hosting`,
+on a block stack it has already started and connected:
 `Hosting::start(block, type, client)` finds the app whose manifest's `hosts` names
 the block's type, starts a `Headless`, opens the component with `be_host_runtime::host`, and fails, naming the
 app, if it could not start. `run_until` steps it until a condition holds or a time

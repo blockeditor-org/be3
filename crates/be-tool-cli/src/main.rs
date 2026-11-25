@@ -131,7 +131,7 @@ fn private_directory() -> Result<std::path::PathBuf, String> {
     Ok(path)
 }
 
-/// `be BLOCK host` (plans/headless_apps.md, step 2): the block's type's host component, run
+/// `be BLOCK host` (guides/apps/runtime.md, "Headless"): the block's type's host component, run
 /// headless on a block stack signed in as this account, until Ctrl-C.
 async fn host_block(settings: &Settings, target: &str) -> Result<String, String> {
     let tracker = Tracker::new(connect_live(settings).await?, sources());

@@ -231,8 +231,8 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
     .map_err(explain)
 }
 
-/// What be-host-stack signs in with to run this account's blocks as be-host does (`be BLOCK
-/// host`, plans/headless_apps.md, step 2): the account the token names, its organization and its
+/// What be-host-stack signs in with to run this account's blocks as be-host does (`be BLOCK host`,
+/// guides/apps/runtime.md, "Headless"): the account the token names, its organization and its
 /// recovery secret, checked as `connect` checks them, and a directory of its own under the cache.
 pub async fn stack_config(settings: &Settings) -> Result<be_host_stack::Config, String> {
     let url = be_block_client::socket_url(&settings.server);
