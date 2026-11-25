@@ -193,6 +193,10 @@ pub struct ServerConfig {
     pub push: push::PushConfig,
     /// The OpenID Connect providers people may sign in with (`--oidc-providers`).
     pub providers: Cow<'static, [oidc::Provider]>,
+    /// Longest a connection's answer may go with the client taking none of it before the
+    /// connection is given up (`http::WriteDeadline`): `IDLE_TIMEOUT` unless a test sets a
+    /// shorter one.
+    pub write_timeout: Duration,
     /// For tests only: what a server that lies would change in the pages it answers (`Lies`).
     /// None for every real server.
     pub lies: Option<Lies>,
@@ -279,6 +283,7 @@ impl ServerConfig {
         public_url: None,
         push: push::PushConfig::DEFAULT,
         providers: Cow::Borrowed(&[]),
+        write_timeout: IDLE_TIMEOUT,
         lies: None,
     };
 

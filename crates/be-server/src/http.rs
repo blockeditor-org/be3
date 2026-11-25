@@ -30,6 +30,7 @@ use be_block_protocol::{MAX_FRAME_BYTES, Welcome, hello, read_hello};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use hyper_util::rt::{TokioIo, TokioTimer};
 use tokio::{
+    io::{AsyncRead, AsyncWrite},
     net::TcpStream,
     sync::{Mutex, Notify, OwnedSemaphorePermit, mpsc},
 };
@@ -195,6 +196,7 @@ pub(crate) async fn serve(
     });
     let service = {
         let link = Arc::clone(&link);
+        let services = services.clone();
         hyper::service::service_fn(move |request| {
             let (link, routes, services) = (Arc::clone(&link), routes.clone(), services.clone());
             async move { Ok::<_, Infallible>(front(request, link, &routes, &services).await) }
@@ -208,7 +210,10 @@ pub(crate) async fn serve(
         .max_header_size(MAX_HEAD_BYTES)
         .max_headers(MAX_HEADERS)
         .title_case_headers(true)
-        .serve_connection(TokioIo::new(stream), service)
+        .serve_connection(
+            TokioIo::new(WriteDeadline::new(stream, services.config.write_timeout)),
+            service,
+        )
         .with_upgrades();
     let first = async {
         tokio::select! {
@@ -220,6 +225,107 @@ pub(crate) async fn serve(
         served = connection => served.map_err(|error| ServerError::Socket(error.to_string())),
         () = first => Err(crate::refused("the request never finished its head")),
         () = eviction.wait() => Ok(()),
+    }
+}
+
+/// A connection's stream that fails a write making no progress for `timeout`
+/// (`ServerConfig::write_timeout`). hyper writes an answer for as long as the client takes to read
+/// it, so a client that stopped reading a large object or a long-poll answer would hold its
+/// connection and its places until it went; one that reads slowly but steadily is never cut off,
+/// since each write that takes a byte starts the wait again. Waiting between answers, with
+/// nothing to write, is not a stall. A connection given up is reset rather than closed, so the
+/// kernel does not go on holding what it could not send.
+struct WriteDeadline {
+    inner: TcpStream,
+    timeout: Duration,
+    /// When the write waiting now gives up, from when it first could not go on.
+    stalled: Option<std::pin::Pin<Box<tokio::time::Sleep>>>,
+}
+
+impl WriteDeadline {
+    fn new(inner: TcpStream, timeout: Duration) -> Self {
+        Self {
+            inner,
+            timeout,
+            stalled: None,
+        }
+    }
+
+    /// `polled`, a write's poll, or an error once writes have waited `timeout`.
+    fn deadline<T>(
+        &mut self,
+        context: &mut std::task::Context<'_>,
+        polled: std::task::Poll<std::io::Result<T>>,
+    ) -> std::task::Poll<std::io::Result<T>> {
+        use std::{future::Future, task::Poll};
+        if polled.is_ready() {
+            self.stalled = None;
+            return polled;
+        }
+        let timeout = self.timeout;
+        let stalled = self
+            .stalled
+            .get_or_insert_with(|| Box::pin(tokio::time::sleep(timeout)));
+        match stalled.as_mut().poll(context) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(()) => {
+                // A zero linger makes dropping the stream send a reset.
+                let _ = self.inner.set_zero_linger();
+                Poll::Ready(Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "the client took nothing of its answer for too long",
+                )))
+            }
+        }
+    }
+}
+
+impl AsyncRead for WriteDeadline {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_read(context, buffer)
+    }
+}
+
+impl AsyncWrite for WriteDeadline {
+    fn poll_write(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+        buffer: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        let polled = std::pin::Pin::new(&mut self.inner).poll_write(context, buffer);
+        self.deadline(context, polled)
+    }
+
+    fn poll_write_vectored(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+        buffers: &[std::io::IoSlice<'_>],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        let polled = std::pin::Pin::new(&mut self.inner).poll_write_vectored(context, buffers);
+        self.deadline(context, polled)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
+    }
+
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let polled = std::pin::Pin::new(&mut self.inner).poll_flush(context);
+        self.deadline(context, polled)
+    }
+
+    fn poll_shutdown(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_shutdown(context)
     }
 }
 

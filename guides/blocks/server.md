@@ -352,6 +352,12 @@ counts and records nothing: `reserve-uploads` did before it signed.
     arrive whole within `HANDSHAKE_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
     bytes read at all (`next_heard`), so a large message on a slow link is
     not cut off however long it takes.
+  - Writing has a deadline too: a connection whose write has taken no byte
+    for `ServerConfig::write_timeout` (`IDLE_TIMEOUT`) is reset
+    (`http::WriteDeadline`, under hyper and any websocket it becomes), so a
+    client that stops reading a large object or a long-poll answer gives its
+    connection and places back. Waiting between answers is not a stall, and a
+    slow reader that keeps taking bytes is never cut off.
 
   An address is a client's `Services::client_address`: its peer, or the
   `X-Forwarded-For` hop nearest it when the peer is in `trusted_proxies`
