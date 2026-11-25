@@ -16,6 +16,8 @@ fn the_host_moves_the_keyboard_between_views_with_f6() {
     add_to_canvas(&mut host, "Text");
     let text = host.place("#text.surface");
     let text = format!("{:.0},{:.0}", text.0 + text.2 / 2.0, text.1 + text.3 / 2.0);
+    let block = host.place("#infinite-canvas.dock.block");
+    let block = format!("{:.0},{:.0}", block.0 + block.2 / 2.0, block.1 + block.3 / 2.0);
     host.run(&["click", &text]);
     host.run(&["settle"]);
     host.key("shift+F6");
@@ -30,5 +32,17 @@ fn the_host_moves_the_keyboard_between_views_with_f6() {
     host.key("ctrl+shift+p");
     host.run(&["settle"]);
     host.snapshot("the_host_moves_the_keyboard_on_to_the_text_with_f6");
+    // The canvas's block picker is a popover, not a modal dialog: F6 moves the keyboard on out
+    // of it, so Down no longer moves its highlight (it does without F6). A modal dialog keeps
+    // the keyboard: beui cycles only the views of the topmost focus-trapping layer.
+    host.key("Escape");
+    host.run(&["settle"]);
+    host.run(&["click", &block]);
+    host.run(&["settle"]);
+    host.key("F6");
+    host.run(&["settle"]);
+    host.key("Down");
+    host.run(&["settle"]);
+    host.snapshot("the_host_moves_the_keyboard_out_of_a_picker_with_f6");
     host.close();
 }

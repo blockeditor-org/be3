@@ -2049,8 +2049,11 @@ Each step lands on its own.
            `forward::cycle_focus` moves it between be-host's app views in the order they are
            drawn (the files', the text's under the canvas's hole for it, the canvas's and its
            tool bars', the workspace's); not while the root's palette, dialog or onboarding
-           holds the keyboard. A `Delivery` carries the modifiers held as it was routed, which
-           tell Shift+F6 from F6. Host tests
+           holds the keyboard. Over a layer that captures presses (an app's modal dialog, a
+           menu) only the screens from it up take part, as beui cycles only the views of its
+           topmost focus-trapping layer; a popover such as the canvas's block picker is no such
+           layer under either, and F6 moves the keyboard out of it. A `Delivery` carries the
+           modifiers held as it was routed, which tell Shift+F6 from F6. Host tests
            `be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6` and
            `the_host_moves_the_keyboard_between_views_with_f6`, with the same paintings.
            - Left: Tab between surfaces. Under be-host an app's view takes Tab, as it takes
