@@ -1,6 +1,6 @@
 # A drag is a carry choosing among the places it can reach
 
-Every drag in beui that moves something, but the files tree's own hover (`Reorder`'s tree-only parts, until plans/declarative_dragging.md step 6), is a carry on the tree's drag board. `Interactive`'s
+Every drag in beui that moves something, but the files tree's own hover (`Reorder`'s tree-only parts, until plans/declarative_dragging.md moves it), is a carry on the tree's drag board. `Interactive`'s
 `drag` lifts a `Carry` with a payload, every drop site that accepts the payload
 (`use_drop_site`) gives the places it could land as a `DragSpec`, and each point chooses the
 closest of them all (`closest`, `free`, `custom`, `when_far`, `snap_radius`, `thrown`, …). A

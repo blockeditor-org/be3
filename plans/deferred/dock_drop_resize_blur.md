@@ -1,6 +1,6 @@
 # Blurring a dock pane across its resize after a drop
 
-Depends on: plans/declarative_dragging.md, step 3.
+Depends on: none.
 
 During a fluid dock drop, panes show their panels clipped at the size they were laid out at, and
 resize them for real only when the drop commits. The content then jumps to its new layout,

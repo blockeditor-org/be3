@@ -1,26 +1,25 @@
 # Declarative dragging: drags as the places they can lead to
 
 Depends on: plans/host_as_platform_adapter.md, step 4g7 (the compositor in the root, whose router
-carries the cross-app drag session), before step 6.
+carries the cross-app drag session).
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
 *Declarative Dragging* (Horowitz, Blinn, Heer, UIST 2026; https://declarative-dragging.github.io/).
 Each place that takes an item says where it could land and where it would rest there; the board
 does the rest: which place the pointer is choosing, the floating item, snapping, the preview,
-the animation, keyboard moves, Escape, edge scrolling and showing the drag to peers. It replaces
-`Draggable`, `DropTarget`, `Target`, `DragSource`, `Reorder`'s own hit logic, the dock's tab
-and tool bar drag geometry and the hand-written drop targets in apps. Nothing keeps the old API.
+the animation, keyboard moves, Escape, edge scrolling and showing the drag to peers. Every drag
+within an app is built this way; what is left is drags that cross apps.
 
 ## Done means
 
-The final PR deletes `Draggable`, `DropTarget`, `Target`, `DragSource` (gone in step 9), and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
-`slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
-(`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`; gone in step 4), the dock's
-`resolve`/`resolve_in` (gone in step 3b; its `judged` and `takes` in step 3a), and the game board's press state machine. The video
-timeline's `drop_target_at` stays as its `custom` site's `place`. `Reorder` stays, built on the primitives, with its gap spring and
-`ReorderGap` (decisions/beui_reorder_stays_over_drop_sites.md). Each step's PR
-reports the lines each site had before and has after. A drag that ends up longer than it was is
-a sign the spec language is missing something; fix the language, not the site.
+The PR makes the host's block drag the cross-app handoff (`Editor::drag`, `accept_drag`), moves
+the files pane's tree onto the board and deletes `Reorder`'s tree-only `hover`/`part`/`shut`/
+`resting` with the `visit` and `slot_at` only they use. Every drag within one app is already a
+carry on the board (decisions/beui_drags_are_reachable_places.md). `Reorder` stays, built on the
+primitives, with its gap spring and `ReorderGap`
+(decisions/beui_reorder_stays_over_drop_sites.md). The PR reports the lines each site had before
+and has after. A drag that ends up longer than it was is a sign the spec language is missing
+something; fix the language, not the site.
 
 ## The paper, briefly
 
@@ -67,7 +66,7 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
 - **Sites nest by handing off.** A candidate may be `Into(region)`: the outer board only chooses
   the region, and the region runs the same engine over its own candidates. This is how nested
   lists and the file tree's "between rows or into a folder" combine, and how drags cross apps
-  (step 6).
+  (step 1).
 - **Candidates are relative to a node.** Each frame the board maps them through `Space::placed`,
   so edge scrolling, a resized window or a second window move them without recomputing.
   Recomputing happens only on chaining or when the site's content changes underneath it.
@@ -92,14 +91,13 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
    gets the board's floating, Escape, edge scrolling, presence and inspector, and the board tells
    the site again as the drop changes under the pointer.
 
-Continuous drags (sliders, scrollbars, splitters, the colour area and wheel) moved onto it in step 8,
+Continuous drags (sliders, scrollbars, splitters, the colour area and wheel) are on it too,
 each as good there as on `on_drag` and with Escape besides. Panning moves the camera, not an item, and
 stays outside the board.
 
 ## Shape
 
-In `beui-types` (`drag.rs`) and unstyled `drag_board.rs`, replacing `Target`, `DragSource` and
-`Take` (gone in step 3a). Payloads and places are typed at the component; the board erases them inside.
+In `beui-types` (`drag.rs`) and unstyled `drag_board.rs`. Payloads and places are typed at the component; the board erases them inside.
 
 ```rust
 pub struct Candidate<D> {
@@ -141,7 +139,7 @@ clamped or quantised, so there is no optimiser until a drag needs one.
   the same item from the keyboard, glide it home on Escape, and hear when its node is torn down.
 - **A site:** `use_drop_site(accepts: Func<P, bool>, spec: Func<P, DragSpec<D>>, commit:
   Callback<(P, D)>)`, a hook in the component that takes the drop, a site for as long as its scope
-  lives. It is a hook, not a `drop` prop on containers (provisional, until the step 1 review): a
+  lives. It is a hook, not a `drop` prop on containers: a
   place names its own node through its `Candidate`, so a site needs no node, and no container
   grows a prop. Its handle has `over: ReadSignal<Option<D>>`, the chosen place in it; that is all a
   site draws from.
@@ -170,7 +168,7 @@ What stays below unstyled, and what changes there:
 
 ### A reorderable list, written directly
 
-What a list site looks like, and what step 2 measures `Reorder` against:
+What a list site looks like, and what `Reorder` was measured against:
 
 ```rust
 #[component]
@@ -214,173 +212,27 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 
 ## Steps
 
-1. **The engine**, in slices, with the old API beside it until step 9:
-   - **1a (done):** the types and pure evaluation, with plain asserts on spec evaluation.
-   - **1b (done):** drop sites, the board's carry choosing among them, `carrying`/`is_carried`,
-     `slots_in`, and `Interactive`'s `drag` on both cores (it reaches the board through
-     `beui-types`' `Space`/`Driver`, no new dependency); tests on the fake `Space` and a
-     beui-tests screen both cores drive.
-   - **1c (done):** the floating preview (`Carry::preview`, and the source's own face by default), a
-     `Driver` per pointer, keys on a lifted item, and publishing frames as presence. A source
-     whose scope is dropped mid-carry puts the carry down, dropping nothing. The default face is
-     the source drawn displaced and raised, which a scroll around it still clips: a carry that
-     leaves its scroll gives `.preview`; capturing the face as a texture is in the backlog.
-     Presence in 1c is only the hook: the board's tracked `frame()`, which a host publishes
-     from an effect; peers drawing a remote carry wait for step 5, once a site has a stable id
-     to name places by. Keys: Ctrl+Shift and an arrow move a focused source one place; Move in the palette,
-     or Space on a source that does not activate, lifts it; the arrows step between its places
-     (`step_toward`), Space or Enter drops, Escape or Tab puts it down, and a live region says
-     the lift, each place and the end
-     (decisions/beui_activating_drag_sources_keep_their_keys.md). It may give a site
-     an optional node, which the inspector and `Into` nesting want.
-   - **1d (done):** beui-demo pages: the list above, free positioning that snaps into slots
-     (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An
-     inspector tool, a dock tab like the others (guides/beui/programs.md, The inspector), that
-     draws every candidate, its zone and the chosen one.
-2. **Lists (done).** `slots_in` gives places among a list's rows, and one from another list at
-   each gap; `Reorder` is built on the primitives and stays
-   (decisions/beui_reorder_stays_over_drop_sites.md), and the database lists, kanban, schema,
-   canvas layers and presentation slides use it. A row carried off its list collapses, so the
-   `Reorder` draws its preview at its own root, where a screen reader finds it once. The files
-   pane's tree moves to step 6.
-3. **Dock tabs, fluid.** The drop highlight goes; the dock moves aside for a carried tab, the way a
-   list opens a gap. In slices:
-   - **3a (done): the dock on the board**, still with its highlight. Tab bars are `Reorder`s and
-     `TabStrip` is gone; a pane's grip lifts through `Interactive`'s `drag`; `DockTiles` is a drop
-     site of `custom` places, one over the home window's tiles and one per window the host opens,
-     each answering the drop the dock's `resolve` gives at the point where the state admits it,
-     so a locked place is no place and the refused marker is gone, with `Take` and
-     `DropTarget`'s `takes`, which nothing else used. Each place answers only points over its
-     own node that no layer but the dock's windows and dialogs covers, and a carry names its dock (`DockCarry`). `when_held(ALT, ..)` floats,
-     and while held its places are the only ones; the board never chooses a place in another
-     window than the pointer's; a carry let go outside every window is its source's
-     (`Carry::outside`), which floats the tab there. A carried tab is listed once, as its bar's
-     preview. Tool bars stayed on the old `DropTarget` until step 4.
-   - **3b (done): the fluid preview.** The candidates, the preview, the carried tab, panels keeping their
-     size and bars moving with their pane, below; the highlight and `resolve` are gone. The dock
-     previews from `over`, so it needs no tentative gesture: its layout is view state. The spec
-     language gained `Candidate::nearest_edge` (edge bands that split corners along the diagonal), `shaped(within)` (the item drawn the size of its place, under the pointer, kept inside `within`) and
-     `open_where` (places reached only where nothing covers their site). A tab bar parting for a
-     tab from another pane parts the dock too. Panes keep showing their real tabs until the drop.
-   - **3c (done): panels stay built, and keyboard carries between bars**, below. A drag source
-     hears the carry keys while the focus is on it or within it, so a dock tab's row (its tab
-     button focused) moves with Ctrl+Shift and an arrow or Move, stepping into the dock's
-     labelled places. An `Embed` moved between parents in one frame is never told it was
-     unplaced, so an app dropped into another pane is placed once, at its new size.
-   - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group with
-     a pane, split a pane or the whole dock on an edge, insert into a tab bar after a tab, or float.
-     It carries the `DockLayout` that `layout_tree` gives for the state after it. Locks leave
-     candidates out: a locked place is not reachable, so nothing opens there.
-   - **The preview:** the dock draws the chosen candidate's layout, not the state's. A change of
-     candidate springs every pane's rect from where it is drawn to where it lies in the new layout,
-     keyed by leaf and tab. A pane that only exists after the drop grows out of its edge, and one
-     that would close shrinks into its neighbour. `DockState` is untouched until the release.
-   - **The carried tab** floats under the pointer, shaped like where it would rest (a tab in a bar,
-     or a pane the size of the opening), and glides into that rest on release.
-   - **Panels keep their size while the layout moves.** A pane shows its panel at the size it was
-     laid out at, clipped to the pane's animated rect, and resizes it only when the drop commits;
-     resizing every frame would make every app and Wayland program in a pane lay out and present
-     again on each frame (guides/apps/runtime.md, Settling). Hiding the jump at the resize is
-     deferred (plans/deferred/dock_drop_resize_blur.md).
-   - **Keys and bars:** Alt while dropping keeps the tab floating. Dock bars belonging to a tab move
-     with its pane in the preview.
-
-   - **Panels stay built (done).** A pane whose panel moves to another place in the layout
-     keeps its panel: each is already a `Kept` under the dock's one `KeepAlive`, which moves its
-     subtree between parents (guides/beui/core.md); the dock's `panels` map is only an index of
-     the built panels' nodes, which `KeepAlive` does not expose. What was missing was below the
-     dock: the old pane's removal told its app's `Embed` it was unplaced before the new pane
-     placed it.
-
-   - **Tabs carried by the keyboard between bars (done).** A focusable source carried off its
-     list by the keyboard keeps its focus: its row is hidden with opacity and drawn at no size,
-     its slot closing with the gap, rather than `collapsed`, which blurs it on HTML
-     (`display: none`) and leaves it unplaced natively. Pane grips stay unfocusable.
-
-   - **`TabStrip` goes (done, 3a).** Step 2b moved the old `Reorder` unchanged into beui-dock-host as the
-     private `TabStrip`, because the dock still splits panes from the old `DropTarget`, which
-     only its drags reach. Tab bars become drop sites over `slots_in` like every other list,
-     and `TabStrip` is deleted. This step comes right after step 5, so the copy does not
-     linger.
-
-   Expect a different feel, not a copy: replace the drop-highlight tests and paintings with ones
-   that show the dock parting for a carried tab.
-4. **Dock tool bars (done).** `bars.rs`'s band geometry is
-   `closest(band slots, sticky).when_far(float.thrown())`, with the slots read from the bars'
-   laid-out rects; bars beside a slot glide aside for the carried bar, and the tests that pinned
-   the old thresholds pin the new reaches. The float is a `custom` place, not `free`: `free`
-   clamps the item into its area, which would keep the bar's grip off the dock's edges, and
-   where a bar floats depends on the pane under the point. Only the float is thrown, so a bar
-   let go fast in a band docks there. Bar grips are focusable, so a keyboard carry steps
-   between the band slots. It added `Carry::kept_in` (a bar drawn above its dock's own windows
-   is read in the dock's window) and `PointerId::Relayed` (an app's grip moving its bar across
-   the app protocol), and `when_far` now takes its far side wherever its near side chooses no
-   place.
-5. **Apps.**
-   - **video timeline (done):** a `custom` site whose `place` is `drop_target_at`, so a clip
-     lands at the frame under the pointer; `DropMarker` draws from the site's `over`. A keyboard
-     carry cannot step into it yet (plans/backlog.md, Keyboard steps into a custom site).
-   - **logic-grid's hotbar (done):** slots carry onto other slots and folders, each a place from
-     `place_on`, which offers a node's whole area.
-   - **infinite canvas (done):** a move of the selection is a `free(..).unbounded()` site
-     over the canvas's surface (`root/carry.rs`), whose place is the world point under the
-     pointer; `Gesture::Move` applies it through the canvas's hold (`CanvasState::open_hold`),
-     so bound lines and every view on the device follow it. A press on the selection still
-     begins the move (`press_select`); `drag` lifts it past the threshold, drawn by the site.
-     The board's drop commits the hold; a put-down (Escape, a cancelled press) drops it, and
-     `gesture_ended` puts down the board's carry when the replica ends the hold (an undo
-     mid-move). Peers see the move again as it goes: the canvas's presence carries the
-     carried move's offset (`CanvasCursor::carried`), which a peer applies to what of the
-     mover's selection is unlocked and its `Entities` draws there (`carry_for_peers`, a `drawn` memo beside `stored` that edits never read), with what
-     they are bound to following. The surface is an edge scroller that pans the camera, and
-     the site chooses again as the camera moves (`Board::retrack`). From the keyboard, Move in
-     the palette (not Space, which pans: `lifts_on_space`) lifts the selection and the arrows step it as far as they nudge one (`stepped`: a world unit, ten with Shift). Where it differs:
-     the board publishes nothing itself, as its frame is in the mover's window points,
-     so each site publishes its `over` in its own terms; `EdgeScroller` scrolls along both
-     axes; the board commits a drop before it tells the site it is over nothing, so a site
-     that previews by writing knows a put-down from a drop; an `Interactive` given `drag`
-     holds a press's moves short of the threshold and hands them to `on_drag` once `drag`
-     declines it, or as it ends short of the threshold (a pen stroke keeps its first
-     points); and the source's face lays its child out as a plain `Interactive` does, so a
-     canvas fills it (a video clip now fits its lane). The canvas holds one carry at a
-     time, which step 7 (below) leaves as it is. Left as they are: of two peers carrying
-     the same entity, a viewer draws the one listed last; and a peer whose mover's presence
-     clears before the drop's edit arrives draws the shape back where it was until the edit
-     lands, since a cleared presence does not say whether the carry was dropped or put down. Lines: the hand-written move drag was
-     `drag`'s `Move` arm and the release path (3 lines); what is new does what the canvas
-     did not: the site with its keyboard lift and edge scrolling (`carry.rs`, 194 lines) and
-     peers drawing a carry (about 110 lines in `entities.rs` and `state.rs`).
-   - **game editor (done):** each `Gesture::Drag { from, to }` is a place at `to`'s spot,
-     zoned to it, with the item drawn there the size it was lifted at; `drag` answers
-     `None` off a piece, so the same press pans. The site draws the lifted piece from the
-     board's frame (`drawn_by_site`); Space lifts the selected piece from the keyboard. Its presses are caught by an `Interactive` laid over
-     the table rather than around it, from when a drag source's face took its child's own
-     size; since the canvas step the face lays its child out as a plain `Interactive` does.
-   - **between blocks:** moved to step 6. Two blocks are two editor instances, which only the
-     host connects, so a drag between them is the cross-app handoff.
-   - **settings' display arrangement (done):** every place a display touches another lined
-     up with its side's start, middle or end (`touching::places`) is a candidate, and within
-     `SNAP` of none it is `free` in the area; a free drop settles against the nearest edge
-     as before.
-   - **bottom sheet (done):** its release chooses among its detents and closing as
-     `closest(detents).thrown_for(..)`, evaluated where it lets go rather than carried: the
-     sheet's height and its content's scroll are one continuous travel under the finger,
-     which stays on `on_drag` (step 8). Closing is a place below the lowest detent, so a
-     release past the close distance takes it; `thrown_for` lets a flick carry on longer
-     than a carried item's throw.
-6. **Across apps.** plans/host_as_platform_adapter.md owns the cross-app session (Input, "Drag
+1. **Across apps.** plans/host_as_platform_adapter.md owns the cross-app session (Input, "Drag
    and drop"): the source starts it with its payload, and the host routes drag-over events to the
    surface under the pointer and the drop to the one under the release, by its forwarding router.
    This step owns what those events carry and what the surface does with them. Each app region is
    an `Into` candidate on the host's board. A drag-over carries the pointer and the payload; the
    app runs the same engine over its own candidates, draws its own preview, and answers what it
    accepts and the rect it chose, so the host glides the item there on release. The events carry
-   only points, rects and opaque ids (guides/apps/host_services.md). `Editor::drag` and
-   `accept_drag` become this handoff.
+   only points, rects and opaque ids (guides/apps/host_services.md). A site may name an
+   optional node, which `Into` nesting and the inspector want.
+   - **`Editor::drag` and `accept_drag` as the handoff.** Today the host's block drag is on the
+     host's board: an app's `Editor::drag` lifts a `Carry` of the block at the pointer pressing
+     in it (`PointerSample::pointer`), and each view holding an editor's content is a `custom`
+     site that only forwards points (`drag_over_view`). It becomes the `Into` candidate above,
+     whose app runs the engine over its own places and answers the rect it chose, so the host
+     glides the item there. With two pointers pressing, the cross-app session should name the
+     one that pressed in the sending view rather than the first.
    - **The files pane's tree.** Its row drag is the host's block drag, which leaves the app
-     for other editors, so it moves here rather than in step 2: `styled::Tree`'s `reorder`
+     for other editors, so it waits for this step: `styled::Tree`'s `reorder`
      becomes a drop site whose folder rows are `Into` candidates zoned to their middle, and
-     `Reorder`'s tree-only `hover`, `part`, `shut` and `resting` go. The dock has no app boundary, so it stays one level.
+     `Reorder`'s tree-only `hover`, `part`, `shut` and `resting` go, with the `visit` and
+     `slot_at` only they use. The dock has no app boundary, so it stays one level.
    - **Between blocks.** An item dragged into another block of a type that takes it (canvas to
      canvas, list to list) moves on a plain drop and copies with a modifier, through the
      clipboard's typed formats, so a drop is a paste. Without write access to the source it
@@ -395,107 +247,16 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      insert-then-remove order needs. Both are what this step's drag-over and drop events carry:
      the payload as a clip, and the target's answer, which the host passes back to the source as
      its commit or put-down.
-7. **Several carries at once (done).** The board holds one carry per pointer: a pointer that
-   carries lifts nothing more, a source already carried is not lifted again, each pointer's
-   points move and release only its own carry, and Escape puts down every one. `Driver` names
-   carries by id (`holds`, `frame(carry)`, `lifts(pointer)`), and a component names its own carry
-   by its payload's value (`Board::carries(&payload)`, `Board::frame_of(&payload)`), so two
-   carries of one type stay apart; `carrying::<P>()` lists every carried `P`. A site gives
-   places to one carry at a time: a second carry lifted while a site gives them to another gets
-   none from it, even once the first ends, so two pointers on one list's rows do not both
-   reorder it. Limits left: whether the pointer is outside every window is one flag for every
-   pointer (`Driver::set_outside`), and `Driver::stop_edge`, which the core calls when it has no
-   pointer position at all, stops every carry's edge scroll. Of several carries, the first held
-   in an edge band scrolls it. The native core turns a second finger in one window into a
-   gesture and cancels the first finger's press, so two fingers never carry at once there: the
-   mouse and a finger, or the VR layer's two controllers, do. Moving two sliders with two
-   fingers waits for the core to let a second finger press a control of its own; it is not
-   planned. The canvas still carries one move: its `drag` declines a second while its gesture is
-   a carried move, and several carries joining its one hold (counting the carries in it, each
-   with its own `Gesture::Move`) waits for a need.
-8. **Continuous drags (done).** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
-   quantised, each moved only if it is as good as today. The board can now do what they need:
-   - **Lifting at the press (done).** `Interactive`'s `lifts_on_press` lifts the carry at a
-     mouse's or pen's press, so the item follows the pointer from its first point; a finger
-     still lifts past the threshold (or on a long press), where it tells a drag from a scroll.
-   - **Carrying without edge scrolling (done).** `Carry::scrolls_nothing` keeps a carry from
-     scrolling the scroller whose band holds it: a slider in a scrolling form, a scrollbar's
-     thumb in its own scroll's band.
-   - **Several carries (done, step 7).**
-   - **The dock's splitters (done).** A splitter is `free(canvas, ..)`, unbounded, lifted at
-     the press and previewed by writing (`State::drag_edit`), its drop writing its place and a
-     put-down (Escape, a cancelled press) writing back the size at the lift; its carry
-     `reads_outside` (`Carry::reads_outside`), so outside every window it still reads its place
-     at the captured pointer, clamped, and a release there drops it, as on `on_drag`; a carry
-     that does not (a tab, a bar, the canvas) chooses no place outside, where a tab floats
-     into a window of its own. Its arrows step it as before, and a keyboard carry steps
-     `SPLIT_STEP` too. It gained Escape; it lost nothing the splitter tests pin. Lines:
-     `DockSplitterView` was 91 and is 155. What it writes that the language should give, before
-     the sliders move: the splitter's offset in the area, found to turn the item's rect into
-     travel since the lift (a `free` whose drop is given the travel, or the rect at the lift,
-     would drop it); and the start, the kept flag and the effect that writes the start back on
-     a put-down (a site handle that tells a drop from a put-down, which every site that
-     previews by writing needs: the canvas tracks the same through its hold).
-   - **Sliders, the colour area and wheel, and the scrollbar's thumb (done).** Each is a
-     `ThumbCarry` (unstyled `value_drag.rs`), which owns the whole of a value control's drag:
-     a press `begin`s it (`Started` and the start recorded, before a jump writes), the thumb
-     is lifted at a mouse's press (a finger's past the threshold) as a `free(own node)`,
-     unbounded, place at the pointer, so the control reads it as the press moved there and
-     writes the value from an effect on `over`; the drop writes its place and is `Kept`; a
-     put-down (Escape, a cancelled press) writes back the start and is `Cancelled`; a press
-     that lifts nothing ends at `on_active_change(false)`. Its area is the control's own node,
-     which never moves under its thumb, so a place needs no offset found in an area (the
-     splitter's `home`), and the put-down is told by the carry ending undropped. They keep their
-     keys: `Interactive`'s new `lifts_by_keys=false` lifts nothing from the keyboard, offers no
-     Move in the palette and builds no live region, as the control's own keys and value say
-     everything. A scrollbar's press on its track still pages; its thumb gained Escape (back
-     to the offset at the press). The slider and the colour controls are shorter than they
-     were, as `ThumbCarry` took their begin, cancel and report code. On the HTML
-     core the wheel's round `border-radius` moved from its `Interactive` to the face inside
-     it, so a press in the corners of its box reaches it there, as it already did natively.
-   - **What stays outside:** the number input's scrub turns the distance moved into a value,
-     with no track for a thumb to rest in, and its press that never moves edits the number; the bottom sheet's height and its content's scroll are one travel
-     under the finger, choosing a detent only where it lets go (step 5); a scrollbar's press on
-     its track pages rather than lifts.
-   What the board gives them is little beyond Escape (keyboard steps each has its own, and
-   peers see their drags by what their owners write), so each moves only where it is no
-   longer than its `on_drag`.
-9. **Remove the rest (done, as far as it goes before step 6).** `Draggable`, `DropTarget`,
-   the board's `Target`, `DragSource` and their callback aliases (`Accepts`, `Dropped`, `Over`,
-   `Pending`, `Outside`) and the board's old carry (`begin`, `press`, `track`, `finish`,
-   `end`, `held`, `holds`, `hides_preview`, `floating`) are deleted. Their last in-process
-   user was the host's block drag, which moved onto the board as an intermediate: an app's
-   `Editor::drag` lifts a `Carry` of the block at the pointer pressing in it
-   (`PointerSample::pointer`, none once nothing presses, when nothing is lifted), and the
-   view holding each editor's content (its main view, or the dock view given its frame;
-   never its bars) is a `custom` site over itself, which its editor's `drag()` reads from
-   whichever of its views asks, its place
-   the window point where the view takes the pointer and the `DropAction` the keys held make
-   (`custom`'s `place` now gets the pointer's `DragPoint` too), which the app hears as it moves and on
-   the drop (`drag_over_view`). The guides the step names are rewritten, and
-   decisions/beui_drags_are_reachable_places.md records the decision. The beui-demo page's
-   bins and beui-tests' drag screen are carries onto sites now; the old API's host tests are
-   gone, three ported (across windows, a cancelled touch, edge scrolling), and a host test
-   drags a checklist from the files onto a canvas.
-   Left for step 6, which needs the host adapter's cross-app session:
-   - **`Editor::drag` and `accept_drag` as the handoff.** Each app view is a `custom` site
-     that only forwards points; it becomes an `Into` candidate whose app runs the engine over
-     its own places and answers the rect it chose, so the host glides the item there. The
-     host lifts at the first pointer pressing (`PointerSample`); with two pressing, the
-     cross-app session should name the pointer that pressed in the sending view.
-   - **`Reorder`'s tree-only `hover`, `part`, `shut` and `resting`, with `visit` and
-     `slot_at`**, which only the files pane's tree uses; its rows' drag is the host's block
-     drag, so it moves with the handoff.
 
 ## Open questions
 
-- **Moving between sites** (decided in step 2: decisions/beui_a_move_between_drop_sites_is_the_apps.md).
+- **Moving between sites** (decided: decisions/beui_a_move_between_drop_sites_is_the_apps.md).
   The receiving site's `commit` gets the payload and the app does the move: it removes the item
   from its home and inserts it at the chosen place in one edit, as it would for any other command.
   `Carry` has no `moved_away` callback. Within one tree, a row could move without being rebuilt
   by being a `Kept` under its key inside one `KeepAlive` around both lists, which moves a subtree
   between parents (guides/beui/core.md); decide when a caller rebuilding rows is too slow.
-- **A carried item far from every site** (decided in step 2): a `Reorder` row that another
+- **A carried item far from every site** (decided): a `Reorder` row that another
   site takes collapses as its slot closes, and its slot opens again if it is let go where
   nothing takes it; a row nothing else takes stays on its own list's places.
 - **A site that comes or changes mid-carry.** Specs, and what decides them (a `Reorder`
@@ -507,9 +268,5 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 - **Size in a different container.** An item carried into a narrower list keeps its home size until
   it lands; measuring it at the new width means laying out a node that does not exist. Accept a
   one-frame correction unless it shows.
-- **Rests at lift vs the reflow.** Choosing against the layout at lift keeps places still under the
-  pointer, but rows shift once a gap opens. Pick one convention in step 1 and draw it in the
-  inspector.
-- **`Between`.** Nothing blends between discrete states today. Add it only if the switch or the
-  dock opening in proportion to the pointer (step 3) needs it.
+- **`Between`.** Nothing blends between discrete states today. Add it only if a drag needs it.
 - **A site's content changing mid-drag** (a peer removes a pane): recompute that site's candidates.
