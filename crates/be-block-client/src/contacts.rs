@@ -1840,7 +1840,8 @@ pub(crate) async fn finish_links(
             (Some(held), _) => Some(held),
             (None, pin) => pin,
         };
-        reseal_relinked(connection, account, identity, previous, &card).await?;
+        // Best-effort, as in `accept_link`: the link is finished whatever it does.
+        let _ = reseal_relinked(connection, account, identity, previous, &card).await;
         let invited = match &own.kind {
             LinkKind::Contact => None,
             LinkKind::Invitation(invitation) => Some(invitation.organization),
