@@ -11,7 +11,7 @@ fn a_dock_dialog_dragged_by_its_bar_stays_where_it_was_left() {
     let before = test.rect_of(&dialog);
 
     let grab = test.rect_of(&header).center();
-    let by = Vec2::new(-120.0, 90.0);
+    let by = Vec2::new(-60.0, 90.0);
     test.drag(grab, grab + by);
     test.settle();
     let after = test.rect_of(&dialog);
@@ -26,5 +26,14 @@ fn a_dock_dialog_dragged_by_its_bar_stays_where_it_was_left() {
         test.rect_of(&dialog),
         after,
         "and stays where it was let go"
+    );
+
+    let grab = test.rect_of(&header).center();
+    test.drag(grab, pos2(-200.0, grab.y));
+    test.settle();
+    let left = test.rect_of(&dialog).left();
+    assert!(
+        (0.0..=before.left() - 100.0).contains(&left),
+        "dragged past the window's edge, it stops at the edge: {left}"
     );
 }

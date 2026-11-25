@@ -326,18 +326,25 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     // Where the person moved it, once they have: it stays there, hung from its owner.
     let moved = create_signal(None::<Pos2>);
     let detached = create_memo(move || moved.with(Option::is_some));
-    let grabbed = StoredCell::new(None::<(Pos2, Pos2)>);
+    let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
+    let viewport = use_viewport_size();
     let grab = Callback::new(move |at: Pos2| {
         let from = frame
             .try_get()
             .and_then(|frame| measure(frame).get_untracked())
-            .map(|measured| measured.rect.min);
+            .map(|measured| measured.rect);
         grabbed.set(from.map(|from| (from, at)));
         dock.focus_dialog(tab);
     });
+    // Dragged by its bar, it moves with the pointer and stays in its window.
     let drag = Callback::new(move |at: Pos2| {
         if let Some((from, start)) = grabbed.get() {
-            moved.set(Some(from + (at - start)));
+            let room = (viewport.get_untracked() - from.size()).max(Vec2::ZERO);
+            let to = from.min + (at - start);
+            moved.set(Some(Pos2::new(
+                to.x.clamp(0.0, room.x),
+                to.y.clamp(0.0, room.y),
+            )));
         }
     });
     let chrome = dock.dialog_chrome;
