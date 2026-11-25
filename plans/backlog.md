@@ -547,16 +547,19 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 - **Internal trait names in a prop's error notes.** A value a children slot or
   an exact prop does not take is reported with the right headline and label,
-  but rustc's "required for ..." notes under it name `Exact`, `IntoExactProp`,
-  `TakesChildren` and `ChildShape` (`a_frame_takes_one_child`,
-  `a_loading_hands_its_content_no_value` in compile_fail/beui). Done: those
-  notes name only the declared prop type and the slot's own trait, or are
-  suppressed, shown by the compile_fail pins' full text.
-- **Children written as an array.** `Children<T>`'s `Takes` has no impl for
-  `[ChildSegment<T>; N]`, which the old `Into<Children>` setter took through
-  `From`, so a hand-written `children={[..]}` fails (`view!` never writes one).
-  Done: `Children<T>` takes an array of segments again, shown by a beui-tree
-  test, or the guide says to build `Children` from the array.
+  but rustc's "required for ..." notes under it name each blanket impl the
+  obligation passed through: `TakesOptionalBlock`, `TakesBlock`, `ChildShape`
+  and `TakesChildren` (`a_frame_takes_one_child`), `Exact`, `TakesWith`,
+  `ChildShape` and `TakesChildren` (`a_loading_hands_its_content_no_value`
+  in compile_fail/beui). rustc prints one such note per impl and has no stable
+  way to hide them while keeping the leaf trait's `on_unimplemented` headline:
+  `#[diagnostic::do_not_recommend]` on an impl drops the impl from the chain,
+  so the error is reported against the outer trait and its message instead.
+  Done: those notes name only the declared prop type and the slot's own trait,
+  or are suppressed, shown by the compile_fail pins' full text (the checker,
+  be-tool-buck's `compile-fail`, matches only part of the headline now). Left
+  until rustc can do it, or the slot's bound is restructured so the leaf trait
+  is asked directly by the builder.
 
 ## 22. Headless runtime
 
