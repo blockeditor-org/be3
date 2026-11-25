@@ -72,6 +72,7 @@ Landed on 2026-11-24:
 - `flake-not-numbered`: an entry of the order that waits for its key counts as heard only once it opens, so it is not passed over when the key arrives (one cause of "1 submitted, not yet numbered").
 - `join-left-suspicions`: of a block's joins on their way only the newest still out answers for the session, and a dropped join stops holding events once no other is out.
 - `host-adapter-4g7b3i..k`: under the root each place gets a live editor of its own; a child taking the frame stays in place as its panel opens and closes; a creation child makes its block as under be-host, and a failed creation tries again once committed again.
+- `checklist-on-canvas`: a new canvas card takes the size its child tells in the undo step that added it (one step per add, paste or drop, any resize mode); closing an editor commits its open undo groups; be-host reports no size until its app tells one or presents a frame.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
