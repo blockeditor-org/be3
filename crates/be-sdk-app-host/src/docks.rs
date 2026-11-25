@@ -82,6 +82,12 @@ impl Docks {
         }
     }
 
+    /// The editor registered for `block`, if one is (`register`): the docks know one editor of
+    /// each block.
+    pub fn block_editor(&self, block: Uuid) -> Option<EditorInstanceId> {
+        self.blocks.get(&block).copied()
+    }
+
     pub fn forget(&mut self, instance: EditorInstanceId) {
         self.menus.retain(|(held, _), _| *held != instance);
         self.picks.retain(|(held, _, _, _)| *held != instance);

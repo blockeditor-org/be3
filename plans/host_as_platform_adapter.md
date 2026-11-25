@@ -2082,10 +2082,19 @@ Each step lands on its own.
              own dock window, drawn in its main view, and its workspace's dock joins that
              window's as under be-host. A block's editor placed in a dock tab's body is known
              to the docks before it is first asked for its screens (`Children::settle`
-             registers it), so it is asked for its frame docked from the first: a beui editor
-             lays its frame out once and keeps it, and one asked undocked first never declared
-             its dock. Host test `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`,
+             registers it, `Editor::register_in_tab`), so it is asked for its frame docked
+             from the first: a beui editor keeps the frame it first laid out until its dock
+             holds something or is asked (be-sdk-beui's `DockedTabs::key`), and one asked
+             undocked first never declared its dock. An editor of a block the docks already
+             know another editor of is left, since they know one per block.
+             - Left, under be-host too: an editor first laid out undocked and later moved into
+               a dock tab's body keeps its undocked frame (`DockedTabs::key`). Host test `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`,
              beside be-host's own painting of the same.
+           - Deferred until 4g7e3 needs them, 4g7e2a's window requests and 4g7e2b/c: the
+             root asks every screen with `windows: false`, so its apps draw their windows in
+             their own views and send no `window-request`, which paints as be-host's desktop
+             does; host windows matter once program windows interleave with them (4g7e3) or
+             span displays.
            - 4g7e2a. `open`, `close` and `raise`: the root adopts the window's screen as
              be-host-runtime's `adopt_window` does (asked for at its size, `windows: true`),
              floats it where its `window-placement` says (`at-pointer`, `over` its opener),

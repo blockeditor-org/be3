@@ -432,6 +432,39 @@ impl Editor {
         screen
     }
 
+    /// The block whose editor this is, while its place is in a dock tab's body (not as a
+    /// preview, which has no dock of its own): what the docks must know before it is first
+    /// asked for its screens (`register_in_tab`).
+    fn in_tab(&self) -> Option<Uuid> {
+        let in_tab = self
+            .asks
+            .borrow()
+            .as_ref()
+            .is_some_and(|ask| ask.placement.docks.is_some() && !ask.previewed());
+        match &self.shown {
+            Shown::Block(shown) if in_tab => Some(Uuid::from_bytes(shown.block)),
+            Shown::Block(_) | Shown::Dialog(_) => None,
+        }
+    }
+
+    /// Makes the docks know its editor, once open, while its place is in a dock tab's body
+    /// (`in_tab`), as be-host's know an editor once it opens: it is then asked for its frame
+    /// docked from its first screens. A beui editor keeps the frame it first laid out until its
+    /// dock holds something or is asked, so one asked undocked first would not declare its dock
+    /// and join. An editor of the block the docks already know another of is left: the docks know
+    /// one editor of each block, and taking it from the other each settle would refresh them.
+    fn register_in_tab(&self, docks: &mut Docks) {
+        let (Some((app, opened)), Some(block)) = (self.hosted(), self.in_tab()) else {
+            return;
+        };
+        if docks
+            .block_editor(block)
+            .is_none_or(|known| known == opened)
+        {
+            docks.register(opened, &app_key(app.instance()), Some(block));
+        }
+    }
+
     /// Asks its app for the screens its place asked for in the settle just made, once it is
     /// open (`Embedded::show_editor`): its main view, or its preview view while placed as a
     /// preview, and the views of its dock the joined docks place. Then tells the host where its
@@ -1071,24 +1104,12 @@ impl Children {
         // out anew for them, and the placements of that layout bring the settle that follows its
         // children against them, so they lag no layout behind.
         let settled = POOL.with_borrow_mut(|pool| std::mem::take(&mut pool.settled));
+        // Every registration first, so no editor is asked for its screens against docks that
+        // change later in the same settle.
         for editor in &settled {
-            // A block's editor placed in a dock tab's body is known to the docks before it is
-            // first asked for its screens, as be-host's are once open, so it is asked for its
-            // frame docked from the first, which a beui editor lays out once and keeps.
-            let in_tab = editor
-                .asks
-                .borrow()
-                .as_ref()
-                .is_some_and(|ask| ask.placement.docks.is_some() && !ask.previewed());
-            if in_tab
-                && let (Some((app, opened)), Shown::Block(shown)) = (editor.hosted(), &editor.shown)
-            {
-                settling.docks.register(
-                    opened,
-                    &app_key(app.instance()),
-                    Some(Uuid::from_bytes(shown.block)),
-                );
-            }
+            editor.register_in_tab(settling.docks);
+        }
+        for editor in &settled {
             editor.show(settling.docks);
         }
         self.hear_told(parent, &mut docks);

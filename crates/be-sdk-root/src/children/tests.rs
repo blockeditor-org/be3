@@ -4,6 +4,7 @@ use be_sdk_api::{ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, T
 use super::*;
 
 mod a_block_placed_in_several_places_gets_an_editor_in_each;
+mod a_child_in_a_dock_tabs_body_is_docked_before_its_editor_is_first_asked_for_screens;
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
 mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
 mod a_child_placed_in_a_dock_tabs_body_joins_its_placers_dock;
