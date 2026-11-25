@@ -16,7 +16,9 @@ decisions/dialogs_are_presented_by_kind.md). What is left:
    (`own_window`, where windows are hosted) opens at its `placement` and ignores `anchor`, `beak`
    and `blocks`, so `DockDialog` stays an overlay there (`own_window=false`). Place it beside its
    anchor through `WindowPlacement::Over`, and block its owner across windows, before a dialog
-   may be one.
+   may be one. A hosted window is a window of its own that the lock layer in a display's window
+   does not paint over, so while a lock layer is open every hosted dialog window is hidden or
+   covered.
 2. **A confirmation blocks its frame, not a sibling.** A centred dialog with no owner blocks its
    whole window, which in an app is its own frame, and a modal `DockDialog` blocks only its tab's
    panel. A host test shows a confirmation in one editor's frame leaving a sibling frame live.
@@ -25,4 +27,5 @@ decisions/dialogs_are_presented_by_kind.md). What is left:
 
 - A small form opened from a button opens next to it with a beak, moves when dragged by its
   bar, and is a sheet in the stacked mode.
-- The lock screen still covers every window, a moved dialog included.
+- The lock screen still covers every window, a dialog placed away from its owner included, and
+  a hosted dialog window is hidden or covered while it is locked.
