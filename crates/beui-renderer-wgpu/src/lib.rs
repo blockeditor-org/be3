@@ -2290,6 +2290,8 @@ impl Renderer {
                     self.begin_scene(&inner);
                     self.paint_steps(device, queue, encoder, &mut inner, grouped, depth + 1);
                     self.flush(device, queue, encoder, &mut inner);
+                    // The scene is shared: what follows the group is drawn onto this target again.
+                    self.begin_scene(onto);
                     let drawn = drawn_view(onto.view);
                     let mut pass = self.begin_at(encoder, &drawn, wgpu::LoadOp::Load, depth);
                     for region in regions {
@@ -2318,6 +2320,7 @@ impl Renderer {
                     self.begin_scene(&inner);
                     self.paint_steps(device, queue, encoder, &mut inner, filtered, depth);
                     self.flush(device, queue, encoder, &mut inner);
+                    self.begin_scene(onto);
                     let scissors: Vec<Option<[u32; 4]>> = match &onto.clip {
                         Some(clip) => clip.iter().copied().map(Some).collect(),
                         None => vec![None],
