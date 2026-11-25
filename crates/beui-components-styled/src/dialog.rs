@@ -1,4 +1,5 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::card::Card;
+use crate::frame::Frame;
 use beui_view::types::LayerLevel;
 use beui_view::types::icons::ICON_X;
 use beui_view::types::text::Phrase;
@@ -17,9 +18,9 @@ use beui_view::primitives::{KeepAlive, Kept, Spacer};
 use beui_view::reactive::NodeId;
 
 use crate::list::List;
-use crate::tokens::{Length, Padding, Size, Space};
+use crate::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
-use beui_view::types::{Align, Direction, Extent, Justify};
+use beui_view::types::{Align, Direction, Justify};
 
 pub(crate) const PADDING: Padding = Padding::symmetric(Space::Xl2, Space::Xl);
 pub(crate) const SPACING: Space = Space::Lg;
@@ -125,9 +126,11 @@ pub fn DialogFrame(
             beak=POINTER_REACH
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
-                <DialogCard width={width.clone()} pointer={handle.pointer}>
-                    {handle.body}
-                </DialogCard>
+                <Frame padding=MARGIN>
+                    <Card padding=Space::None max_width={width.clone().map(Some)} pointer={handle.pointer}>
+                        {handle.body}
+                    </Card>
+                </Frame>
             }}
             sheet={|handle: DialogSheetHandle| {
                 let DialogSheetHandle { open, close, tall, body } = handle;
@@ -144,27 +147,6 @@ pub fn DialogFrame(
             }}
             body={move |_: DialogLayout| content.call()}
         />
-    }
-}
-
-#[component]
-pub fn DialogCard(
-    #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
-    #[prop(default = NodeRef::new())] pointer: NodeRef,
-    children: Child,
-) -> NodeId {
-    view! {
-        <Frame padding=MARGIN>
-            <Frame
-                @node_ref=&pointer
-                width={width.map(at_most)}
-                fill=ColorRole::Surface
-                border={Border::DEFAULT}
-                radius=Radius::Lg
-            >
-                {children}
-            </Frame>
-        </Frame>
     }
 }
 
@@ -338,8 +320,4 @@ fn ActionButton(handle: DialogBodyHandle, index: usize, id: Memo<String>) -> Nod
             on_click={move || run.call(index)}
         />
     }
-}
-
-fn at_most(size: Size) -> Length {
-    Length::Extent(Extent::at_most(size.px()))
 }
