@@ -69,7 +69,7 @@ fn a_compute_pipeline_made_without_a_layout_writes_through_the_layout_its_shader
     queue.submit([encoder.finish()]);
     let read = read_back(&device, &destination);
     let squares: Vec<u32> = read
-        .chunks_exact(4)
+        .as_chunks::<4>().0.iter()
         .map(|word| u32::from_le_bytes(word.try_into().unwrap()))
         .collect();
     assert_eq!(squares, [1, 2, 5, 10, 17, 26, 37, 50]);

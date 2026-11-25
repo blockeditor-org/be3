@@ -57,7 +57,7 @@ fn a_compute_pipeline_writes_the_values_given_to_its_overridable_constants() {
     queue.submit([encoder.finish()]);
     let read = read_back(&device, &destination);
     let written: Vec<u32> = read
-        .chunks_exact(4)
+        .as_chunks::<4>().0.iter()
         .map(|word| u32::from_le_bytes(word.try_into().unwrap()))
         .collect();
     assert_eq!(written, [3, 13, 23, 33]);

@@ -396,7 +396,7 @@ impl Screens {
             let (open, capabilities) = openers
                 .iter()
                 .find(|(declared, _)| *declared == editor)
-                .map(|(_, opener)| opener.clone())
+                .map(|(_, opener)| *opener)
                 .unwrap_or_else(|| panic!("this app has no editor {editor}"));
             EditorSession::joining(instance, waker, open, capabilities, module)
         })

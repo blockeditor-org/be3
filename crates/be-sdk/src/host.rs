@@ -696,7 +696,7 @@ impl EditorHost {
     /// What the app's manifest says this editor can do (`editors.<name>.capabilities`), such as
     /// whether the host gives it a camera (`pan_and_zoom`).
     pub fn capabilities(&self) -> crate::EditorCapabilities {
-        self.capabilities.borrow().clone()
+        *self.capabilities.borrow()
     }
 
     /// As the manifest says; a test harness sets it for the editor it runs.

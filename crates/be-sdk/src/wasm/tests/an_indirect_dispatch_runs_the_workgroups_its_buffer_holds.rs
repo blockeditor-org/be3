@@ -80,7 +80,7 @@ fn an_indirect_dispatch_runs_the_workgroups_its_buffer_holds() {
     queue.submit([encoder.finish()]);
     let read = read_back(&device, &destination);
     let words: Vec<u32> = read
-        .chunks_exact(4)
+        .as_chunks::<4>().0.iter()
         .map(|word| u32::from_le_bytes(word.try_into().unwrap()))
         .collect();
     assert_eq!(words, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 0, 0, 0]);
