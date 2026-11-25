@@ -48,7 +48,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     let taken = client
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::HoldObjects {
-                block: block,
+                block,
                 objects: hashes,
                 hold: Hold::Lasting,
             })

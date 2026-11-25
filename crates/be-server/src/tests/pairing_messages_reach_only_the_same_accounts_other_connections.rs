@@ -58,7 +58,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
             )
         })
         .await;
-    assert!(matches!(response, Ok(_)));
+    assert!(response.is_ok());
     assert!(
         stranger.notifications.is_empty(),
         "another account heard the pairing: {:?}",

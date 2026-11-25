@@ -23,7 +23,7 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
         )
         .await;
     assert!(
-        matches!(stray, Err(_)),
+        stray.is_err(),
         "a move stored a key for a block it did not move: {stray:?}"
     );
     assert_eq!(

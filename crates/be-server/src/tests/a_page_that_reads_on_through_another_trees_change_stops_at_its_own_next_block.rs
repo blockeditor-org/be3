@@ -52,7 +52,7 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
                 peer.ask::<be_block_protocol::ChangedPage>(
                     be_block_protocol::Query::Tree {
                         entry: work,
-                        after: after.clone(),
+                        after: after,
                         limit: 1000,
                     },
                     false,

@@ -18,7 +18,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
     let response = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: first,
@@ -55,7 +55,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
     let response = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: Some(first),
                 commit: Some(be_block_protocol::NewCommit {
                     id: second,

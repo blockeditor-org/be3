@@ -13,15 +13,15 @@ async fn create_index(
         .call(|peer| {
             peer.write_all::<be_block_protocol::BlockSummary>(vec![
                 be_block_protocol::Op::CreateBlock {
-                    block: block,
+                    block,
                     content_type: SEARCH_INDEX_TYPE,
                     parent: BlockParent::Block(parent),
                     metadata: Vec::new(),
                     references: Vec::new(),
-                    key: key,
+                    key,
                     owner_only: false,
-                    root: root,
-                    placement: placement,
+                    root,
+                    placement,
                 },
                 be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
@@ -45,7 +45,7 @@ async fn refer(
     client
         .call(|peer| {
             peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: None,
                 references: be_block_protocol::ReferenceChange::between(&[], &references),
@@ -95,9 +95,9 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         "a viewer made the workspace's index: {created:?}"
     );
     let (index, created) = create_index(&mut editor, workspace).await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
+    assert!(created.is_ok(), "{created:?}");
     let referred = refer(&mut owner, workspace, vec![note, index]).await;
-    assert!(matches!(referred, Ok(_)), "{referred:?}");
+    assert!(referred.is_ok(), "{referred:?}");
 
     assert_eq!(owner.read_block(index).await.access, Access::Manage);
     assert_eq!(
@@ -141,7 +141,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         assert!(matches!(granted, Ok(())), "{granted:?}");
     }
     let (loose, created) = create_index(&mut editor, second).await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
+    assert!(created.is_ok(), "{created:?}");
     for target in [workspace, third, note] {
         let moved = editor
             .move_keyed(loose, BlockParent::Block(target), KeySet::default())

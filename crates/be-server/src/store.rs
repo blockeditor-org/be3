@@ -435,13 +435,13 @@ impl ServerStore {
     }
 
     pub async fn personal_organization(&self) -> Result<Uuid, ServerError> {
-        self.with_database(move |_, database| personal_organization(&database))
+        self.with_database(move |_, database| personal_organization(database))
             .await
     }
 
     pub async fn join_personal_organization(&self, account: Uuid) -> Result<Uuid, ServerError> {
         self.with_database(move |_, database| {
-            let organization = personal_organization(&database)?;
+            let organization = personal_organization(database)?;
             database.execute(
                 "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
                  VALUES (?1, ?2, 'editor')",
@@ -730,7 +730,7 @@ impl ServerStore {
         identity: Identity,
     ) -> Result<Vec<be_block_protocol::Member>, ServerError> {
         self.with_database(move |_, database| {
-            let contacts = crate::contacts::contacts_of(&database, identity.account)?;
+            let contacts = crate::contacts::contacts_of(database, identity.account)?;
             let mut statement = database.prepare(
                 "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name, memberships.role,
                         agents.created_by, agents.bound_to
@@ -1045,7 +1045,7 @@ impl ServerStore {
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
-        self.with_database(move |_, database| issue_token(&database, account))
+        self.with_database(move |_, database| issue_token(database, account))
             .await
     }
 

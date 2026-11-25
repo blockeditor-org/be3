@@ -29,7 +29,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let response = owner
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: link,
+                link,
                 card: owner_card.seal(&code, CardRole::Owner),
                 kind: be_block_protocol::LinkKind::Contact,
                 signed: None,
@@ -42,7 +42,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
     assert!(
-        matches!(own, Err(_)),
+        own.is_err(),
         "the owner opened its own link: {own:?}"
     );
     let Ok(found) = other
@@ -58,7 +58,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let response = other
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: link,
+                link,
                 card: other_card.seal(&code, CardRole::Accepter),
                 contact: other_secret.seal_own(be_block_keys::Own::Contact, &opened.encode()),
                 key: Vec::new(),

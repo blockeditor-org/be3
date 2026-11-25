@@ -4,7 +4,7 @@ async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client
         .call(|peer| {
             peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: None,
                 references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
@@ -13,7 +13,7 @@ async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
             })
         })
         .await;
-    assert!(matches!(response, Ok(_)), "{response:?}");
+    assert!(response.is_ok(), "{response:?}");
 }
 
 /// The entry point the next `tree-advanced` names, read to its end so the next change is told.

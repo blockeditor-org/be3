@@ -9,7 +9,7 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
     let harness = Harness::start().await;
     harness.member("offline@example.com").await;
     let begun = harness
-        .once(|peer| begin_login(peer))
+        .once(begin_login)
         .await
         .expect("a sign-in begins");
     assert_eq!(

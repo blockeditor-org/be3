@@ -42,7 +42,7 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
     let accepted = second
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: link,
+                link,
                 card: Vec::new(),
                 contact: Vec::new(),
                 key: Vec::new(),

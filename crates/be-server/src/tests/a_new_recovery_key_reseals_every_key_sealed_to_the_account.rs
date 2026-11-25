@@ -72,7 +72,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
         })
         .await;
     assert!(
-        matches!(refused, Err(_)),
+        refused.is_err(),
         "a new recovery key left a key sealed to the old one: {refused:?}"
     );
     assert_eq!(recovery(&mut owner).await.0, Some(identity.public.0));
@@ -119,7 +119,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
         })
         .await;
     assert!(
-        matches!(response, Err(_)),
+        response.is_err(),
         "a new recovery key left a log the old one signed in unretired: {response:?}"
     );
     retirements.push(kept);
@@ -136,7 +136,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                     sealed: b"resealed to the new phrase".to_vec(),
                 }],
                 changes: Vec::new(),
-                retirements: retirements,
+                retirements,
             })
         })
         .await;

@@ -39,7 +39,7 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let held = client
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::HoldObjects {
-                block: block,
+                block,
                 objects: hashes.clone(),
                 hold: Hold::Lasting,
             })
@@ -49,7 +49,7 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let published = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: commit,
@@ -81,7 +81,7 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let published = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: commit,

@@ -34,7 +34,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
     let published = trasher
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: head,

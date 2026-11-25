@@ -13,15 +13,15 @@ async fn create_settings(
         .call(|peer| {
             peer.write_all::<be_block_protocol::BlockSummary>(vec![
                 be_block_protocol::Op::CreateBlock {
-                    block: block,
+                    block,
                     content_type: SETTINGS_TYPE,
                     parent: BlockParent::Block(parent),
                     metadata: Vec::new(),
                     references: Vec::new(),
-                    key: key,
+                    key,
                     owner_only: false,
                     root: root.clone(),
-                    placement: placement,
+                    placement,
                 },
                 be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
@@ -37,7 +37,7 @@ async fn set_metadata(client: &mut TestClient, block: Uuid) -> Result<BlockSumma
     client
         .call(|peer| {
             peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: None,
                 references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
@@ -62,9 +62,9 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let workspace = owner.create_block(BlockParent::Root).await;
     let folder = owner.create_block(BlockParent::Block(workspace)).await;
     let (workspace_settings, created) = create_settings(&mut owner, workspace).await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
+    assert!(created.is_ok(), "{created:?}");
     let (folder_settings, created) = create_settings(&mut owner, folder).await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
+    assert!(created.is_ok(), "{created:?}");
     assert_eq!(
         owner.read_block(folder_settings).await.access,
         Access::Manage
@@ -97,7 +97,7 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     );
     let own = editor.create_block(BlockParent::Root).await;
     let (planted, created) = create_settings(&mut editor, own).await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
+    assert!(created.is_ok(), "{created:?}");
     let moved = editor
         .move_keyed(planted, BlockParent::Block(folder), KeySet::default())
         .await;
@@ -115,7 +115,7 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
         Access::Manage
     );
     let changed = set_metadata(&mut editor, folder_settings).await;
-    assert!(matches!(changed, Ok(_)), "{changed:?}");
+    assert!(changed.is_ok(), "{changed:?}");
     let changed = set_metadata(&mut editor, workspace_settings).await;
     assert!(
         refused_as(&changed, ErrorCode::PermissionDenied),

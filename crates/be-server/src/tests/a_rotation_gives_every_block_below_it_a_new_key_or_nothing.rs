@@ -23,7 +23,7 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     assert_eq!(work(&mut owner).await.rotations, [shared.block]);
     let spoken = reader.relay(inside, None, b"still here".to_vec()).await;
     assert!(
-        matches!(spoken, Err(_)),
+        spoken.is_err(),
         "a reader taken off a block kept speaking in its session: {spoken:?}"
     );
 
@@ -83,7 +83,7 @@ async fn rotate(client: &mut TestClient, root: Uuid, keys: KeySet) -> Result<(),
             peer.write::<()>(be_block_protocol::Op::PutKeys(
                 be_block_protocol::PutKeys::Rotate {
                     roots: vec![root],
-                    keys: keys,
+                    keys,
                 },
             ))
         })

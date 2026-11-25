@@ -8,9 +8,9 @@ async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold
     let held = client
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::HoldObjects {
-                block: block,
-                objects: objects,
-                hold: hold,
+                block,
+                objects,
+                hold,
             })
         })
         .await;

@@ -494,11 +494,11 @@ impl ServerStore {
     /// it is open and `caller` is not yet a member. Reading an invitation marks it opened.
     pub async fn link(&self, caller: Uuid, link: Uuid) -> Result<Link, ServerError> {
         self.with_database(move |_, database| {
-            let stored = stored_link(&database, link)?.ok_or_else(link_not_found)?;
+            let stored = stored_link(database, link)?.ok_or_else(link_not_found)?;
             if let (LinkKind::Invitation(invitation), Some(invited)) =
                 (&stored.kind, stored.invited)
             {
-                let state = invitation_state(&database, &stored, invited, invitation.organization)?;
+                let state = invitation_state(database, &stored, invited, invitation.organization)?;
                 if !matches!(state, InvitationState::Waiting | InvitationState::Opened) {
                     return Err(invitation_ended(state));
                 }
@@ -516,10 +516,10 @@ impl ServerStore {
                 LinkKind::Contact => String::new(),
                 LinkKind::Invitation(invitation) => {
                     // An invitation into an organization gone since is no link at all.
-                    let name = organization_name(&database, invitation.organization)?
+                    let name = organization_name(database, invitation.organization)?
                         .ok_or_else(link_not_found)?;
-                    mark_opened(&database, link)?;
-                    if is_member_of(&database, caller, invitation.organization)? {
+                    mark_opened(database, link)?;
+                    if is_member_of(database, caller, invitation.organization)? {
                         return Err(ServerError::Refused(
                             ErrorCode::InvalidRequest,
                             "you are already a member of that organization".into(),
@@ -531,7 +531,7 @@ impl ServerStore {
             let head = match &stored.kind {
                 LinkKind::Contact => None,
                 LinkKind::Invitation(invitation) => {
-                    crate::access::organization_head(&database, invitation.organization)?
+                    crate::access::organization_head(database, invitation.organization)?
                 }
             };
             Ok(Link {
@@ -551,16 +551,16 @@ impl ServerStore {
     /// other link, or an invitation into an organization gone since, reads as no link.
     pub async fn read_invitation(&self, link: Uuid) -> Result<InvitationPreview, ServerError> {
         self.with_database(move |_, database| {
-            let stored = stored_link(&database, link)?.ok_or_else(link_not_found)?;
+            let stored = stored_link(database, link)?.ok_or_else(link_not_found)?;
             let (LinkKind::Invitation(invitation), Some(invited)) = (&stored.kind, stored.invited)
             else {
                 return Err(link_not_found());
             };
-            let organization_name = organization_name(&database, invitation.organization)?
+            let organization_name = organization_name(database, invitation.organization)?
                 .ok_or_else(link_not_found)?;
-            let mut state = invitation_state(&database, &stored, invited, invitation.organization)?;
+            let mut state = invitation_state(database, &stored, invited, invitation.organization)?;
             if state == InvitationState::Waiting {
-                mark_opened(&database, link)?;
+                mark_opened(database, link)?;
                 state = InvitationState::Opened;
             }
             // An ended invitation says only that it ended.
@@ -617,7 +617,7 @@ impl ServerStore {
                 let Some(invited) = stored.invited else {
                     continue;
                 };
-                let state = invitation_state(&database, &stored, invited, organization)?;
+                let state = invitation_state(database, &stored, invited, organization)?;
                 let seconds = |at: i64| at * 1000;
                 invitations.push(InvitationRow {
                     id: parse_uuid(&id)?,

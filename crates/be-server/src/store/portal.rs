@@ -77,7 +77,7 @@ impl ServerStore {
     /// operator's login link.
     pub async fn browser_session(&self, account: Uuid) -> Result<String, ServerError> {
         self.with_database(move |_, database| {
-            let token = issue_token(&database, account)?;
+            let token = issue_token(database, account)?;
             database.execute(
                 "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
                 params![hash_token(TokenKind::Session, &token), now() + 30 * 86400, now()],

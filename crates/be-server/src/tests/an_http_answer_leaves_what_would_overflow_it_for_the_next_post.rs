@@ -95,7 +95,7 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     let response = owner
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: commit,

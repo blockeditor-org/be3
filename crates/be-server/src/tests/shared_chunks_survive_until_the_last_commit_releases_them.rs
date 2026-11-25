@@ -27,7 +27,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
     let _ = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: first,
@@ -50,7 +50,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
     let _ = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: Some(first),
                 commit: Some(be_block_protocol::NewCommit {
                     id: second,

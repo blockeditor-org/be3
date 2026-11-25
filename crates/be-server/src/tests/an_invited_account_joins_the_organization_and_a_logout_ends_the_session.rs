@@ -18,7 +18,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             )
         })
         .await;
-    assert!(matches!(refused, Err(_)), "{refused:?}");
+    assert!(refused.is_err(), "{refused:?}");
 
     let invitation = Uuid::from_u128(7);
     let code = be_block_keys::InviteCode::generate();
@@ -64,7 +64,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
         })
         .await;
     assert!(
-        matches!(again, Err(_)),
+        again.is_err(),
         "the invitation outlived its use: {again:?}"
     );
 

@@ -15,7 +15,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     let made = admin
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: link,
+                link,
                 card: b"the inviter's sealed card".to_vec(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,

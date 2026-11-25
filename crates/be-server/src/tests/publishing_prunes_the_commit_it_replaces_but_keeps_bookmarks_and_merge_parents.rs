@@ -24,7 +24,7 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
     let _ = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: bookmark,
@@ -65,7 +65,7 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
     let response = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: Some(theirs),
                 commit: Some(be_block_protocol::NewCommit {
                     id: merge,

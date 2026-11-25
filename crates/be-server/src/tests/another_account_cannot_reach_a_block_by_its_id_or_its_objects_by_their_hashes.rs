@@ -182,7 +182,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let stolen = viewer
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::HoldObjects {
-                block: block,
+                block,
                 objects: vec![unheld.hash()],
                 hold: Hold::Lasting,
             })

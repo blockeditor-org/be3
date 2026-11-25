@@ -15,13 +15,13 @@ async fn publish_onto(
     client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
-                expected: expected,
+                block,
+                expected,
                 commit: Some(be_block_protocol::NewCommit {
                     id: commit,
-                    parents: parents,
+                    parents,
                     held: change,
-                    time: time,
+                    time,
                     pinned: false,
                     objects: Vec::new(),
                     log_through: None,

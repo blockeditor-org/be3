@@ -16,7 +16,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
     let _ = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: base,
@@ -41,7 +41,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
     let response = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: None,
                 commit: Some(be_block_protocol::NewCommit {
                     id: ours,
@@ -67,7 +67,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
     let response = client
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
-                block: block,
+                block,
                 expected: Some(base),
                 commit: Some(be_block_protocol::NewCommit {
                     id: ours,

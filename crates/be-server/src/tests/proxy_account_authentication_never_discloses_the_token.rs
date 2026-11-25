@@ -24,14 +24,11 @@ async fn proxy_account_authentication_never_discloses_the_token() {
             Some(token) if token == owner.token => {
                 let mut client = signed_in.expect("the header signs the greeting in");
                 assert!(client.token.is_empty(), "the server told the token back");
-                assert!(matches!(
-                    client
+                assert!(client
                         .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(
                             be_block_protocol::Query::Organizations
                         ))
-                        .await,
-                    Ok(_)
-                ));
+                        .await.is_ok());
                 let _ = client
                     .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
                     .await;

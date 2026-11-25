@@ -20,7 +20,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let response = owner
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: link,
+                link,
                 card: honest.seal(&code, CardRole::Owner),
                 kind: be_block_protocol::LinkKind::Contact,
                 signed: None,

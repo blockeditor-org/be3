@@ -34,7 +34,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
                         id: commit,
                         parents: head.into_iter().collect(),
                         held: objects_change(&held_before, chunks.clone()),
-                        time: time,
+                        time,
                         pinned: false,
                         objects: Vec::new(),
                         log_through: None,

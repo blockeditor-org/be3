@@ -42,7 +42,7 @@ async fn one_connection_reads_two_organizations_without_reconnecting() {
             .write_in::<BlockSummary>(
                 Some(organization),
                 Op::Publish {
-                    block: block,
+                    block,
                     expected: None,
                     commit: None,
                     references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),

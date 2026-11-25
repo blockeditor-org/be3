@@ -84,7 +84,7 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
             })
         })
         .await;
-    assert!(matches!(response, Ok(_)), "{response:?}");
+    assert!(response.is_ok(), "{response:?}");
     assert_eq!(
         told(&mut viewer).await,
         Notice::TreeAdvanced {
