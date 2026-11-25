@@ -1852,6 +1852,7 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-search",
  "be-lib-stable-hash",
+ "be-lib-test-pause",
  "be-lib-web-push",
  "be-sdk",
  "be-sdk-api",
@@ -2124,6 +2125,13 @@ name = "be-lib-stable-hash"
 version = "0.1.0"
 dependencies = [
  "foldhash 0.2.0",
+]
+
+[[package]]
+name = "be-lib-test-pause"
+version = "0.1.0"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]
@@ -2612,6 +2620,7 @@ dependencies = [
  "be-block-sqlite-schema",
  "be-block-store",
  "be-lib-build-id",
+ "be-lib-test-pause",
  "be-lib-web-push",
  "be-server-portal",
  "be-wasm-ops",

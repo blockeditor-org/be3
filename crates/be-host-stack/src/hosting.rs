@@ -66,6 +66,23 @@ enum Member {
     Admitted(Box<Admitted>),
 }
 
+/// Where a test holds an answer to a handshake, after the member was checked and before the
+/// answer is decided (`be_lib_test_pause`, keyed by the block).
+#[cfg(test)]
+pub const ANSWER_PAUSE: &str = "hosting::answer";
+
+/// Where `member` of `block`'s channel is: being checked (with a newer handshake waiting, or
+/// not), answered, or admitted; none when it has no channel here.
+#[cfg(test)]
+pub fn member_state(shared: &Shared, block: Uuid, member: ClientId) -> Option<&'static str> {
+    Some(match shared.hosting.channels.get(&block)?.get(&member)? {
+        Member::Answering { next: None, .. } => "answering",
+        Member::Answering { next: Some(_), .. } => "answering, a newer handshake waiting",
+        Member::Admitting(..) => "admitting",
+        Member::Admitted(..) => "admitted",
+    })
+}
+
 /// What `block`'s host component has yet to take.
 #[cfg(test)]
 pub fn queued(shared: &Shared, block: Uuid) -> Vec<MemberEvent> {
@@ -429,6 +446,8 @@ fn answer(
     let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
     tasks.clone().spawn(async move {
         let admitted = peer.admit(block, &payload).await;
+        #[cfg(test)]
+        be_lib_test_pause::point(ANSWER_PAUSE, block.as_u128()).await;
         // What follows, decided under the lock, which goes before anything is awaited.
         let after = {
             let mut held = lock(&shared);

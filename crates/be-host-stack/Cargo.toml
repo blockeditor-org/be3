@@ -51,6 +51,7 @@ web-sys = { version = "0.3", features = ["MessageChannel", "MessageEvent", "Mess
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 be-host-server = { path = "../be-host-server" }
+be-lib-test-pause = { path = "../be-lib-test-pause" }
 be-server = { path = "../be-server" }
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 be-sdk = { path = "../be-sdk" }
