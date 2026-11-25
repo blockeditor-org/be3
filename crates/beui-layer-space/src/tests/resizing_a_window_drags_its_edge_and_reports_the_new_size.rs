@@ -4,7 +4,7 @@ use super::*;
 fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     let (mut space, now) = space();
     let window = open_ahead(&mut space, now, 0.5);
-    let start = space.panel(window).unwrap().clone();
+    let start = *space.panel(window).unwrap();
     let corner = start.world(Pos2::ZERO);
     let grip = centre() + vec2(100.0, 75.0);
     let gripped = on(&space, window, grip);
@@ -25,7 +25,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
         [],
         "the program sees no moves while it resizes"
     );
-    let panel = space.panel(window).unwrap().clone();
+    let panel = *space.panel(window).unwrap();
     let along = start
         .intersect(space.head.ray(PLATFORM, dragged.to_vec2()))
         .unwrap()
