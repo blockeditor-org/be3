@@ -393,7 +393,13 @@ the connection a stopping stack closed.
   makes every edit kept from before it fail visibly.
 - **A lost entry.** The host tracks the last number of the order it heard per
   open block (`Open::heard_through`); an entry past the next makes the replica
-  rejoin and open again on the server's journal.
+  rejoin and open again on the server's journal. An entry counts as heard, and
+  goes into this device's journal, only once it opens and is handed on: one that
+  waits for its key (Locked messages, below) is told again once the key arrives,
+  and counted already it would be passed over then, leaving a gap in the order
+  that holds back every entry after it, the replica's own edits included ("1
+  submitted, not yet numbered" for good). One that cannot open is recorded and
+  left unheard, so the next entry finds it lost.
 - **Opening early.** A block this device knows opens from its local head in a
   session a placeholder holds (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
@@ -426,7 +432,7 @@ the connection a stopping stack closed.
   and resynchronizing joins are answered in tasks (`Io::*`). They are written
   the moment they are made, so a leave and the next join reach the server in
   order; an answer older than the replica's session is dropped.
-- **Locked messages.** A relayed message is unsealed on the spot; one whose key
+- **Locked messages.** A relayed message or an entry of the order is unsealed on the spot; one whose key
   is missing (`ClientError::Locked`) waits, with that block's later events
   behind it, for one search per key (`Replicas::searching`), started by the
   first such message whatever else searches for the key (`Peer::learn` may

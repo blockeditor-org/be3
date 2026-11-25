@@ -1170,6 +1170,9 @@ pub struct Replicas<H: Host> {
     /// What peers' relayed messages said, unsealed.
     #[cfg(test)]
     heard_from_peers: Vec<Vec<u8>>,
+    /// The order's entries handed to replicas, by block and number, in order.
+    #[cfg(test)]
+    entries_given: Vec<(Uuid, u64)>,
     leaving: Vec<Uuid>,
     rejoins: u64,
     /// Blocks opened here while their creation waited in the outbox: they join their session
@@ -1241,6 +1244,8 @@ impl<H: Host> Replicas<H> {
             kept_stop_opening: HashSet::new(),
             #[cfg(test)]
             heard_from_peers: Vec::new(),
+            #[cfg(test)]
+            entries_given: Vec::new(),
             leaving: Vec::new(),
             rejoins: 0,
             uncreated: HashSet::new(),
@@ -2464,6 +2469,12 @@ impl<H: Host> Replicas<H> {
         #[cfg(test)]
         if let Replayed::Moved { .. } = replayed {
             self.heads_told += 1;
+        }
+        #[cfg(test)]
+        if let Replayed::Sequenced { entries } = &replayed {
+            let block = open.block;
+            self.entries_given
+                .extend(entries.iter().map(|entry| (block, entry.sequence)));
         }
         if !matches!(
             replayed,
@@ -3801,6 +3812,16 @@ impl<H: Host> Replicas<H> {
         &self.heard_from_peers
     }
 
+    /// The numbers of the order's entries of `block` handed to its replica, in order.
+    #[cfg(test)]
+    pub(crate) fn entries_given(&self, block: Uuid) -> Vec<u64> {
+        self.entries_given
+            .iter()
+            .filter(|(of, _)| *of == block)
+            .map(|(_, sequence)| *sequence)
+            .collect()
+    }
+
     /// Takes what the session told this device about an open block. A relayed message sealed
     /// with a key this device does not hold waits, with the events behind it, for one search for
     /// that key: a peer seals with a block's key as soon as it has it, and a search started
@@ -3987,7 +4008,7 @@ impl<H: Host> Replicas<H> {
                 {
                     return;
                 }
-                if let Some(open) = self.open.get_mut(&replica)
+                if let Some(open) = self.open.get(&replica)
                     && !open.joining
                 {
                     match open.heard_through {
@@ -3997,7 +4018,7 @@ impl<H: Host> Replicas<H> {
                             return self.rejoin(peer, replica, rejoin);
                         }
                         Some(through) if entry.sequence <= through => return,
-                        _ => open.heard_through = Some(entry.sequence),
+                        _ => {}
                     }
                 }
                 let tag = self
@@ -4007,12 +4028,12 @@ impl<H: Host> Replicas<H> {
                 let Some(tag) = tag else {
                     return;
                 };
-                // This device keeps what it heard, to open on offline.
                 let tag = be_block_store::Hash::from_bytes(tag.0);
-                if let Err(error) = peer.heard_entry(*block, tag, entry.clone()) {
-                    H::record(shared, error);
-                }
                 let (sequence, origin, base) = (entry.sequence, entry.origin, entry.base);
+                // Heard only once it opens: one that waits for its key is told again once the key
+                // arrives (`unsealing`), and counted heard already it would be passed over then,
+                // leaving the replica a gap in the order that holds back every entry after it.
+                let sealed = entry.clone();
                 let entry = match peer.open_entry(*block, entry.clone()) {
                     Ok(entry) => entry,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
@@ -4032,8 +4053,18 @@ impl<H: Host> Replicas<H> {
                         }
                         return;
                     }
+                    // Not heard: the next entry finds one lost, and the replica joins afresh.
                     Err(error) => return H::record(shared, error),
                 };
+                // This device keeps what it heard, to open on offline.
+                if let Err(error) = peer.heard_entry(*block, tag, sealed) {
+                    H::record(shared, error);
+                }
+                if let Some(open) = self.open.get_mut(&replica)
+                    && !open.joining
+                {
+                    open.heard_through = Some(sequence);
+                }
                 let replayed = Replayed::Sequenced {
                     entries: vec![entry],
                 };
