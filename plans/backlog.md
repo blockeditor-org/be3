@@ -23,6 +23,11 @@ Fixed items are removed as they land.
   the last frame while a window is resized live, before beui draws the new size. Check it, and
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
   `backdrop.rs`). Done when a live resize on a Mac shows the last frame unstretched.
+  Checked: wgpu 30 makes its layer through raw-window-metal 1.1, a sublayer that leaves
+  `contentsGravity` at `kCAGravityResize` (its `observer.rs`), so it does stretch. Setting
+  `kCAGravityTopLeft` on it, as `Surface::as_hal::<Metal>` gives its `render_layer()`, after each
+  `create_surface` (beui-renderer-wgpu `window.rs`, `present.rs`), is the likely fix; left for a
+  session with a Mac, since nothing here builds or runs macOS.
 
 ## 7. Sessions
 
