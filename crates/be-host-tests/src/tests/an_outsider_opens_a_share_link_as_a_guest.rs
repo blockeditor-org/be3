@@ -33,15 +33,7 @@ fn an_outsider_opens_a_share_link_as_a_guest() {
     host.click("ListBoxOption \"Anyone with an account here\"");
     host.click("#share.links.make");
     host.wait("#share.links.url");
-    let link = host
-        .tree()
-        .lines()
-        .find_map(|line| {
-            let (_, value) = line.split_once("value=\"")?;
-            let value = value.split('"').next()?;
-            value.contains("#share/").then(|| value.to_owned())
-        })
-        .expect("the share dialog shows the link it made");
+    let link = share_link(&mut host);
     host.click("#share.close");
     host.synced();
 

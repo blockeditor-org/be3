@@ -1294,7 +1294,9 @@ pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => None,
         AccessLevel::View => Some(be_sdk_beui::beui::icons::ICON_EYE),
-        AccessLevel::Join | AccessLevel::KnowExists | AccessLevel::None => {
+        // It opens, as a Join member: what it shows the host tells it.
+        AccessLevel::Join => Some(be_sdk_beui::beui::icons::ICON_LOG_IN),
+        AccessLevel::KnowExists | AccessLevel::None => {
             Some(be_sdk_beui::beui::icons::ICON_LOCK)
         }
     }
