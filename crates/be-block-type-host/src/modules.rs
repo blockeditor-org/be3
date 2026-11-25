@@ -5,9 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_lib_failure_budget::{Failed, FailureBudget};
 use be_block_client::{ClientError, Clock, Peer};
 use be_block_store::ObjectStore;
+use be_lib_failure_budget::{Failed, FailureBudget};
 
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
@@ -178,12 +178,7 @@ pub fn wasm(
             let tag = tag.clone()?;
             let load = load.clone();
             let host = be_wasm_host::Host::pure()?.with_seed(seed());
-            let channel = host.spawn(
-                name.clone(),
-                move |host| load(host),
-                wake,
-                waiting,
-            )?;
+            let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }

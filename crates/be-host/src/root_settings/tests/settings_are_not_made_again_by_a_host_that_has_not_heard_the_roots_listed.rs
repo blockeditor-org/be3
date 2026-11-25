@@ -20,7 +20,11 @@ fn settings_are_not_made_again_by_a_host_that_has_not_heard_the_roots_listed() {
 
     let mut restarted = RootSettings::new(WORKSPACE_EDITOR);
     restarted.cache.borrow_mut().roots = Some(Vec::new());
-    assert_eq!(restarted.ensure(), Some(made), "it made no settings of its own");
+    assert_eq!(
+        restarted.ensure(),
+        Some(made),
+        "it made no settings of its own"
+    );
     let settings: Vec<Uuid> = be_host_stack::query(be_host_stack::Query::Roots)
         .into_iter()
         .filter(|node| node.content_type == Settings::CONTENT_TYPE)

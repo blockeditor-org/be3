@@ -240,9 +240,9 @@ async fn an_instance_of_a_module_from_bytes_is_held_to_its_memory_limit() -> Res
             let echo = |memory_limit| {
                 guest::sandbox::Instance::new(
                     Source::Module(FromBytes {
-                    module: module,
-                    seed: [0; 32],
-                }),
+                        module: module,
+                        seed: [0; 32],
+                    }),
                     Config {
                         name: "echo".to_owned(),
                         memory_limit,

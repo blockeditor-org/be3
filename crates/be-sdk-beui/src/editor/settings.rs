@@ -322,7 +322,7 @@ impl Editor {
                         R::CONTENT_TYPE,
                         held.settings.profile(editor.host().client_id()),
                     )
-                        .below(editor.block_id())
+                    .below(editor.block_id())
                 })
                 .unwrap_or_default();
             be_block_content::layered(below.into_iter().filter_map(|block| {

@@ -20,8 +20,15 @@ fn hash(seed: [u8; 32]) -> Vec<u8> {
     assert_eq!(worker.queue(vec![be_wasm_guest_echo::HASH.to_vec()]), None);
     loop {
         let deadline = be_wasm_guest_host::Deadline::after(std::time::Duration::from_secs(60));
-        assert!(worker.wait(deadline).expect("the guest runs"), "the guest went quiet");
-        if let Some(hash) = worker.take_received().into_iter().find(|frame| frame.len() == 8) {
+        assert!(
+            worker.wait(deadline).expect("the guest runs"),
+            "the guest went quiet"
+        );
+        if let Some(hash) = worker
+            .take_received()
+            .into_iter()
+            .find(|frame| frame.len() == 8)
+        {
             return hash;
         }
     }

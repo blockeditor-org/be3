@@ -511,7 +511,7 @@ impl Running {
             config,
             wake,
         )
-            .map_err(|error| format!("the remaps would not start: {error}"))?;
+        .map_err(|error| format!("the remaps would not start: {error}"))?;
         Ok(Self {
             instance,
             starting: None,

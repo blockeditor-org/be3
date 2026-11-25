@@ -29,6 +29,8 @@ fn the_state_is_published_as_it_changes() {
     set_state(PushDevice::Denied);
     assert_eq!(
         published(),
-        Some(be_sdk_api::ops::encode(&Some(be_sdk_api::PushDevice::Denied)))
+        Some(be_sdk_api::ops::encode(&Some(
+            be_sdk_api::PushDevice::Denied
+        )))
     );
 }

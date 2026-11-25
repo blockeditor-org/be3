@@ -438,8 +438,9 @@ impl Runner {
             self.exited = true;
             let program = &mut self.program;
             if let Err(payload) = catch_unwind(AssertUnwindSafe(|| program.exiting())) {
-                self.failure
-                    .get_or_insert_with(|| format!("while exiting: {}", be_wasm_panic::message(&*payload)));
+                self.failure.get_or_insert_with(|| {
+                    format!("while exiting: {}", be_wasm_panic::message(&*payload))
+                });
             }
             self.program = Box::new(Exited);
         }
@@ -481,7 +482,8 @@ impl Runner {
         match catch_unwind(AssertUnwindSafe(|| act(self))) {
             Ok(done) => Some(done),
             Err(payload) => {
-                self.failure.get_or_insert_with(|| be_wasm_panic::message(&*payload));
+                self.failure
+                    .get_or_insert_with(|| be_wasm_panic::message(&*payload));
                 self.exit();
                 None
             }
@@ -921,4 +923,3 @@ impl Visit<'_> {
         }
     }
 }
-

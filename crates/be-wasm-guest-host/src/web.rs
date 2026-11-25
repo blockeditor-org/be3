@@ -91,7 +91,11 @@ impl<P: Pictures> WebGuest<P> {
     ) -> Result<Self, String> {
         let message = message("start");
         set(&message, "module", module);
-        set(&message, "seed", &js_sys::Uint8Array::from(&seed[..]).into());
+        set(
+            &message,
+            "seed",
+            &js_sys::Uint8Array::from(&seed[..]).into(),
+        );
         if let Some((initial, maximum)) = memory {
             let pages = js_sys::Object::new();
             set(&pages, "initial", &(initial as f64).into());

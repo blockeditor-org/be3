@@ -6,10 +6,17 @@ where
     W: TryConvert<A> + std::fmt::Debug,
 {
     let cases = every::<A>();
-    assert!(cases.len() >= minimum, "only {} cases of {}", cases.len(), std::any::type_name::<A>());
+    assert!(
+        cases.len() >= minimum,
+        "only {} cases of {}",
+        cases.len(),
+        std::any::type_name::<A>()
+    );
     for case in cases {
         let converted: W = case.convert();
-        let back = converted.try_convert().expect("what the ABI names, wgpu names too");
+        let back = converted
+            .try_convert()
+            .expect("what the ABI names, wgpu names too");
         assert_eq!(back, case);
     }
 }

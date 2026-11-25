@@ -42,8 +42,7 @@ impl FailureBudget {
     /// Counts a failure at `now`, forgetting those longer than the window before it.
     pub fn fail(&mut self, now: Duration) -> Failed {
         let window = self.window;
-        self.failures
-            .retain(|at| now.saturating_sub(*at) < window);
+        self.failures.retain(|at| now.saturating_sub(*at) < window);
         self.failures.push(now);
         match self.failures.len() >= self.allowed {
             true => Failed::Stop,

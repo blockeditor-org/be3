@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use be_block::root_settings::SettingsGraph;
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent,
@@ -9,7 +10,6 @@ use be_block::{
 };
 use be_block_content::{BlockContent, BlockMetadata, LiveEdit, NAME, Root, VIEW_EDITOR, VIEW_TYPE};
 use be_block_graph::BlockParent;
-use be_block::root_settings::SettingsGraph;
 use uuid::Uuid;
 
 pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
