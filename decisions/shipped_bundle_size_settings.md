@@ -39,7 +39,7 @@ is superseded, with the rejection of shipping without it; the mangling, opt-leve
 symbol settings still stand.
 
 November 2026: the pure guests (type modules, games, the input remaps) are built for
-wasm32-wasip1 in the apps' plan (plans/pure_guests_in_the_apps_plan.md), so a crate they share
+wasm32-wasip1 in the apps' plan (guides/app_libraries.md, Pure guests), so a crate they share
 with the apps compiles once, at the apps' release opt-level 3 (option a). Type modules no longer
 build at `s` and ship a third bigger again: the release checklist module 1,895,013 bytes to
 2,497,166, text's 1,957,971 to 2,566,523. `s` stays only for the gpu shim, the one crate left on

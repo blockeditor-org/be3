@@ -65,7 +65,7 @@ def dev_only(flags):
 #   release build on wasm32-unknown-unknown, which is only the browser's gpu
 #   shim (whose heavy part is third-party), `s`. Every guest, the type modules,
 #   games and input remaps too, is built for wasm32-wasip1 in one plan
-#   (plans/pure_guests_in_the_apps_plan.md), where a crate a pure guest shares
+#   (guides/app_libraries.md, Pure guests), where a crate a pure guest shares
 #   with the apps compiles once, at the apps' release 3: the release checklist
 #   module grew from 1,895,013 bytes at `s` to 2,497,166, and text's from
 #   1,957,971 to 2,566,523, a third (November 2026). The owner may still choose
