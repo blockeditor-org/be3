@@ -1,13 +1,16 @@
 use be_lib_geometry::{Rect, pos2, vec2};
 use be_sdk_api::{
     EditorInstanceId, ParentView, ScreenId, ScreenRequest, ViewId, ViewPlacement, ViewRef,
-    WindowEdge, WindowLevel, WindowOpen, WindowOver, WindowPlacement, WindowRequest,
-    WindowResizeBegin,
+    WindowEdge, WindowLevel, WindowOpen, WindowOver, WindowPlace, WindowPlacement, WindowRequest,
+    WindowResize, WindowResizeBegin,
 };
 
 use super::*;
 
+mod a_window_closed_leaves_the_windows_opened_over_it;
+mod a_window_opened_at_the_pointer_opens_under_it;
 mod a_window_opened_from_a_view_asked_without_windows_is_not_floated;
+mod a_window_placed_and_resized_is_asked_for_where_it_went_and_at_its_new_size;
 mod a_window_pressed_and_asked_to_move_follows_the_pointer_from_the_press;
 mod a_window_opens_over_its_opener_and_is_asked_for_at_its_size_until_it_closes;
 mod raising_a_window_puts_it_on_top;

@@ -50,12 +50,35 @@ fn drag(host: &mut HostTest, grip: &str) {
     );
 }
 
+/// Types into the files' filter of the window by `grip`, which takes the keys: the filter in
+/// that window is the one nearest below its grip, within its left edge.
+fn type_into(host: &mut HostTest, grip: &str) {
+    let grip = host.place(grip);
+    let tree = host.tree();
+    let filter = tree
+        .lines()
+        .filter(|line| line.contains("#file-tree.filter"))
+        .filter_map(|line| {
+            let (_, at) = line.split_once(" at ")?;
+            let (at, _) = at.split_once(" size ")?;
+            let (x, y) = at.split_once(',')?;
+            Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?))
+        })
+        // Below its grip and within its left edge, not another window's under it.
+        .filter(|(x, y)| *y > grip.1 && *x >= grip.0)
+        .min_by(|left, right| left.1.total_cmp(&right.1))
+        .expect("the window shows the files' filter below its grip");
+    host.click(&format!("{},{}", filter.0 + 10.0, filter.1 + 10.0));
+    host.type_text("zebra");
+    host.wait("zebra");
+}
+
 #[test]
 fn be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip() {
     // A press on a desktop window's grip and a drag move the window with the pointer, under
     // be-host's UI and under the root alike: the desktop asks for the move (`begin-move`), and
     // be-host's desktop, or the root that floats its windows, follows the pointer until it is
-    // released.
+    // released. Where it moved to, it takes a press and the keys typed then.
     let mut host = HostTest::start(Options {
         desktop: true,
         previews: true,
@@ -63,11 +86,13 @@ fn be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip
     });
     let grip = new_session(&mut host);
     drag(&mut host, &grip);
+    type_into(&mut host, &grip);
     host.snapshot("the_host_moves_a_window_the_desktop_opens_by_its_grip");
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
     let grip = new_session(&mut host);
     drag(&mut host, &grip);
+    type_into(&mut host, &grip);
     host.snapshot("be_root_moves_a_window_the_desktop_opens_by_its_grip");
     host.close();
 }

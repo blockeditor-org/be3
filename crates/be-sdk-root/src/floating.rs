@@ -4,25 +4,12 @@
 //! (`HostView::Window`) once it opens (`window-request.open`), where its placement says (at the
 //! pointer, or over its opener), above its opener in the stack, until it closes.
 
-use std::cell::Cell;
-
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
 use be_sdk_api::{
     AnchorSpace, EditorInstanceId, HostTransform, HostView, ScreenId, ScreenRequest, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics, WindowLevel, WindowOpen, WindowRequest,
 };
 use be_sdk_window_stack::{Gesture, Host, Stacked};
-
-thread_local! {
-    /// Where the pointer last was in the root's main window, in its points: where a window
-    /// opened at the pointer opens.
-    static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
-}
-
-/// Notes where the pointer is in the root's main window, in its points.
-pub(crate) fn note_pointer(at: Pos2) {
-    POINTER.set(at);
-}
 
 /// A window an app opened that the root floats.
 #[derive(Clone, Debug, PartialEq)]
@@ -36,6 +23,8 @@ pub(crate) struct Floating {
     pub rect: Rect,
     /// Where it was last put, which keeping it on the window leaves alone.
     wanted: Rect,
+    /// The view it opened from, whose request its pixels per point and bounds follow.
+    opener: ViewRef,
     /// The window it opened over, if it opened from one.
     parent: Option<ViewId>,
     level: WindowLevel,
@@ -46,6 +35,15 @@ pub(crate) struct Floating {
 }
 
 impl Floating {
+    /// Follows its opener's request, as it is asked for now: it is laid out at the same pixels
+    /// per point, and anchors views within the same bounds.
+    fn follow(&mut self, opener: &ScreenRequest) {
+        self.raster = opener.metrics.raster.max(f32::EPSILON);
+        if let Some(space) = opener.anchor_space {
+            self.bounds = space.bounds;
+        }
+    }
+
     /// The screen it is asked for: a window (`HostView::Window`) of its size, which opens
     /// windows of its own, anchoring views anywhere its opener may.
     pub(crate) fn request(&self) -> ScreenRequest {
@@ -118,6 +116,8 @@ impl Stacked for Floating {
 /// Opens an app's windows: from the screens it is asked for, which name where its views are.
 struct Opener<'a> {
     screens: &'a [ScreenRequest],
+    /// Where the pointer is in the root's main window, in its points.
+    pointer: Pos2,
 }
 
 impl Opener<'_> {
@@ -134,7 +134,7 @@ impl Host<Floating> for Opener<'_> {
     }
 
     fn pointer(&self) -> Pos2 {
-        POINTER.get()
+        self.pointer
     }
 
     /// Where `at` in `view`'s points is in the window's: through the space it anchors views
@@ -172,6 +172,7 @@ impl Host<Floating> for Opener<'_> {
             screen: open.screen,
             rect,
             wanted: rect,
+            opener: open.opener,
             parent: opener.map(|opener| opener.view),
             level: open.level,
             raster: raster.max(f32::EPSILON),
@@ -204,18 +205,31 @@ pub(crate) struct Held {
 /// Takes in `requests`, the window requests a layout commit of the app made, over its `windows`,
 /// bottom first, with the `screens` it was asked for: a window opens (only from a screen asked
 /// with windows), is placed, resized, raised or closed, or begins to move or be resized with the
-/// pointer from where it was last `pressed` (else from where the pointer is). Answers whether any
-/// changed, and the move or resize begun.
+/// pointer from where it was last `pressed` (else from where the `pointer` is). Answers whether
+/// any changed, and the move or resize begun.
 pub(crate) fn hear(
     windows: &mut Vec<Floating>,
     screens: &[ScreenRequest],
     requests: Vec<WindowRequest>,
     pressed: Option<Pressed>,
+    pointer: Pos2,
 ) -> (bool, Option<Held>) {
+    if requests.is_empty() {
+        return (false, None);
+    }
     let before = windows.clone();
-    let mut opener = Opener { screens };
     let mut held = None;
     for request in requests {
+        // A window opens from any of the screens asked for, its windows' among them.
+        let asked: Vec<ScreenRequest> = screens
+            .iter()
+            .cloned()
+            .chain(windows.iter().map(Floating::request))
+            .collect();
+        let mut opener = Opener {
+            screens: &asked,
+            pointer,
+        };
         if let WindowRequest::Open(open) = &request {
             let windowed = opener
                 .screen(open.opener)
@@ -228,7 +242,7 @@ pub(crate) fn hear(
             let window = &windows[index];
             let (start, from) = pressed
                 .filter(|pressed| pressed.view == window.view)
-                .map_or((POINTER.get(), window.rect), |pressed| {
+                .map_or((pointer, window.rect), |pressed| {
                     (pressed.at, pressed.rect)
                 });
             held = Some(Held {
@@ -239,22 +253,20 @@ pub(crate) fn hear(
             });
         }
     }
-    // A window keeps a size it can be laid out at.
     for window in windows.iter_mut() {
-        let size = vec2(window.rect.width().max(1.0), window.rect.height().max(1.0));
-        window.rect = Rect::from_min_size(window.rect.min, size);
+        keep_a_size(window);
     }
     (*windows != before, held)
 }
 
 /// A press on the window showing `screen`, if one does: it comes in front, with the windows
 /// opened over it, as be-host's desktop raises one pressed; a move or resize it asks for next
-/// starts from where the pointer is now.
-pub(crate) fn press(windows: &mut Vec<Floating>, screen: ScreenId) -> Option<Pressed> {
+/// starts from where the pointer is now, at `pointer`.
+pub(crate) fn press(windows: &mut Vec<Floating>, screen: ScreenId, pointer: Pos2) -> Option<Pressed> {
     let index = windows.iter().position(|window| window.screen == screen)?;
     let pressed = Pressed {
         view: windows[index].view,
-        at: POINTER.get(),
+        at: pointer,
         rect: windows[index].rect,
     };
     be_sdk_window_stack::raise(windows, index);
@@ -269,11 +281,32 @@ pub(crate) fn drag(windows: &mut [Floating], held: Held, at: Pos2) -> bool {
     };
     let before: Vec<Rect> = windows.iter().map(|window| window.rect).collect();
     be_sdk_window_stack::drag(windows, index, held.gesture, held.from, at - held.start);
-    // A window resized keeps a size it can be laid out at.
-    let window = &mut windows[index];
-    let size = vec2(window.rect.width().max(1.0), window.rect.height().max(1.0));
-    window.rect = Rect::from_min_size(window.rect.min, size);
+    keep_a_size(&mut windows[index]);
     windows.iter().map(|window| window.rect).ne(before)
+}
+
+/// Each of `windows` follows its opener's request among `screens` (the screens asked for and
+/// the other windows'), as asked for now (`Floating::follow`).
+pub(crate) fn follow_openers(windows: &mut [Floating], screens: &[ScreenRequest]) {
+    for index in 0..windows.len() {
+        let opener = windows[index].opener;
+        let request = screens
+            .iter()
+            .cloned()
+            .chain(windows.iter().map(Floating::request))
+            .find(|request| (request.instance, request.view) == (opener.instance, opener.view));
+        if let Some(request) = request {
+            windows[index].follow(&request);
+        }
+    }
+}
+
+/// A window keeps a size it can be laid out at, where it is wanted too.
+fn keep_a_size(window: &mut Floating) {
+    let size = vec2(window.rect.width().max(1.0), window.rect.height().max(1.0));
+    if size != window.rect.size() {
+        window.set_rect(Rect::from_min_size(window.rect.min, size));
+    }
 }
 
 #[cfg(test)]
