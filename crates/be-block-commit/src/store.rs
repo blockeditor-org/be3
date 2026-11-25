@@ -238,8 +238,8 @@ impl MergeBaseWalk {
                     continue;
                 };
                 for parent in commit.parents {
-                    if !side.seen.contains_key(&parent) {
-                        side.seen.insert(parent, self.level);
+                    if let std::collections::hash_map::Entry::Vacant(e) = side.seen.entry(parent) {
+                        e.insert(self.level);
                         next.push(parent);
                     }
                 }
