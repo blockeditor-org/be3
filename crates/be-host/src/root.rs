@@ -365,8 +365,11 @@ impl RootShell {
         if self.core.desktop {
             let clock = self.time_origin.unwrap_or_else(|| context.now());
             for delivered in &done.host_input {
-                let Ok(events) = be_lib_ui_types::input::decode(&delivered.events) else {
-                    continue;
+                let events = match be_lib_ui_types::input::decode(&delivered.events) {
+                    Ok(events) => events,
+                    Err(why) => {
+                        return self.stopped(&format!("its input for a window cannot be read: {why}"));
+                    }
                 };
                 let input = events
                     .into_iter()
@@ -451,9 +454,10 @@ impl RootShell {
                 // layer's size (its pixels are the window's logical pixels) and draws once it
                 // drew something (`DesktopHost::picture`).
                 // Where it is placed is its layer's origin and its size, upright and unscaled:
-                // a window placed zoomed or turned is configured to its place's size, but where
-                // the compositor thinks it is (for its popups and the pointer, 4g7e3c) does not
-                // follow the zoom or the turn.
+                // a window placed zoomed or turned is configured to its place's size and hears
+                // its pointer in its own pixels (the root's router maps it), but where the
+                // compositor thinks it is, which its popups follow, does not follow the zoom or
+                // the turn.
                 Surface::Host(window) if self.core.desktop => {
                     let window = HostWindowId(window);
                     let origin = layer.transform.apply(beui::pos2(0.0, 0.0));

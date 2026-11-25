@@ -6,6 +6,8 @@ use crate::input::{Key, PointerButton};
 #[test]
 fn a_catch_turns_what_a_router_delivered_into_what_a_catcher_catches() {
     let mut catch = Catch::default();
+    // When every input was sampled: one instant, read once (an `Instant` has no fixed value
+    // to name), which the test only compares, never waits on.
     let now = Instant::now();
     let window = crate::window::WindowId::MAIN;
     // A press: where the pointer moved, the keyboard it gave, then the button.
@@ -29,6 +31,10 @@ fn a_catch_turns_what_a_router_delivered_into_what_a_catcher_catches() {
         .pointer_events()
         .map(|event| (event.phase, event.pos, event.pointer))
         .collect();
+    assert!(
+        caught.pointer_events().all(|event| event.time == now),
+        "each pointer event is when its input was sampled"
+    );
     assert_eq!(
         phases,
         vec![
@@ -62,6 +68,16 @@ fn a_catch_turns_what_a_router_delivered_into_what_a_catcher_catches() {
                 now,
             ),
             (Input::Scroll(ScrollDelta::Lines(vec2(0.0, 1.0))), now),
+            (
+                Input::InterceptedKey {
+                    key: Key::Tab,
+                    pressed: true,
+                    repeat: false,
+                },
+                now,
+            ),
+            (Input::PointerMoved(pos2(12.0, 20.0)), now),
+            (Input::Predicted(pos2(14.0, 20.0)), now),
             (Input::PointerLeft, now),
         ],
         window,
@@ -91,6 +107,20 @@ fn a_catch_turns_what_a_router_delivered_into_what_a_catcher_catches() {
             notches: Some(vec2(0.0, 1.0)),
         }
     );
-    assert_eq!(caught.events[3], Forwarded::Left);
+    assert_eq!(
+        caught.events[3],
+        Forwarded::KeyTaken,
+        "a key the host took for itself is a press taken from the catcher"
+    );
+    let Forwarded::Pointer { event, .. } = &caught.events[4] else {
+        panic!("the move is a pointer event");
+    };
+    assert_eq!(
+        event.predicted,
+        Some(pos2(14.0, 20.0)),
+        "the predicted point rides on the move before it"
+    );
+    assert_eq!(caught.events[5], Forwarded::Left);
+    assert_eq!(caught.events.len(), 6);
     assert!(!caught.hovered);
 }

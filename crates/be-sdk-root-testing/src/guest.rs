@@ -918,7 +918,6 @@ impl frames::Guest for Root {
             drop(embedding);
             root.heard(&drawn.own);
             root.heard(&focus);
-            let host_input = root.embedding.borrow_mut().take_host_input();
             let embedding = root.embedding.borrow();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
@@ -960,6 +959,9 @@ impl frames::Guest for Root {
                     _ => None,
                 }
             });
+            // What it delivered to the host's surfaces, the last of this frame's input taken.
+            drop(embedding);
+            let host_input = root.embedding.borrow_mut().take_host_input();
             FrameDone {
                 layers: drawn.layers,
                 next: next.map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),

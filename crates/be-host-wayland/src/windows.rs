@@ -423,7 +423,13 @@ impl Windows {
                 }
                 self.placed(id, rect);
             }
+            // Let go of, it lets go of the keyboard too, as a view going does
+            // (`unmounted_focused`): the host's router tells a layer that went nothing. Placed
+            // again, it starts with no focus, until that router gives it one.
             (None, true) => {
+                if self.focused() == Some(id) {
+                    self.focus(id, false);
+                }
                 self.unplaced(id, [None, None]);
                 if let Some(signals) = self.signals(id) {
                     signals.picture.borrow_mut().take();

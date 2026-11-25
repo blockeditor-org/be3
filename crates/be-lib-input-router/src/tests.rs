@@ -19,6 +19,8 @@ struct Surface {
     gestures: Option<Rect>,
     focus: bool,
     captures: bool,
+    /// Its own units a window point covers (`HitTest::scale`).
+    scale: f32,
 }
 
 impl Rects {
@@ -30,6 +32,7 @@ impl Rects {
             gestures: None,
             focus: true,
             captures: false,
+            scale: 1.0,
         });
         self
     }
@@ -79,6 +82,10 @@ impl HitTest for Rects {
 
     fn pans(&self, at: Pos2) -> bool {
         self.pans.is_some_and(|area| area.contains(at))
+    }
+
+    fn scale(&self, target: u32) -> f32 {
+        self.get(target).map_or(1.0, |surface| surface.scale)
     }
 }
 
@@ -165,6 +172,7 @@ mod a_programs_pen_and_the_mouse_each_hold_the_surface_they_pressed;
 mod a_release_after_the_window_lost_the_keyboard_goes_nowhere;
 mod a_repeat_and_the_release_of_a_held_key_go_where_its_press_went;
 mod a_scroll_and_a_touchpad_gesture_stay_with_the_surface_they_began_on;
+mod a_scroll_reaches_a_zoomed_surface_in_its_own_pixels;
 mod a_scroll_begun_where_a_camera_claims_it_stays_with_the_camera;
 mod a_wheel_over_an_editor_goes_to_the_outermost_camera_it_grants_the_gesture;
 mod a_window_that_never_takes_the_focus_leaves_it_with_the_window_that_had_it;
