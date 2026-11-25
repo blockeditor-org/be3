@@ -73,7 +73,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [
@@ -140,7 +139,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [
@@ -207,7 +205,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [
@@ -274,7 +271,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [
@@ -341,7 +337,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [
@@ -452,7 +447,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [
@@ -519,7 +513,6 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-text:be-type-text",
                 "//crates/be-type-workspace:be-type-workspace",
                 "//crates/be-wasm-ops:be-wasm-ops",
-                "//third-party/rust:rusqlite-0.32.1",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "test_features": [

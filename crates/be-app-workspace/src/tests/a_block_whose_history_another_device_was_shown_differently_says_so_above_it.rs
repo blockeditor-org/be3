@@ -17,11 +17,13 @@ fn a_block_whose_history_another_device_was_shown_differently_says_so_above_it()
         account: None,
         ours: 4,
         theirs: 3,
-        found: None,
     });
     store.add_block(info);
 
     show(&mut fixture, opened, None);
+    // The block is open and writable beneath the bar.
+    fixture.test.available_children();
+    fixture.settle();
 
     assert!(
         fixture.says(

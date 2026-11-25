@@ -3675,7 +3675,11 @@ impl HostCore {
                 self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
             }
             BlockCommand::Restore => self.restore(id),
-            BlockCommand::DismissLogDoubt => be_host_stack::dismiss_log_doubt(id),
+            // Only the shell, which shows the doubt, dismisses it: no other app hides a fork.
+            BlockCommand::DismissLogDoubt if from.is_some() && from == self.shell => {
+                be_host_stack::dismiss_log_doubt(id)
+            }
+            BlockCommand::DismissLogDoubt => {}
             // The runtime answers them for a host component and a Join member
             // (`Instances::act_on`).
             BlockCommand::TellMember(_) | BlockCommand::TellHost(_) => {}

@@ -18,23 +18,31 @@ const SPACING: Space = Space::Md;
 
 /// What the bar says of `doubt`.
 fn saying(doubt: &LogDoubt) -> &'static str {
-    match doubt.kind {
-        LogDoubtKind::Forked => {
-            "Another device was shown a different history of this block. The server may be showing people different versions."
-        }
-        LogDoubtKind::Misbehaved => {
+    match (doubt.kind, doubt.source) {
+        (LogDoubtKind::Misbehaved, _) => {
             "The server answered a check of this block's history with a proof that does not hold. It may be showing people different versions."
+        }
+        (LogDoubtKind::Forked, LogDoubtSource::Server) => {
+            "This device was shown a different history of this block earlier. The server may be showing people different versions."
+        }
+        (LogDoubtKind::Forked, _) => {
+            "Another device was shown a different history of this block. The server may be showing people different versions."
         }
     }
 }
 
-/// What Details says of `doubt`: where the other history came from and how long each is.
-fn details(doubt: &LogDoubt) -> String {
+/// What Details says of `doubt`, seen by account `me`: where the other history came from and
+/// how long each is.
+fn details(doubt: &LogDoubt, me: [u8; 16]) -> String {
+    let whose = match doubt.account {
+        Some(account) if account == me => "another of your devices",
+        _ => "someone else's device",
+    };
     let from = match doubt.source {
-        LogDoubtSource::Session => "a device open on this block with you",
-        LogDoubtSource::Commit => "a saved version of this block",
-        LogDoubtSource::Account => "another of your devices",
-        LogDoubtSource::Server => "what the server showed this device before",
+        LogDoubtSource::Session => format!("{whose}, open on this block with you"),
+        LogDoubtSource::Commit => format!("a version of this block saved on {whose}"),
+        LogDoubtSource::Account => "another of your devices".to_owned(),
+        LogDoubtSource::Server => "what the server showed this device before".to_owned(),
     };
     format!(
         "Found comparing with {from}. This device holds {} entries of the block's history, the other {}.",
@@ -56,7 +64,13 @@ pub(crate) fn LogDoubtBar(
         doubt.with(|doubt| doubt.as_ref().map(saying).unwrap_or_default().to_owned())
     });
     let detail = create_memo(move || {
-        doubt.with(|doubt| doubt.as_ref().map(details).unwrap_or_default())
+        let me = workspace.host().account_id().into_bytes();
+        doubt.with(|doubt| {
+            doubt
+                .as_ref()
+                .map(|doubt| details(doubt, me))
+                .unwrap_or_default()
+        })
     });
     view! {
         <Show value={move || doubt.with(Option::is_some)}>

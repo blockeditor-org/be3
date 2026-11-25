@@ -61,8 +61,8 @@ interface blocks {
         log-doubt: option<log-doubt>,
     }
 
-    /// Why a device doubts a block's signed log: what it found, where the other head came
-    /// from, and when, by the server's clock as the device estimates it.
+    /// Why a device doubts a block's signed log: what it found, and where the other head came
+    /// from.
     record log-doubt {
         kind: log-doubt-kind,
         source: log-doubt-source,
@@ -71,7 +71,6 @@ interface blocks {
         /// The sizes of the head this device kept and of the other one.
         ours: u64,
         theirs: u64,
-        found: option<s64>,
     }
 
     enum log-doubt-kind {

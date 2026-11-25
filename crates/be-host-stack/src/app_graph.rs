@@ -201,7 +201,6 @@ pub(crate) fn log_doubt_of(fork: &be_block_client::LogFork) -> Option<be_sdk_api
         account: account.map(Uuid::into_bytes),
         ours: fork.ours.size,
         theirs: fork.theirs.size,
-        found: fork.found,
     })
 }
 
