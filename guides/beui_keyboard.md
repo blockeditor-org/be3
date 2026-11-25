@@ -255,8 +255,15 @@ points at nothing until it moves); the app host
 fills its `InputBatch` with it, so an app's runner sees what a window's does.
 An app has a `Replay` per view but its runner keeps one set of modifiers, so
 the app's replays share one `Heard`: modifiers go out with a press or key only
-when they differ from what the app last heard through any view, and always
-after a view lost the keyboard, since the runner lets go of them then.
+when they differ from what the app last heard through any view. Modifiers are state,
+like focus: a view that gets the keyboard (a click or key focuses it, or the host
+announces it holding the keyboard, `Instances::announce`) is sent `Input::Focus(true)`
+and then `Input::Modifiers` of the ones held now, whatever the app heard before (`Replay`
+forgets what it heard whenever the keyboard changes views, `Replay::modifiers_now`). A view
+never hears the presses that made them held: Ctrl held, then a click on an unfocused view,
+gives that view `Focus(true)`, `Modifiers(ctrl)`, then the click. Input made before a
+screen is announced is dropped (`Instances::gate`), and forgets what the app heard, so what
+it held is sent with the next input that gets through.
 An app's document starts without the keyboard (`use_document_keyboard()` false) and
 has it while any of its views does; a focused view that closes takes it away.
 `Editor::has_keyboard` says whether one of that editor's own views has it

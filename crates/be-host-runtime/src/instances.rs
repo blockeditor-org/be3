@@ -3848,6 +3848,11 @@ impl Instances {
             if self.announced.contains(&id) && !before.contains(&id) && screen.input.focused() {
                 let mut batch = be_sdk_api::InputBatch::new(id, false);
                 batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
+                // The keyboard's modifiers are state too, told with it.
+                self.heard.forget();
+                if let Some(modifiers) = screen.input.modifiers_now() {
+                    batch.push(be_sdk_api::TimedInput::from(modifiers));
+                }
                 messages.push(Outbound::App(AppCall::Input(batch)));
             }
         }

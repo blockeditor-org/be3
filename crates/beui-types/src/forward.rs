@@ -100,6 +100,13 @@ impl Heard {
         self.0.set(None);
     }
 
+    /// Like `tell`, but for a view that has just got the keyboard: where the program let go of
+    /// its modifiers (`forget`) and none are held, there is nothing to say.
+    fn restate(&self, modifiers: Modifiers) -> bool {
+        let before = self.0.replace(Some(modifiers));
+        before != Some(modifiers) && !(before.is_none() && modifiers == Modifiers::NONE)
+    }
+
     fn tell(&self, modifiers: Modifiers) -> bool {
         self.0.replace(Some(modifiers)) != Some(modifiers)
     }
@@ -113,6 +120,8 @@ pub struct Replay {
     heard: Heard,
     pressed: u32,
     away: bool,
+    /// The modifiers the latest input held, which a view gaining the keyboard is told.
+    held: Modifiers,
 }
 
 impl Replay {
@@ -128,6 +137,15 @@ impl Replay {
 
     pub fn focused(&self) -> bool {
         self.focused
+    }
+
+    /// The input that tells a view that has just got the keyboard which modifiers are held now,
+    /// if the program does not know: modifiers are state, so it hears "these are held", never
+    /// the presses that made them so.
+    pub fn modifiers_now(&mut self) -> Option<Input> {
+        self.heard
+            .restate(self.held)
+            .then_some(Input::Modifiers(self.held))
     }
 
     /// Counts no pointer button as held: the program heard none go down, so it must hear none
@@ -148,6 +166,7 @@ impl Replay {
             false => 1.0,
         };
         let mut out = Vec::new();
+        self.held = input.modifiers;
         for event in &input.events {
             match event {
                 Forwarded::Pointer { event, over } => {
@@ -189,10 +208,13 @@ impl Replay {
                 Forwarded::Focus(focused) | Forwarded::Input(Event::Focus(focused)) => {
                     if self.focused != *focused {
                         self.focused = *focused;
-                        if !focused {
-                            self.heard.forget();
-                        }
+                        // Whatever the program heard of its modifiers was for the view that had
+                        // the keyboard: the one that gets it is told them as its state.
+                        self.heard.forget();
                         out.push(Input::Focus(*focused).into());
+                        if *focused {
+                            out.extend(self.modifiers_now().map(Replayed::from));
+                        }
                     }
                 }
                 Forwarded::Input(event) => self.input(event, &mut out),
