@@ -59,6 +59,8 @@ pub struct BeuiRoot(Rc<Shared>);
 struct Shared {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    /// Set once the host reports the device lost.
+    lost: beui_renderer_wgpu::Lost,
     fonts: FontLibrary,
     /// The instant the frame clock's zero is at, so beui's clock reads the host's frame time.
     epoch: Instant,
@@ -91,6 +93,7 @@ impl BeuiRoot {
         // times after.
         let real = Instant::now();
         Ok(Self(Rc::new(Shared {
+            lost: beui_renderer_wgpu::Lost::watch(&device),
             device,
             queue,
             fonts,
@@ -516,13 +519,18 @@ impl OwnRenderer {
         scale: f32,
         background: Color32,
     ) -> Result<(), String> {
-        let Shared { device, queue, .. } = &*self.root.0;
+        let Shared {
+            device,
+            queue,
+            lost,
+            ..
+        } = &*self.root.0;
         let surface = self.drawn.surface.borrow();
         let (width, height) = surface.size();
         let texture = be_wasm_gpu_guest::texture(surface.acquire()?)?;
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let renderer = self.renderer.get_or_insert_with(|| {
-            beui_renderer_wgpu::Renderer::new(&Resources::shared(device, FORMAT))
+            beui_renderer_wgpu::Renderer::new(&Resources::shared(device, FORMAT, lost))
         });
         let screen = vec2(width as f32, height as f32);
         // The texture may hold any older frame, so the whole of it is drawn.

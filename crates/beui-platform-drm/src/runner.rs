@@ -4,8 +4,6 @@ use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use beui::{
@@ -123,7 +121,9 @@ pub struct Session {
     filter_timer: Option<(Duration, RegistrationToken)>,
     wakeup: Option<(Duration, RegistrationToken)>,
     darken_retry: Option<RegistrationToken>,
-    lost: Arc<AtomicBool>,
+    lost: beui_host::native::Lost,
+    /// Whether the session already began ending for the GPU's loss.
+    ending: bool,
     problems: Problems,
     /// Fingers are on a trackpad, scrolling: libinput has sent a finger
     /// scroll and not yet the zero that ends it.
@@ -213,9 +213,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let control = InputControl::new(waker.clone());
     let display_control = DisplayControl::new(waker.clone());
 
-    let lost = Arc::new(AtomicBool::new(false));
-    let (device, queue) = open_gpu(node, &lost)?;
-    let gpu = Rc::new(Gpu::new(device, queue, FORMAT));
+    let (device, queue, lost) = open_gpu(node)?;
+    let gpu = Rc::new(Gpu::new(device, queue, FORMAT, &lost));
     let buffers = buffers(fd, node, &gpu)?;
     let forced_scale = scale();
     let outputs = Rc::new(RefCell::new(Outputs::new(
@@ -317,6 +316,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         wakeup: None,
         darken_retry: None,
         lost,
+        ending: false,
         problems,
         fingers_scrolling: false,
     };
@@ -437,7 +437,7 @@ fn scale() -> Option<f32> {
         .filter(|scale| scale.is_finite() && *scale > 0.0)
 }
 
-fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Queue), String> {
+fn open_gpu(node: u64) -> Result<(wgpu::Device, wgpu::Queue, beui_host::native::Lost), String> {
     let adapter = adapter_for(node).ok_or("no Vulkan device was found")?;
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("beui device"),
@@ -450,12 +450,8 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
     let (device, queue) =
         beui_host::native::open_vulkan_device(&adapter, &descriptor, &DEVICE_EXTENSIONS)
             .ok_or("the Vulkan device could not be opened")?;
-    let flag = lost.clone();
-    device.set_device_lost_callback(move |_, message| {
-        eprintln!("beui: the GPU was lost: {message}");
-        flag.store(true, Ordering::SeqCst);
-    });
-    Ok((device, queue))
+    let lost = beui_host::native::Lost::watch(&device);
+    Ok((device, queue, lost))
 }
 
 impl Session {
@@ -486,7 +482,8 @@ impl Session {
     }
 
     fn idle(&mut self) {
-        if self.lost.swap(false, Ordering::SeqCst) {
+        if self.lost.is_lost() && !self.ending {
+            self.ending = true;
             self.recover();
         }
         if let Some(config) = self.control.take() {

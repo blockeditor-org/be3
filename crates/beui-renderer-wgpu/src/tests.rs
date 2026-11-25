@@ -20,6 +20,7 @@ mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_glyph_paints_its_own_colours_beside_tinted_text;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
 mod a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views;
+mod a_device_lost_before_wgpu_reports_it_draws_nothing_rather_than_panicking;
 mod a_drawing_paints_between_the_shapes_around_it;
 mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it;
@@ -165,11 +166,17 @@ impl Target {
             trace: wgpu::Trace::Off,
         }))
         .expect("the adapter did not provide a device");
-        Self::on(device, queue, format)
+        let lost = crate::Lost::watch(&device);
+        Self::on(device, queue, format, &lost)
     }
 
-    pub fn on(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let renderer = Renderer::new(&crate::Resources::new(&device, format));
+    pub fn on(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+        lost: &crate::Lost,
+    ) -> Self {
+        let renderer = Renderer::new(&crate::Resources::new(&device, format, lost));
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui test target"),
             size: wgpu::Extent3d {
@@ -200,7 +207,12 @@ impl Target {
     }
 
     pub fn sharing(other: &Self) -> Self {
-        let mut target = Self::on(other.device.clone(), other.queue.clone(), other.format);
+        let mut target = Self::on(
+            other.device.clone(),
+            other.queue.clone(),
+            other.format,
+            &Default::default(),
+        );
         target.renderer = Renderer::new(other.renderer.resources());
         target
     }
