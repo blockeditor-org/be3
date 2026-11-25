@@ -7,7 +7,7 @@ fn a_terminal_whose_agent_cannot_be_removed_is_kept() {
     let block = boat.connected(agent);
 
     boat.test
-        .click(&format!("boat.sandbox.{RUNNING}.terminal.disconnect"));
+        .click(format!("boat.sandbox.{RUNNING}.terminal.disconnect"));
     let (reply, _) = boat.host_call("the agent removed", |call| match call {
         HostCall::RemoveAgent { reply, agent } => Ok((reply, agent)),
         call => Err(call),
