@@ -142,6 +142,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
             // only where it would land: worked out at the first ask, and again only once the
             // zoom changes, in the timeline's content, and placed where its pan shows them.
             .stepping({
+                #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
                 let found: Rc<RefCell<Option<(f32, Vec<drag::Stop>)>>> = Rc::default();
                 move |_| {
                     let mut found = found.borrow_mut();
