@@ -43,11 +43,18 @@ fn an_alert_in_a_view_that_opens_windows_dims_the_whole_view() {
         session.commit(&mut commit);
         opened.extend(commit.window_requests);
     }
-    assert!(
-        opened
-            .iter()
-            .any(|request| matches!(request, be_sdk_api::WindowRequest::Open(_))),
-        "the alert opens as a window of its own: {opened:?}"
+    let levels: Vec<_> = opened
+        .iter()
+        .filter_map(|request| match request {
+            be_sdk_api::WindowRequest::Open(open) => Some(open.level),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        levels,
+        [be_sdk_api::WindowLevel::Normal],
+        "the alert opens as a window of its own, at the normal level: an app's dialog never \
+         floats over other programs while its cover dims only the app's view: {opened:?}"
     );
     let report = session.report(View::MAIN.id).expect("the frame reports");
     let scrims: Vec<_> = report.scrims.iter().map(|scrim| scrim.rect).collect();

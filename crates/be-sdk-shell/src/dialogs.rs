@@ -55,6 +55,7 @@ fn UnreadableLayoutDialog(workspace: Workspace) -> NodeId {
             title="The layout of this session could not be read"
             width=Size::Dialog
             id="workspace.layout"
+            level=be_sdk_beui::beui::LayerLevel::Raised
             actions={vec![
                 DialogAction::secondary("Copy report", move || {
                     if let Some(report) = report.get_untracked() {
