@@ -52,15 +52,18 @@ async fn a_log_that_grows_while_heads_are_compared_is_read_again() {
     // The tablet's first read of the head is answered before the laptop appends, and held
     // until after it.
     relay.hold_answers(true);
-    let heard = relay.heard();
+    let held = relay.held();
     let comparing = {
         let tablet = std::sync::Arc::clone(&tablet);
         let older = older.clone();
         tokio::spawn(async move { tablet.compare_log_head(chat, older, HeadVia::Session).await })
     };
     reads.wait_for(|reads| *reads >= 1).await.unwrap();
-    // The server answered it, and its answer waits at the relay.
-    relay.heard_beyond(heard).await;
+    // The server answered it, and its answer waits at the relay: only then does the log grow.
+    // (Waiting on what the relay heard from the client, as this once did, passed as soon as
+    // the read was sent, so the append could reach the server first, and the read see the
+    // longer head at once: two reads.)
+    relay.held_beyond(held).await;
     append("four").await;
     relay.hold_answers(false);
     assert_eq!(
