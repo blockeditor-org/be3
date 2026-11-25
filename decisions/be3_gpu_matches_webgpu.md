@@ -2,18 +2,19 @@
 
 `be3:gpu` (`crates/be-wasm-gpu-abi/wit`) gives an app what JS WebGPU gives a page: every
 interface, method, descriptor field, feature, limit and error WebGPU has, with WebGPU's
-meaning, and nothing WebGPU lacks except what an app needs from its host (below). It is shaped
-after wasi:webgpu (the wasi-gfx proposal) so that a component-model WebGPU could replace it if
-hosts ship one. plans/be3_gpu_matches_webgpu.md lists what it still lacks.
+meaning, and nothing WebGPU lacks except what an app needs from its host (below). The means
+is wasi:webgpu itself (decisions/be3_gpu_is_wasi_webgpu.md), so that a component-model WebGPU
+could take its place if hosts ship one.
 
 Where the WIT cannot say something the way WebGPU does, it says the same thing another way
 and keeps WebGPU's values: a canvas's `viewFormats` is a list even though a record holding a
 list is passed encoded rather than as flat wasm values.
 
-What it has beyond WebGPU is only the host's part of an app's life, each as wasi-gfx shapes
-it: the surfaces the host shows (an explicit `present`, as wasi:graphics-context has, and
-`age`), textures the host shares under an image id (`import-texture`), and `poll`, through
-which callbacks reach a wasm app that has no event loop of its own.
+What it has beyond WebGPU is only the host's part of an app's life, in `be3:gpu`'s own
+interface beside wasi:webgpu: the surfaces the host shows (an explicit `present`, as
+wasi:graphics-context had, and `age`), textures the host shares under an image id
+(`import-texture`), and the poll through which callbacks reach a wasm app that has no event
+loop of its own.
 
 External textures and external image copies are deferred until apps get camera access
 (plans/deferred/app_libraries.md, "External textures").
