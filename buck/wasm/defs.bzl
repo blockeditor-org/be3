@@ -28,7 +28,9 @@ _guest_exports = [
 
 # A program in the browser: wasm32-wasip1-threads, which wasm-bindgen prepares
 # for threads with the thread-local exports, and wasi-libc's setjmp and
-# no-exceptions libc++ for the C and C++ it links.
+# no-exceptions libc++ for the C and C++ it links. wasm-bindgen itself binds
+# nothing on a WASI target since 0.2.123; third-party/rust/fixups.bzl's
+# overlays (js-sys) make it bind them as it did before.
 _program_flags = [
     "-Clink-arg=--export=__heap_base",
     "-Clink-arg=--export=__tls_base",
