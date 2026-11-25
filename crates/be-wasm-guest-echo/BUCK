@@ -1,11 +1,11 @@
 load("@root//buck/cargo:defs.bzl", "cargo_package")
-load("@root//buck/wasm:defs.bzl", "app_module", "wasm32_crate")
+load("@root//buck/wasm:defs.bzl", "app_module", "pure_guest_crate")
 
 cargo_package()
 
 # The smallest guest without a gpu, a library or WASI: the tests of
 # be-wasm-guest-host and be-wasm-host start it in process and as this module.
-wasm32_crate()
+pure_guest_crate()
 
 # The same guest as a staged app (manifest.json), linked against the base
 # library and given WASI, which be-wasm-sandbox-host's tests spawn by its id.

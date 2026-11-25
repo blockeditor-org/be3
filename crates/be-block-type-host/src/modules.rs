@@ -140,6 +140,15 @@ pub fn tag_of(bytes: &[u8]) -> SessionTag {
     SessionTag(*be_block_store::Hash::of(bytes).as_bytes())
 }
 
+/// Fresh randomness for a type module started in a host of its own, which it draws all its
+/// randomness from (guides/app_libraries.md, Pure guests): its uuids and std's hash keys.
+fn seed() -> [u8; 32] {
+    let mut seed = [0; 32];
+    seed[..16].copy_from_slice(Uuid::new_v4().as_bytes());
+    seed[16..].copy_from_slice(Uuid::new_v4().as_bytes());
+    seed
+}
+
 pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
     let name = name.into();
     Source {
@@ -167,7 +176,7 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = be_wasm_host::Host::pure()?;
+            let host = be_wasm_host::Host::pure()?.with_seed(seed());
             let channel = host.spawn(
                 name.clone(),
                 move |host| load(host),
@@ -187,8 +196,12 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel =
-                be_wasm_guest_host::web::WebGuest::<Infallible>::start(&url, None, wake, waiting)?;
+            let channel = be_wasm_guest_host::web::WebGuest::<Infallible>::start_pure(
+                &url,
+                seed(),
+                wake,
+                waiting,
+            )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -512,9 +525,7 @@ impl Modules {
                 held.tag = tag;
                 held.failure = None;
                 held.worker = Some(Worker::new(channel, waiting));
-                let mut entropy = Uuid::new_v4().as_bytes().to_vec();
-                entropy.extend_from_slice(Uuid::new_v4().as_bytes());
-                held.started = Some(replicas::start(&mut held.connection, entropy));
+                held.started = Some(replicas::start(&mut held.connection));
                 self.flush(module);
             }
             Err(error) => {

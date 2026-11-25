@@ -27,9 +27,10 @@ talks to its host only through typed operations. be-host's peer, `be` and
   that every `Document<R>` and `Blob<K>` works with unchanged.
 - `crates/be-block-type-host`: the host half every host shares (Hosts, below).
 
-A type module is pure Rust and small. It builds for
-`wasm32-unknown-unknown` and runs with no WASI (`be_wasm_host::Host::pure`),
-so it links no C or C++ and no crate made for hosts. Its types crate depends
+A type module is pure Rust and small. It builds for `wasm32-wasip1` with the
+apps (guides/app_libraries.md, Pure guests) and runs as a pure guest
+(`be_wasm_host::Host::pure`), answered only a few WASI calls, so it links no C
+or C++ and no crate made for hosts. Its types crate depends
 on `crates/be-block-content` (`BlockContent` and the traits beside it,
 metadata, `Root`, blobs, settings kinds' `Layered`) and never on
 `crates/be-block`, which holds the types the host applies itself and their
@@ -140,11 +141,12 @@ answered, so a server ignores ones it does not know.
 
 ## The protocol
 
-The module imports `host` and exports `replicas`. `replicas.start(entropy)`
+The module imports `host` and exports `replicas`. `replicas.start()`
 comes first: it answers the module's types, each with everything the host
 keeps about it (`type-info`: its schema, plain form, blank content and that
-content's description), and seeds the module's randomness, since a pure guest
-has none.
+content's description). Its randomness (`random_get`, which getrandom and std's
+hash keys read) is its host's, from a seed be-block-type-host draws afresh for
+each start (`Host::with_seed` natively, `WebGuest::start_pure` on the web).
 
 Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
 `search-text`, `places`, `unread`, `claims`, `apply`) are answered in the step that asks,

@@ -60,6 +60,8 @@ impl Game {
     pub fn load(module: &[u8]) -> Result<Self, String> {
         let mut config = Config::default();
         config.consume_fuel(true);
+        // Relaxed SIMD's results differ between machines, which a pure guest may not depend on.
+        config.wasm_relaxed_simd(false);
         let engine = Engine::new(&config);
         let module = Module::new(&engine, module)
             .map_err(|error| format!("this is not a game module: {error}"))?;

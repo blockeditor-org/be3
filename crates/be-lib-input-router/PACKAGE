@@ -102,17 +102,6 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
-            "binaries": {},
-            "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
-                "//crates/be-lib-ui-types:be-lib-ui-types",
-            ],
-            "examples": {},
-            "features": [],
-            "test_deps": [],
-            "test_features": [],
-        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

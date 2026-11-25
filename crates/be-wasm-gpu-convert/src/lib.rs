@@ -1,9 +1,39 @@
-use crate::device as abi;
+//! Conversions between the gpu ABI's types (be-wasm-gpu-abi) and wgpu's, which the guest's
+//! backend (be-wasm-gpu-guest) and the host (be-wasm-gpu-host) share. A crate of its own, so the
+//! ABI reaches a pure guest without wgpu, which on wasm32 links wasm-bindgen
+//! (guides/app_libraries.md, Pure guests). They are traits of this crate's, since neither side's
+//! types are.
+
+use be_wasm_gpu_abi::device as abi;
+
+/// `self` as the other side's `T`.
+pub trait Convert<T> {
+    fn convert(self) -> T;
+}
+
+/// `self` as the other side's `T`, or `self` back if `T` has nothing like it.
+pub trait TryConvert<T>: Sized {
+    fn try_convert(self) -> Result<T, Self>;
+}
+
+/// A conversion that always succeeds, as a `TryConvert` too.
+macro_rules! infallible {
+    ($($from:ty => $to:ty),* $(,)?) => {
+        $(impl TryConvert<$to> for $from {
+            fn try_convert(self) -> Result<$to, Self> {
+                Ok(self.convert())
+            }
+        })*
+    };
+}
+
+infallible!(wgpu::Extent3d => abi::Extent3d, wgpu::Color => abi::Color);
 
 macro_rules! plain_map {
     ($abi:path, $wgpu:path, { $($variant:ident),+ $(,)? } $(, { $($named:ident = $value:expr),+ $(,)? })?) => {
-        impl From<$abi> for $wgpu {
-            fn from(value: $abi) -> Self {
+        impl Convert<$wgpu> for $abi {
+            fn convert(self) -> $wgpu {
+                let value = self;
                 use $abi as Abi;
                 use $wgpu as Wgpu;
                 match value {
@@ -13,11 +43,10 @@ macro_rules! plain_map {
             }
         }
 
-        impl TryFrom<$wgpu> for $abi {
-            type Error = $wgpu;
-
+        impl TryConvert<$abi> for $wgpu {
             #[allow(unreachable_patterns)]
-            fn try_from(value: $wgpu) -> Result<Self, $wgpu> {
+            fn try_convert(self) -> Result<$abi, $wgpu> {
+                let value = self;
                 use $abi as Abi;
                 use $wgpu as Wgpu;
                 match value {
@@ -174,8 +203,9 @@ plain_map!(abi::StorageTextureAccess, wgpu::StorageTextureAccess, {
 
 plain_map!(abi::StoreOp, wgpu::StoreOp, { Store, Discard });
 
-impl From<abi::Extent3d> for wgpu::Extent3d {
-    fn from(value: abi::Extent3d) -> Self {
+impl Convert<wgpu::Extent3d> for abi::Extent3d {
+    fn convert(self) -> wgpu::Extent3d {
+        let value = self;
         wgpu::Extent3d {
             width: value.width,
             height: value.height,
@@ -184,8 +214,9 @@ impl From<abi::Extent3d> for wgpu::Extent3d {
     }
 }
 
-impl From<wgpu::Extent3d> for abi::Extent3d {
-    fn from(value: wgpu::Extent3d) -> Self {
+impl Convert<abi::Extent3d> for wgpu::Extent3d {
+    fn convert(self) -> abi::Extent3d {
+        let value = self;
         abi::Extent3d {
             width: value.width,
             height: value.height,
@@ -194,8 +225,9 @@ impl From<wgpu::Extent3d> for abi::Extent3d {
     }
 }
 
-impl From<abi::Color> for wgpu::Color {
-    fn from(value: abi::Color) -> Self {
+impl Convert<wgpu::Color> for abi::Color {
+    fn convert(self) -> wgpu::Color {
+        let value = self;
         wgpu::Color {
             r: value.r,
             g: value.g,
@@ -205,8 +237,9 @@ impl From<abi::Color> for wgpu::Color {
     }
 }
 
-impl From<wgpu::Color> for abi::Color {
-    fn from(value: wgpu::Color) -> Self {
+impl Convert<abi::Color> for wgpu::Color {
+    fn convert(self) -> abi::Color {
+        let value = self;
         abi::Color {
             r: value.r,
             g: value.g,
@@ -216,60 +249,61 @@ impl From<wgpu::Color> for abi::Color {
     }
 }
 
-impl From<abi::BlendComponent> for wgpu::BlendComponent {
-    fn from(value: abi::BlendComponent) -> Self {
+impl Convert<wgpu::BlendComponent> for abi::BlendComponent {
+    fn convert(self) -> wgpu::BlendComponent {
+        let value = self;
         wgpu::BlendComponent {
-            src_factor: value.src_factor.into(),
-            dst_factor: value.dst_factor.into(),
-            operation: value.operation.into(),
+            src_factor: value.src_factor.convert(),
+            dst_factor: value.dst_factor.convert(),
+            operation: value.operation.convert(),
         }
     }
 }
 
-impl TryFrom<wgpu::BlendComponent> for abi::BlendComponent {
-    type Error = wgpu::BlendComponent;
-
-    fn try_from(value: wgpu::BlendComponent) -> Result<Self, Self::Error> {
+impl TryConvert<abi::BlendComponent> for wgpu::BlendComponent {
+    fn try_convert(self) -> Result<abi::BlendComponent, wgpu::BlendComponent> {
+        let value = self;
         let convert = || {
             Some(abi::BlendComponent {
-                src_factor: value.src_factor.try_into().ok()?,
-                dst_factor: value.dst_factor.try_into().ok()?,
-                operation: value.operation.try_into().ok()?,
+                src_factor: value.src_factor.try_convert().ok()?,
+                dst_factor: value.dst_factor.try_convert().ok()?,
+                operation: value.operation.try_convert().ok()?,
             })
         };
         convert().ok_or(value)
     }
 }
 
-impl From<abi::StencilFaceState> for wgpu::StencilFaceState {
-    fn from(value: abi::StencilFaceState) -> Self {
+impl Convert<wgpu::StencilFaceState> for abi::StencilFaceState {
+    fn convert(self) -> wgpu::StencilFaceState {
+        let value = self;
         wgpu::StencilFaceState {
-            compare: value.compare.into(),
-            fail_op: value.fail_op.into(),
-            depth_fail_op: value.depth_fail_op.into(),
-            pass_op: value.pass_op.into(),
+            compare: value.compare.convert(),
+            fail_op: value.fail_op.convert(),
+            depth_fail_op: value.depth_fail_op.convert(),
+            pass_op: value.pass_op.convert(),
         }
     }
 }
 
-impl TryFrom<wgpu::StencilFaceState> for abi::StencilFaceState {
-    type Error = wgpu::StencilFaceState;
-
-    fn try_from(value: wgpu::StencilFaceState) -> Result<Self, Self::Error> {
+impl TryConvert<abi::StencilFaceState> for wgpu::StencilFaceState {
+    fn try_convert(self) -> Result<abi::StencilFaceState, wgpu::StencilFaceState> {
+        let value = self;
         let convert = || {
             Some(abi::StencilFaceState {
-                compare: value.compare.try_into().ok()?,
-                fail_op: value.fail_op.try_into().ok()?,
-                depth_fail_op: value.depth_fail_op.try_into().ok()?,
-                pass_op: value.pass_op.try_into().ok()?,
+                compare: value.compare.try_convert().ok()?,
+                fail_op: value.fail_op.try_convert().ok()?,
+                depth_fail_op: value.depth_fail_op.try_convert().ok()?,
+                pass_op: value.pass_op.try_convert().ok()?,
             })
         };
         convert().ok_or(value)
     }
 }
 
-impl From<abi::BindingType> for wgpu::BindingType {
-    fn from(value: abi::BindingType) -> Self {
+impl Convert<wgpu::BindingType> for abi::BindingType {
+    fn convert(self) -> wgpu::BindingType {
+        let value = self;
         match value {
             abi::BindingType::Buffer(abi::BufferBindingLayout {
                 kind,
@@ -288,7 +322,7 @@ impl From<abi::BindingType> for wgpu::BindingType {
                 has_dynamic_offset,
                 min_binding_size: min_binding_size.and_then(wgpu::BufferSize::new),
             },
-            abi::BindingType::Sampler(kind) => wgpu::BindingType::Sampler(kind.into()),
+            abi::BindingType::Sampler(kind) => wgpu::BindingType::Sampler(kind.convert()),
             abi::BindingType::Texture(abi::TextureBindingLayout {
                 sample_type,
                 view_dimension,
@@ -305,7 +339,7 @@ impl From<abi::BindingType> for wgpu::BindingType {
                     abi::TextureSampleType::Sint => wgpu::TextureSampleType::Sint,
                     abi::TextureSampleType::Uint => wgpu::TextureSampleType::Uint,
                 },
-                view_dimension: view_dimension.into(),
+                view_dimension: view_dimension.convert(),
                 multisampled,
             },
             abi::BindingType::StorageTexture(abi::StorageTextureBindingLayout {
@@ -313,18 +347,17 @@ impl From<abi::BindingType> for wgpu::BindingType {
                 format,
                 view_dimension,
             }) => wgpu::BindingType::StorageTexture {
-                access: access.into(),
-                format: format.into(),
-                view_dimension: view_dimension.into(),
+                access: access.convert(),
+                format: format.convert(),
+                view_dimension: view_dimension.convert(),
             },
         }
     }
 }
 
-impl TryFrom<wgpu::BindingType> for abi::BindingType {
-    type Error = wgpu::BindingType;
-
-    fn try_from(value: wgpu::BindingType) -> Result<Self, Self::Error> {
+impl TryConvert<abi::BindingType> for wgpu::BindingType {
+    fn try_convert(self) -> Result<abi::BindingType, wgpu::BindingType> {
+        let value = self;
         let convert = || {
             Some(match value {
                 wgpu::BindingType::Buffer {
@@ -345,7 +378,7 @@ impl TryFrom<wgpu::BindingType> for abi::BindingType {
                     min_binding_size: min_binding_size.map(wgpu::BufferSize::get),
                 }),
                 wgpu::BindingType::Sampler(kind) => {
-                    abi::BindingType::Sampler(kind.try_into().ok()?)
+                    abi::BindingType::Sampler(kind.try_convert().ok()?)
                 }
                 wgpu::BindingType::Texture {
                     sample_type,
@@ -363,7 +396,7 @@ impl TryFrom<wgpu::BindingType> for abi::BindingType {
                         wgpu::TextureSampleType::Sint => abi::TextureSampleType::Sint,
                         wgpu::TextureSampleType::Uint => abi::TextureSampleType::Uint,
                     },
-                    view_dimension: view_dimension.try_into().ok()?,
+                    view_dimension: view_dimension.try_convert().ok()?,
                     multisampled,
                 }),
                 wgpu::BindingType::StorageTexture {
@@ -371,9 +404,9 @@ impl TryFrom<wgpu::BindingType> for abi::BindingType {
                     format,
                     view_dimension,
                 } => abi::BindingType::StorageTexture(abi::StorageTextureBindingLayout {
-                    access: access.try_into().ok()?,
-                    format: format.try_into().ok()?,
-                    view_dimension: view_dimension.try_into().ok()?,
+                    access: access.try_convert().ok()?,
+                    format: format.try_convert().ok()?,
+                    view_dimension: view_dimension.try_convert().ok()?,
                 }),
                 _ => return None,
             })
@@ -382,8 +415,9 @@ impl TryFrom<wgpu::BindingType> for abi::BindingType {
     }
 }
 
-impl From<&abi::CompilationMessage> for wgpu::CompilationMessage {
-    fn from(value: &abi::CompilationMessage) -> Self {
+impl Convert<wgpu::CompilationMessage> for &abi::CompilationMessage {
+    fn convert(self) -> wgpu::CompilationMessage {
+        let value = self;
         wgpu::CompilationMessage {
             message: value.message.clone(),
             message_type: match value.message_type {
@@ -404,8 +438,9 @@ impl From<&abi::CompilationMessage> for wgpu::CompilationMessage {
     }
 }
 
-impl From<&wgpu::CompilationMessage> for abi::CompilationMessage {
-    fn from(value: &wgpu::CompilationMessage) -> Self {
+impl Convert<abi::CompilationMessage> for &wgpu::CompilationMessage {
+    fn convert(self) -> abi::CompilationMessage {
+        let value = self;
         abi::CompilationMessage {
             message: value.message.clone(),
             message_type: match value.message_type {

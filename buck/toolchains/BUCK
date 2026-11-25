@@ -264,7 +264,8 @@ pinned_rust_toolchain(
     })
     + select({
         "DEFAULT": [],
-        # Apps only: a game runs in wasmi, which takes no SIMD.
+        # Every guest: a game runs in wasmi with its `simd` feature
+        # (crates/tabletop-host).
         "prelude//os:wasi": ["-Ctarget-feature=+simd128"],
     }),
     rustc_target_triple = per_cross_platform(

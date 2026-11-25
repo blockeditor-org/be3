@@ -29,7 +29,7 @@ fn a_type_module_answers_on_a_thread_of_its_own() {
         );
     }
     let mut host = Connection::new(Side::Host);
-    let started = replicas::start(&mut host, vec![3; 32]);
+    let started = replicas::start(&mut host);
     assert_eq!(worker.queue(host.take_outbound()), None);
     let mut described = None;
     loop {

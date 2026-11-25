@@ -46,21 +46,20 @@ GUEST_SYSROOT = "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1"
 # Every role a WebAssembly module has in the build, which is the platform it is
 # built for (buck/platforms/BUCK) and how it is linked. Each has a transition
 # and a module rule below, made from its entry, and nothing else names these
-# platforms: wasm32_module, wasm32_bindgen_module, wasi_module (guest),
-# wasi_program_module and wasi_html_module. `link_flags` are what every module of the role is linked with,
+# platforms: wasm32_bindgen_module, wasi_module (guest), wasi_program_module and
+# wasi_html_module. `link_flags` are what every module of the role is linked with,
 # which a crate's library takes as rustc flags in that configuration; a guest's
 # also depend on its libraries (app_module).
 #
-# - wasm32, wasm32-unknown-unknown with no WASI: block types, games, the input
-#   remaps and root guests, pure guests run in wasmi or V8 that import no
-#   JavaScript.
-# - bindgen, the same triple with the `bindgen` constraint: the browser's gpu
-#   shim, which wasm-bindgen binds to the page, told apart so that its wgpu and
-#   web-sys stay out of the pure guests.
-# - guest, wasm32-wasip1 with the `guest` constraint: an app, its libraries
+# - bindgen, wasm32-unknown-unknown with the `bindgen` constraint: the
+#   browser's gpu shim, which wasm-bindgen binds to the page.
+# - guest, wasm32-wasip1 with the `guest` constraint: every guest, single-threaded
+#   (decisions/guests_are_single_threaded.md). An app, its libraries
 #   (guides/app_libraries.md) and its workers, and a root that links beui
 #   (decisions/a_root_links_beui_as_an_app_does.md), linked by
-#   crates/be-wasm-link, single-threaded (decisions/guests_are_single_threaded.md).
+#   crates/be-wasm-link; and the pure guests (pure_guest_crate below: block
+#   types, games, the input remaps and the testing root), run in wasmi or V8 and
+#   answered only a few WASI calls (crates/be-wasm-pure-wasi).
 # - program, wasm32-wasip1-threads: a program in the browser on beui's native
 #   core, run through wasm-bindgen, such as be-host's web bundle.
 # - html, the same with the `html` constraint: a program on beui's HTML core.
@@ -69,7 +68,6 @@ WASM_ROLES = {
     "guest": struct(link_flags = _guest_exports, platform = "root//buck/platforms:wasi_guest", setting = "root//buck/platforms:wasi_guest_setting"),
     "html": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting"),
     "program": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting"),
-    "wasm32": struct(link_flags = [], platform = "root//buck/platforms:wasm32", setting = "root//buck/platforms:wasm32_setting"),
 }
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
@@ -81,8 +79,6 @@ def _role_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
 
 def _role_transition(role):
     return transition(impl = _role_transition_impl, refs = {"role": WASM_ROLES[role].platform} | PROFILE_REFS)
-
-wasm32_transition = _role_transition("wasm32")
 
 wasm32_bindgen_transition = _role_transition("bindgen")
 
@@ -164,8 +160,6 @@ def _module_rule(cfg):
         impl = _wasm_module_impl,
     )
 
-wasm32_module = _module_rule(wasm32_transition)
-
 wasm32_bindgen_module = _module_rule(wasm32_bindgen_transition)
 
 wasi_module = _module_rule(wasi_transition)
@@ -174,12 +168,13 @@ wasi_program_module = _module_rule(wasi_program_transition)
 
 wasi_html_module = _module_rule(wasi_html_transition)
 
-# A crate that is a wasm32 module too: the package's library, for the host,
-# and the same crate with extra_features as :wasm, built only for wasm32, so
-# asking for it on the host is a configuration error rather than a link
-# failure, and linked as :module, whatever the thing asking for it is built
-# for. module names the .wasm, which is the crate's own name without it.
-def wasm32_crate(module = None, extra_features = []):
+# A crate that is a pure guest's module too (guides/app_libraries.md, Pure
+# guests): the package's library, for the host, and the same crate with
+# extra_features as :wasm, built only for wasm32, so asking for it on the host
+# is a configuration error rather than a link failure, and linked as :module, a
+# plain wasm32-wasip1 cdylib, whatever the thing asking for it is built for.
+# module names the .wasm, which is the crate's own name without it.
+def pure_guest_crate(module = None, extra_features = []):
     cargo_library()
     cargo_library(
         name = "wasm",
@@ -187,7 +182,7 @@ def wasm32_crate(module = None, extra_features = []):
         preferred_linkage = "shared",
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
-    wasm32_module(
+    wasi_module(
         name = "module",
         library = ":wasm",
         module = module,
@@ -198,7 +193,7 @@ def wasm32_crate(module = None, extra_features = []):
 # False, and :module, the type module the app runs it in, which only the
 # crate's `module` feature exports.
 def type_module(module, test = True):
-    wasm32_crate(extra_features = ["module"], module = module)
+    pure_guest_crate(extra_features = ["module"], module = module)
     if test:
         cargo_test()
 
@@ -206,7 +201,7 @@ def type_module(module, test = True):
 # form the app ever loads, and natively, so that the tests drive :module,
 # GAME_WASM, through the host.
 def game_module():
-    wasm32_crate()
+    pure_guest_crate()
     cargo_test(env = {"GAME_WASM": "$(location :module)"})
 
 # The library of a program in the browser, linked as role ("program" or
@@ -413,7 +408,7 @@ def worker(module, libraries = None, extra_deps = [], visibility = None):
 # extra_deps are what cargo cannot name, such as a C library the app links.
 # An app is linked against DEFAULT_LIBRARIES, or as libraries says
 # (app_module above). types is the app's type module
-# (a wasm32_module, such as checklist's //crates/be-type-checklist:module),
+# (a pure guest's module, such as checklist's //crates/be-type-checklist:module),
 # which :types names for the app to stage beside :module. workers are its
 # worker modules (worker), which :module carries for the program to stage.
 #

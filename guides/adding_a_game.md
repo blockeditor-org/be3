@@ -8,7 +8,8 @@ game is written and built once for desktop, Android and the browser.
 
 - `tabletop-api`: the contract, compiled into every game: the types both sides
   exchange, the `GameHelper` a game is written against, the `game!` macro and
-  the build helper. It builds for wasm32-unknown-unknown.
+  the build helper. It builds for wasm32-wasip1, a pure guest
+  (guides/app_libraries.md, Pure guests).
 - `tabletop-host`: the other side, which embeds wasmi. Only the Games app
   (`be-app-deterministic-game`) and the rules crates' tests depend on it; it
   re-exports the api types it passes across.
@@ -19,7 +20,7 @@ game is written and built once for desktop, Android and the browser.
 
 - `crates/tabletop-rules-foo/Cargo.toml` and `BUCK`: copy tic-tac-toe's, and run
   `./scripts/buckify`. BUCK
-  builds the crate natively for tests and for wasm32 as `:module`, and points
+  builds the crate natively for tests and for wasm32-wasip1 as `:module`, and points
   the tests' `GAME_WASM` at that module.
 - `src/lib.rs`: the game, ending in `tabletop_api::game!("Foo", foo);` (the
   name the module gives itself, and the game function).

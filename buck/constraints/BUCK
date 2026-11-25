@@ -15,11 +15,8 @@ constraint_value(
     constraint_setting = ":wasm_role",
 )
 
-# wasm32-unknown-unknown is two builds too: the pure guests (type modules,
-# games, the remap module, root guests), which must link nothing that imports
-# JavaScript, and the browser's gpu shim, whose wgpu and web-sys do. A
-# `bindgen` constraint makes wasm32_bindgen the shim's platform, so its features
-# never reach the pure guests' plan.
+# The browser's gpu shim, wasm-bindgen code for wasm32-unknown-unknown and not a
+# guest: a `bindgen` constraint makes wasm32_bindgen its platform.
 constraint_value(
     name = "bindgen",
     constraint_setting = ":wasm_role",

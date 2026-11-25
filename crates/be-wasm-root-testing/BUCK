@@ -1,5 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_package")
-load("@root//buck/wasm:defs.bzl", "wasm32_crate")
+load("@root//buck/wasm:defs.bzl", "pure_guest_crate")
 
 cargo_package()
 
@@ -7,4 +7,4 @@ cargo_package()
 # child, the echo guest as a staged app, or spawns a child that paints and
 # shows its surface by handle. Only :module, with the `module` feature,
 # exports its entry points.
-wasm32_crate(extra_features = ["module"])
+pure_guest_crate(extra_features = ["module"])

@@ -15,7 +15,7 @@ _RELEASE = "root//buck/constraints:release"
 # that is compatible there: a workspace crate's targets are incompatible with
 # every platform cargo did not plan the crate for (planned_by_cargo,
 # buck/cargo/defs.bzl), so a crate configured there is meant to compile there.
-_PLANNED = ["linux_x86_64", "linux_x86_64_html", "wasi", "wasi_guest", "wasi_html", "wasm32", "wasm32_bindgen"]
+_PLANNED = ["linux_x86_64", "linux_x86_64_html", "wasi", "wasi_guest", "wasi_html", "wasm32_bindgen"]
 
 # The cross platforms' plans are the host's whole workspace for each triple,
 # Linux-only crates included, so their crates are instead what these ship
@@ -37,7 +37,6 @@ _JOBS = [
     ("linux_x86_64_html", False, True, False),
     ("wasi", False, True, False),
     ("wasi_html", False, True, False),
-    ("wasm32", False, True, False),
     ("wasm32_bindgen", False, True, False),
 ] + [(name, False, True, False) for name in sorted(CROSS_PLATFORMS)]
 

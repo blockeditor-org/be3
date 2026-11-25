@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use be_wasm_gpu_convert::Convert;
 use be_wasm_gpu_abi::device as abi;
 
 use crate::{Outcome, convert, slice};
@@ -48,12 +49,12 @@ impl BundleEncoder {
             color_formats: descriptor
                 .color_formats
                 .iter()
-                .map(|format| format.map(wgpu::TextureFormat::from))
+                .map(|format| format.map(Convert::<wgpu::TextureFormat>::convert))
                 .collect(),
             depth_stencil: descriptor
                 .depth_stencil
                 .map(|state| wgpu::RenderBundleDepthStencil {
-                    format: wgpu::TextureFormat::from(state.format),
+                    format: Convert::<wgpu::TextureFormat>::convert(state.format),
                     depth_read_only: state.depth_read_only,
                     stencil_read_only: state.stencil_read_only,
                 }),

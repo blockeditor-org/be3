@@ -178,7 +178,8 @@ its arguments and environment are empty, the clocks answer ENOSYS, and `proc_exi
 stops it. Any other import is refused when it loads. Every host's answers are held to
 RFC 7539's vectors (`be_wasm_pure_wasi::vectors`) by be-wasm-host's tests and, through the
 same guest (`crates/be-wasm-host/src/tests/pure_wasi.wat`), be-wasm-root-web-testing's.
-It is a `wasm32_module` (wasm32-unknown-unknown), not an `app()`. A type module
+It is a `pure_guest_crate`'s `:module` (buck/wasm/defs.bzl), a plain
+`wasm32-wasip1` cdylib built in the guests' plan with the apps, not an `app()`. A type module
 is one, and so is the input remapper, which runs in the sandbox for modules
 from bytes (guides/apps/runtime.md, Backends); `crates/be-wasm-guest-echo` is
 the smallest. The host refuses any other import and caps its memory. The echo
@@ -191,13 +192,16 @@ guest, which links base and beui to draw with beui
 
 #### What a type module builds
 
-A type module (`:module`, wasm32-unknown-unknown) builds only what its replica runs, about 72
-Rust libraries with the type crates. Features keep host-only parts out: be-block-store without
-`vault`, be-block-commit without `store` (sealed commits, `CommitStore` and history retention),
-be-block-session without `store`. The linker drops unused code anyway, so those features save
-compile time, not size: moving be-block-commit's retention behind `store` left the dev modules
-the same size within noise (November 2026: chat 4,166,413 to 4,166,001 bytes, checklist
-3,433,545 to 3,434,000, text 3,547,056 to 3,547,518). What is left, and why:
+A type module (`:module`) builds only what its replica runs, with the type crates. It is built
+in the guests' plan, so a crate it shares with the apps is compiled once for both, with the
+apps' features: be-block-store with `vault`, be-block-commit and be-block-session with `store`.
+The linker drops what the replica never calls, so those cost no size and import nothing more:
+moving every pure guest from `wasm32-unknown-unknown` into the plan took the dev type modules
+about 1% smaller (November 2026: chat 4,283,048 to 4,220,554 bytes, checklist 3,802,354 to
+3,756,188, text 3,912,275 to 3,868,138), and the smallest guests grew by what wasip1's std
+formats and reads (the echo guest 36,186 to 88,468). A pure guest may not link wgpu, which on
+wasm32 links wasm-bindgen: the ABI's wgpu conversions are `crates/be-wasm-gpu-convert`, apart
+from `crates/be-wasm-gpu-abi`. What a type module uses, and why:
 
 | crate | type modules use it for |
 |---|---|

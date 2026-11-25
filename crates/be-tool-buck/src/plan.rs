@@ -133,11 +133,14 @@ pub(crate) const PLANS: &[Plan] = &[
         lib: true,
         programs: true,
     },
-    // The apps, the libraries apps are linked against (wasm_library in
-    // buck/wasm/defs.bzl), the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
-    // review, whose tests paint as an app's do, and the root guests linked as apps are, be-root
-    // and the testing root (decisions/a_root_links_beui_as_an_app_does.md): a plan of their
-    // own, since they want a different wgpu.
+    // Every guest (guides/app_libraries.md): the apps, the libraries apps are linked against
+    // (wasm_library in buck/wasm/defs.bzl), the echo guest, pure and staged as an app, and its
+    // worker, the apps' workers, beui's demo, the paint review, whose tests paint as an app's do,
+    // the root guests linked as apps are, be-root and the testing root
+    // (decisions/a_root_links_beui_as_an_app_does.md), and the pure guests: the games, every
+    // app's type module (be-type-bundle runs them in process on the host), the remap module and
+    // the pure root guest be-wasm-root-host's tests run. A plan of their own, since they want a
+    // different wgpu from the web bundle's.
     Plan {
         name: "wasi-guest",
         mode: Mode::Test,
@@ -154,33 +157,17 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("be-tool-paint-review"),
             Named("be-root"),
             Named("be-sdk-root-testing"),
+            Prefix("tabletop-rules-", &[]),
+            Prefix("be-type-", &["be-type-bundle"]),
+            Named("be-lib-remap-module"),
+            Named("be-wasm-root-testing"),
         ]),
         html: false,
         lib: false,
         programs: false,
     },
-    // The games, every app's type module (be-type-bundle runs them in process
-    // on the host), the remap module, the pure guests and the pure root guest
-    // be-wasm-root-host's tests run: pure guests all, which import no
-    // JavaScript.
-    Plan {
-        name: "wasm32",
-        mode: Mode::Build,
-        triple: "wasm32-unknown-unknown",
-        packages: Packages::Only(&[
-            Prefix("tabletop-rules-", &[]),
-            Prefix("be-type-", &["be-type-bundle"]),
-            Named("be-lib-remap-module"),
-            Named("be-wasm-guest-echo"),
-            Named("be-wasm-root-testing"),
-        ]),
-        html: false,
-        lib: false,
-        programs: true,
-    },
-    // The browser's gpu shim, which wasm-bindgen binds to the page: a plan of
-    // its own, since its wgpu and web-sys must not reach the pure guests (a
-    // root guest drawing with the gpu would link them).
+    // The browser's gpu shim, which wasm-bindgen binds to the page: wasm-bindgen code for
+    // wasm32-unknown-unknown, not a guest.
     Plan {
         name: "wasm32-bindgen",
         mode: Mode::Build,

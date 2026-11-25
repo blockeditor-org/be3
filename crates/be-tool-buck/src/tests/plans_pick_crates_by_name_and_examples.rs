@@ -35,13 +35,13 @@ fn plans_pick_crates_by_name_and_examples() {
         builds_programs("windows-x86_64"),
         "a cross platform is the host's plan"
     );
-    let wasm32 = plan("wasm32");
-    assert!(wasm32.starts_with(
-        "build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-lib-remap-module"
-    ));
-    assert!(!wasm32.contains("be-type-bundle"));
+    let guests = plan("wasi-guest");
+    assert!(guests.contains("-p tabletop-rules-chess "));
+    assert!(guests.contains("-p be-type-text "));
+    assert!(guests.contains("-p be-lib-remap-module "));
+    assert!(!guests.contains("be-type-bundle"));
     assert!(
-        !wasm32.contains("be-wasm-gpu-shim"),
+        !guests.contains("be-wasm-gpu-shim"),
         "the gpu shim, which imports JavaScript, has a plan of its own"
     );
     assert!(plan("wasm32-bindgen").starts_with("build --target TRIPLE -p be-wasm-gpu-shim "));

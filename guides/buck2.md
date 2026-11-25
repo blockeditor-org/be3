@@ -63,8 +63,7 @@ for that machine.
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link` |
 | `android_arm64` | NDK r29, API 24 | lld |
 | `wasi` | the WASI sysroot | rust-lld (be-host on the web) |
-| `wasi_guest` | the WASI sysroot | crates/be-wasm-link (apps, root guests and their libraries) |
-| `wasm32` | nothing | rust-lld (games, type modules, the remapper, be-wasm-root-testing: pure guests) |
+| `wasi_guest` | the WASI sysroot | crates/be-wasm-link (apps, root guests and their libraries); rust-lld (games, type modules, the remapper, be-wasm-root-testing: pure guests) |
 | `wasm32_bindgen` | nothing | rust-lld (the gpu shim, through wasm-bindgen) |
 | `wasi_html`, `linux_x86_64_html` | as `wasi`, Linux x86_64 | crates on beui's HTML core |
 
@@ -73,9 +72,9 @@ macOS releases must move to a Mac worker before anything ships.
 
 `wasi` and `wasi_guest` are the same triple: be-host links a real wgpu backend and an app only
 wgpu's `custom` one, so the `guest` constraint (`buck/constraints`) tells them apart and
-the facts have a plan for each. `wasm32` and `wasm32_bindgen` are another such pair: the gpu
-shim's wgpu and web-sys import JavaScript, which a pure guest cannot load, so the `bindgen`
-constraint keeps them out of the pure guests' plan. Likewise the `html` constraint makes `wasi_html` and
+the facts have a plan for each. Every guest, pure or not, is built in `wasi_guest`'s plan, so a
+crate they share compiles once. `wasm32_bindgen` is the gpu shim's, wasm-bindgen code and not a
+guest. Likewise the `html` constraint makes `wasi_html` and
 `linux_x86_64_html`, whose plans are run with `RUSTFLAGS="--cfg beui_html"` over the packages
 `HTML` in `crates/be-tool-buck/src/plan.rs` names (guides/beui/core.md, Cores). Code picks a core
 with `if CORE == Core::Html`; be-tool-fix-rust-source rejects `#[cfg(beui_html)]` outside beui,
@@ -163,7 +162,7 @@ visible to every other unless it says otherwise: the root `PACKAGE` sets the def
 makes `:wasm`, `:module`, `:manifest` and the wasm `:test`, linked against `DEFAULT_LIBRARIES`
 unless it names others (guides/app_libraries.md). be-host picks up every app by itself. Its
 block types are one `type_module(module)` (guides/adding_a_block.md), a game is one
-`game_module()` (guides/adding_a_game.md), and any other wasm32 module `wasm32_crate()`.
+`game_module()` (guides/adding_a_game.md), and any other pure guest `pure_guest_crate()`.
 
 **A program in the browser**: `web_library(role)` in place of `cargo_library()`, and
 `web_program(name, role, module, files, serve)` for its bundle (buck/wasm/defs.bzl), where the
@@ -355,7 +354,8 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   platform) are planned only under a web program, so `--target-platforms` alone cannot
   compile-check them: build a program's `:web-module` instead (`./scripts/buck build //crates/beui-demo:web-module`
   for beui's, `//crates/be-host:web-module` for the host's). A pure guest
-  built with `wasm32_crate`, such as be-wasm-root-testing's root, is named in the `wasm32` plan there. A binary or
+  built with `pure_guest_crate`, such as be-wasm-root-testing's root, is named in the `wasi-guest`
+  plan there. A binary or
   an example is likewise built only for the plans that build it (`cargo build --lib` builds
   none, and the wasm guests' plan, whose crates are there for their libraries and tests, records
   none: `programs` in `PLANS`).

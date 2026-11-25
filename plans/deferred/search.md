@@ -10,7 +10,7 @@ aside until the user picks it up. The limits below are accepted for now.
   answers exact terms and prefixes only). Set aside by the owner.
 - **PDF text** answering `search-text`. Set aside by the owner. Not by linking
   pdfium into the pdf type module, which the owner ruled out (nor could it link
-  as is: type modules build for wasm32-unknown-unknown and run with no WASI,
+  as is: type modules build for wasm32-wasip1 and are answered only a pure guest's few WASI calls,
   while pdfium builds for the apps' wasm32-wasip1-threads). One way left open:
   the pdf app, which runs pdfium, saves each page's text as a part of the
   block, and the type module answers from that part alone; a pure-Rust parser

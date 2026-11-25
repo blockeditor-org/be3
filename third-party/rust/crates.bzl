@@ -190,17 +190,6 @@ third_party = {
                     ":uuid-1.29.1",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":enumn-0.1.14",
-                    ":serde-1.0.228",
-                    ":uuid-1.29.1",
-                ],
-                "features": [
-                    "enumn",
-                    "serde",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":enumn-0.1.14",
@@ -4780,11 +4769,6 @@ third_party = {
                     ":serde-1.0.228",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":serde-1.0.228",
@@ -5498,11 +5482,6 @@ third_party = {
                     ":generic-array-0.14.7",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":generic-array-0.14.7",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":generic-array-0.14.7",
@@ -6131,7 +6110,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -6855,7 +6833,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -7675,17 +7652,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":ciborium-io-0.2.2",
-                    ":ciborium-ll-0.2.2",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":ciborium-io-0.2.2",
@@ -7781,12 +7747,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -7867,12 +7827,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":ciborium-io-0.2.2",
-                    ":half-2.7.1",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":ciborium-io-0.2.2",
                     ":half-2.7.1",
@@ -8601,11 +8555,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":thiserror-2.0.18",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":thiserror-2.0.18",
                 ],
@@ -10659,15 +10608,6 @@ third_party = {
                 "features": [
                     "getrandom",
                     "rand_core",
-                    "std",
-                ],
-            },
-            "wasm32": {
-                "deps": [
-                    ":generic-array-0.14.7",
-                    ":typenum-1.20.1",
-                ],
-                "features": [
                     "std",
                 ],
             },
@@ -13121,19 +13061,6 @@ third_party = {
                     "mac",
                     "std",
                     "subtle",
-                ],
-            },
-            "wasm32": {
-                "deps": [
-                    ":block-buffer-0.10.4",
-                    ":crypto-common-0.1.7",
-                ],
-                "features": [
-                    "alloc",
-                    "block-buffer",
-                    "core-api",
-                    "default",
-                    "std",
                 ],
             },
             "wasm32-bindgen": {
@@ -16079,7 +16006,6 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -17549,12 +17475,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -18362,13 +18282,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "alloc",
                     "default",
@@ -19375,14 +19288,6 @@ third_party = {
                     "more_lengths",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":typenum-1.20.1",
-                ],
-                "features": [
-                    "more_lengths",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":typenum-1.20.1",
@@ -19794,11 +19699,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
                 ],
@@ -21188,12 +21088,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                    ":zerocopy-0.8.50",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -21425,11 +21319,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":byteorder-1.5.0",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":byteorder-1.5.0",
                 ],
@@ -21847,7 +21736,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {},
-            "wasm32": {},
             "wasm32-bindgen": {
                 "deps": [
                     ":foldhash-0.2.0",
@@ -22075,18 +21963,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":hash32-0.2.1",
-                    ":serde-1.0.228",
-                    ":stable_deref_trait-1.2.1",
-                ],
-                "features": [
-                    "atomic-polyfill",
-                    "cas",
-                    "serde",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":hash32-0.2.1",
                     ":serde-1.0.228",
@@ -26272,16 +26148,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":equivalent-1.0.2",
-                    ":hashbrown-0.17.1",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":equivalent-1.0.2",
@@ -27297,7 +27163,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -30623,13 +30488,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "alloc",
                     "default",
@@ -39082,6 +38940,7 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -39667,20 +39526,6 @@ third_party = {
                     "use-std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":cobs-0.3.0",
-                    ":heapless-0.7.17",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "heapless",
-                    "heapless-cas",
-                    "use-std",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":cobs-0.3.0",
@@ -39976,15 +39821,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":zerocopy-0.8.50",
-                ],
-                "features": [
-                    "simd",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":zerocopy-0.8.50",
                 ],
@@ -41958,15 +41794,6 @@ third_party = {
                     "thread_rng",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":rand_core-0.9.5",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":rand_chacha-0.9.0",
@@ -42301,16 +42128,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":ppv-lite86-0.2.21",
-                    ":rand_core-0.9.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":ppv-lite86-0.2.21",
@@ -42578,11 +42395,6 @@ third_party = {
                 ],
                 "features": [
                     "os_rng",
-                    "std",
-                ],
-            },
-            "wasm32": {
-                "features": [
                     "std",
                 ],
             },
@@ -48924,20 +48736,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "derive",
-                    "rc",
-                    "serde_derive",
-                    "std",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -49147,15 +48945,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -49401,14 +49190,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "alloc",
-                    "rc",
-                    "result",
-                    "std",
-                ],
-            },
             "wasm32-bindgen": {
                 "features": [
                     "alloc",
@@ -49596,18 +49377,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":itoa-1.0.18",
-                    ":memchr-2.8.3",
-                    ":serde_core-1.0.228",
-                    ":zmij-1.0.21",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":itoa-1.0.18",
                     ":memchr-2.8.3",
@@ -49896,16 +49665,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "alloc",
-                    "serde",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -50590,16 +50349,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                    ":digest-0.10.7",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":digest-0.10.7",
@@ -51585,13 +51334,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "features": [
-                    "default",
-                    "std",
-                    "text",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "default",
                     "std",
@@ -53569,7 +53311,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -55418,11 +55159,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":thiserror-impl-2.0.18",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":thiserror-impl-2.0.18",
                 ],
@@ -57559,23 +57295,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                    ":serde_spanned-1.1.1",
-                    ":toml_datetime-0.7.5+spec-1.1.0",
-                    ":toml_parser-1.1.3+spec-1.1.0",
-                    ":toml_writer-1.1.2+spec-1.1.0",
-                    ":winnow-0.7.15",
-                ],
-                "features": [
-                    "default",
-                    "display",
-                    "parse",
-                    "serde",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -57693,16 +57412,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "alloc",
-                    "serde",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -57782,13 +57491,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "alloc",
                     "default",
@@ -57916,20 +57618,6 @@ third_party = {
                     "parse",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":indexmap-2.14.0",
-                    ":toml_datetime-1.1.1+spec-1.1.0",
-                    ":toml_parser-1.1.3+spec-1.1.0",
-                    ":toml_writer-1.1.2+spec-1.1.0",
-                    ":winnow-1.0.3",
-                ],
-                "features": [
-                    "default",
-                    "display",
-                    "parse",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":indexmap-2.14.0",
@@ -58041,16 +57729,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":winnow-1.0.3",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":winnow-1.0.3",
@@ -58130,13 +57808,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "alloc",
                     "default",
@@ -60439,7 +60110,6 @@ third_party = {
             },
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -62109,23 +61779,6 @@ third_party = {
                     "serde",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "default",
-                    "rng",
-                    "rng-getrandom",
-                    "serde",
-                    "std",
-                    "uuid-rng-internal-lib",
-                    "v4",
-                ],
-                "named_deps": {
-                    "uuid_rng_internal_lib": ":uuid-rng-internal-1.29.1",
-                },
-            },
             "windows-arm64": {
                 "deps": [
                     ":getrandom-0.4.2",
@@ -62152,36 +61805,6 @@ third_party = {
                     "std",
                     "v4",
                     "v7",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.29.1",
-    },
-    "uuid-rng-internal-1.29.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "uuid-rs contributors",
-            "CARGO_PKG_DESCRIPTION": "Private implementation details of the uuid crate.",
-            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
-            "CARGO_PKG_REPOSITORY": "https://github.com/uuid-rs/uuid",
-        },
-        "library": {
-            "crate": "uuid_rng_internal",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "uuid-rng-internal",
-        "platforms": {
-            "wasm32": {
-                "deps": [
-                    ":getrandom-0.4.2",
-                ],
-                "features": [
-                    "getrandom",
                 ],
             },
         },
@@ -62908,6 +62531,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -62922,6 +62546,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -62936,6 +62561,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -62950,6 +62576,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -62964,6 +62591,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -62977,6 +62605,7 @@ third_party = {
                     ":wasmparser-0.239.0",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -62990,6 +62619,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -63004,6 +62634,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -63101,6 +62732,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63109,6 +62741,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63117,6 +62750,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63125,6 +62759,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63133,6 +62768,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63141,6 +62777,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63149,6 +62786,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63157,6 +62795,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -63188,40 +62827,64 @@ third_party = {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "linux-arm64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "macos-arm64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "wasi-guest": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
         },
@@ -63258,6 +62921,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63268,6 +62932,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63278,6 +62943,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63288,6 +62954,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63298,6 +62965,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63308,6 +62976,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63318,6 +62987,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -63328,6 +62998,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -69373,7 +69044,6 @@ third_party = {
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi-guest": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -69450,16 +69120,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "features": [
-                    "alloc",
-                    "ascii",
-                    "binary",
-                    "default",
-                    "parser",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "alloc",
                     "ascii",
@@ -71754,16 +71414,6 @@ third_party = {
                     "zerocopy-derive",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":zerocopy-derive-0.8.50",
-                ],
-                "features": [
-                    "derive",
-                    "simd",
-                    "zerocopy-derive",
-                ],
-            },
             "wasm32-bindgen": {
                 "deps": [
                     ":zerocopy-derive-0.8.50",
@@ -72733,7 +72383,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},

@@ -44,27 +44,39 @@ pub struct WebGuest<P> {
 }
 
 impl<P: Pictures> WebGuest<P> {
-    /// Starts the guest at `url` in a worker of its own. `extension` names the script that
-    /// instantiates it, if the worker's own instantiation (a type module's) is not enough, such
-    /// as be-host's `./app.js`; both are resolved against the page, wherever the guest lies.
+    /// Starts the app at `url` in a worker of its own, instantiated by the script `extension`,
+    /// such as be-host's `./app.js`; both are resolved against the page, wherever the app lies.
     pub fn start(
         url: &str,
-        extension: Option<&str>,
+        extension: &str,
         wake: Wake,
         waiting: Arc<AtomicBool>,
     ) -> Result<Self, String> {
         let message = message("start");
         set(&message, "url", &absolute(url).into());
-        if let Some(extension) = extension {
-            set(&message, "extension", &absolute(extension).into());
-        }
+        set(&message, "extension", &absolute(extension).into());
+        Self::starting(&message, wake, waiting)
+    }
+
+    /// Starts the pure guest (guides/app_libraries.md, Pure guests) at `url`, such as a type
+    /// module, in a worker of its own, which instantiates it itself and draws its randomness from
+    /// `seed`.
+    pub fn start_pure(
+        url: &str,
+        seed: [u8; 32],
+        wake: Wake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
+        let message = message("start");
+        set(&message, "url", &absolute(url).into());
+        set(&message, "seed", &js_sys::Uint8Array::from(&seed[..]).into());
         Self::starting(&message, wake, waiting)
     }
 
     /// Starts a pure guest (guides/app_libraries.md, Pure guests) of `module`, which the page
     /// compiled, in a worker of its own: the worker instantiates it as it is, answering only its
-    /// transport and, if it imports one, a memory it makes of `memory`'s pages, initial and
-    /// maximum, so it needs no extension and fetches nothing.
+    /// transport, its WASI from the zero seed and, if it imports one, a memory it makes of
+    /// `memory`'s pages, initial and maximum, so it needs no extension and fetches nothing.
     pub fn start_module(
         module: &js_sys::WebAssembly::Module,
         memory: Option<(u64, u64)>,
