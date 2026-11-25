@@ -4104,24 +4104,25 @@ where
         {
             return;
         }
-        let again = kept
-            .as_ref()
-            .and_then(|kept| match Submitted::decode(&kept.payload) {
-                Some(Submitted {
-                    entry: Entry::Operation(Payload::Inline(bytes)),
-                    ..
-                }) if *through == kept.through && bytes == C::encode_operation(operation) => {
-                    Some((kept.clone(), Payload::Inline(bytes)))
-                }
-                _ => None,
-            });
-        let payload = match &again {
-            Some((_, payload)) => payload.clone(),
-            None => match self.payload_of(C::encode_operation(operation)) {
-                Some(payload) => payload,
-                None => return,
-            },
+        let kept = kept.clone().filter(|kept| *through == kept.through);
+        let payload = match self.payload_of(C::encode_operation(operation)) {
+            Some(payload) => payload,
+            None => return,
         };
+        // They make it again exactly when they go as the kept submission's operation did: the
+        // same bytes inline, or the same part, which putting the same bytes under the same key
+        // makes again (a part sealed under a key rotated since differs, and they go anew).
+        let again = kept
+            .filter(|kept| {
+                matches!(
+                    Submitted::decode(&kept.payload),
+                    Some(Submitted {
+                        entry: Entry::Operation(ref held),
+                        ..
+                    }) if *held == payload
+                )
+            })
+            .map(|kept| (kept, payload.clone()));
         // The host keeps each operation's identity under the restart it reported last, and drops
         // those of an earlier one: told of a restart first, it keeps this one. What else
         // `report` sends is sent at the end of the run all the same, and each once.

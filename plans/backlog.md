@@ -58,18 +58,17 @@ Fixed items are removed as they land.
   Done: a be-host-stack test that reopens a block after a crash, has its
   made-up session seal while the join is held, and counts exactly what was made.
 
-- **A kept submission that does not encode again.** A replica opened again
-  submits the edits a kept submission holds under its id only if they encode
-  to its inline payload again (`Replica::flush`); otherwise they go as a new
-  submission, and if the first copy reaches the server late, from the process
-  that crashed, the order takes them twice. Two cases never match: an operation
-  too large to relay goes by its part (`Payload::Part`), and an edit carried
-  over a restart of the order goes again from `replay` as typed while its kept
-  submission holds the operation carried over, which differs for a type whose
-  `carry_over` rewrites it (text's positions). Done: such a submission matched
-  by what it holds rather than its bytes (the part's hash; the edits it was
-  carried from) and sent again under its id, with guest tests where its first
-  copy lands after the one given again.
+- **A kept submission carried over a restart that does not encode again.** A
+  replica opened again submits the edits a kept submission holds under its id
+  only if they go as its payload did (`Replica::flush`: the same inline bytes,
+  or the same part, which putting the same bytes under the same key makes
+  again); otherwise they go as a new submission, and if the first copy reaches
+  the server late, from the process that crashed, the order takes them twice.
+  An edit carried over a restart of the order goes again from `replay` as typed
+  while its kept submission holds the operation carried over, which differs for
+  a type whose `carry_over` rewrites it (text's positions). Done: such a
+  submission matched by the edits it was carried from and sent again under its
+  id, with a guest test where its first copy lands after the one given again.
 
 - **Kept edits across two crashes, end to end.** The tests of kept submissions
   across a restart of the order (be-block-type-host's
