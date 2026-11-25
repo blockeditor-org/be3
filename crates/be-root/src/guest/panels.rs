@@ -322,6 +322,15 @@ impl Root {
     }
 
     /// What each panel painted last, by its surface's id.
+    /// What each host panel it draws describes of itself (`BeuiSurface::describe`).
+    pub(super) fn panels_described(&self) -> Vec<(u32, be_sdk_api::accesskit::TreeUpdate)> {
+        self.panels
+            .borrow()
+            .iter()
+            .filter_map(|held| Some((held.surface.id(), held.surface.describe()?)))
+            .collect()
+    }
+
     pub(super) fn panels_painted(&self) -> Vec<(u64, Painting)> {
         self.panels
             .borrow()
