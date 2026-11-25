@@ -49,6 +49,7 @@ mod markdown_inline_code_pads_backtick_edges;
 mod markdown_inline_code_toggle_off;
 mod markdown_inline_styles;
 mod markdown_invalid_utf8;
+mod markdown_a_list_code_lines_spaces_up_to_its_fence_are_its_marker;
 mod markdown_lines_are_described_from_the_parse_tree;
 mod markdown_list_newline;
 mod markdown_plain_punctuation;
