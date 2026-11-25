@@ -22,6 +22,10 @@ pub(super) struct Platform {
     /// drew its lock screen: the login session holds back a suspend until it has been drawn
     /// (`ScreenLock::note_drawn`).
     locked_shown: bool,
+    /// When the host next needs a frame for the lock or the displays, from the last frame: the
+    /// core's own repaint requests are not the root's (`RootShell::update`), so these are asked
+    /// for here.
+    due: Option<Duration>,
 }
 
 impl Platform {
@@ -31,8 +35,21 @@ impl Platform {
         // The host's clock and the root's are the same frame clock from different origins.
         let host_now = be_host_base::host::now();
         let on_roots = |at: Duration| nanos((time + at).saturating_sub(host_now));
+        self.due = None;
         self.serve_lock(core, root, on_roots);
-        serve_displays(core, root, on_roots);
+        let revert = serve_displays(core, root, on_roots);
+        self.need(revert.map(|at| at.saturating_sub(host_now)));
+    }
+
+    /// When the host next needs a frame for the lock or the displays, as the last frame said.
+    pub(super) fn due(&self) -> Option<Duration> {
+        self.due
+    }
+
+    fn need(&mut self, after: Option<Duration>) {
+        if let Some(after) = after {
+            self.due = Some(self.due.map_or(after, |due| due.min(after)));
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -76,6 +93,13 @@ impl Platform {
             retry_at: lock.retry_at().map(on_roots),
         };
         self.locked_shown = shown.locked;
+        // A frame as the wait after failed passwords ends, which shows the lock with none; and
+        // frames until the lock screen counts as drawn, which a suspend waits for.
+        let now = be_host_base::host::now();
+        let retry = lock.retry_at().map(|at| at.saturating_sub(now));
+        let drawing = (lock.locked() && !lock.shown()).then_some(Duration::ZERO);
+        self.need(retry);
+        self.need(drawing);
         // Shown every frame, which tells `be3:root` the password it took has been taken: it
         // drops one handed over until then.
         root.show_lock(shown);
@@ -144,19 +168,28 @@ fn sdk_power(action: PowerAction) -> be_sdk_api::PowerAction {
 /// Does how the root answered the displays' question, then shows it the question as it stands:
 /// asked while display settings that just changed wait to be kept, with when the host reverts
 /// them on the root's clock (`HostCore::run_display_prompt` reverts them then).
-fn serve_displays(core: &mut HostCore, root: &mut Root, on_roots: impl Fn(Duration) -> u64) {
+/// Answers when, on the host's clock, the host reverts the settings it asks about, if it asks.
+fn serve_displays(
+    core: &mut HostCore,
+    root: &mut Root,
+    on_roots: impl Fn(Duration) -> u64,
+) -> Option<Duration> {
     for (round, keep) in root.take_display_answers() {
         core.answer_display(round, keep);
     }
     let now = be_host_base::host::now();
-    let asking = match crate::display::prompt(now) {
-        crate::display::Prompt::Asking { round, left } => Some(DisplayQuestion {
-            round,
-            revert_at: on_roots(now + left),
-        }),
-        crate::display::Prompt::Settled | crate::display::Prompt::Expired => None,
+    let (asking, revert) = match crate::display::prompt(now) {
+        crate::display::Prompt::Asking { round, left } => (
+            Some(DisplayQuestion {
+                round,
+                revert_at: on_roots(now + left),
+            }),
+            Some(now + left),
+        ),
+        crate::display::Prompt::Settled | crate::display::Prompt::Expired => (None, None),
     };
     root.show_displays(asking);
+    revert
 }
 
 fn nanos(at: Duration) -> u64 {

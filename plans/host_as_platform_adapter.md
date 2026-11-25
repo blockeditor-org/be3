@@ -2226,10 +2226,11 @@ Each step lands on its own.
          `panel_icon` fold into one. In parts:
          - 4g7g1. Built: what the host keeps of the platform, under `--root`. `RootShell` starts
            and stops it as be-host's `Shell` does (`HostCore::start_platform`, `stop_platform`:
-           the input devices, the displays, the login session on a seat it owns), begins and
-           ends the host's frame as `Shell` does (`frame::begin`, `frame::end`: the host's clock,
-           which the lock's wait and the displays' question count on, and what its apps asked
-           of the window), and `--root` runs as a login session (`BEUI_PLATFORM=drm`, no longer
+           the input devices, the displays, the login session on a seat it owns), begins the
+           host's frame as `Shell` does (`frame::begin`: the host's clock, which the lock's wait
+           and the displays' question count on) but does not end it as `Shell` does, since the
+           core's repaints are not the root's (4g7e3d): `root/platform.rs` asks for the frames
+           the lock and the displays need itself (`Platform::due`), and `--root` runs as a login session (`BEUI_PLATFORM=drm`, no longer
            refused). In a login session and under `--desktop` it runs the screen lock, and under
            `--desktop` the desktop's OS services as be-host does (`run_as_desktop`: power and
            Quick settings' power row, notifications, the tray, screenshots, media keys).

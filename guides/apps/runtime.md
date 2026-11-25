@@ -301,8 +301,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   It runs the host's core (`HostCore`: its data directory, block stack,
   accounts, session and the dev workspace), which fills `host.core` and serves
   the editors of the session's view, and what it keeps of the platform as
-  be-host's own UI does (`HostCore::start_platform`, the host's frame begun and
-  ended around the root's, and under `--desktop` the desktop's OS services), so
+  be-host's own UI does (`HostCore::start_platform`, the host's frame begun before
+  the root's for its clock, and under `--desktop` the desktop's OS services), so
   it runs as a login session too; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet: be-host's
   own UI stays the default until be-root passes the host tests that exercise it
