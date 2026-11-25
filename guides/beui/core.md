@@ -311,14 +311,17 @@ them:
   identity to find damage, and a scrolled group becomes a copy
   (`WindowOutput::moved`) instead. A frame's `opacity` records a
   `Group::Mask` that fades its subtree as one picture: beui-renderer-wgpu
-  draws it onto an offscreen layer and paints that at the opacity
-  (`group.rs`), and a painting holds it as a `Content::Group` the rasterizer
-  composites the same way, so overlapping shapes inside do not show through
-  each other. Only the group's bounds within the damage are cleared, drawn and
-  painted, and a group holding one shape that cannot overlap itself takes the
-  opacity into its colour when the display is recorded (`paint.rs`, `folded`)
-  instead. A punch inside a group also erases the target beneath it at the
-  group's opacity. Edge fades (`fade_edges`) still fade shape by shape.
+  draws it as a Vello opacity layer, and a painting holds it as a
+  `Content::Group` the rasterizer (beui-paint-raster, vello_cpu) composites the
+  same way, so overlapping shapes inside do not show through each other. Only a
+  group holding a `draw_gpu` drawing or a filter goes offscreen: its bounds
+  within the damage are drawn onto a layer of its own (`group.rs`), which is
+  painted at the opacity. A group holding one shape that cannot overlap itself
+  takes the opacity into its colour when the display is recorded (`paint.rs`,
+  `folded`) instead. A punch inside a group also erases the target beneath it
+  at the group's opacity. Edge fades (`fade_edges`) are one isolated layer
+  holding what is faded, with a destination-in gradient across each faded
+  edge.
 - **Checking paint.** Tests repaint every frame from scratch and fail when the
   retained painting differs or changed outside the damage (`verify_paint`).
   `BEUI_OVER_REPAINT=1` reports frames that damage over four times what
