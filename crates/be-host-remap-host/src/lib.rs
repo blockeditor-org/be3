@@ -504,7 +504,15 @@ impl Running {
             memory_limit: MEMORY_BYTES,
             display: None,
         };
-        let instance = sandbox::spawn(sandbox::Source::Module(module.clone()), config, wake)
+        let instance = sandbox::spawn(
+            // A remap draws on no randomness that should differ between runs.
+            sandbox::Source::Module {
+                module: module.clone(),
+                seed: [0; 32],
+            },
+            config,
+            wake,
+        )
             .map_err(|error| format!("the remaps would not start: {error}"))?;
         Ok(Self {
             instance,

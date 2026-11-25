@@ -32,13 +32,22 @@ interface sandbox {
         module: string,
     }
 
+    /// A module this guest compiled, and the seed of the randomness its
+    /// instance draws: the spawner's to choose, fresh for ids that must not
+    /// meet another instance's, fixed for runs that must come out alike.
+    record from-bytes {
+        module: module-id,
+        seed: hash,
+    }
+
     /// What an instance runs.
     variant source {
         /// A module this guest compiled. The instance is a pure guest
         /// (guides/app_libraries.md, Pure guests): its only imports are its
-        /// transport, and whatever else it may do, its spawner serves it over
-        /// its frames.
-        module(module-id),
+        /// transport and a pure guest's few WASI calls, its randomness drawn
+        /// from the seed, and whatever else it may do, its spawner serves it
+        /// over its frames.
+        module(from-bytes),
         /// A staged app's module, linked against the libraries it names and
         /// given WASI, as the host runs that app. One the root guest spawns
         /// draws on the host's device, and the root names a surface it

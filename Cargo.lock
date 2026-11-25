@@ -3220,6 +3220,8 @@ name = "be-wasm-gpu-convert"
 version = "0.1.0"
 dependencies = [
  "be-wasm-gpu-abi",
+ "be-wasm-ops",
+ "serde",
  "wgpu",
 ]
 

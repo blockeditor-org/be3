@@ -175,11 +175,11 @@ impl Server {
                     api::Source::Module(_) => None,
                 };
                 let source = match source {
-                    api::Source::Module(module) => self
+                    api::Source::Module(api::FromBytes { module, seed }) => self
                         .modules
                         .get(&module)
                         .cloned()
-                        .map(Source::Module)
+                        .map(|module| Source::Module { module, seed })
                         .ok_or_else(|| "this guest compiled no module with that id".to_owned()),
                     api::Source::App(staged) => {
                         self.staged(&staged.app, &staged.module).map(Source::App)

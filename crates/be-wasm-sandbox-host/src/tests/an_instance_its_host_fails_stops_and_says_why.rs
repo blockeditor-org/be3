@@ -11,7 +11,10 @@ fn an_instance_its_host_fails_stops_and_says_why() {
             .await
             .unwrap()
             .unwrap();
-        let instance = guest::sandbox::Instance::new(Source::Module(module), config());
+        let instance = guest::sandbox::Instance::new(Source::Module(FromBytes {
+                    module: module,
+                    seed: [0; 32],
+                }), config());
         instance.send(vec![b"hello".to_vec()]).await.unwrap();
         let mut received = Vec::new();
         while received.len() < 2 {

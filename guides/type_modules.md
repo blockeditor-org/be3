@@ -146,7 +146,9 @@ comes first: it answers the module's types, each with everything the host
 keeps about it (`type-info`: its schema, plain form, blank content and that
 content's description). Its randomness (`random_get`, which getrandom and std's
 hash keys read) is its host's, from a seed be-block-type-host draws afresh for
-each start (`Host::with_seed` natively, `WebGuest::start_pure` on the web).
+each start (`Host::with_seed` natively, `WebGuest::start_pure` on the web). So a
+hash map's iteration order differs on each start: it must never reach content, a commit or an
+answer, which another peer or a later start must reproduce.
 
 Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
 `search-text`, `places`, `unread`, `claims`, `apply`) are answered in the step that asks,

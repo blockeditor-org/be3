@@ -10,3 +10,7 @@ wgpu = { version = "29", default-features = false }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+be-wasm-ops = { path = "../be-wasm-ops" }
+serde = "1"

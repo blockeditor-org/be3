@@ -194,9 +194,10 @@ pub struct Config {
     pub memory_limit: usize,
 }
 
-/// What an instance runs.
+/// What an instance runs: a module compiled from bytes, its randomness drawn from `seed`, which
+/// its spawner chooses, or a staged app's module.
 pub enum Source {
-    Module(Module),
+    Module { module: Module, seed: [u8; 32] },
     App(Staged),
 }
 
@@ -227,13 +228,19 @@ pub struct Instance {
 pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, String> {
     let waiting = Arc::new(AtomicBool::new(false));
     let guest = match source {
-        Source::Module(module) => module
+        Source::Module { module, seed } => module
             .compiled
             .memory
             .map(|memory| capped(memory, config.memory_limit))
             .transpose()
             .and_then(|memory| {
-                WebGuest::start_module(&module.compiled.module, memory, wake, Arc::clone(&waiting))
+                WebGuest::start_module(
+                    &module.compiled.module,
+                    memory,
+                    seed,
+                    wake,
+                    Arc::clone(&waiting),
+                )
             }),
         Source::App(staged) => {
             WebGuest::start(&staged.url, EXTENSION, wake, Arc::clone(&waiting))

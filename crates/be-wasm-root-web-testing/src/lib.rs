@@ -24,7 +24,7 @@ use be_wasm_root_host::{Root, Staged};
 use be_wasm_root_testing::{CHILD, CHILD_ENTRY, CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS};
 use be_wasm_sandbox_api::{
     embed, guest,
-    sandbox::{Config, Source},
+    sandbox::{Config, FromBytes, Source},
 };
 use be_wasm_sandbox_host::Server;
 use js_sys::{Function, Promise};
@@ -239,7 +239,10 @@ async fn an_instance_of_a_module_from_bytes_is_held_to_its_memory_limit() -> Res
                 .map_err(|error| error.to_string())??;
             let echo = |memory_limit| {
                 guest::sandbox::Instance::new(
-                    Source::Module(module),
+                    Source::Module(FromBytes {
+                    module: module,
+                    seed: [0; 32],
+                }),
                     Config {
                         name: "echo".to_owned(),
                         memory_limit,
@@ -288,7 +291,10 @@ async fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() -> Result<St
                 .await
                 .map_err(|error| error.to_string())??;
             let instance = guest::sandbox::Instance::new(
-                Source::Module(module),
+                Source::Module(FromBytes {
+                    module: module,
+                    seed: [0; 32],
+                }),
                 Config {
                     name: "echo".to_owned(),
                     memory_limit: 16 << 20,
@@ -346,7 +352,10 @@ async fn a_module_from_bytes_is_answered_a_pure_guests_wasi_as_natively()
                 .await
                 .map_err(|error| error.to_string())??;
             let instance = guest::sandbox::Instance::new(
-                Source::Module(module),
+                Source::Module(FromBytes {
+                    module: module,
+                    seed: [0; 32],
+                }),
                 Config {
                     name: "pure wasi".to_owned(),
                     memory_limit: 16 << 20,

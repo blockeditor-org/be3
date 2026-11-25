@@ -1,6 +1,7 @@
 //! Conversions between the gpu ABI's types (be-wasm-gpu-abi) and wgpu's, which the guest's
 //! backend (be-wasm-gpu-guest) and the host (be-wasm-gpu-host) share. A crate of its own, so the
-//! ABI reaches a pure guest without wgpu, which on wasm32 links wasm-bindgen
+//! ABI reaches a pure guest without wgpu: wgpu's `web` feature, which be-wasm-gpu-guest turns on
+//! and cargo unifies into every guest's wgpu, links js-sys, web-sys and wasm-bindgen
 //! (guides/app_libraries.md, Pure guests). They are traits of this crate's, since neither side's
 //! types are.
 
@@ -457,3 +458,6 @@ impl Convert<abi::CompilationMessage> for &wgpu::CompilationMessage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

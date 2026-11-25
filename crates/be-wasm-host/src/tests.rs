@@ -95,6 +95,68 @@ fn linked_app(identity: &str) -> String {
 
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
 
+const COUNTER_TYPES: &[u8] = include_bytes!(env!("COUNTER_TYPES_WASM"));
+
+/// Every frame the counter's type module sends from its start until it has described its type's
+/// blank content, which it describes, run on a host seeded with `seed`.
+fn counter_answers(seed: [u8; 32]) -> Vec<Vec<u8>> {
+    use be_sdk_type_api::{
+        embed::exports::replicas,
+        ops::{Connection, Incoming, Side},
+    };
+    let waiting = std::sync::Arc::default();
+    let channel = Host::pure()
+        .unwrap()
+        .with_seed(seed)
+        .spawn(
+            "be3.counter".to_owned(),
+            |host| host.load_bytes(COUNTER_TYPES),
+            std::sync::Arc::new(|| {}),
+            std::sync::Arc::clone(&waiting),
+            be_wasm_guest_host::thread::catch,
+        )
+        .unwrap();
+    let mut worker = be_wasm_guest_host::Worker::new(channel, waiting);
+    let deadline = be_wasm_guest_host::Deadline::after(std::time::Duration::from_secs(60));
+    let mut host = Connection::new(Side::Host);
+    let started = replicas::start(&mut host);
+    assert_eq!(worker.queue(host.take_outbound()), None);
+    let (mut sent, mut described) = (Vec::new(), None);
+    loop {
+        for frame in worker.take_received() {
+            host.receive(&frame).unwrap();
+            sent.push(frame);
+        }
+        while let Some(event) = host.next_event() {
+            match event {
+                Incoming::Completed { op, outcome } if op == started.op() => {
+                    let types = started.decode(outcome).expect("the module lists its types");
+                    let info = types.first().expect("it has a type");
+                    described = Some(replicas::describe(
+                        &mut host,
+                        info.content_type,
+                        info.blank.clone(),
+                        uuid::Uuid::nil(),
+                    ));
+                    assert_eq!(worker.queue(host.take_outbound()), None);
+                }
+                Incoming::Completed { op, outcome }
+                    if described.is_some_and(|described| described.op() == op) =>
+                {
+                    let answered = described.unwrap().decode(outcome);
+                    assert!(matches!(answered, Ok(Ok(_))), "{answered:?}");
+                    return sent;
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            worker.wait(deadline).expect("the module runs"),
+            "the module never answered"
+        );
+    }
+}
+
 fn echo_frames(
     worker: &mut be_wasm_guest_host::Worker<
         be_wasm_guest_host::thread::Threaded<std::convert::Infallible>,
@@ -133,6 +195,7 @@ mod a_module_from_bytes_is_capped_at_the_memory_each_instance_is_given;
 mod a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own;
 mod a_pure_guests_randomness_is_chacha20s_stream_from_its_seed;
 mod a_pure_guest_may_not_have_two_memories;
+mod a_pure_guests_hash_keys_come_from_its_seed;
 mod a_pure_guest_may_not_import_more_of_wasi_than_it_is_answered;
 mod a_pure_guest_may_not_outgrow_its_memory_limit;
 mod a_pure_guest_that_hangs_is_interrupted;
