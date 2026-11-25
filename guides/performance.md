@@ -60,6 +60,16 @@ while working on it.
   `frame`, not `present`; `NO_GPU=1` measures only the program's work. In October 2026 a resize
   step's frame was 7 to 9 ms and a cursor switch's about 4 ms.
 - `//crates/beui-host:example-text-bench -- [NAME]` times resizing and editing text.
+- `//crates/beui-renderer-wgpu:example-render-bench` (the suite's `renderer`) draws fixed scenes
+  through beui-renderer-wgpu into a 1920 by 1080 offscreen target: a page of text, 10,000 canvas
+  shapes panned and zoomed, a blur at radii from 0.5 to 64, opacity groups eight deep, and a
+  64-point damaged square in a full window. Each scene is painted before the clock starts, so it
+  reports the renderer's CPU time to prepare, encode and submit a frame and, where the adapter
+  has `TIMESTAMP_QUERY`, the GPU time between two timestamps around it. It prints the adapter and
+  reports nothing on a software one (`DeviceType::Cpu`, llvmpipe), which is every agent VM's:
+  there it only draws a few frames of each scene, so an agent can check it runs, and people
+  compare it on machines with GPUs. A benchmark that reports nothing on purpose calls
+  `be_tool_bench::refuse`.
 - The open and space benches run the real `Runner` with no drive layer (so no accessibility
   dump) and a stopped clock, pushing inputs as a platform would.
 

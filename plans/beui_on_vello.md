@@ -66,37 +66,24 @@ for later.
 
 ## Steps
 
-1. **wgpu 30.** `vello_gpu` 0.4 needs wgpu 30; the tree is on 29. Upgrade it, with the overlay in
-   `third-party/rust/overlays/wgpu` and the `custom` backend over `be3:gpu` (be-wasm-gpu-guest,
-   be-wasm-gpu-host, be-wasm-gpu-abi), on its own.
-2. **A renderer benchmark** in `//crates/be-tool-bench:suite` (guides/performance.md), before the
-   renderer changes, so it has a base to compare with. It renders fixed scenes into an offscreen
-   target and reports CPU time to build and submit, and GPU time from timestamp queries:
-   - a text-heavy page;
-   - the canvas at 10,000 shapes, panned and zoomed;
-   - a blur swept across radii;
-   - nested opacity groups;
-   - a damaged rect inside a full window.
-
-   It names the adapter and refuses to report on a software one (`DeviceType::Cpu`, llvmpipe), as
-   every agent VM has. People run `compare` on machines with GPUs; agents only check that it
-   builds and runs.
-3. **Vello in the beui library.** Add `vello_gpu` and vello_common with the features above to
+1. **Vello in the beui library.** Add `vello_gpu` and vello_common with the features above to
    `crates/be-sdk-library-beui` and run `./scripts/buckify`; `vello_gpu`'s shaders are compiled by
    a build script with wesl and naga. Put the beui library's size before and after in the pull
    request.
-4. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas. Paintings
+2. **The renderer draws with Vello**, as mapped above, together with the RGBA8 atlas. Paintings
    do not change, since they record beui's display list, not pixels. Delete `ui.wgsl`'s shape
-   code, the instance encoding and `group.rs`.
-5. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
+   code, the instance encoding and `group.rs`. Put the suite's `renderer` benchmark, compared on
+   a machine with a GPU against the build before (guides/performance.md), in the pull request;
+   likewise for the blur.
+3. **Blur.** Draw `Group::Filter` with Vello's blur, delete `filter.rs` and `blur.wgsl`, and
    replace decisions/beui_filter_blur_is_dual_kawase.md with a decision for Vello's blur
    (continuous in σ, logarithmic in cost).
-6. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
+4. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
    `Frame::tidy` learns it, and beui-paint-format's `raster.rs` (behind `rasterize` and review) is
    rebuilt on `vello_cpu`, in the tools only, never in the beui library. Bump the format's
    `VERSION` (guides/testing_a_gui.md, 4) and let verify rewrite the paintings. Delete the
    tessellator in `beui-core/src/path.rs`.
-7. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
+5. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
    map, guides/beui/components.md (Drawing with the gpu), guides/testing_a_gui.md, guides/canvas.md
    and guides/app_libraries.md (Vello in the beui library). Record the choice in decisions/ with
    what was rejected below, and delete this plan.
