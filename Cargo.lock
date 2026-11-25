@@ -1877,7 +1877,6 @@ dependencies = [
  "imbl",
  "js-sys",
  "postcard",
- "rusqlite",
  "serde",
  "serde_bytes",
  "serde_json",

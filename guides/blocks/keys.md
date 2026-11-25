@@ -1060,7 +1060,11 @@ who lost access. Cited from code by these names.
   misbehaves, not what it hides), or with a log that grows each time it is read
   (`Contended`), which leaves no verdict. A verdict shows above the block as a
   warning bar with Details and Dismiss, writing still allowed (`BlockInfo::log_doubt`,
-  guides/blocks/apps.md). One rule holds everywhere: a head
+  guides/blocks/apps.md). The server cannot fake a `Forked` verdict, since both heads are signed by keys
+  the device verified, and it causes a `Misbehaved` one only by really answering a proof that
+  does not hold. Dismissing hides only the verdict that was shown: a later one of another
+  kind, or against another head, shows again (`Refs::found_fork`), so dismissing never lets
+  the server hide what it does next. One rule holds everywhere: a head
   shorter than the kept one, or of its size with another root, is a fork; a proof
   that does not check is `Tampered`. A block's signed
   log already has them per device: each device keeps the log's head it verified and takes a

@@ -572,7 +572,7 @@ pub struct KeptLogHead {
 /// A fork of a block's signed log this device found (guides/blocks/keys.md, "Forks"): the head
 /// it kept, a head the other side kept that the server could not show lies on the same log,
 /// where that head came from, and when, by the server's clock as this device estimates it.
-/// Kept across restarts, the first one found: one place answers whether a block's log forked,
+/// Kept across restarts, the first one found until it is dismissed: one place answers whether a block's log forked,
 /// whether another device's head showed it (`Peer::compare_log_head`) or the server served
 /// this device a head that does not extend its own (`ClientError::LogForked`).
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -589,8 +589,8 @@ pub struct LogFork {
     pub from: HeadFrom,
     pub kind: ForkKind,
     pub found: Option<i64>,
-    /// The person dismissed it on this device (`Peer::dismiss_log_fork`): kept, no longer shown.
-    #[serde(default)]
+    /// The person dismissed it on this device (`Peer::dismiss_log_fork`): kept, no longer shown,
+    /// until a verdict of another kind or against another head takes its place.
     pub dismissed: bool,
 }
 
@@ -1762,12 +1762,18 @@ impl Refs {
         Ok(true)
     }
 
-    /// Keeps `fork` unless a fork of its block is kept already: whether it was kept. Written
+    /// Keeps `fork` unless a fork of its block is kept already and shown, or dismissed and the
+    /// same kind against the same head: whether it was kept. Written
     /// before it is held, so one the database refused is not answered as kept.
     pub fn found_fork(&self, fork: LogFork) -> Result<bool, StoreError> {
         // Held across the write, so two found at once write and keep the same one.
         let mut state = self.state.lock().unwrap();
-        if state.log_forks.contains_key(&fork.block) {
+        // The first verdict stays while it is shown. Once dismissed, only that verdict is: one of
+        // another kind, or against another head, takes its place and shows, so dismissing never
+        // hides what the server does next.
+        if let Some(kept) = state.log_forks.get(&fork.block)
+            && (!kept.dismissed || (kept.kind, &kept.theirs) == (fork.kind, &fork.theirs))
+        {
             return Ok(false);
         }
         self.write(vec![row(
