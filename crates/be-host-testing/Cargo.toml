@@ -9,7 +9,6 @@ be-block-client = { path = "../be-block-client" }
 be-host-server = { path = "../be-host-server" }
 be-host-stack = { path = "../be-host-stack" }
 be-type-bundle = { path = "../be-type-bundle" }
-uuid = { version = "1", features = ["v4", "v7"] }
 
 [lints]
 workspace = true

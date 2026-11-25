@@ -3,9 +3,10 @@
 //! test serves in process (`serve_in_process`).
 //!
 //! It is compiled into every native build, inert unless a test calls it
-//! (decisions/test_hooks_are_ordinary_code.md). The harness asks the server for no more than
-//! `TestServer` says, so the server itself (`be_host_server::testing::Server`) lives beneath
-//! this crate and nothing a host ships links be-server.
+//! (decisions/test_hooks_are_ordinary_code.md). The harness is handed what it signs in with
+//! (`SignIn`) rather than the server, so the server itself (`be_host_server::testing::Server`)
+//! lives beneath this crate and nothing a host ships links be-server; whoever holds the server
+//! stops and starts it.
 
 use std::sync::OnceLock;
 use std::{path::PathBuf, sync::MutexGuard};
@@ -29,32 +30,25 @@ pub(crate) fn in_process() -> Option<&'static InProcess> {
     IN_PROCESS.get()
 }
 
-/// What the harness asks of a test's block server.
-pub trait TestServer {
-    /// Where a device that reaches it directly signs in.
-    fn url(&self) -> String;
-    /// The server's data.
-    fn directory(&self) -> PathBuf;
-    /// Makes the account named `name`: its id and email.
-    fn account(&self, name: &str) -> (Uuid, String);
-    /// A new sign-in for one device of `account`.
-    fn token(&self, account: Uuid) -> String;
-    /// Closes its listener, as a device losing its connection finds it.
-    fn stop(&self);
-    /// Listens again, at the same address and on the same data, after `stop`.
-    fn start_again(&self);
+/// What the harness signs in with: an account a test's block server made, and where the
+/// server listens.
+pub struct SignIn {
+    pub url: String,
+    pub account: Uuid,
+    pub email: String,
+    pub token: String,
 }
 
 /// One account's stack signed in against a test's server, in the account's organization
 /// "Counters": one at a time in a process, since the stack is one per process.
 pub struct Harness {
-    pub(crate) server: Box<dyn TestServer>,
     pub(crate) directory: PathBuf,
     /// Where the server listens, which `config` signs in at unless the stack reaches it
     /// through something else (`reached_at`).
     pub(crate) url: String,
     pub(crate) reached_at: Option<String>,
     pub(crate) account: Uuid,
+    pub(crate) email: String,
     pub(crate) token: String,
     pub(crate) organization: Uuid,
     pub(crate) phrase: be_block_keys::RecoveryPhrase,
@@ -63,9 +57,9 @@ pub struct Harness {
 }
 
 impl Harness {
-    /// Makes the account "Counter" on `server` and its organization "Counters"; `connect`
-    /// starts the stack in it.
-    pub fn start(server: Box<dyn TestServer>) -> Self {
+    /// Makes the organization "Counters" of the account `sign_in` names, the test server's
+    /// "Counter"; `connect` starts the stack in it.
+    pub fn start(sign_in: SignIn) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -76,9 +70,12 @@ impl Harness {
         #[cfg(test)]
         crate::version::forget_counts();
         let directory = std::env::temp_dir().join(format!("be3-test-stack-{}", Uuid::new_v4()));
-        let (account, email) = server.account("Counter");
-        let token = server.token(account);
-        let url = server.url();
+        let SignIn {
+            url,
+            account,
+            email,
+            token,
+        } = sign_in;
         let phrase = be_block_keys::RecoveryPhrase::generate();
         let organization = runtime()
             .block_on(crate::accounts::create_organization(
@@ -88,18 +85,18 @@ impl Harness {
                     account,
                     identity: phrase.secret().to_bytes(),
                     display_name: "Counter".to_owned(),
-                    email,
+                    email: email.clone(),
                 },
                 "Counters".to_owned(),
             ))
             .expect("the organization is created")
             .id;
         Self {
-            server,
             directory,
             url,
             reached_at: None,
             account,
+            email,
             token,
             organization,
             phrase,
@@ -153,7 +150,7 @@ impl Harness {
             organization: self.organization,
             identity: self.identity(),
             display_name: "Counter".to_owned(),
-            email: "counter@example.com".to_owned(),
+            email: self.email.clone(),
             data_dir,
             clock: self.clock.clone(),
         }
@@ -167,17 +164,6 @@ impl Harness {
             be_block_client::Credentials::Token(self.token.clone()),
         )
         .organization(Some(self.organization))
-    }
-
-    /// Stops the server, as a device losing its connection finds it: the stack keeps what it
-    /// does until `start_server` brings it back at the same address.
-    pub fn stop_server(&mut self) {
-        self.server.stop();
-    }
-
-    /// Starts the server again on the same data and address after `stop_server`.
-    pub fn start_server(&mut self) {
-        self.server.start_again();
     }
 
     /// A block this account made on the server from another device, in the organization, under
