@@ -671,7 +671,9 @@ too), then `begin_frame`, `poll`, `flush` and `settle`, as be-host's frame
 does. Nothing in it is laid out or painted, so it runs only instances with no
 screen, host components (guides/apps/host_services.md, "Host components").
 The runtime keeps passing while one runs (`Instances::has_hosts`) without
-asking for frames.
+asking for frames. Libraries are trimmed to what the apps with a host component
+import (`keep_exports`), since no other app runs there and `be` stages the
+others' manifests alone.
 
 `be` runs them this way, one host component per `be_tool_cli::hosting::Hosting`,
 on a block stack it has already started and connected:
