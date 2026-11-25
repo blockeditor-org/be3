@@ -287,7 +287,7 @@ impl RootShell {
         clipboard(context, root, &self.pasted);
         serve_editors(&mut self.core, root, &mut self.editors);
         for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {
-            self.core.apply_root_artifact_settings(id, data);
+            self.core.store_artifact_settings(id, data);
         }
         refuse_unserved(root);
         // What the root asked of the block stack in this frame, done at once; what that changed
@@ -409,7 +409,9 @@ impl beui::native::Program for RootShell {
         // components) start and are asked for their frames as be-host's own window asks them,
         // once it laid out (`on_interacted`, `on_laid_out`): the root's apps are the root's.
         be_host_runtime::start_frames(false);
-        be_host_runtime::settle();
+        // Whether their answers change what be-host lays out does not matter here: under the
+        // root be-host's window shows none of their views, only what the root drew.
+        let _relaid = be_host_runtime::settle();
         // What the host's apps did in this frame's `poll` reaches whoever waits on it.
         beui::native::enter(&mut self.document, be_host_base::host::deliver);
         self.deliver_input(origin);
@@ -828,18 +830,9 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         };
         // A root that encodes what no editor can read has nothing to relay.
         if let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) {
-            // Accepted artifact settings its placer committed, which the host applies.
-            if let Some(artifact) = editors
-                .opened
-                .get(&(instance, editor))
-                .and_then(|opened| opened.artifact)
-                && messages
-                    .iter()
-                    .any(|message| matches!(message, ShellMessage::CommitChild(_)))
-                && let Some(draft) = forwarded.artifact_draft(EditorInstanceId(editor))
-            {
-                editors.artifact_applies.push((artifact, draft));
-            }
+            let committed = messages
+                .iter()
+                .any(|message| matches!(message, ShellMessage::CommitChild(_)));
             // The commit of a creation its placer sent, which makes its block.
             if let Some(creation) = editors
                 .opened
@@ -856,7 +849,18 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
                     }
                 }
             }
+            // Heard first, so a draft told with the commit is the one applied.
             forwarded.shell_told(EditorInstanceId(editor), messages);
+            // Accepted artifact settings its placer committed, which the host applies.
+            if let Some(artifact) = editors
+                .opened
+                .get(&(instance, editor))
+                .and_then(|opened| opened.artifact)
+                && committed
+                && let Some(draft) = forwarded.artifact_draft(EditorInstanceId(editor))
+            {
+                editors.artifact_applies.push((artifact, draft));
+            }
             told = true;
         }
     }
@@ -1208,7 +1212,7 @@ struct Editors {
     /// climbs to find its handler.
     placers: HashMap<(u64, u64), (u64, u64)>,
     /// The settings artifact settings children accepted, by the artifact, for the host to apply
-    /// (`HostCore::apply_root_artifact_settings`).
+    /// (`HostCore::store_artifact_settings`).
     artifact_applies: Vec<(Uuid, Vec<u8>)>,
 }
 

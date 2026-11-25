@@ -3,6 +3,10 @@ use super::*;
 /// The root be-host runs in place of its own UI (crates/be-root), staged as an app.
 const ROOT: &str = "be3.root";
 
+/// The settings dialog's Scale select and Apply button, where the root shows them.
+const SCALE: &str = "600,338";
+const APPLY: &str = "674,419";
+
 #[test]
 fn be_root_in_place_of_the_hosts_ui_shows_an_artifacts_settings() {
     // be-host's own UI exports a canvas as a PNG image made again as the canvas changes, an
@@ -57,16 +61,24 @@ fn be_root_in_place_of_the_hosts_ui_shows_an_artifacts_settings() {
     host.run(&["click", &settings]);
     host.run(&["settle"]);
     host.snapshot("be_root_shows_an_artifacts_settings");
-    // Its Scale set to 1x from its dropdown's search, then Apply: the workspace commits the
-    // child, and the host keeps the settings and makes the image again with them, at half the
-    // pixels, which the image shows coarser.
-    host.run(&["click", "600,338"]);
+    // Drive's tree sees nothing inside the root's views, so the dialog's controls are clicked
+    // where the painting above shows them. Its Scale's list opens past the dialog, as under
+    // be-host.
+    host.run(&["click", SCALE]);
     host.run(&["settle"]);
+    host.snapshot("be_root_opens_an_artifacts_settings_list_past_its_dialog");
+    // Scale set to 1x from the list's search, then Apply: the workspace commits the child,
+    // and the host keeps the settings and makes the image again with them, at half the
+    // pixels, which the image shows coarser.
     host.type_text("1x");
     host.key("enter");
     host.run(&["settle"]);
-    host.run(&["click", "674,419"]);
+    host.run(&["click", APPLY]);
     host.run(&["settle"]);
     host.snapshot("be_root_applies_an_artifacts_settings");
+    // Opened again, the settings read as kept: Scale 1x.
+    host.run(&["click", &settings]);
+    host.run(&["settle"]);
+    host.snapshot("be_root_keeps_an_artifacts_settings");
     host.close();
 }

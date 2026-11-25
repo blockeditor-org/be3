@@ -31,5 +31,15 @@ fn a_dialog_child_runs_in_an_editor_of_its_own() {
     // Kinds the root shows nothing of yet are not placed as editors.
     let mut panel = placed(rect((0.0, 0.0), (200.0, 120.0)), ChildMode::Live);
     panel.content = ChildContent::Host(be_sdk_api::HostPanel::Apps);
-    assert!(Child::placed(EditorInstanceId(1), ViewId::MAIN, 1.0, panel, Vec::new(), false).is_none());
+    assert!(
+        Child::placed(
+            EditorInstanceId(1),
+            ViewId::MAIN,
+            1.0,
+            panel,
+            Vec::new(),
+            false
+        )
+        .is_none()
+    );
 }

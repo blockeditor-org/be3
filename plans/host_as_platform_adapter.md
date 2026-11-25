@@ -1901,7 +1901,7 @@ Each step lands on its own.
                status says it (the room the view used). Apply commits the child; the host
                takes the editor's draft (`Forwarded::artifact_draft`) and keeps it as the
                artifact's settings, making it again through its session
-               (`HostCore::apply_root_artifact_settings`). Host test
+               (`HostCore::store_artifact_settings`). Host test
                `be_root_in_place_of_the_hosts_ui_shows_an_artifacts_settings`. The artifact
                states reach the root's editors the way they reach be-host's own: the host keys
                the watches by app and instance (`InstanceEvent::ArtifactWatch`, heard under the
@@ -1911,6 +1911,12 @@ Each step lands on its own.
                own window (`start_frames`, `settle`). The root relays what a settings view
                edited (`ArtifactEdited`), and a commit its placer sends in the layout that
                removes the child still reaches that child's editor (`Children::released`).
+               A watch an editor reported before it closed is dropped once heard
+               (`HostCore::closed_watchers`). Both hosts keep accepted settings through
+               `store_artifact_settings`. The settings view keeps its place's anchor space, and
+               views it anchors (a select's list) open past the dialog, as anywhere but a
+               preview (`ViewPlacement::anchors`; be-sdk dropped them for a settings view, which
+               the platform had already moved out of it, so the list showed nowhere).
              - 4g7b3m. Built: host panels. be-host keeps no beui but its platform adapters,
                so it draws no panel: be-root draws them itself (the user's decision).
                be-sdk-root lists each host panel child placed and not hidden
