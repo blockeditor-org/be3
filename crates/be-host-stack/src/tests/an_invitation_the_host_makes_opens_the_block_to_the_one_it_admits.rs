@@ -7,7 +7,7 @@ use super::*;
 fn an_invitation_the_host_makes_opens_the_block_to_the_one_it_admits() {
     let harness = Harness::start();
     let guest = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "guest@example.com",
         "Guest",

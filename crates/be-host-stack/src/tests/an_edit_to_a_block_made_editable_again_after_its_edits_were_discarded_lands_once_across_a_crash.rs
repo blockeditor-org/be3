@@ -9,7 +9,7 @@ fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_o
 {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

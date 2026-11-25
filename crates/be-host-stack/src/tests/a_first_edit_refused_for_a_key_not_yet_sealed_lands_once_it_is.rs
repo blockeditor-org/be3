@@ -7,7 +7,7 @@ use super::*;
 fn a_first_edit_refused_for_a_key_not_yet_sealed_lands_once_it_is() {
     let harness = Harness::start();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

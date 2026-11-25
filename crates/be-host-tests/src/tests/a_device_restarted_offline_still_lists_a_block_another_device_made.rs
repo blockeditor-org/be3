@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_device_restarted_offline_still_lists_a_block_another_device_made() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

@@ -1761,8 +1761,12 @@ dependencies = [
 name = "be-host-server"
 version = "0.1.0"
 dependencies = [
+ "be-block-commit",
+ "be-block-fault-relay",
+ "be-block-sqlite-schema",
  "be-server",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -1854,16 +1858,9 @@ name = "be-host-testing"
 version = "0.1.0"
 dependencies = [
  "be-block-client",
- "be-block-content",
- "be-block-graph",
- "be-block-keys",
- "be-block-store",
  "be-host-server",
  "be-host-stack",
- "be-lib-build-id",
- "be-server",
  "be-type-bundle",
- "tokio",
  "uuid",
 ]
 
@@ -1872,14 +1869,12 @@ name = "be-host-tests"
 version = "0.1.0"
 dependencies = [
  "be-block-client",
- "be-block-commit",
  "be-block-fault-relay",
  "be-block-keys",
  "be-block-protocol",
- "be-block-sqlite-schema",
  "be-block-store",
+ "be-host-server",
  "be-sdk-root-testing",
- "be-server",
  "be-tool-drive",
  "beui-core",
  "beui-layer-drive",

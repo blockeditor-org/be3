@@ -13,7 +13,6 @@ fn saved(shared: &Shared, block: Uuid) -> Option<usize> {
 fn a_folder_is_versioned_copied_and_undone_offline() {
     let mut harness = Harness::start();
     harness.connect();
-    let address = harness.address();
     wait_until("loaded the graph", |shared| {
         shared.graph.ready(super::graph::Query::Roots)
     });
@@ -64,7 +63,7 @@ fn a_folder_is_versioned_copied_and_undone_offline() {
     });
     assert!(!with_shared(|shared| shared.connected).unwrap_or(true));
 
-    harness.start_server(&address);
+    harness.start_server();
     wait_until("sent what was made offline", |shared| {
         shared.connected && shared.waiting == 0
     });

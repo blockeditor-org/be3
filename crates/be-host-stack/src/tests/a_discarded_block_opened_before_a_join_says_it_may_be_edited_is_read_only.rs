@@ -7,7 +7,7 @@ use super::*;
 fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

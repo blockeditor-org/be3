@@ -38,10 +38,9 @@ fn finds(text: &str, blocks: &[Uuid]) {
 }
 
 fn reconnect(harness: &mut Harness) {
-    let address = harness.address();
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected", |shared| shared.connected);
 }

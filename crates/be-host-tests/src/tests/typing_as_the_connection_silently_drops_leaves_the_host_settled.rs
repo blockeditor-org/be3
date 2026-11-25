@@ -4,7 +4,7 @@ use super::*;
 /// editors and files keep working from what it keeps: nothing waits on a send that cannot end.
 #[test]
 fn typing_as_the_connection_silently_drops_leaves_the_host_settled() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut phone = HostTest::device(&dev);
     add_to_my_files(&mut phone, "Text");

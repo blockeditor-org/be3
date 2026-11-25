@@ -8,7 +8,7 @@ use be_type_text::{TextBlock, TextContent};
 fn a_linked_block_moved_out_of_view_shows_as_no_access_not_where_it_was() {
     let harness = Harness::start();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

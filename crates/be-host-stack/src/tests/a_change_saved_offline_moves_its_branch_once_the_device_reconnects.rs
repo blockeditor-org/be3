@@ -10,7 +10,6 @@ use be_sdk_api::VersionCommand;
 fn a_change_saved_offline_moves_its_branch_once_the_device_reconnects() {
     let mut harness = Harness::start();
     harness.connect();
-    let address = harness.address();
     let versioned = start_versioning("hello\n");
     show_version(
         versioned.checkout,
@@ -42,7 +41,7 @@ fn a_change_saved_offline_moves_its_branch_once_the_device_reconnects() {
     assert_eq!(saved, (2, None), "the change was not saved offline");
     assert!(status().waiting > 0, "the change did not wait to be sent");
 
-    harness.start_server(&address);
+    harness.start_server();
     wait_until("sent what was saved offline", |shared| {
         shared.connected && shared.waiting == 0
     });

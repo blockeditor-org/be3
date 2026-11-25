@@ -7,7 +7,7 @@ use super::*;
 fn edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again() {
     let harness = Harness::relayed();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",

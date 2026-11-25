@@ -5,7 +5,6 @@ fn an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect()
     let mut harness = Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    let address = harness.address();
 
     open(block, CounterContent::CONTENT_TYPE);
     add(block, 2);
@@ -30,7 +29,7 @@ fn an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect()
     wait_for_count(block, 6);
     flush();
 
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

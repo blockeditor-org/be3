@@ -322,10 +322,11 @@ app in it. A test fails unless the host exits cleanly at `close()`.
 ### Devices of one account
 
 `HostTest::start` has each host embed a private server. A test of what happens between devices
-(sync, going offline, restarting) owns one instead: `Server` (crates/be-host-tests/src/server.rs)
-runs be-server in the test's process on a directory of its own, and hosts join it as devices.
+(sync, going offline, restarting) owns one instead: `server()`, the block-stack tests' `Server`
+(`be_host_server::testing`) on the test's clock, runs be-server in the test's process on a
+directory of its own, and hosts join it as devices, each through a fault relay of its own.
 
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

@@ -4,7 +4,7 @@ use super::*;
 /// device is back.
 #[test]
 fn a_chat_message_sent_offline_shows_as_sending_until_the_device_reconnects() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut phone = HostTest::device(&dev);
     add_to_my_files(&mut phone, "Chat");

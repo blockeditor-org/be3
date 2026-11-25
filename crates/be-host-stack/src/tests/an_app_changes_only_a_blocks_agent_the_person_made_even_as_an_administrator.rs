@@ -7,7 +7,7 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
     let harness = Harness::start();
     let url = harness.url.clone();
     let member = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &url,
         "member@example.com",
         "Member",

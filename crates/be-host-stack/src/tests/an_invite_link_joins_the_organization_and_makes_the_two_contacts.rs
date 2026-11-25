@@ -5,13 +5,13 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
     let harness = Harness::start();
     let url = harness.url.clone();
     let guest = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &url,
         "guest@example.com",
         "Guest",
     );
     let outsider = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &url,
         "outsider@example.com",
         "Outsider",
