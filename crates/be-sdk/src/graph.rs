@@ -121,6 +121,9 @@ pub struct BlockInfo {
     /// How many things in the block's content this account has not read, for a type that
     /// counts them (a chat's new messages): what a row shows as a badge. Zero otherwise.
     pub unread: u32,
+    /// Doubt this device holds about the block's signed log, until the person dismisses it
+    /// (guides/blocks/keys.md, "Forks"): the shell shows it above the block.
+    pub log_doubt: Option<be_sdk_api::blocks::LogDoubt>,
 }
 
 impl BlockInfo {
@@ -140,6 +143,7 @@ impl BlockInfo {
             tree_size: 0,
             out_of_reach: false,
             unread: 0,
+            log_doubt: None,
         }
     }
 
@@ -226,6 +230,7 @@ impl BlockInfo {
             tree_size: self.tree_size,
             out_of_reach: self.out_of_reach,
             unread: self.unread,
+            log_doubt: self.log_doubt,
         }
     }
 
@@ -248,6 +253,7 @@ impl BlockInfo {
             tree_size: info.tree_size,
             out_of_reach: info.out_of_reach,
             unread: info.unread,
+            log_doubt: info.log_doubt,
         }
     }
 }

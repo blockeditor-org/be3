@@ -1356,6 +1356,12 @@ impl EditorHost {
         self.command(block_id, BlockCommand::History(commit));
     }
 
+    /// Hides `block_id`'s log doubt on this device (`BlockInfo::log_doubt`): the verdict stays
+    /// kept.
+    pub fn dismiss_log_doubt(&self, block_id: Uuid) {
+        self.command(block_id, BlockCommand::DismissLogDoubt);
+    }
+
     pub fn restore_block(&self, block_id: Uuid) {
         self.command(block_id, BlockCommand::Restore);
     }

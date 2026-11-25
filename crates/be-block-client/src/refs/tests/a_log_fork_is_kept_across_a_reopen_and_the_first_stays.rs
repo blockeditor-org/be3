@@ -30,6 +30,7 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
         },
         kind: ForkKind::Forked,
         found: Some(5),
+        dismissed: false,
     };
     {
         let refs = RefsDb::open(&path).unwrap().scope(scope.clone()).unwrap();
@@ -42,8 +43,20 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
         assert!(!refs.found_fork(later).unwrap(), "the first fork stays");
     }
 
+    let refs = RefsDb::open(&path).unwrap().scope(scope.clone()).unwrap();
+    assert_eq!(refs.log_fork(block), Some(first.clone()), "the verdict outlives a restart");
+    assert!(refs.dismiss_fork(block).unwrap());
+    assert!(!refs.dismiss_fork(block).unwrap(), "dismissed once");
+    drop(refs);
     let refs = RefsDb::open(&path).unwrap().scope(scope).unwrap();
-    assert_eq!(refs.log_fork(block), Some(first), "the verdict outlives a restart");
+    assert_eq!(
+        refs.log_fork(block),
+        Some(LogFork {
+            dismissed: true,
+            ..first
+        }),
+        "dismissing keeps the verdict, marked so"
+    );
     assert_eq!(refs.log_fork(Uuid::new_v4()), None);
 
     drop(refs);

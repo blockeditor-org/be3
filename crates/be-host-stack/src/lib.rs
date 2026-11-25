@@ -2514,6 +2514,11 @@ pub fn mutes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
     .flatten()
 }
 
+/// Hides `block`'s log doubt on this device (`BlockInfo::log_doubt`): the verdict stays kept.
+pub fn dismiss_log_doubt(block: Uuid) {
+    send(Command::DismissLogDoubt(block));
+}
+
 /// Sets how the signed-in account is notified about `block`.
 pub fn set_mute(
     block: Uuid,

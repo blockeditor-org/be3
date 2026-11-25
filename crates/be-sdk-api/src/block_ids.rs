@@ -245,7 +245,8 @@ impl BlockCommand {
             | Self::Define { .. }
             | Self::TellMember(_)
             | Self::TellHost(_)
-            | Self::KeepHosting(_) => {}
+            | Self::KeepHosting(_)
+            | Self::DismissLogDoubt => {}
         }
     }
 }
@@ -277,7 +278,8 @@ impl BlockCommand {
             | Self::CloseEditor
             | Self::Artifact { .. }
             | Self::TellHost(_)
-            | Self::KeepHosting(_) => false,
+            | Self::KeepHosting(_)
+            | Self::DismissLogDoubt => false,
         }
     }
 }

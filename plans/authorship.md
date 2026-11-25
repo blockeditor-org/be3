@@ -14,22 +14,11 @@ arrival are all caught or impossible there.
 
 ## What is left open
 
-- **Forks across devices.** Comparing a head another device kept, and the
-  verdict a fork leaves, are built (`Peer::compare_log_head`,
-  guides/blocks/client.md, "Signed logs"), and so are heads carried in a
-  block's live session and in its commits (`Peer::tell_log_head`,
-  `Commit::log_through`). A head is compared only signed with a key the device
-  verified for its account, so the server can plant no fork, and "a longer
-  head is a fork" assumes one linearizable server per log. One person's devices
-  also compare through the account's block (`Peer::trade_account_heads`), as
-  they connect. Left:
-  - showing the verdict to the person: a warning bar on the block ("Another
-    device was shown a different history of this block. The server may be
-    showing people different versions."), with Details and Dismiss, writing
-    still allowed;
-  - contact letters, set aside for now: a letter could carry the heads of the
-    logs of blocks both accounts hold, capped at the most recently read, so a
-    letter stays bounded.
+- **Forks across devices, through contact letters** (set aside for now): heads of
+  signed logs are compared through sessions, commits and the account's block
+  (guides/blocks/keys.md, "Forks"); a contact's letter could carry the heads of
+  the logs of blocks both accounts hold, capped at the most recently read, so a
+  letter stays bounded.
 - **First use of a member's key** is trusted: set aside by the owner
   (plans/deferred/authorship.md).
 - **A replaced key and someone holding the old phrase** look alike: an entry

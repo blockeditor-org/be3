@@ -179,7 +179,49 @@ pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     }
 }
 
-pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>, out_of_reach: bool) -> BlockInfo {
+/// What an app is told of a kept verdict on a block's signed log, none once dismissed.
+pub(crate) fn log_doubt_of(fork: &be_block_client::LogFork) -> Option<be_sdk_api::blocks::LogDoubt> {
+    use be_block_client::{ForkKind, HeadFrom};
+    use be_sdk_api::blocks::{LogDoubt, LogDoubtKind, LogDoubtSource};
+    if fork.dismissed {
+        return None;
+    }
+    let (source, account) = match &fork.from {
+        HeadFrom::Session { account, .. } => (LogDoubtSource::Session, Some(*account)),
+        HeadFrom::Commit { author, .. } => (LogDoubtSource::Commit, Some(*author)),
+        HeadFrom::Account { .. } => (LogDoubtSource::Account, None),
+        HeadFrom::Server => (LogDoubtSource::Server, None),
+    };
+    Some(LogDoubt {
+        kind: match fork.kind {
+            ForkKind::Forked => LogDoubtKind::Forked,
+            ForkKind::Misbehaved => LogDoubtKind::Misbehaved,
+        },
+        source,
+        account: account.map(Uuid::into_bytes),
+        ours: fork.ours.size,
+        theirs: fork.theirs.size,
+        found: fork.found,
+    })
+}
+
+/// Each block's verdict this device kept and the person has not dismissed.
+pub(crate) fn log_doubts(
+    peer: &Peer<Store>,
+) -> imbl::OrdMap<Uuid, be_sdk_api::blocks::LogDoubt> {
+    peer.log_forks()
+        .iter()
+        .filter_map(|fork| Some((fork.block, log_doubt_of(fork)?)))
+        .collect()
+}
+
+pub fn info_of(
+    node: &Node,
+    deleted: bool,
+    unfiled: Option<Uuid>,
+    out_of_reach: bool,
+    log_doubt: Option<be_sdk_api::blocks::LogDoubt>,
+) -> BlockInfo {
     BlockInfo {
         block_id: node.id.into_bytes(),
         block_type: node.content_type.into_bytes(),
@@ -198,6 +240,7 @@ pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>, out_of_reach: 
         tree_size: node.tree_size,
         out_of_reach,
         unread: node.unread,
+        log_doubt,
     }
 }
 
@@ -215,7 +258,8 @@ pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
                     .get(&node.id)
                     .map_or(node.id, |preview| preview.source);
                 let out_of_reach = seen.out_of_reach.contains(&source);
-                info_of(node, deleted, unfiled, out_of_reach)
+                let doubt = seen.log_doubts.get(&source).cloned();
+                info_of(node, deleted, unfiled, out_of_reach, doubt)
             })
             .collect()
     })

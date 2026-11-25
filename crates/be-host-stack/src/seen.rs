@@ -295,6 +295,9 @@ pub struct Seen, delta SeenDelta {
     /// Offline, the blocks this device holds no version of whole, so it can neither open nor
     /// change them (`BlockInfo::out_of_reach`); empty while connected.
     pub out_of_reach: imbl::OrdSet<Uuid>,
+    /// The doubt this device holds about each block's signed log, not dismissed
+    /// (`BlockInfo::log_doubt`; `Peer::log_fork`).
+    pub log_doubts: imbl::OrdMap<Uuid, be_sdk_api::blocks::LogDoubt>,
     pub reached: bool,
     /// A local account's stack, which has no server (`Config::is_local`): what it makes is saved
     /// as it is made, and nothing waits to reach a server.

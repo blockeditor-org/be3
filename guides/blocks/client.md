@@ -373,7 +373,8 @@ taken unproven.
   `SHARED_HEADS` shared a pass, blocks holding none first, then those shared longest ago;
   a block's head moves forward only over one that agreed, and one no verified key signed,
   such as one signed before a phrase change, is replaced; `AccountBlock::log_heads`, by
-  organization and block, keeps at most `KEPT_HEADS`);
+  organization and block, keeps at most `KEPT_HEADS`; the account's block is the same
+  server's, which can withhold it, hiding a fork, never planting one);
   in the block's live session (`Peer::tell_log_head`, "Live sessions"); and in
   commits: each seal
   names the head its device kept, signed (`Commit::log_through`, sealed with
