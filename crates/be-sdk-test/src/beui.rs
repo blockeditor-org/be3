@@ -149,7 +149,6 @@ pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>>)>,
     /// The commits of the previews the editor dropped.
     closed_previews: Vec<[u8; 32]>,
-    signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
     workers: crate::workers::Shared,
     wakes: Arc<Wakes>,
@@ -307,23 +306,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         Self::open(Kind::Settings, Adopted::Artifacts(artifacts), data)
     }
 
-    /// A test of the editor shown for a revision of `source`: the editor's own block is the
-    /// preview's, while `signing-block` names `source`, as the host does.
-    pub fn in_revision_of(editor: OwnedEditor, source: Uuid) -> Self {
-        let block = editor.block_id();
-        Self::open_signing(
-            Kind::Frame(block),
-            Adopted::Editor(editor, None),
-            Vec::new(),
-            Some(source),
-        )
-    }
-
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
-        Self::open_signing(kind, adopted, data, None)
-    }
-
-    fn open_signing(kind: Kind, adopted: Adopted, data: Vec<u8>, signing: Option<Uuid>) -> Self {
         beui::native::verify_paint(true);
         beui::native::fail_unsettled_layout(true);
         let host = match &adopted {
@@ -344,10 +327,6 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             )),
             _ => None,
         };
-        let mut signatures = crate::signatures::Signatures::new(host.account_id());
-        if let Some(source) = signing {
-            signatures.set_signing_block(source);
-        }
         let workers = crate::workers::Shared::default();
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
@@ -509,7 +488,6 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             revision_previews: BTreeMap::new(),
             preview_asks: Vec::new(),
             closed_previews: Vec::new(),
-            signatures,
             fetches: crate::fetches::Fetches::default(),
             workers,
             wakes,
@@ -1118,12 +1096,6 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         self.wire.watching_published(W::OPEN)
     }
 
-    /// How `verify` answers a signature `account` made (`be_sdk_test::signature`); a contact's,
-    /// `Signer::Verified`, unless set. A signature it did not make is always `Signer::Bad`.
-    pub fn set_signer(&mut self, account: Uuid, signer: be_sdk_api::Signer) {
-        self.signatures.set(account, signer);
-    }
-
     pub fn answer<T, E: crate::wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
         let (op, outcome) = reply.answer(&answer);
         self.wire.answer(op, outcome);
@@ -1451,10 +1423,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                     }
                     call => {
                         let op = call.op();
-                        match self.signatures.answer(call, self.block_id()) {
-                            Ok((op, outcome)) => self.wire.answer(op, outcome),
-                            Err(call) => self.requests.push((Some(op), call)),
-                        }
+                        self.requests.push((Some(op), call));
                     }
                 }
                 return;

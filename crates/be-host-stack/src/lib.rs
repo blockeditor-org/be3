@@ -11,7 +11,6 @@ use uuid::Uuid;
 
 pub mod accounts;
 pub mod app_graph;
-pub mod authorship;
 mod changes;
 pub mod conflicts;
 pub mod device_push;

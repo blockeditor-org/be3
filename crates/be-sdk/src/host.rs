@@ -22,7 +22,7 @@ use be_sdk_api::{
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
     HostPanel, HostView, HostWindowId, LinkAdmits, MenuEntry, NotifyMode, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShareLink, ShellDialog, Signer, TerminalHostBe, ViewChange,
+    PerformanceMeasurement, Revision, ShareLink, ShellDialog, TerminalHostBe, ViewChange,
     ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
@@ -2257,34 +2257,6 @@ impl EditorHost {
     /// machine runs. Needs the manifest's `block_agents`.
     pub fn terminal_host_build(&self) -> Asked<Result<String, Failure>> {
         Asked::of(self.ask(host_services::terminal_host_build))
-    }
-
-    /// The block signatures bind to: the one the editor shows, or in a revision preview the one
-    /// it is of. Records that name their block in what they sign name this one.
-    pub fn signing_block(&self) -> Asked<Result<Uuid, Failure>> {
-        Asked::of(self.ask(host_services::signing_block)).map(|block| block.map(Uuid::from_bytes))
-    }
-
-    /// Signs `bytes` as the person who runs the editor, with a key the app never holds
-    /// (plans/authorship.md). The signature verifies only in the block the editor shows.
-    pub fn sign(&self, bytes: Vec<u8>) -> Asked<Result<Vec<u8>, Failure>> {
-        Asked::of(self.ask(|| host_services::sign(bytes)))
-    }
-
-    /// Whether `account` signed `bytes` in the block the editor shows, and how far its key is
-    /// trusted. `arrived` is when the server took the record, for one that keeps that stamp: a
-    /// record signed with a replaced key that arrived after this device learned of the new one
-    /// is `Replaced`.
-    pub fn verify(
-        &self,
-        account: Uuid,
-        bytes: Vec<u8>,
-        signature: Vec<u8>,
-        arrived: Option<i64>,
-    ) -> Asked<Result<Signer, Failure>> {
-        Asked::of(
-            self.ask(|| host_services::verify(account.into_bytes(), bytes, signature, arrived)),
-        )
     }
 
     /// Fails with the message to show where the person shared when the server could not take

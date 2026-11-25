@@ -4,7 +4,6 @@ mod beui;
 mod document;
 mod fetches;
 mod link;
-mod signatures;
 mod store;
 #[cfg(test)]
 mod tests;
@@ -47,7 +46,6 @@ macro_rules! test_editor {
 }
 pub use document::DocumentTest;
 pub use fetches::Fetch;
-pub use signatures::signature;
 pub use store::ContentStore;
 
 /// What a test drives and reads its program through (`Gui`) and paints it with

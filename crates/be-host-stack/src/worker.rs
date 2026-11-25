@@ -382,8 +382,6 @@ pub(super) enum Command {
         agent: Uuid,
         change: AgentChange,
     },
-    /// An app's `sign` or `verify`.
-    Authorship(crate::authorship::AuthorshipCommand),
     Sync,
 }
 
@@ -539,7 +537,6 @@ impl Command {
             Command::CreateAgent { .. } => "create agent",
             Command::CreateBlockAgent { .. } => "create block agent",
             Command::BlockAgent { .. } => "block agent",
-            Command::Authorship(..) => "authorship",
             Command::Sync => "sync",
         }
     }
@@ -688,7 +685,6 @@ impl Command {
             | Command::CreateAgent { .. }
             | Command::BlockAgent { .. }
             | Command::Push(_)
-            | Command::Authorship(_)
             | Command::Sync
             | Command::Storage(_)
             | Command::WantSearches(..)
@@ -3120,10 +3116,6 @@ impl Ran<'_> {
                 crate::changes::wake();
                 false
             }
-            Command::Authorship(command) => {
-                crate::authorship::run(self.peer, self.tasks, command);
-                false
-            }
             Command::Storage(on) => {
                 self.shared
                     .lock()
@@ -4076,7 +4068,6 @@ async fn apply(
         | Command::BlockAgent { .. }
         | Command::SetMute { .. }
         | Command::Push(_)
-        | Command::Authorship(_)
         | Command::Storage(_)
         | Command::WantSearches(..)
         | Command::Edit(..) => false,

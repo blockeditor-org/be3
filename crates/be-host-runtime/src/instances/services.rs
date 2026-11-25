@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashMap;
 
 use be_sdk_api::{
     AccessListing, BlockAgent, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock,
-    PastedBlock, SavedFile, Signer,
+    PastedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply, wire},
 };
@@ -326,13 +326,6 @@ impl Instances {
         }
     }
 
-    /// The block whose signatures `instance` makes and checks: the one it shows, or for a
-    /// revision preview the block the revision is of.
-    fn signed_in(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        let block = self.entries.get(&instance)?.role.block()?.id;
-        Some(revisions::source(block).unwrap_or(block))
-    }
-
     pub(super) fn local(&self, instance: EditorInstanceId, mut id: [u8; 16]) -> [u8; 16] {
         self.scoped(instance, false, &mut |visit| visit(&mut id));
         id
@@ -360,28 +353,15 @@ impl Instances {
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
-        // A host component, unattended, signs and checks what it writes and reads its app's
-        // data; everything that would ask a person, or reach past its block, is refused.
+        // A host component, unattended, reads its app's data; everything that would ask a
+        // person, or reach past its block, is refused.
         if self.hosting(instance).is_some()
-            && !matches!(
-                call,
-                Call::ReadData { .. }
-                    | Call::ListData { .. }
-                    | Call::Verify { .. }
-                    | Call::Sign { .. }
-                    | Call::SigningBlock { .. }
-            )
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
         {
             return self.refuse(call, OpError::Denied);
         }
         if self.previewing(instance)
-            && !matches!(
-                call,
-                Call::ReadData { .. }
-                    | Call::ListData { .. }
-                    | Call::Verify { .. }
-                    | Call::SigningBlock { .. }
-            )
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
         {
             return self.refuse(call, OpError::Denied);
         }
@@ -863,54 +843,6 @@ impl Instances {
                 let answering = self.answering(instance, reply);
                 answering.send_or_fail(be_host_stack::terminal_host::build_info());
             }
-            Call::SigningBlock { reply } => {
-                let found = match self.signed_in(instance) {
-                    Some(block) => Ok(self.local(instance, block.into_bytes())),
-                    None => Err(Failure::Unavailable),
-                };
-                self.answer_now(reply, found);
-            }
-            Call::Sign { reply, bytes } => {
-                let answering = self.answering(instance, reply);
-                let Some(block) = self.signed_in(instance) else {
-                    return answering.send(Err(Failure::Unavailable));
-                };
-                if self.app_id.is_empty() || bytes.len() > MAX_SIGNED_BYTES {
-                    return answering.send(Err(Failure::Denied));
-                }
-                be_host_stack::authorship::sign(
-                    block,
-                    be_block_client::by_app(&self.app_id, &bytes),
-                    move |signed| answering.send_or_fail(signed),
-                );
-            }
-            Call::Verify {
-                reply,
-                account,
-                bytes,
-                signature,
-                arrived,
-            } => {
-                let answering = self.answering(instance, reply);
-                let Some(block) = self.signed_in(instance) else {
-                    return answering.send(Err(Failure::Unavailable));
-                };
-                if self.app_id.is_empty() {
-                    return answering.send(Err(Failure::Denied));
-                }
-                let account = Uuid::from_bytes(account);
-                let bytes = be_block_client::by_app(&self.app_id, &bytes);
-                be_host_stack::authorship::verify(
-                    account,
-                    block,
-                    bytes,
-                    signature,
-                    arrived,
-                    move |found| {
-                        answering.send(found.map_err(|_| Failure::Unavailable).and_then(signer))
-                    },
-                );
-            }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);
                 discovery::data_listing(&self.app_id, move |index| {
@@ -1028,19 +960,3 @@ impl Instances {
         std::mem::take(&mut self.services.answers)
     }
 }
-
-/// Who signed, as an app is told; a verdict that could not be told is unavailable.
-fn signer(signer: be_block_content::Signer) -> Result<Signer, Failure> {
-    use be_block_content::Signer as Found;
-    match signer {
-        Found::Verified => Ok(Signer::Verified),
-        Found::Unverified => Ok(Signer::Unverified),
-        Found::Changed => Ok(Signer::Changed),
-        Found::Replaced => Ok(Signer::Replaced),
-        Found::Bad => Ok(Signer::Bad),
-        Found::Unknown | Found::Redacted => Err(Failure::Unavailable),
-    }
-}
-
-/// The most an app may ask the host to sign at once (`sign`): a record's bytes, not a file.
-const MAX_SIGNED_BYTES: usize = 64 * 1024;

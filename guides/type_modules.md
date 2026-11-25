@@ -324,7 +324,7 @@ who signed them, `be_block_content::Signer`) changes what the content shows.
   for the person as the module's app (`be_block_client::Said::hash` with the
   module's source name, `Modules::name`) and hands them to `Peer::append`, so
   a module never holds a signature: it cannot skip signing, sign as anyone
-  else, or make an entry another app's `verify` takes. Only that app's
+  else, or make an entry that verifies as another app's. Only that app's
   editors may ask: be-host-stack relays an editor's messages with its app's
   id (`from_editor`, `Replicas::relay_from_app`), and an `Append` from any
   other app's editor is answered with an error and goes no further. The

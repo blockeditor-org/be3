@@ -121,17 +121,6 @@ Notes on particular calls:
   `ensure_edit_kind`): that names no one. It is not airtight: such an app can
   still copy what it reads into a block it makes and open that one to everyone
   inside at View.
-- `sign(bytes)` signs as the person and `verify(account, bytes, signature,
-  arrived)` answers a `Signer` (verified, unverified, changed, replaced or
-  bad), both in
-  the block the editor shows; `arrived` is when the server took the record, for
-  a record that keeps that stamp, with a key the app never holds (guides/blocks/keys.md,
-  Signing what a person writes). Sign what a record means, not its encoding: a
-  type defines the bytes (be-type-chat's `signed.rs`). `verify` is
-  `unavailable` while its answer needs the server and it is out of reach.
-  `BeuiTest` answers both itself: everyone signs as `be_sdk_test::signature`
-  gives, and `set_signer(account, signer)` sets how a good signature by
-  `account` verifies (a contact's, `Verified`, unless set).
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block: the host isolates it
@@ -376,8 +365,7 @@ app asks (`Instances::hosting`):
   finish, update, switch, merge, undo). Opening, sharing or leaving a block,
   closing an editor, artifacts, and a fork, checkout, branch, pull or push
   (which find or place blocks of their own) are not;
-- of the host services, only signing and checking (`sign`, `verify`,
-  `signing-block`) and its app's own data (`list-data`, `read-data`);
+- of the host services, only its app's own data (`list-data`, `read-data`);
 - no shell message but a failure report, no web view, no `open-url`, and no
   gpu. A fetch is the manifest's `network` as for any instance. It is how a
 hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
