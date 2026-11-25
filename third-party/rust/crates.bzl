@@ -1560,6 +1560,39 @@ third_party = {
         ],
         "version": "0.1.5",
     },
+    "annotate-snippets-0.12.18": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Format diagnostic reports, including highlighting snippets of text",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/annotate-snippets-rs",
+            "CARGO_PKG_RUST_VERSION": "1.88.0",
+        },
+        "library": {
+            "crate": "annotate_snippets",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "annotate-snippets",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":anstyle-1.0.14",
+                    ":unicode-width-0.2.2",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.12.18",
+    },
     "anstream-1.0.0": {
         "build_script": None,
         "env": {
@@ -2355,6 +2388,35 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.1",
+    },
+    "ascii-canvas-4.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "simple canvas for drawing lines and styled text and emitting to the terminal",
+            "CARGO_PKG_LICENSE": "Apache-2.0/MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/ascii-canvas",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "ascii_canvas",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ascii-canvas",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":term-1.2.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "4.0.0",
     },
     "ash-0.38.0+1.3.281": {
         "build_script": {
@@ -3438,7 +3500,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -5058,6 +5120,60 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.10.0",
+    },
+    "bit-set-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alexis Beingessner <a.beingessner@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A set of bits",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/contain-rs/bit-set",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/contain-rs/bit-set",
+        },
+        "library": {
+            "crate": "bit_set",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "bit-set",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":bit-vec-0.8.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.0",
+    },
+    "bit-vec-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alexis Beingessner <a.beingessner@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A vector of bits",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/contain-rs/bit-vec",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/contain-rs/bit-vec",
+        },
+        "library": {
+            "crate": "bit_vec",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "bit-vec",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.0",
     },
     "bit-vec-0.9.1": {
         "build_script": None,
@@ -8278,7 +8394,7 @@ third_party = {
                     ":heck-0.5.0",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
                 "features": [
                     "default",
@@ -8649,6 +8765,101 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.13.1",
+    },
+    "color-0.3.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A library for representing and manipulating colors",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/color",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "color",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "color",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.3",
     },
     "color_quant-1.1.0": {
         "build_script": None,
@@ -9132,6 +9343,34 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.1.0",
+    },
+    "convert_case-0.10.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "rutrum <dave@rutrum.net>",
+            "CARGO_PKG_DESCRIPTION": "Convert strings into any case",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rutrum/convert-case",
+        },
+        "library": {
+            "crate": "convert_case",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "convert_case",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":unicode-segmentation-1.13.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.10.0",
     },
     "core-foundation-sys-0.8.7": {
         "build_script": None,
@@ -12841,6 +13080,93 @@ third_party = {
         ],
         "version": "0.5.8",
     },
+    "derive_more-2.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jelte Fennema <github-tech@jeltef.nl>",
+            "CARGO_PKG_DESCRIPTION": "Adds #[derive(x)] macros for more traits",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/JelteF/derive_more",
+            "CARGO_PKG_RUST_VERSION": "1.81.0",
+        },
+        "library": {
+            "crate": "derive_more",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "derive_more",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":derive_more-impl-2.1.1",
+                ],
+                "features": [
+                    "as_ref",
+                    "constructor",
+                    "default",
+                    "deref",
+                    "deref_mut",
+                    "display",
+                    "from",
+                    "is_variant",
+                    "std",
+                    "try_unwrap",
+                    "unwrap",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.1.1",
+    },
+    "derive_more-impl-2.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jelte Fennema <github-tech@jeltef.nl>",
+            "CARGO_PKG_DESCRIPTION": "Internal implementation of `derive_more` crate",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/JelteF/derive_more",
+            "CARGO_PKG_RUST_VERSION": "1.81.0",
+        },
+        "library": {
+            "crate": "derive_more_impl",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "derive_more-impl",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":convert_case-0.10.0",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                    ":unicode-xid-0.2.6",
+                ],
+                "features": [
+                    "as_ref",
+                    "constructor",
+                    "default",
+                    "deref",
+                    "deref_mut",
+                    "display",
+                    "from",
+                    "is_variant",
+                    "try_unwrap",
+                    "unwrap",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.1.1",
+    },
     "des-0.9.0": {
         "build_script": None,
         "env": {
@@ -13309,7 +13635,7 @@ third_party = {
                     ":diplomat_core-0.16.1",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -13374,7 +13700,7 @@ third_party = {
                     ":serde-1.0.228",
                     ":smallvec-1.16.5",
                     ":strck-1.0.0",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -15668,6 +15994,35 @@ third_party = {
         ],
         "version": "0.9.0",
     },
+    "ena-0.14.4": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "Union-find, congruence closure, and other unification code. Based on code from rustc.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/ena",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/ena",
+        },
+        "library": {
+            "crate": "ena",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "ena",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.4",
+    },
     "encoding_rs-0.8.35": {
         "build_script": None,
         "env": {
@@ -16643,6 +16998,101 @@ third_party = {
         ],
         "version": "0.3.7",
     },
+    "fearless_simd-1.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Raph Levien <raph.levien@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Safer and easier SIMD",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/fearless_simd",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "fearless_simd",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "fearless_simd",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.3.0",
+    },
+    "fearless_simd_macros-0.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": 'Sergey "Shnatsel" Davidoff <shnatsel@gmail.com>',
+            "CARGO_PKG_DESCRIPTION": "Procedural macros for fearless_simd",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/fearless_simd",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "fearless_simd_macros",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": True,
+        },
+        "name": "fearless_simd_macros",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-3.0.10",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.0",
+    },
     "ff-0.13.1": {
         "build_script": None,
         "env": {
@@ -16999,6 +17449,31 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.5.0",
+    },
+    "fixedbitset-0.5.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "bluss",
+            "CARGO_PKG_DESCRIPTION": "FixedBitSet is a simple bitset collection",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/petgraph/fixedbitset",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "fixedbitset",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "fixedbitset",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.9",
     },
     "flagset-0.4.7": {
         "build_script": None,
@@ -20548,6 +21023,69 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.14.0",
+    },
+    "guillotiere-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A dynamic 2D texture atlas allocator with fast deallocation.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nical/guillotiere",
+        },
+        "library": {
+            "crate": "guillotiere",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "guillotiere",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
     },
     "gvdb-0.10.1": {
         "build_script": None,
@@ -26498,7 +27036,7 @@ third_party = {
                     ":heck-0.5.0",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -27819,6 +28357,30 @@ third_party = {
         ],
         "version": "0.1.0-rc.1",
     },
+    "keccak-0.1.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Keccak sponge function including the keccak-f\nand keccak-p variants\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/sponges/tree/master/keccak",
+        },
+        "library": {
+            "crate": "keccak",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "keccak",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.6",
+    },
     "keyboard-types-0.8.3": {
         "build_script": None,
         "env": {
@@ -28169,6 +28731,83 @@ third_party = {
         ],
         "version": "0.13.1",
     },
+    "lalrpop-0.22.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "convenient LR(1) parser generator",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/lalrpop",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "lalrpop",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lalrpop",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":ascii-canvas-4.0.0",
+                    ":bit-set-0.8.0",
+                    ":ena-0.14.4",
+                    ":itertools-0.14.0",
+                    ":lalrpop-util-0.22.2",
+                    ":petgraph-0.7.1",
+                    ":regex-1.13.1",
+                    ":regex-syntax-0.8.11",
+                    ":sha3-0.10.9",
+                    ":string_cache-0.8.9",
+                    ":term-1.2.1",
+                    ":unicode-xid-0.2.6",
+                    ":walkdir-2.5.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.22.2",
+    },
+    "lalrpop-util-0.22.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "Runtime library for parsers generated by LALRPOP",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/lalrpop",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "lalrpop_util",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lalrpop-util",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":regex-automata-0.4.16",
+                    ":rustversion-1.0.22",
+                ],
+                "features": [
+                    "default",
+                    "regex-automata",
+                    "std",
+                    "unicode",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.22.2",
+    },
     "lazy_static-1.5.0": {
         "build_script": None,
         "env": {
@@ -28396,6 +29035,264 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.10.2",
+    },
+    "lexical-7.0.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Lexical, to- and from-string conversion routines.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-core-1.0.6",
+                ],
+                "features": [
+                    "default",
+                    "format",
+                    "parse-floats",
+                    "parse-integers",
+                    "power-of-two",
+                    "std",
+                    "write-floats",
+                    "write-integers",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "7.0.5",
+    },
+    "lexical-core-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Lexical, to- and from-string conversion routines.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-core",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-parse-float-1.0.6",
+                    ":lexical-parse-integer-1.0.6",
+                    ":lexical-util-1.0.7",
+                    ":lexical-write-float-1.0.6",
+                    ":lexical-write-integer-1.0.6",
+                ],
+                "features": [
+                    "format",
+                    "lexical-parse-float",
+                    "lexical-parse-integer",
+                    "lexical-write-float",
+                    "lexical-write-integer",
+                    "parse-floats",
+                    "parse-integers",
+                    "power-of-two",
+                    "std",
+                    "write-floats",
+                    "write-integers",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-parse-float-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient parsing of floats from strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_parse_float",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-parse-float",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-parse-integer-1.0.6",
+                    ":lexical-util-1.0.7",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-parse-integer-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient parsing of integers from strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_parse_integer",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-parse-integer",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-util-1.0.7",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-util-1.0.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Shared utilities for lexical creates.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_util",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-util",
+        "platforms": {
+            "linux-x86_64": {
+                "features": [
+                    "format",
+                    "parse-floats",
+                    "parse-integers",
+                    "power-of-two",
+                    "std",
+                    "write-floats",
+                    "write-integers",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.7",
+    },
+    "lexical-write-float-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient formatting of floats to strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_write_float",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-write-float",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-util-1.0.7",
+                    ":lexical-write-integer-1.0.6",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-write-integer-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient formatting of integers to strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_write_integer",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-write-integer",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-util-1.0.7",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
     },
     "libc-0.2.186": {
         "build_script": {
@@ -28998,6 +29895,69 @@ third_party = {
         ],
         "version": "0.1.4",
     },
+    "linebender_resource_handle-0.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Raw resource handle for immutable blobs with dynamic lifetimes.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/raw_resource_handle",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "linebender_resource_handle",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "linebender_resource_handle",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.1",
+    },
     "linux-raw-sys-0.12.1": {
         "build_script": None,
         "env": {
@@ -29425,6 +30385,107 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.4.31",
+    },
+    "logos-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Maciej Hirsz <hello@maciej.codes>:Jérome Eertmans (maintainer) <jeertmans@icloud.com>",
+            "CARGO_PKG_DESCRIPTION": "Create ridiculously fast Lexers",
+            "CARGO_PKG_HOMEPAGE": "https://logos.maciej.codes/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/maciejhirsz/logos",
+            "CARGO_PKG_RUST_VERSION": "1.80.0",
+        },
+        "library": {
+            "crate": "logos",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "logos",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":logos-derive-0.16.1",
+                ],
+                "features": [
+                    "default",
+                    "export_derive",
+                    "logos-derive",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
+    "logos-codegen-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Maciej Hirsz <hello@maciej.codes>:Jérome Eertmans (maintainer) <jeertmans@icloud.com>",
+            "CARGO_PKG_DESCRIPTION": "Create ridiculously fast Lexers",
+            "CARGO_PKG_HOMEPAGE": "https://logos.maciej.codes/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/maciejhirsz/logos",
+            "CARGO_PKG_RUST_VERSION": "1.80.0",
+        },
+        "library": {
+            "crate": "logos_codegen",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "logos-codegen",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":fnv-1.0.7",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":regex-automata-0.4.16",
+                    ":regex-syntax-0.8.11",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
+    "logos-derive-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Maciej Hirsz <hello@maciej.codes>:Jérome Eertmans (maintainer) <jeertmans@icloud.com>",
+            "CARGO_PKG_DESCRIPTION": "Create ridiculously fast Lexers",
+            "CARGO_PKG_HOMEPAGE": "https://logos.maciej.codes/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/maciejhirsz/logos",
+            "CARGO_PKG_RUST_VERSION": "1.80.0",
+        },
+        "library": {
+            "crate": "logos_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "logos-derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":logos-codegen-0.16.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
     },
     "lyon_geom-1.0.20": {
         "build_script": None,
@@ -31146,6 +32207,7 @@ third_party = {
                     "hlsl-out",
                     "spv-out",
                     "wgsl-in",
+                    "wgsl-out",
                 ],
             },
             "macos-arm64": {
@@ -31602,6 +32664,30 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.6.0+11769913",
+    },
+    "new_debug_unreachable-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Matt Brubeck <mbrubeck@limpet.net>:Jonathan Reem <jonathan.reem@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "panic in debug, intrinsics::unreachable() in release (fork of debug_unreachable)",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/mbrubeck/rust-debug-unreachable",
+        },
+        "library": {
+            "crate": "debug_unreachable",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "new_debug_unreachable",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
     },
     "nix-0.28.0": {
         "build_script": {
@@ -37024,6 +38110,133 @@ third_party = {
         ],
         "version": "1.0.0",
     },
+    "peniko-0.6.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Primitive types for styling vector graphics",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/peniko",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "peniko",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "peniko",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.1",
+    },
     "percent-encoding-2.3.2": {
         "build_script": None,
         "env": {
@@ -37102,6 +38315,36 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.3.2",
+    },
+    "petgraph-0.7.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "bluss:mitchmindtree",
+            "CARGO_PKG_DESCRIPTION": "Graph data structure library. Provides graph types and graph algorithms.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/petgraph/petgraph",
+            "CARGO_PKG_RUST_VERSION": "1.64",
+        },
+        "library": {
+            "crate": "petgraph",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "petgraph",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":fixedbitset-0.5.9",
+                    ":indexmap-2.14.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.1",
     },
     "phf-0.13.1": {
         "build_script": None,
@@ -37404,6 +38647,39 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.13.1",
+    },
+    "phf_shared-0.11.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Support code shared by PHF libraries",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-phf/rust-phf",
+            "CARGO_PKG_RUST_VERSION": "1.61",
+        },
+        "library": {
+            "crate": "phf_shared",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "phf_shared",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.11.3",
     },
     "phf_shared-0.13.1": {
         "build_script": None,
@@ -39721,6 +40997,29 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.2.21",
+    },
+    "precomputed-hash-0.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Emilio Cobos Álvarez <emilio@crisal.io>",
+            "CARGO_PKG_DESCRIPTION": "A library intending to be a base dependency to expose a precomputed hash",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_REPOSITORY": "https://github.com/emilio/precomputed-hash",
+        },
+        "library": {
+            "crate": "precomputed_hash",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "precomputed-hash",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.1",
     },
     "presser-0.3.1": {
         "build_script": None,
@@ -43127,6 +44426,8 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "dfa",
                     "dfa-build",
                     "dfa-onepass",
                     "dfa-search",
@@ -49458,7 +50759,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -50393,6 +51694,35 @@ third_party = {
             "-Coverflow-checks=off",
         ],
         "version": "0.11.1",
+    },
+    "sha3-0.10.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of SHA-3, a family of Keccak-based hash functions\nincluding the SHAKE family of eXtendable-Output Functions (XOFs), as well as\nthe accelerated variant TurboSHAKE\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/hashes",
+        },
+        "library": {
+            "crate": "sha3",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "sha3",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":keccak-0.1.6",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.10.9",
     },
     "sharded-slab-0.1.7": {
         "build_script": None,
@@ -53501,6 +54831,38 @@ third_party = {
         ],
         "version": "0.1.1",
     },
+    "string_cache-0.8.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
+            "CARGO_PKG_DESCRIPTION": "A string interning library for Rust, developed as part of the Servo project.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/servo/string-cache",
+            "CARGO_PKG_RUST_VERSION": "1.70.0",
+        },
+        "library": {
+            "crate": "string_cache",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "string_cache",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":new_debug_unreachable-1.0.6",
+                    ":parking_lot-0.12.5",
+                    ":phf_shared-0.11.3",
+                    ":precomputed-hash-0.1.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.9",
+    },
     "strsim-0.11.1": {
         "build_script": None,
         "env": {
@@ -54303,7 +55665,7 @@ third_party = {
         ],
         "version": "2.0.117",
     },
-    "syn-3.0.3": {
+    "syn-3.0.10": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
@@ -54345,7 +55707,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "3.0.3",
+        "version": "3.0.10",
     },
     "sync_wrapper-1.0.2": {
         "build_script": None,
@@ -54470,7 +55832,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
                 "features": [
                     "default",
@@ -54842,6 +56204,36 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.2.6",
+    },
+    "term-1.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rust Project Developers:Steven Allen",
+            "CARGO_PKG_DESCRIPTION": "A terminal formatting library\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/Stebalien/term",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Stebalien/term",
+            "CARGO_PKG_RUST_VERSION": "1.63",
+        },
+        "library": {
+            "crate": "term",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "term",
+        "platforms": {
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.2.1",
     },
     "text-size-1.1.1": {
         "build_script": None,
@@ -60437,6 +61829,7 @@ third_party = {
         },
         "name": "unicode-segmentation",
         "platforms": {
+            "linux-x86_64": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -61819,6 +63212,413 @@ third_party = {
         ],
         "version": "0.2.15",
     },
+    "vello_common-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Core data structures and utilities shared across the Vello rendering, including geometry processing and tiling logic.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_common",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_common",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "vello_gpu-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A GPU renderer for Vello with CPU-side preprocessing.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_gpu",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_gpu",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "vello_gpu_shaders-0.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "deps": [
+                ":naga-30.0.2",
+                ":wesl-0.4.0",
+                ":wesl-macros-0.4.0",
+                ":wgsl-parse-0.4.0",
+                ":wgsl-types-0.4.0",
+            ],
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Provide WESL shaders linked to WGSL and GLSL for the `vello_gpu` backends.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_gpu_shaders",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_gpu_shaders",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
     "version_check-0.9.5": {
         "build_script": None,
         "env": {
@@ -62192,7 +63992,7 @@ third_party = {
                     ":bumpalo-3.20.3",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                     ":wasm-bindgen-shared-0.2.130",
                 ],
             },
@@ -65341,6 +67141,75 @@ third_party = {
         ],
         "version": "0.1.12",
     },
+    "wesl-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "The WESL compiler",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wesl",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "wesl",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":annotate-snippets-0.12.18",
+                    ":derive_more-2.1.1",
+                    ":half-2.7.1",
+                    ":itertools-0.14.0",
+                    ":num-traits-0.2.19",
+                    ":thiserror-2.0.18",
+                    ":wesl-macros-0.4.0",
+                    ":wgsl-parse-0.4.0",
+                    ":wgsl-types-0.4.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "wesl-macros-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Macros for the WESL compiler",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wesl_macros",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": True,
+        },
+        "name": "wesl-macros",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":itertools-0.14.0",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+                "features": [
+                    "query",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
     "wgpu-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
@@ -66813,6 +68682,84 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "30.0.2",
+    },
+    "wgsl-parse-0.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "deps": [
+                ":lalrpop-0.22.2",
+            ],
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Parse a wgsl source file to a syntax tree",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wgsl_parse",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "wgsl-parse",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":annotate-snippets-0.12.18",
+                    ":derive_more-2.1.1",
+                    ":itertools-0.14.0",
+                    ":lalrpop-util-0.22.2",
+                    ":lexical-7.0.5",
+                    ":logos-0.16.1",
+                    ":thiserror-2.0.18",
+                    ":wgsl-types-0.4.0",
+                ],
+                "features": [
+                    "attributes",
+                    "condcomp",
+                    "default",
+                    "imports",
+                    "wesl",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "wgsl-types-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Type-checking of WGSL types and builtins",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wgsl_types",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "wgsl-types",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":itertools-0.14.0",
+                    ":num-traits-0.2.19",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
     },
     "which-6.0.3": {
         "build_script": None,
@@ -70842,7 +72789,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                     ":synstructure-0.14.0",
                 ],
             },
@@ -72047,7 +73994,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
