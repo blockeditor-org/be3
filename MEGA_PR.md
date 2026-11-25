@@ -94,6 +94,7 @@ Landed on 2026-11-24:
 - `dialogs-dock-1`..`3b`: a Window points at its anchor and may block its owner; a DockDialog drags within its window; dialogs are sheets on phones
 - `hosted-blocks-6`, `-7`: the gem hunt, the first hosted block type, played through its host; a Join editor's frame offers no content actions and its row marks it joinable
 - `android-link`: be-host links for Android again (Oboe on the NDK's shared libc++ beside V8's; decisions/one_cpp_runtime_beside_v8_on_android.md); the broad check links be-host's Android library and leaves out wasm test modules
+- `demo-top-bar`: beui-demo's top bar fits a phone-wide window (actions as icons, theme under More); the styled ActionBar takes `labels` as a Prop.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
