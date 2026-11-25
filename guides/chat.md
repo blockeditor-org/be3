@@ -6,7 +6,7 @@ its signed log's (guides/type_modules.md, "Signed logs";
 plans/signed_logs.md): each is an entry its author appended, which the server
 ordered and stamped and the host signed as the chat app's, so a chat grows
 without its content growing, and nobody but a message's author edits or
-deletes it. What is not built yet is in plans/chat.md.
+deletes it (decisions/a_blocks_records_that_only_grow_are_a_signed_log.md).
 
 ## The log
 
