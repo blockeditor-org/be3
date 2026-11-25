@@ -14,7 +14,7 @@ use be_lib_layers::{Area, LayerId, LayerInput, LayerList, WindowLayers};
 use be_lib_ui_types::input::{Input, Key, KeyChord, KeyPress, Modifiers};
 use be_sdk_api::Fonts;
 use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
-use be_sdk_root::{Delivery, Embedding, OwnSurface};
+use be_sdk_root::{Delivery, Embedding, OwnSurface, Wants};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
@@ -188,6 +188,9 @@ struct Root {
     session_notice_shown: Rc<Cell<Option<Signal<Option<SessionShown>>>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
+    /// What its last frame told its host its apps want (`frame-done`'s `next` and `owed`),
+    /// against which what they want after a step is read (`Root::stepped`).
+    told: Rc<Cell<Wants>>,
 }
 
 /// The host's window: its size in points and the pixels a point is drawn at.
@@ -409,6 +412,24 @@ impl Root {
             session_notice: Rc::default(),
             session_notice_shown: Rc::default(),
             waker,
+            told: Rc::default(),
+        }
+    }
+
+    /// After a step: what its apps heard in it after its frame was done (an app asking for a
+    /// frame, `FrameNeeded`, heard by the task hearing it once the frame's own ask had passed)
+    /// wants a frame its host was not told of, which only waking the host asks for, as be-host
+    /// asks for a frame its own app needs (`host::request_repaint`).
+    fn stepped(&self) {
+        let wants = self.embedding.borrow().wants();
+        let told = self.told.get();
+        let sooner = match (wants.next, told.next) {
+            (Some(wanted), Some(told)) => wanted < told,
+            (wanted, told) => wanted.is_some() && told.is_none(),
+        };
+        if sooner || (wants.owed && !told.owed) {
+            self.told.set(wants);
+            self.waker.wake();
         }
     }
 
@@ -1608,6 +1629,7 @@ impl frames::Guest for Root {
             let given = root.keyboard_into_children(&drawn_layers);
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
+            root.told.set(wants);
             // The lock screen, or else the dialog, or else the accounts, drawn for the first time
             // takes the focus.
             let focus = match (
@@ -1859,12 +1881,15 @@ impl paintings::Guest for Root {
 
 pub struct Embedder {
     executor: Executor,
+    root: Root,
 }
 
 impl Guest for Embedder {
     fn start(waker: Waker, _: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        let root = Root::new(waker);
         Ok(Self {
-            executor: be_wasm_root_api::guest::executor(Root::new(waker)),
+            executor: be_wasm_root_api::guest::executor(root.clone()),
+            root,
         })
     }
 
@@ -1877,6 +1902,7 @@ impl Guest for Embedder {
         // What the gpu settled since the last step, as be-sdk polls for an app.
         be_wasm_gpu_guest::poll();
         self.executor.step(inbound, outbound)?;
+        self.root.stepped();
         Ok(Flow::Running)
     }
 }
