@@ -642,7 +642,7 @@ pub fn pixels(surface: &WlSurface) -> Option<beui::Image> {
         let bytes = unsafe { std::slice::from_raw_parts(pointer.add(offset), length - offset) };
         let mut rgba = Vec::with_capacity(width * height * 4);
         for row in bytes.chunks(stride).take(height) {
-            for pixel in row[..width * 4].chunks_exact(4) {
+            for pixel in row[..width * 4].as_chunks::<4>().0 {
                 let pixel = order([pixel[0], pixel[1], pixel[2], pixel[3]]);
                 rgba.extend_from_slice(&unpremultiplied(pixel));
             }
