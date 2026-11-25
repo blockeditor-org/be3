@@ -31,14 +31,14 @@ macro_rules! infallible {
 infallible!(wgpu::Extent3d => abi::Extent3d, wgpu::Color => abi::Color);
 
 macro_rules! plain_map {
-    ($abi:path, $wgpu:path, { $($variant:ident),+ $(,)? } $(, { $($named:ident = $value:expr),+ $(,)? })?) => {
+    ($abi:path, $wgpu:path, { $($variant:ident),* $(,)? } $(, { $($named:ident = $value:expr),+ $(,)? })?) => {
         impl Convert<$wgpu> for $abi {
             fn convert(self) -> $wgpu {
                 let value = self;
                 use $abi as Abi;
                 use $wgpu as Wgpu;
                 match value {
-                    $(Abi::$variant => Wgpu::$variant,)+
+                    $(Abi::$variant => Wgpu::$variant,)*
                     $($(Abi::$named => $value,)+)?
                 }
             }
@@ -51,7 +51,7 @@ macro_rules! plain_map {
                 use $abi as Abi;
                 use $wgpu as Wgpu;
                 match value {
-                    $(Wgpu::$variant => Ok(Abi::$variant),)+
+                    $(Wgpu::$variant => Ok(Abi::$variant),)*
                     other => {
                         $($(if other == $value {
                             return Ok(Abi::$named);
@@ -458,6 +458,9 @@ impl Convert<abi::CompilationMessage> for &wgpu::CompilationMessage {
         }
     }
 }
+
+pub mod allowed;
+pub mod webgpu;
 
 #[cfg(test)]
 mod tests;

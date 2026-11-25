@@ -330,7 +330,7 @@ impl Gpu {
         });
     }
 
-    fn mapped_range(
+    pub(crate) fn mapped_range(
         &self,
         buffer: abi::Buffer,
         offset: u64,
@@ -1662,7 +1662,7 @@ impl Host for Gpu {
             |gpu| {
                 gpu.bundle_encoders
                     .take(this.0, "render bundle encoder")?
-                    .finish(&gpu.device, &descriptor)
+                    .finish(&gpu.device, descriptor.label.as_deref())
             },
         )
         .map(abi::RenderBundle)

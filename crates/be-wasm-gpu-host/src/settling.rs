@@ -149,6 +149,21 @@ impl Settling {
         )
     }
 
+    /// Puts back what `take_settled` took that another interface's poll answers.
+    pub(crate) fn give_back(&self, maps: Vec<(u64, bool)>, work_done: Vec<u64>) {
+        let mut held = self.shared.held();
+        held.maps.extend(maps);
+        held.work_done.extend(work_done);
+    }
+
+    /// Whether a buffer is mapping (`Some(false)`), mapped (`Some(true)`) or neither.
+    pub(crate) fn map_state(&self, buffer: u32) -> Option<bool> {
+        match self.shared.held().states.get(&buffer)? {
+            State::Pending(_) => Some(false),
+            State::Mapped { .. } => Some(true),
+        }
+    }
+
     /// A ticket for a map that fails before it starts, settled at once.
     pub(crate) fn failed_map(&mut self) -> u64 {
         let ticket = {

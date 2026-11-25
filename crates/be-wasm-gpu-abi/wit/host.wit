@@ -1,0 +1,26 @@
+package be3:gpu@0.1.0;
+
+/// What an app needs from its host that wasi:webgpu leaves out
+/// (decisions/be3_gpu_is_wasi_webgpu.md): the surfaces the host shows, whose
+/// contexts wasi:webgpu has no way to get, and textures the host shares.
+interface host {
+    use wasi:webgpu/webgpu@0.3.0-rc.2.{gpu-canvas-context, gpu-texture};
+    use be3:shared/ids@0.1.0.{image-id, surface-id};
+
+    /// The context of a surface the host shows the app, by the id the host
+    /// gave it. Dropping it lets the host forget the surface.
+    surface: func(id: surface-id) -> gpu-canvas-context;
+    /// Sets the size of the context's textures, as a canvas's width and
+    /// height do: it may come before or after `configure`. A context has
+    /// textures once it has both; a resize to the size it has keeps them.
+    resize: func(context: borrow<gpu-canvas-context>, width: u32, height: u32);
+    /// Shows what was drawn into the context's current texture and ends the
+    /// frame: the next `get-current-texture` starts another.
+    present: func(context: borrow<gpu-canvas-context>);
+    /// How many presents ago the current texture was last drawn: 0 when it
+    /// never was, and has to be drawn whole.
+    age: func(context: borrow<gpu-canvas-context>) -> u32;
+    /// A texture the host shares with every app under an image id, such as a
+    /// preview another app painted; none when no such image is shared.
+    import-texture: func(image: image-id) -> option<gpu-texture>;
+}

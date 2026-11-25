@@ -26,60 +26,29 @@ steps:
   its `Promise` or `Sender` until it settles; listing dropped tickets in the next poll would let
   it let them go.
 
-## 2. The host implements wasi:webgpu
+## 2. The host implements wasi:webgpu (landed)
 
-Fetch `wit/webgpu.wit` at commit `6a776bada0b66d3dbf9da304a49ff2947ce4e1f8` with a buck2
-`http_file` in `crates/be-wasm-gpu-abi/BUCK`, as `buck/cargo/BUCK` fetches
-`rust-project.zst`:
+be-wasm-gpu-abi's world imports wasi:webgpu, fetched by buck2 (`:webgpu.wit`), and
+`be3:gpu/host` beside `be3:gpu/device`; be-wasm-gpu-host answers both (`src/webgpu.rs`),
+sharing `Gpu`'s tables, and be-wasm-host and the shim bind their imports. What it does
+differently from the plan as first written:
 
-```python
-http_file(
-    name = "webgpu.wit",
-    sha256 = "8e34bf2a365bc0bbcdd16d0b30a55f1e5c7b26246728e7e5516f74ff9eb968b7",
-    size_bytes = 35321,
-    urls = ["https://raw.githubusercontent.com/WebAssembly/wasi-gfx/6a776bada0b66d3dbf9da304a49ff2947ce4e1f8/wit/webgpu.wit"],
-)
-```
+- **Errors** stay in the host's own copy of each device's scopes rather than wgpu's: the
+  host's scopes around creates, queue calls, `finish` and pass `end` catch every error a call
+  can raise (per-draw calls raise theirs at the pass's end), and wgpu's device-wide uncaptured
+  handler is shared by every app natively. A caught error goes to the scope that was innermost
+  when the call was made, once its pop resolves (later, in a browser); an app's pop waits for
+  every such call.
+- **Async pipelines** are made at once and settled at the next poll, as `GPUPipelineError`s
+  when they fail. Compiling on a worker thread natively, and the browser's
+  `createRenderPipelineAsync` through web-sys in the shim (wgpu 30 has neither), is step 6.
+- wgpu 30 has no `texture-formats-tier1`, `texture-formats-tier2` or
+  `texture-component-swizzle`, so no host offers them; a swizzled view is refused. Adapter
+  info names nothing; WGSL language features are naga's.
+- Objects remember the app device they were made on, so their errors reach its scopes and
+  destroying a device destroys its buffers and textures.
 
-It is one file with no `use` of other packages. be-wasm-gpu-abi's library and test take it as
-a `foreign_resources` entry placed at `crates/be-wasm-gpu-abi/wit/deps/webgpu/webgpu.wit`, so
-the generator finds it under `wit/deps/` as it would a copy, though none is in the
-repository (`.gitignore` that path, for builds outside buck). It is never patched: what it
-lacks goes in `be3:gpu/host`. Add `be3:gpu/host` (below), and implement both in
-be-wasm-gpu-host beside `be3:gpu/device` (which apps still use until step 3), sharing its
-tables, per-app device loss, coarsened timestamps, render bundles recorded at `finish`, and
-the per-app checks. What changes:
-
-- `get-gpu` → `request-adapter` answers the host's one adapter; `request-device` takes the
-  descriptor, and the host keeps each device's required features and limits and validates
-  against them (today only the guest does).
-- **Several devices per app**, as WebGPU has them: each has its own objects, lost state and
-  error scopes. A context may be configured with any of the app's devices; once that device
-  is lost or destroyed, `get-current-texture` fails until the context is configured again.
-- Adapter info is coarse, as browsers report it (vendor and architecture buckets, empty
-  device and description).
-- **Errors** go to the device's own error scopes, not a copy the host keeps:
-  `push-error-scope`, `pop-error-scope` and `on-uncaptured-error` are forwarded to the wgpu
-  device the app's calls run on. On the web that is the worker's own device; natively it is
-  the shared device, whose scopes in wgpu 30 are per thread, and each app runs on its own
-  thread, so one app's scopes never see another's errors. A pop settles through the poll
-  (on the webgpu backend it resolves later; today's `caught()` in be-wasm-gpu-host's
-  `lib.rs` polls the pop once, so there every caught error is lost). The host still wraps
-  some calls in a scope of its own, to learn that an object it made is invalid: device
-  creates, queue calls, `finish` and pass `end`, never per-draw calls. An error it catches
-  that way is raised again into the app's scopes. An uncaptured error with no listener goes
-  to the app's log.
-- A create that fails answers an invalid object (WebGPU's semantics, as the WIT returns no
-  option), whose use is a validation error.
-- Async pipelines compile on a worker thread natively. wgpu 30 has no async pipeline
-  creation on any backend, so the shim calls the browser's `createRenderPipelineAsync` and
-  `createComputePipelineAsync` through web-sys. Both settle through the poll.
-- `get-compilation-info` counts UTF-16 code units, as WebGPU does.
-- Canvas configuration: the format must be bgra8unorm, rgba8unorm or rgba16float (WebGPU's
-  canvas formats); usage and view formats as asked. Alpha mode, color space and tone mapping
-  are accepted and composited as opaque, srgb and standard until step 4.
-
-The `be3:gpu/host` interface:
+The `be3:gpu/host` interface (`crates/be-wasm-gpu-abi/wit/host.wit`):
 
 ```wit
 interface host {
@@ -108,9 +77,9 @@ interface host {
   `present` ends the frame; the next call starts a new one. A resize or configure mid-frame
   ends it unpresented, as a canvas's does.
 
-Host tests: today's be-wasm-gpu-host tests, run against the new interface, plus error scopes
-of each kind caught natively and in the shim's test, uncaptured errors, several devices, and
-resize against configure.
+Host tests: be-wasm-gpu-host's `*webgpu*` tests (scopes, uncaptured errors, several devices,
+canvases, maps and work); be-wasm-gpu-abi's
+`wasi_webgpus_calls_made_per_draw_take_only_wasm_values`. Today's device tests move in step 3b.
 
 ## 3a. Apps use wasi:webgpu
 
@@ -158,6 +127,13 @@ When upstream moves (a new release candidate or a release), change the `http_fil
 the new commit and its `sha256` and `size_bytes` to the new file's, regenerate, and fix the
 host and guest; record the version in decisions/be3_gpu_is_wasi_webgpu.md. Nothing else in
 the repository names its version.
+
+## 6. Asynchronous pipelines off the app's thread
+
+Compile `create-*-pipeline-async`'s pipelines on a worker thread natively (wgpu's device and
+the descriptor's objects are `Send`), and in the shim through the browser's
+`createRenderPipelineAsync` and `createComputePipelineAsync` with web-sys, settling through the
+poll as now.
 
 ## Reading the pinned WIT
 

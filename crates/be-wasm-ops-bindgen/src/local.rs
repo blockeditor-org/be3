@@ -309,7 +309,7 @@ impl Generator {
                 if let Some((own, resource)) = self.handle_of(inner) {
                     return Param::Handles { own, resource };
                 }
-                return match inner {
+                return match self.primitive(inner) {
                     Type::U8 => Param::Bytes,
                     Type::U32 => Param::Words(Flat::U32, 4),
                     Type::S32 => Param::Words(Flat::I32, 4),
@@ -336,6 +336,18 @@ impl Generator {
             Some(_) => Param::Flat,
             None => Param::Encoded,
         }
+    }
+
+    /// The type an alias (a `type x = u32`) names, followed to its end.
+    fn primitive(&self, ty: &Type) -> Type {
+        let mut ty = *ty;
+        while let Type::Id(id) = ty
+            && self.mapped(id).is_none()
+            && let TypeDefKind::Type(inner) = &self.resolve.types[id].kind
+        {
+            ty = *inner;
+        }
+        ty
     }
 
     /// The item an async func answers, or that a `future` or `stream` result carries.
@@ -769,7 +781,7 @@ impl Generator {
                         Some((true, resource)) => {
                             let owner = self.owner(resource);
                             let value = self.handle_value(resource);
-                            (quote!(-> #owner), quote!(#owner(#value(#invoke))))
+                            (quote!(-> #owner), quote!(#owner::from_handle(#value(#invoke))))
                         }
                         _ => {
                             let rust = self.ty(&ty)?;
@@ -808,7 +820,7 @@ impl Generator {
                                 quote! {
                                     match #invoke {
                                         0 => ::core::option::Option::None,
-                                        handle => ::core::option::Option::Some(#owner(#value(handle))),
+                                        handle => ::core::option::Option::Some(#owner::from_handle(#value(handle))),
                                     }
                                 },
                             )

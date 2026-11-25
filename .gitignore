@@ -14,3 +14,4 @@ __pycache__/
 /buck/program/build-info.json
 /be-server-data/
 /buck/program/browser-tests/node_modules/
+/crates/be-wasm-gpu-abi/wit/deps/

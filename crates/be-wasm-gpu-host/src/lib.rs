@@ -5,6 +5,7 @@ mod queries;
 mod settling;
 mod tables;
 pub mod transport;
+mod webgpu;
 
 #[cfg(test)]
 mod tests;
@@ -69,6 +70,8 @@ pub struct Gpu {
     /// The surfaces let go of since `take_released`.
     released: Vec<u32>,
     error: Option<String>,
+    /// The state of wasi:webgpu's objects beyond the tables above (webgpu.rs).
+    web: webgpu::Web,
 }
 
 type Outcome<T> = Result<T, String>;
@@ -133,10 +136,18 @@ pub fn only_records(function: &str) -> bool {
         "[method]render-pass.",
         "[method]compute-pass.",
         "[method]render-bundle-encoder.",
+        "[method]gpu-render-pass-encoder.",
+        "[method]gpu-compute-pass-encoder.",
+        "[method]gpu-render-bundle-encoder.",
     ]
     .iter()
     .find_map(|pass| function.strip_prefix(pass))
     .is_some_and(|method| !matches!(method, "end" | "finish"))
+}
+
+/// Whether a gpu import submits work to the queue, which a host times apart.
+pub fn submits(function: &str) -> bool {
+    matches!(function, "submit" | "[method]gpu-queue.submit")
 }
 
 impl Gpu {
@@ -175,6 +186,7 @@ impl Gpu {
             last_presented: HashMap::new(),
             released: Vec::new(),
             error: None,
+            web: webgpu::Web::default(),
         }
     }
 

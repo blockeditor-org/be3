@@ -1,4 +1,6 @@
-use crate::features::{Allowed, enabled, requested};
+use be_wasm_gpu_convert::allowed::enabled;
+
+use crate::features::{Allowed, requested};
 
 fn allowed(requested: wgpu::Features) -> Allowed {
     Allowed {

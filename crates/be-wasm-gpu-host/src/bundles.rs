@@ -9,7 +9,7 @@ const MAX_COLOR_ATTACHMENTS: usize = 8;
 
 /// A render bundle the host records itself and replays into wgpu's encoder at `finish`,
 /// since wgpu's bundle encoder borrows what it is given. wgpu has no debug markers on
-/// bundle encoders, so an app cannot ask for them.
+/// bundle encoders: wasi:webgpu's debug groups are only checked to balance.
 pub(crate) struct BundleEncoder {
     label: Option<String>,
     color_formats: Vec<Option<wgpu::TextureFormat>>,
@@ -27,37 +27,53 @@ pub(crate) enum Command {
     DrawIndexed(Range<u32>, i32, Range<u32>),
     DrawIndirect(wgpu::Buffer, u64),
     DrawIndexedIndirect(wgpu::Buffer, u64),
+    Immediates(u32, Vec<u8>),
+    PushDebugGroup,
+    PopDebugGroup,
 }
 
 impl BundleEncoder {
     pub(crate) fn new(descriptor: abi::RenderBundleEncoderDescriptor) -> Outcome<Self> {
-        let colors = descriptor.color_formats.len();
-        if colors > MAX_COLOR_ATTACHMENTS {
-            return Err(format!(
-                "a render bundle encoder has {colors} color formats, more than {}",
-                MAX_COLOR_ATTACHMENTS
-            ));
-        }
-        let count = descriptor.sample_count;
-        if count == 0 || count > 32 || !count.is_power_of_two() {
-            return Err(format!(
-                "a render bundle encoder cannot have a sample count of {count}"
-            ));
-        }
-        Ok(Self {
-            label: descriptor.label,
-            color_formats: descriptor
+        Self::with(
+            descriptor.label,
+            descriptor
                 .color_formats
                 .iter()
                 .map(|format| format.map(Convert::<wgpu::TextureFormat>::convert))
                 .collect(),
-            depth_stencil: descriptor
+            descriptor
                 .depth_stencil
                 .map(|state| wgpu::RenderBundleDepthStencil {
                     format: Convert::<wgpu::TextureFormat>::convert(state.format),
                     depth_read_only: state.depth_read_only,
                     stencil_read_only: state.stencil_read_only,
                 }),
+            descriptor.sample_count,
+        )
+    }
+
+    pub(crate) fn with(
+        label: Option<String>,
+        color_formats: Vec<Option<wgpu::TextureFormat>>,
+        depth_stencil: Option<wgpu::RenderBundleDepthStencil>,
+        count: u32,
+    ) -> Outcome<Self> {
+        let colors = color_formats.len();
+        if colors > MAX_COLOR_ATTACHMENTS {
+            return Err(format!(
+                "a render bundle encoder has {colors} color formats, more than {}",
+                MAX_COLOR_ATTACHMENTS
+            ));
+        }
+        if count == 0 || count > 32 || !count.is_power_of_two() {
+            return Err(format!(
+                "a render bundle encoder cannot have a sample count of {count}"
+            ));
+        }
+        Ok(Self {
+            label,
+            color_formats,
+            depth_stencil,
             sample_count: count,
             commands: Vec::new(),
         })
@@ -80,8 +96,23 @@ impl BundleEncoder {
     pub(crate) fn finish(
         self,
         device: &wgpu::Device,
-        descriptor: &abi::RenderBundleDescriptor,
+        label: Option<&str>,
     ) -> Outcome<wgpu::RenderBundle> {
+        let mut depth = 0usize;
+        for command in &self.commands {
+            match command {
+                Command::PushDebugGroup => depth += 1,
+                Command::PopDebugGroup => {
+                    depth = depth
+                        .checked_sub(1)
+                        .ok_or("a render bundle pops a debug group it never pushed")?;
+                }
+                _ => {}
+            }
+        }
+        if depth > 0 {
+            return Err(format!("a render bundle leaves {depth} debug groups open"));
+        }
         let mut encoder =
             device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
                 label: convert::label(&self.label),
@@ -113,11 +144,11 @@ impl BundleEncoder {
                 Command::DrawIndexedIndirect(buffer, offset) => {
                     encoder.draw_indexed_indirect(buffer, *offset)
                 }
+                Command::Immediates(offset, data) => encoder.set_immediates(*offset, data),
+                Command::PushDebugGroup | Command::PopDebugGroup => {}
             }
         }
-        Ok(encoder.finish(&wgpu::RenderBundleDescriptor {
-            label: convert::label(&descriptor.label),
-        }))
+        Ok(encoder.finish(&wgpu::RenderBundleDescriptor { label }))
     }
 }
 
