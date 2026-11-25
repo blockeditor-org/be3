@@ -1515,10 +1515,12 @@ impl State {
                     continue;
                 }
                 // What a dialog's placer's status says (its pick, its answer, whether it takes
-                // Escape itself or shows as a card), which its host words that status from, and
-                // the settings an artifact's settings view edited, which its host applies once
-                // its placer commits it.
-                ShellMessage::Picked(_)
+                // Escape itself or shows as a card), which its host words that status from, the
+                // settings an artifact's settings view edited, which its host applies once its
+                // placer commits it, and a close of a child, which its host acts on for a
+                // program window (`shown-child.window`).
+                ShellMessage::CloseChild(_)
+                | ShellMessage::Picked(_)
                 | ShellMessage::CloseDialog(_)
                 | ShellMessage::HandlesDismiss(_)
                 | ShellMessage::ShowCard(_)

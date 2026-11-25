@@ -2279,7 +2279,9 @@ fn status_of(
     }
 }
 
-fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
+/// Words the status of a window child from its window's, as the host keeps it
+/// (`DesktopHost::window_status`).
+pub(crate) fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
     let intrinsic = shown.intrinsic();
     status.title = Some(shown.title);
     status.icon = shown.icon;

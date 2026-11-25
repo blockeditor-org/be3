@@ -1271,6 +1271,7 @@ impl Children {
                                 content: be_wasm_ops::encode(&placement.content),
                                 sheet: false,
                             })),
+                            window: None,
                             shown_in: None,
                             active: takes_input(placement.mode),
                             error: None,
@@ -1281,22 +1282,38 @@ impl Children {
                     ));
                     continue;
                 }
-                // A program window the host composites where it is placed (`layers`); what
-                // the placer hears of it is the same as before it showed (4g7e3d).
-                if let ChildContent::Window(window) = &placement.content
-                    && placement.mode != ChildMode::Hidden
-                {
-                    let place = WindowPlace {
-                        editor: placements.instance,
-                        view: placements.view,
-                        window: *window,
-                        size: be_lib_geometry::vec2(
-                            placement.rect.width(),
-                            placement.rect.height(),
-                        ),
-                    };
-                    self.windows
-                        .push((place, in_view(placement, placements.view)));
+                // A program window the host composites where it is placed (`layers`), unless
+                // placed hidden; its placer hears its status from the host, which words it
+                // from the window, as be-host's own shell does, placed hidden or not.
+                if let ChildContent::Window(window) = &placement.content {
+                    if placement.mode != ChildMode::Hidden {
+                        let place = WindowPlace {
+                            editor: placements.instance,
+                            view: placements.view,
+                            window: *window,
+                            size: be_lib_geometry::vec2(
+                                placement.rect.width(),
+                                placement.rect.height(),
+                            ),
+                        };
+                        self.windows
+                            .push((place, in_view(placement, placements.view)));
+                    }
+                    self.unshown.push((
+                        (placements.instance, placements.view),
+                        ShownChild {
+                            child: child.0,
+                            shows: None,
+                            window: Some(window.0),
+                            shown_in: None,
+                            active: takes_input(placement.mode),
+                            error: None,
+                            preview: ShownPreview::None,
+                            intrinsic: None,
+                            menu: Vec::new(),
+                        },
+                    ));
+                    continue;
                 }
                 let occluders = occluders_of(placements, index);
                 match Child::placed(
@@ -1313,6 +1330,7 @@ impl Children {
                         ShownChild {
                             child: child.0,
                             shows: None,
+                            window: None,
                             shown_in: None,
                             active: false,
                             error: Some(NOT_SHOWN_YET.to_owned()),
@@ -1471,6 +1489,7 @@ impl Children {
                 .push(ShownChild {
                     child: child.child.0,
                     shows: Some(child.shown.clone()),
+                    window: None,
                     shown_in: hosted.as_ref().map(|(app, editor)| OpenedIn {
                         instance: app.instance(),
                         editor: editor.0,
@@ -1507,6 +1526,7 @@ impl Children {
                 .push(ShownChild {
                     child: ask.body.0,
                     shows: None,
+                    window: None,
                     shown_in,
                     active: true,
                     error: None,

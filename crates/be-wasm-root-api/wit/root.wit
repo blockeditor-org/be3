@@ -1155,11 +1155,13 @@ interface host {
     open-editor: async func(instance: u64, shown: shown) -> result<opened-editor, string>;
 
     /// Hands the host what the editor `editor`, opened in the root's
-    /// `instance` as a dialog (`shown.dialog`), told the shell that its
-    /// placer's status says (be-sdk-api's `Vec<ShellMessage>`, in be-wasm-ops'
-    /// encoding): the block it picked (`picked`), its answer
-    /// (`close-dialog`), whether it takes Escape itself
-    /// (`handles-dismiss`), and whether it shows as a card (`show-card`).
+    /// `instance`, told the shell that the host acts on (be-sdk-api's
+    /// `Vec<ShellMessage>`, in be-wasm-ops' encoding): for a dialog
+    /// (`shown.dialog`), what its placer's status says: the block it picked
+    /// (`picked`), its answer (`close-dialog`), whether it takes Escape
+    /// itself (`handles-dismiss`), and whether it shows as a card
+    /// (`show-card`); for any editor, a program window it placed it asks to
+    /// close (`close-child`, of a child whose `shown-child.window` names it).
     /// The root acts on the rest itself, and the host drops any other.
     tell-shell: async func(instance: u64, editor: u64, messages: list<u8>);
 
@@ -1206,6 +1208,13 @@ interface host {
         /// be-host knows a child's editor before it opens (a canvas sizes a
         /// new card by its `resize`).
         shows: option<shown>,
+        /// The program window it shows, for a window child
+        /// (`child-content.window`): the host words its status from the
+        /// window (its title, icon, group, raises, bell, minimizes, full
+        /// screen ask, notice and menu ask), and closes it when its placer
+        /// asks to close the child (`shell-message.close-child`, which the
+        /// root relays with `tell-shell`).
+        window: option<u64>,
         /// The editor that shows it, once the host opened it (`open-editor`)
         /// in an app the root spawned for it: none while that is under way,
         /// or when the root shows nothing of it.

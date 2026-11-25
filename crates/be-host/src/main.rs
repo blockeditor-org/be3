@@ -1290,6 +1290,10 @@ impl HostCore {
     #[cfg(target_os = "linux")]
     fn run_screen_lock(&mut self) {
         let Some(lock) = &mut self.screen_lock else {
+            // Without its lock (under the root, until 4g7g) the session still ends as it was
+            // asked to: its programs' windows closed first (`close_requested`).
+            self.power
+                .frame(&mut login_session::Live::of(self.login_session.as_ref()));
             return;
         };
         lock.frame();
@@ -1406,6 +1410,10 @@ impl HostCore {
             (!self.pending_reorders.is_empty(), "a reorder is pending"),
             (!self.pending_copies.is_empty(), "a copy is pending"),
             (
+                self.session_ending(),
+                "the session waits for its programs' windows to close",
+            ),
+            (
                 // A device of the account without its key waits on the unlock screen for a
                 // person (or a test) to pair it, which is not work left to do.
                 self.dev_workspace
@@ -1418,6 +1426,15 @@ impl HostCore {
         .filter_map(|(busy, reason)| busy.then_some(reason))
         .map(str::to_owned)
         .collect()
+    }
+
+    /// Whether the session is ending (be-host closing, logging out or powering off), which
+    /// waits for its programs' windows to close first.
+    fn session_ending(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        return self.power.ending();
+        #[cfg(not(target_os = "linux"))]
+        false
     }
 
     /// Signs in to the dev workspace's account: a local account, made on this device if there is

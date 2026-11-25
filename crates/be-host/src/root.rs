@@ -62,6 +62,7 @@ use std::collections::HashMap;
 
 use be_host_base::notices;
 use be_host_desktop::desktop_host::{DesktopHost, Host, PictureSurface, WindowPicture};
+use be_host_desktop::window_body::WindowStatus;
 use be_host_runtime::{EditorBlock, Forwarded, HostChildStatus, InstanceRole};
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
@@ -975,6 +976,20 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     // every view the root showed are worded again with it.
     let mut told = false;
     for (instance, editor, messages) in root.take_shell_tells() {
+        // A root that encodes what no editor can read has nothing to relay.
+        let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) else {
+            continue;
+        };
+        // The program windows the shell placed that it asks to close, as be-host's own shell
+        // closes them (`close_children`); a close of any other child is the root's.
+        let (closes, messages): (Vec<_>, Vec<_>) = messages
+            .into_iter()
+            .partition(|message| matches!(message, ShellMessage::CloseChild(_)));
+        for close in closes {
+            if let ShellMessage::CloseChild(child) = close {
+                close_window(core, &editors.shown, served, (instance, editor), child);
+            }
+        }
         // Only a dialog's placer's status says what it told: a block's editor's are dropped.
         let dialog = editors
             .opened
@@ -983,8 +998,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         let Some(forwarded) = served.get_mut(&instance).filter(|_| dialog) else {
             continue;
         };
-        // A root that encodes what no editor can read has nothing to relay.
-        if let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) {
+        if !messages.is_empty() {
             let committed = messages
                 .iter()
                 .any(|message| matches!(message, ShellMessage::CommitChild(_)));
@@ -1044,14 +1058,23 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     if told {
         views = editors.shown.keys().copied().collect();
     }
+    // The views placing program windows whose statuses changed since they were last worded.
+    if core.desktop {
+        views.extend(windows_restated(&editors.shown, &mut editors.windows));
+    }
+    views.sort_unstable();
+    views.dedup();
     for (instance, editor, view) in views {
+        let by_shell = served
+            .get(&instance)
+            .is_some_and(|forwarded| forwarded.is_shell(EditorInstanceId(editor)));
         let statuses = editors
             .shown
             .get(&(instance, editor, view))
             .map(|children| {
                 children
                     .iter()
-                    .map(|child| child_status(core, &editors.opened, served, child))
+                    .map(|child| child_status(core, &editors.opened, served, child, by_shell))
                     .collect()
             })
             .unwrap_or_default();
@@ -1362,6 +1385,9 @@ struct Editors {
     /// (`host.show-children`), by the root's instance, the editor and the view: what their
     /// statuses are worded from again once a dialog among them told the shell something.
     shown: HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    /// The statuses of the program windows each view places, as they were last worded: a view
+    /// is worded again once one of its windows' changes.
+    windows: HashMap<(u64, u64, u64), Vec<Option<WindowStatus>>>,
     /// The editor placing each editor the root shows as a child, as the root last said
     /// (`host.show-children`), each by the root's instance and the editor: what a show request
     /// climbs to find its handler.
@@ -1456,6 +1482,68 @@ fn step_creations(
     changed
 }
 
+/// Closes the program window the child `child` of `placer` (the root's instance and the editor)
+/// shows, as be-host's own shell closes one (`close_children`): only the shell places windows.
+fn close_window(
+    core: &crate::HostCore,
+    shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    served: &HashMap<u64, Forwarded>,
+    placer: (u64, u64),
+    child: ChildId,
+) {
+    let (instance, editor) = placer;
+    let by_shell = served
+        .get(&instance)
+        .is_some_and(|forwarded| forwarded.is_shell(EditorInstanceId(editor)));
+    if !core.desktop || !by_shell {
+        return;
+    }
+    let window = shown
+        .iter()
+        .filter(|((at, by, _), _)| (*at, *by) == placer)
+        .flat_map(|(_, children)| children)
+        .find(|shown| shown.child == child.0)
+        .and_then(|shown| shown.window);
+    if let Some(window) = window {
+        Host::close(HostWindowId(window));
+    }
+}
+
+/// What a program window's status says to its placer, as the host keeps it: its status less
+/// the size it was last drawn at, which its placer hears nothing of.
+fn window_status(window: u64) -> Option<WindowStatus> {
+    Host::window_status(HostWindowId(window)).map(|status| WindowStatus {
+        drawn: beui::Vec2::ZERO,
+        ..status
+    })
+}
+
+/// The views placing program windows whose statuses changed since they were last worded, which
+/// it notes as worded; it forgets the views no longer shown.
+fn windows_restated(
+    shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    worded: &mut HashMap<(u64, u64, u64), Vec<Option<WindowStatus>>>,
+) -> Vec<(u64, u64, u64)> {
+    worded.retain(|view, _| shown.contains_key(view));
+    let mut changed = Vec::new();
+    for (view, children) in shown {
+        let statuses: Vec<_> = children
+            .iter()
+            .filter_map(|child| child.window)
+            .map(window_status)
+            .collect();
+        if statuses.is_empty() {
+            worded.remove(view);
+            continue;
+        }
+        if worded.get(view) != Some(&statuses) {
+            worded.insert(*view, statuses);
+            changed.push(*view);
+        }
+    }
+    changed
+}
+
 /// Said of a child the root shows nothing of and gave no reason for: one whose editor is still
 /// being opened.
 const CHILD_OPENING: &str = "the block's editor is opening";
@@ -1470,7 +1558,11 @@ fn child_status(
     opened: &HashMap<(u64, u64), OpenedFor>,
     served: &HashMap<u64, Forwarded>,
     child: &be_wasm_root_api::ShownChild,
+    by_shell: bool,
 ) -> HostChildStatus {
+    if let Some(window) = child.window {
+        return window_child_status(core, child, window, by_shell);
+    }
     let shown = child
         .shown_in
         .as_ref()
@@ -1569,6 +1661,51 @@ fn child_status(
         notice: None,
         menu_asked: None,
     }
+}
+
+/// Said of a program window placed by an editor other than the shell, which alone places them,
+/// or under a host with no desktop.
+const WINDOW_UNAVAILABLE: &str = "only the desktop shows a program's window";
+
+/// The status of a program window an editor the root embeds placed (`shown-child.window`), as
+/// be-host's own shell hears it: worded from the window's (`with_window`), available to the
+/// shell alone, under a desktop.
+fn window_child_status(
+    core: &crate::HostCore,
+    child: &be_wasm_root_api::ShownChild,
+    window: u64,
+    by_shell: bool,
+) -> HostChildStatus {
+    let available = core.desktop && by_shell;
+    let mut status = HostChildStatus {
+        child: ChildId(child.child),
+        available,
+        intrinsic: None,
+        active: available && child.active,
+        interaction: InteractionMode::Preview,
+        capabilities: EditorCapabilities::default(),
+        resize: ResizeMode::None,
+        error: (!available).then(|| WINDOW_UNAVAILABLE.to_owned()),
+        menu: Vec::new(),
+        creation: None,
+        preview: ChildPreview::Hosted,
+        dialog: DialogStatus::default(),
+        picked: None,
+        card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        minimized: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
+    };
+    if available && let Some(shown) = window_status(window) {
+        crate::compositor::with_window(&mut status, shown);
+    }
+    status
 }
 
 /// Opens the editor `opening` asks for in the app the root's instance runs, which must be the
