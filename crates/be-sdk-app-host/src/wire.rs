@@ -108,7 +108,7 @@ type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
 type ShownWebView = (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>);
 
 enum Answering {
-    Created(Ticket<Result<[u8; 16], Failure>>),
+    Created(Ticket<Result<[u8; 16], Failure>, wire::Fallible<wire::Bytes, wire::Plain>>),
     Regenerated(Ticket<Result<(), Failure>>),
     Rendered(u64, Ticket<Option<be_sdk_api::clipboard::ClipBody>>),
 }
