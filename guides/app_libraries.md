@@ -21,10 +21,14 @@ A Rust app links two libraries, or one (`buck/wasm/defs.bzl`):
 - **beui**, `crates/be-sdk-library-beui`, above base: beui-reactive, beui,
   be-sdk-beui and be-sdk-beui-platform (renderer, fonts), with the bundled
   faces and the Rust crates that shape and draw them (skrifa, harfrust, zeno),
-  and Vello's GPU renderer (`vello_gpu` over wgpu, and `vello_common`), which
-  an app may also draw with directly. Its features are set in the library's
-  `Cargo.toml`: no `text`, `webgl`, `png`, `pico_svg` or `multithreading`, so
-  an app that names vello_gpu or vello_common must not turn those on.
+  and Vello's GPU renderer (`vello_gpu` over wgpu, and `vello_common`, with
+  peniko, color, fearless_simd and guillotiere under them), which an app may
+  also draw with directly.
+
+A library crate's features belong to the library: change them only in its
+`Cargo.toml`. buckify unifies features per platform, so an app that turns one
+on (vello_gpu's `text`, say) silently rebuilds the shared library with it,
+under a new identity and bigger, for every app.
 
 Every editor links both (`DEFAULT_LIBRARIES`) unless its `app()` says
 otherwise, and its tests link a third (Tests, below); triangle names base

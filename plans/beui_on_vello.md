@@ -55,14 +55,10 @@ directly. The HTML core is unaffected.
 - **The Space layer** keeps one renderer per texture
   (decisions/beui_space_keeps_one_renderer_per_texture.md): one Vello renderer each.
 
-Features: `vello_gpu` with `wgpu`, `wgpu_external_texture`, `gradient_sweep`,
-`blurred_rounded_rect` and `full_image_support`; without `webgl` (the browser build runs wgpu) and
-without `text`. vello_common without its default `png` (the font stack decodes strikes with `png`
-itself) and without `pico_svg` and `multithreading` (guests are single-threaded,
-decisions/guests_are_single_threaded.md). External textures apply only where the device has
-`wgpu::Features::EXTERNAL_TEXTURE`; apps get them once `be3:gpu` carries them
-(`create_external_texture` in crates/be-wasm-gpu-guest is unimplemented), which this plan leaves
-for later.
+Vello's features are the beui library's (`crates/be-sdk-library-beui/Cargo.toml`). External
+textures apply only where the device has `wgpu::Features::EXTERNAL_TEXTURE`; apps get them once
+`be3:gpu` carries them (`create_external_texture` in crates/be-wasm-gpu-guest is unimplemented),
+which this plan leaves for later.
 
 ## Steps
 
