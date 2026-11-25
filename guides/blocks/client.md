@@ -147,11 +147,12 @@ the session's membership as of joining (`SessionState`), which
 before the join is answered are held until it is, so none reaches a subscriber
 ahead of it
 (guides/blocks/server.md, "Membership"). Of joins of one block on their way at
-once (a rejoin asked while the first join is still out), the newest takes over
-what the others held, and only its answer, which the server sends last, changes
-what the connection knows of the session and lets the held events go; an earlier
-one is answered to its caller and tells subscribers nothing. A join dropped
-unanswered stops holding (`JoinHold`), telling what it held as it came. The session speaks its first
+once (a rejoin asked while the first join is still out), the server answers
+the newest last: it takes over what the others held, and only its answer
+changes what the connection knows of the session and lets the held events go;
+an earlier one answered after it changes nothing. Dropping a join's future
+takes it off, so an earlier join still out answers in its place, and once none
+is left what was held is told as it came. The session speaks its first
 participant's build (`Membership::tag`) and the server refuses submissions from
 any other.
 `Peer::submit` seals a submission's payload with the block's key and hands it to
