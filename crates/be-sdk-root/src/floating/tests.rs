@@ -8,6 +8,7 @@ use be_sdk_api::{
 use super::*;
 
 mod a_window_closed_leaves_the_windows_opened_over_it;
+mod a_window_is_kept_within_its_openers_work_area_but_while_it_moves;
 mod a_window_opened_at_the_pointer_opens_under_it;
 mod a_window_opened_from_a_view_asked_without_windows_is_not_floated;
 mod a_window_placed_and_resized_is_asked_for_where_it_went_and_at_its_new_size;
