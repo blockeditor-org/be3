@@ -418,9 +418,12 @@ windows. The code is `beui-core/src/window.rs` and `window/`; the component is `
 A `Window` is an `Overlay` with a window spec, so a program looks the same hosted or not. While it
 is an overlay it may hang from an `owner` node (a reactive prop: an owner built after the window
 is picked up) and point at an `anchor`: `WindowAnchor::Beside` a rect, placed `Placement::CARD`
-with a beak from its `pointer` frame, or `Top`, the top centre of its owner, with none. With no
-anchor it sits at `at`, pinned to its owner so it moves with it: a window the person moved keeps
-that `at`. `blocks` blocks its owner (no presses, `scrim`, focus trapped). `own_window=false`
+with a beak from its `pointer` frame; `Node`, beside a node the same way, following it as it is
+laid out; `Top`, the top centre of its owner, with no beak; or `Centre`, centred on its owner, or
+on its window when it has none. With no anchor it sits at `at`, pinned to its owner so it moves
+with it: a window the person moved keeps that `at`. `blocks` blocks its owner (no presses,
+`scrim`, focus trapped); with no owner it blocks its whole window (`LayerPolicy::BlocksAll`).
+`own_window=false`
 keeps it an overlay, sized to its content, even where windows are hosted; a window the host opens
 as its own opens at its `placement` and ignores `anchor`, `beak` and `blocks`.
 `WindowHandle::begin_move`, `begin_resize` and `close` return false when the window is an overlay,

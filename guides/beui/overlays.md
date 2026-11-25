@@ -97,7 +97,8 @@ window it was opened in (less any on-screen keyboard): `Center` and `Fill`
 take that area, anchored placements are kept inside it, and a `Center` overlay
 is never larger than its window. Where a program shows one window per monitor
 (be-host's login session), a dialog stays on its monitor; be-host's
-keep-changes prompt and lock screen are one `Modal` per display window.
+keep-changes prompt (an alert `DialogFrame`, a `Window`) and its lock screen (a
+`Modal`) are one per display window.
 `shown_in` moves a non-window overlay into another of the document's windows
 (`Document::window_of` counts it there). `use_viewport_size()` is the size of
 the window the caller is built in, which is what makes a `Dialog` a sheet in a

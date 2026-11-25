@@ -229,8 +229,14 @@ pub fn Window(
                 let top = Rect::from_min_max(frame.min, Pos2::new(frame.max.x, frame.min.y));
                 (pinned(top), Placement::CARD, false)
             }
-            Some(WindowAnchor::Centre) => match owned.get() {
-                Some(rect) => (pinned(rect), Placement::CenterOn, false),
+            // On the owner's node itself, so it follows the owner's layout that frame.
+            Some(WindowAnchor::Centre) => match owner.get() {
+                Some(node) => {
+                    if hangs_from.try_get() != Some(node) {
+                        hangs_from.fill(node);
+                    }
+                    (OverlayAnchor::Node(hangs_from), Placement::CenterOn, false)
+                }
                 None => (OverlayAnchor::Point(Pos2::ZERO), Placement::Center, false),
             },
             None => (pinned(point(at.get())), Placement::At, false),

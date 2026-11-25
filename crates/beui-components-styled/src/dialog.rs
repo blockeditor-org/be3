@@ -97,10 +97,11 @@ pub fn Dialog(
     }
 }
 
-/// A dialog's outer part. It builds its content each time it opens, and moves
-/// it between card and sheet with a `Portal` if the presentation changes while
-/// open. Anchored presentations escape a window that has a layer space;
-/// centred ones stay in it.
+/// A dialog's outer part, a `Window` presented by the dialog's kind or a sheet.
+/// It builds its content each time it opens, and moves it between window and
+/// sheet with a `Portal` if the presentation changes while open. Anchored and
+/// centred windows both escape a window that has a layer space; a centred one
+/// is still centred on its window.
 #[component]
 pub fn DialogFrame(
     open: Prop<bool>,
