@@ -2062,8 +2062,15 @@ Each step lands on its own.
            tests `be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette` and
            `..._opens_its_palette_from_a_frame_menu`, and be-root's
            `a_root_keeps_its_palette_shut_while_locked_or_in_a_dialog`.
-           - Left: quick open (`PaletteMode::Blocks`), which needs the host's blocks and
-             search through be3:root.
+           - Built: quick open (`PaletteMode::Blocks`, the workspace's Ctrl+P). An editor's
+             `open-palette` for blocks opens the root's palette as quick open, which asks the
+             host for the blocks it finds for what is typed (`host.find-blocks`, answered as
+             be-host's own palette finds them, `compositor::quick_open`: the graph's blocks by
+             name, those the root shows in an editor first, then the search index's hits, once
+             it answered, be-host busy until then) as it changes, and opens the one chosen as the
+             editor that asked would (`host.open-block`, routed as an editor's own `open-block`:
+             the nearest editor placing it that shows blocks). Host test
+             `be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace`.
            - Left: be-host's own rows (switch account, theme, lock): the root lists none of
              its own yet.
            - Left: each editor's rows under its block's name, as be-host's palette names them,

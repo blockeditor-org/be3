@@ -1118,6 +1118,32 @@ interface host {
     /// block's type, or the person may not view it.
     editor-of: async func(shown: shown) -> result<editor-app, string>;
 
+    /// A block quick open offers, as be-host's own palette offers it.
+    record openable-block {
+        block: block-id,
+        block-type: block-type-id,
+        name: string,
+        /// What its row says under the name: where the block is (the name
+        /// of the block holding it), or a search hit's text.
+        detail: string,
+        /// Where in the block a search hit is (be-sdk-api's
+        /// `SearchLocation`, in be-wasm-ops' encoding), which opening it
+        /// shows; empty for none.
+        at: list<u8>,
+    }
+
+    /// The blocks quick open offers for `text`, as be-host's own palette
+    /// finds them: those the host holds whose names match it, those open in
+    /// an editor first, then the search index's hits in content, once the
+    /// index answered; every block it holds, by name, for no text.
+    find-blocks: async func(text: string) -> list<openable-block>;
+
+    /// Opens `block` as the editor `opener` names asked to (its `open-block`
+    /// action), or as the session's editor would for none: the host has the
+    /// nearest editor placing it that shows blocks show it, as it routes an
+    /// editor's own.
+    open-block: async func(opener: option<opened-in>, block: openable-block);
+
     /// What a child the root opens an editor for shows: a block, or a
     /// dialog an app runs for its placer, a picker, a rename form or an
     /// Export dialog (the app protocol's `child-content`, be-sdk-api's

@@ -662,6 +662,9 @@ impl beui::native::Program for RootShell {
         if !self.editors.asks.is_empty() || !self.editors.openings.is_empty() {
             busy.push("the root asked for an editor of a block not listed yet".to_owned());
         }
+        if !self.editors.finds.is_empty() {
+            busy.push("the root's quick open waits for the search index".to_owned());
+        }
         if self.owed {
             busy.push(format!("the root {} owes a frame", self.app));
         }
@@ -1194,6 +1197,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         .placers
         .retain(|child, _| editors.opened.contains_key(child));
     open_blocks(core, opens, editors);
+    quick_open(core, root, editors);
     show_artifact_states(core, editors);
     for (instance, forwarded) in editors.served.iter_mut() {
         root.relay(*instance, forwarded.step());
@@ -1266,22 +1270,88 @@ fn open_blocks(
             .iter()
             .find(|((_, editor), opened)| *editor == instance.0 && opened.app.identity.id == app)
             .map(|(key, _)| *key);
-        let shell = editors
-            .opened
-            .iter()
-            .find(|(key, opened)| {
-                opened
-                    .block
-                    .is_some_and(|block| Some(block) == core.root_session)
-                    && !editors.placers.contains_key(key)
-            })
-            .map(|(key, _)| *key);
-        let Some(handler) = handler(from, shell, editors) else {
-            continue;
-        };
-        if let Some(forwarded) = editors.served.get_mut(&handler.0) {
-            forwarded.show_block(EditorInstanceId(handler.1), open);
+        open_block(core, editors, from, open);
+    }
+}
+
+/// Opens `open` as the editor `from` (the root's instance and the editor) asked to, or as the
+/// session's editor would for none: the nearest editor placing it that shows blocks shows it.
+fn open_block(
+    core: &crate::HostCore,
+    editors: &mut Editors,
+    from: Option<(u64, u64)>,
+    open: be_host_runtime::BlockOpen,
+) {
+    let shell = editors
+        .opened
+        .iter()
+        .find(|(key, opened)| {
+            opened
+                .block
+                .is_some_and(|block| Some(block) == core.root_session)
+                && !editors.placers.contains_key(key)
+        })
+        .map(|(key, _)| *key);
+    let Some(handler) = handler(from, shell, editors) else {
+        return;
+    };
+    if let Some(forwarded) = editors.served.get_mut(&handler.0) {
+        forwarded.show_block(EditorInstanceId(handler.1), open);
+    }
+}
+
+/// Answers the root's quick open (`host.find-blocks`) as be-host's own palette finds blocks
+/// (`compositor::quick_open`): at once for no text, else once the search index answered what is
+/// typed, which is wanted until then; and opens the blocks it chose (`host.open-block`) as the
+/// editor it opened from asked to.
+fn quick_open(core: &crate::HostCore, root: &mut Root, editors: &mut Editors) {
+    editors.finds.extend(root.take_block_finds());
+    let asked: Vec<String> = editors.finds.iter().map(|(_, text)| text.clone()).collect();
+    // The blocks the root shows in an editor, which it lists first.
+    let open: Vec<Uuid> = editors
+        .opened
+        .values()
+        .filter_map(|opened| opened.block)
+        .collect();
+    for (id, text) in std::mem::take(&mut editors.finds) {
+        match crate::compositor::quick_open(be_host_stack::Owner::Root, &asked, &text, &open) {
+            Some(blocks) => root.answer_block_find(id, blocks.into_iter().map(openable).collect()),
+            None => editors.finds.push((id, text)),
         }
+    }
+    if editors.finds.is_empty() {
+        be_host_stack::want_searches(be_host_stack::Owner::Root, Vec::new());
+    }
+    for (from, block) in root.take_block_opens() {
+        let open = be_host_runtime::BlockOpen {
+            id: Uuid::from_bytes(block.block),
+            block_type: Uuid::from_bytes(block.block_type),
+            via: None,
+            editor: None,
+            // A root that encodes what no host can read opens the block where it opens.
+            at: be_sdk_api::ops::decode(&block.at),
+        };
+        open_block(
+            core,
+            editors,
+            from.map(|from| (from.instance, from.editor)),
+            open,
+        );
+    }
+}
+
+/// A block quick open offers, as the root hears it.
+fn openable(block: crate::compositor::OpenableBlock) -> be_wasm_root_api::OpenableBlock {
+    be_wasm_root_api::OpenableBlock {
+        block: block.id.into_bytes(),
+        block_type: block.block_type.into_bytes(),
+        name: block.name,
+        detail: block.detail,
+        at: block
+            .at
+            .as_ref()
+            .map(be_sdk_api::ops::encode)
+            .unwrap_or_default(),
     }
 }
 
@@ -1443,6 +1513,9 @@ struct Editors {
     opened: HashMap<(u64, u64), OpenedFor>,
     asks: Vec<(u64, be_wasm_root_api::Shown)>,
     openings: Vec<EditorOpening>,
+    /// What the root's quick open asked to find (`host.find-blocks`) that waits for the search
+    /// index, by the id it is answered by.
+    finds: Vec<(u64, String)>,
     /// The children each view of the editors the root shows placed, as the root last said
     /// (`host.show-children`), by the root's instance, the editor and the view: what their
     /// statuses are worded from again once a dialog among them told the shell something.
