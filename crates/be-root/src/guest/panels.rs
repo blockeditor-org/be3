@@ -321,16 +321,14 @@ impl Root {
             .min()
     }
 
-    /// What each panel painted last, by its surface's id.
-    /// What each host panel it draws describes of itself (`BeuiSurface::describe`).
-    pub(super) fn panels_described(&self) -> Vec<(u32, be_sdk_api::accesskit::TreeUpdate)> {
-        self.panels
-            .borrow()
-            .iter()
-            .filter_map(|held| Some((held.surface.id(), held.surface.describe()?)))
-            .collect()
+    /// Runs `each` on the surface of every host panel it draws.
+    pub(super) fn each_panel_surface(&self, each: &mut dyn FnMut(&mut BeuiSurface)) {
+        for held in self.panels.borrow_mut().iter_mut() {
+            each(&mut held.surface);
+        }
     }
 
+    /// What each panel painted last, by its surface's id.
     pub(super) fn panels_painted(&self) -> Vec<(u64, Painting)> {
         self.panels
             .borrow()

@@ -157,6 +157,8 @@ struct RootShell {
     /// document of beui's the host reserves for it: what drive's `tree`, `find` and presses
     /// by name read under `--root`, and a screen reader hears.
     tree: be_sdk_app_host::accessibility::Graft,
+    /// Whether the root was last asked for its tree (`frame-request.describe`).
+    describing: bool,
 }
 
 /// Grafts the tree the root's frame answered (`frame-done.accessibility`) under the window's,
@@ -244,6 +246,7 @@ impl RootShell {
             tree: be_sdk_app_host::accessibility::Graft::new(
                 beui::native::accessibility::next_document_id(),
             ),
+            describing: false,
         }
     }
 
@@ -313,6 +316,15 @@ impl RootShell {
         for (id, item) in self.pasted.take() {
             root.answer_paste(id, item.as_ref().map(be_sdk_api::ops::encode));
         }
+        // As be-host describes its own apps' screens (be-host-runtime's `describe`): a driver
+        // or a screen reader asks for the tree. A frame follows the one that starts it, which
+        // the root answers with its whole tree once its surfaces and apps described theirs.
+        let describing = context.accessibility_active()
+            && (context.automated() || context.accessibility_requested());
+        if describing && !self.describing {
+            context.request_repaint();
+        }
+        self.describing = describing;
         let request = FrameRequest {
             time: nanos(time),
             wall_clock: nanos(beui::reactive::wall_clock()),
@@ -322,9 +334,7 @@ impl RootShell {
                 height: area.height(),
                 pixels_per_point: context.pixels_per_point(),
             },
-            // As be-host describes its own apps' screens (be-host-runtime's `describe`).
-            describe: context.accessibility_active()
-                && (context.automated() || context.accessibility_requested()),
+            describe: describing,
         };
         let done = match root.frame(request, deadline) {
             Ok(done) => done,

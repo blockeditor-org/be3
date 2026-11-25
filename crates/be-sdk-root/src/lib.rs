@@ -81,6 +81,15 @@ use be_sdk_api::{
 use be_sdk_app_host::anchored::{Hung, dismissed_by_press};
 use uuid::Uuid;
 
+/// One of the root's own surfaces as `Embedding::describe` hears it: its id, which its layers
+/// name (`Surface::Root`), its serial, which a surface made in place of another under the same
+/// id changes (`BeuiSurface::serial`), and what changed of its tree since last heard.
+pub struct OwnTree {
+    pub surface: u32,
+    pub serial: u64,
+    pub update: Option<be_sdk_api::accesskit::TreeUpdate>,
+}
+
 /// The apps a root embeds and the routing of its windows' input to them.
 pub struct Embedding {
     apps: Vec<Embedded>,
@@ -91,8 +100,9 @@ pub struct Embedding {
     /// The anchored views that ask for the keyboard (`anchored-placement.keyboard`), while
     /// their apps keep them open.
     keyed: Vec<Keyed>,
-    /// The trees of the root's own surfaces, by surface, as `describe` last grafted them.
-    own_trees: be_lib_stable_hash::HashMap<u32, be_sdk_app_host::accessibility::Graft>,
+    /// The trees of the root's own surfaces, by surface, with the serial of the surface each
+    /// is of, as `describe` last grafted them.
+    own_trees: be_lib_stable_hash::HashMap<u32, (u64, be_sdk_app_host::accessibility::Graft)>,
 }
 
 /// An anchored view that asks for the keyboard, as be-host gives it: to the child placed in it,
@@ -589,27 +599,49 @@ impl Embedding {
         self.focus(window, Some(screens[next]))
     }
 
-    /// The root's accessibility tree for `window`, `size` points large, in its points: a window
-    /// node whose children are what each layer drawn last shows, in z-order, each grafted in a
-    /// document of its own (be-sdk-app-host's `Graft`): the trees of the root's own surfaces,
-    /// `own` by surface (`BeuiSurface::describe`, in the surface's pixels), and of the screens
-    /// its apps described while asked to (`set_describing`). Its focus is the focused layer's.
-    /// What the root hands its host (`frame-done.accessibility`) for drive and screen readers.
+    /// What changed of the root's accessibility tree for `window`, `size` points large, in its
+    /// points, while the root's host asks for it (`set_describing`): a window node whose
+    /// children are what each layer drawn last shows, in z-order, each grafted in a document of
+    /// its own (be-sdk-app-host's `Graft`), and what changed of those, the whole of a graft the
+    /// first time it is sent. The trees are the root's own surfaces', `own`, every surface it
+    /// has now with what its frames changed (`BeuiSurface::take_description`), each kept
+    /// whether its layer shows or not, and those of the screens its apps described. Its focus
+    /// is the focused layer's. What the root hands its host (`frame-done.accessibility`) for
+    /// drive and screen readers. None while the host asks for none, when every graft is let
+    /// go, so the next tree asked for is whole.
     pub fn describe(
         &mut self,
         window: Option<u64>,
         size: Vec2,
-        own: Vec<(u32, be_sdk_api::accesskit::TreeUpdate)>,
-    ) -> be_sdk_api::accesskit::TreeUpdate {
-        let mut own: be_lib_stable_hash::HashMap<u32, _> = own.into_iter().collect();
+        own: Vec<OwnTree>,
+    ) -> Option<be_sdk_api::accesskit::TreeUpdate> {
         use be_sdk_api::accesskit::{Node, NodeId, Rect as AccessRect, Role, Tree, TreeId, TreeUpdate};
         use be_sdk_app_host::accessibility::{Graft, Placing};
+        if !describing() {
+            self.own_trees.clear();
+            return None;
+        }
+        // A surface that went lets its tree go; one made in place of another under its id is a
+        // new tree.
+        self.own_trees
+            .retain(|surface, (serial, _)| own.iter().any(|tree| (tree.surface, tree.serial) == (*surface, *serial)));
+        for tree in own {
+            let (_, graft) = self
+                .own_trees
+                .entry(tree.surface)
+                .or_insert_with(|| (tree.serial, Graft::new(embedded::next_document())));
+            if let Some(update) = tree.update {
+                graft.update(update);
+            }
+        }
         let focused = self.focused(window).map(|layer| layer.id);
         let layers = self.windows.layers(window).to_vec();
         let mut nodes = Vec::new();
         let mut children = Vec::new();
         let mut focus = None;
         for layer in layers.iter().filter(|layer| layer.shown) {
+            // A surface's pixel (0, 0) is drawn at its layer's origin: each screen and each of
+            // the root's own surfaces is a surface of its own.
             let placing = Placing {
                 title: None,
                 area: layer.bounds(),
@@ -617,26 +649,25 @@ impl Embedding {
                 scale: layer.transform.across().length(),
             };
             let grafted = match layer.surface {
-                Surface::Root(surface) => {
-                    let graft = self
-                        .own_trees
-                        .entry(surface)
-                        .or_insert_with(|| Graft::new(embedded::next_document()));
-                    if let Some(tree) = own.remove(&surface) {
-                        graft.update(tree);
-                    }
-                    Some(graft.grafted(placing, focused == Some(layer.id), true))
+                Surface::Root(surface) => self.own_trees.get_mut(&surface).map(|(_, graft)| {
+                    let full = !graft.grafted_yet();
+                    graft.grafted(placing, focused == Some(layer.id), full)
+                }),
+                Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
+                    self.apps
+                        .iter()
+                        .find(|app| app.instance() == instance)
+                        .and_then(|app| app.grafted(surface, placing))
                 }
-                Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => self
-                    .apps
-                    .iter()
-                    .find(|app| app.instance() == instance)
-                    .and_then(|app| app.grafted(surface, placing)),
                 Surface::Host(_) => None,
             };
             let Some(grafted) = grafted else {
                 continue;
             };
+            debug_assert!(
+                !children.contains(&grafted.root),
+                "a graft's pane is a child of the window once"
+            );
             children.push(grafted.root);
             nodes.extend(grafted.nodes);
             if focused == Some(layer.id) {
@@ -648,12 +679,12 @@ impl Embedding {
         node.set_bounds(AccessRect::new(0.0, 0.0, size.x.into(), size.y.into()));
         node.set_children(children);
         nodes.insert(0, (root, node));
-        TreeUpdate {
+        Some(TreeUpdate {
             nodes,
             tree: Some(Tree::new(root)),
             tree_id: TreeId::ROOT,
             focus: focus.unwrap_or(root),
-        }
+        })
     }
 
     /// The input method's area in `window`, in its points: the field the app focused there

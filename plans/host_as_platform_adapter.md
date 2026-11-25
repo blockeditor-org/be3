@@ -2110,12 +2110,23 @@ Each step lands on its own.
          (`set_describing`) and answers its whole tree (`frame-done.accessibility`, an AccessKit
          `TreeUpdate`): a window whose children are what each layer drawn last shows, in
          z-order (`Embedding::describe`), each grafted in a document of its own
-         (be-sdk-app-host's `Graft`): its own surfaces' documents (`BeuiSurface::describe`) and
-         the screens its apps described, placed by their layers. be-host grafts that tree under
-         its window as it grafts an app's screen (`root.rs`'s `publish_tree`). `paint`,
+         (be-sdk-app-host's `Graft`): its own surfaces' documents and the screens its apps
+         described, placed by their layers. Each of its own surfaces describes itself only
+         while asked (`BeuiSurface::set_describing`, its whole tree on the first frame after,
+         then what each frame changed, `take_description`), and every surface's changes are
+         grafted whether its layer shows or not; a surface that went lets its graft go, and
+         one made in place of another under its id is a new graft (`OwnTree::serial`). Each
+         graft is sent whole the first time and then only what changed (`Graft::grafted_yet`);
+         while the host asks for no tree every graft is let go, so the next tree is whole.
+         be-host grafts that tree under its window as it grafts an app's screen (`root.rs`'s
+         `publish_tree`), and asks for a frame as it starts asking. `paint`,
          `settle`, `synced` and `offline` already reached the root (its paintings, `owed`, the
          host's block stack). Host test
-         `be_root_in_place_of_the_hosts_ui_names_what_it_shows_to_drive`.
+         `be_root_in_place_of_the_hosts_ui_names_what_it_shows_to_drive`, be-root's
+         `a_root_describes_its_surfaces_once_asked_and_those_it_opens_after` and be-sdk-root's
+         `the_roots_tree_grafts_each_surface_where_its_layer_shows_it`.
+         - Left: the web has no `--root` yet, so no web host reads `frame-done.accessibility`;
+           it will once be-host's web build runs a root.
          - Left: accessibility actions on the root's nodes (a screen reader's press, focus,
            a value set) do not reach the root: be-host drops them (drive presses by name at
            the point the tree says, which the root hears as input); the root would route each
