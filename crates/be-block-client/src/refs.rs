@@ -583,8 +583,22 @@ pub struct LogFork {
     /// The root the server proved its log held at the size of `theirs`, when it could: the
     /// evidence, since it differs from `theirs.root`.
     pub prefix: Option<[u8; 32]>,
+    /// The server's consistency proof that `ours` extends `prefix`, kept with it so the
+    /// evidence (both heads, the prefix and the proof) can be checked by anyone later.
+    pub proof: Vec<[u8; 32]>,
     pub from: HeadFrom,
+    pub kind: ForkKind,
     pub found: Option<i64>,
+}
+
+/// What a kept verdict on a block's signed log says (`LogFork`).
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ForkKind {
+    /// The server showed two devices, or this one at two times, logs that are not one log.
+    Forked,
+    /// The server answered a proof that does not check (`ClientError::Tampered`): it proved it
+    /// misbehaves, though not what it hides.
+    Misbehaved,
 }
 
 /// Where the head a fork's other side kept came from.

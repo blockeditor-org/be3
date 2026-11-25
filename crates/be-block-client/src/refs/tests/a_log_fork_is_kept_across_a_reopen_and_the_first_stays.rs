@@ -23,10 +23,12 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
         ours: head(3, 1),
         theirs: head(2, 2),
         prefix: Some([3; 32]),
+        proof: vec![[6; 32]],
         from: HeadFrom::Session {
             account: scope.account,
             signature: vec![4; 64],
         },
+        kind: ForkKind::Forked,
         found: Some(5),
     };
     {
@@ -34,6 +36,7 @@ fn a_log_fork_is_kept_across_a_reopen_and_the_first_stays() {
         assert!(refs.found_fork(first.clone()).unwrap());
         let later = LogFork {
             from: HeadFrom::Server,
+            kind: ForkKind::Misbehaved,
             ..first.clone()
         };
         assert!(!refs.found_fork(later).unwrap(), "the first fork stays");

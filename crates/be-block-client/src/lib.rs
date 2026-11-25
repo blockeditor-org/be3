@@ -29,7 +29,7 @@ pub use peer::{
     Resolver, Saved, Sealed, SealsJournal, UPDATE_ATTEMPTS, Write, by_app,
 };
 pub use refs::{
-    Aside, HeadFrom, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, LogFork, ListedBlock, OpenEdits,
+    Aside, ForkKind, HeadFrom, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, LogFork, ListedBlock, OpenEdits,
     PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
 pub use share_links::ScopeOffer;

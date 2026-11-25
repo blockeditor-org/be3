@@ -82,6 +82,19 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
         ),
         "an empty head with a root was taken"
     );
+    // The empty head lies on every log: nothing the server answers about it is asked, so none
+    // can plant a fork with it.
+    assert_eq!(
+        phone
+            .compare_log_head(
+                chat,
+                signed(0, be_block_keys::merkle::empty_root()),
+                HeadVia::Session
+            )
+            .await
+            .unwrap(),
+        LogAgreement::Agrees
+    );
     assert_eq!(phone.log_fork(chat), None, "nothing made up is kept");
 
     // The server rewrites the log, so a device that reads it now is shown another one, which
@@ -133,6 +146,17 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
             .is_some_and(|prefix| prefix != *three.head.root.as_bytes()),
         "the server's root at their size is kept as evidence"
     );
+    assert!(
+        be_block_keys::merkle::consistent(
+            3,
+            &fork.prefix.unwrap(),
+            4,
+            &fork.ours.root,
+            &fork.proof
+        ),
+        "with the proof that the head this device read extends it"
+    );
+    assert_eq!(fork.kind, crate::ForkKind::Forked);
     assert_eq!(tablet.log_fork(chat), Some(fork.clone()), "the verdict is kept");
     // A longer head, or one as long with another root, cannot lie on its log either; the
     // verdict kept stays the first, told once.
@@ -163,14 +187,17 @@ async fn devices_shown_two_logs_find_the_fork_when_they_compare_heads() {
         LogAgreement::Forked(fork) if fork.prefix.is_none() && fork.theirs.size == 4
     ));
 
-    // The laptop, served the rewritten log against the head it kept, keeps that as its verdict.
+    // The laptop, served the rewritten log against the head it kept, cannot be shown it
+    // extends that head: the server's proof does not check, kept as its verdict.
     assert!(matches!(
         laptop.read_log(chat, 0, 10).await,
-        Err(ClientError::LogForked(block)) if block == chat
+        Err(ClientError::Tampered(_))
     ));
     assert!(matches!(
         laptop.log_fork(chat),
-        Some(fork) if fork.from == crate::HeadFrom::Server && fork.ours.size == 3
+        Some(fork) if fork.from == crate::HeadFrom::Server
+            && fork.kind == crate::ForkKind::Misbehaved
+            && fork.ours.size == 3
     ));
     harness.stop().await;
 }
