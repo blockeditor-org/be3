@@ -104,6 +104,18 @@ pub struct Commit {
     /// on top of it (guides/blocks/client.md, The journal).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_through: Option<SealedThrough>,
+    /// The head of the block's signed log its maker's device had verified as it made the
+    /// commit, which a device reading the commit compares with its own (guides/blocks/keys.md,
+    /// "Forks"). Sealed with the commit, so the server can neither change nor drop it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_through: Option<LogThrough>,
+}
+
+/// A head of a block's signed log (`Commit::log_through`): its size and Merkle root.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogThrough {
+    pub size: u64,
+    pub root: [u8; 32],
 }
 
 /// Where in its session a seal stands (`Commit::sealed_through`).
@@ -129,7 +141,13 @@ impl Commit {
             metadata: Vec::new(),
             change: None,
             sealed_through: None,
+            log_through: None,
         }
+    }
+
+    pub fn with_log_through(mut self, log_through: Option<LogThrough>) -> Self {
+        self.log_through = log_through;
+        self
     }
 
     pub fn with_sealed_through(mut self, sealed: Option<SealedThrough>) -> Self {

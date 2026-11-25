@@ -351,7 +351,13 @@ taken unproven.
   is kept in the refs database (`LogFork`: both heads, where the other came
   from as a `HeadFrom`, when; `Peer::log_fork`) and told once as
   `Event::LogForked`. It needs the server; offline it answers
-  `Disconnected`.
+  `Disconnected`. Heads reach a device two ways: in the block's live session
+  (`Peer::tell_log_head`, "Live sessions"), and in commits: each seal names
+  the head its device kept (`Commit::log_through`, sealed with it, and sent
+  as `new-commit.log-through`), and `load_head` compares the one a commit
+  names (`compare_commit_head`): only for a log this device reads, a head that
+  is not its own, and each such head once a run; what goes wrong asking is
+  let go, since it is no reason to refuse the commit.
 - **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
   export carries it (`ExportedEntry`, `transfer::SavedBlock::log`), each entry
   naming the block it was written in, and `Peer::verify_exported` checks an

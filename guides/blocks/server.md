@@ -905,7 +905,9 @@ is what its authors add, and only they (or a manager) may take back
   block's log a commit was made on, and a publish naming a head the log never
   had (past its size, or another root for that prefix) is refused
   (`log::holds_prefix`). The server only checks it; what a commit says of the
-  log is in its sealed content.
+  log is in its sealed content (`Commit::log_through`, which every seal sets to
+  the head its device kept), which a device loading the commit compares with
+  its own (guides/blocks/client.md, "Signed logs").
 - `log::forget` drops a block's log; nothing calls it until blocks are deleted
   for good.
 
