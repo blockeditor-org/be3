@@ -2133,7 +2133,11 @@ Each step lands on its own.
            - Left, for 4g7e3d: under the root the tab and the chip are named by the program
              (its app id) rather than its window's title.
            - Left, for 4g7e3c: programs own their windows' input while the session shows
-             (`DesktopSettings::owned`), but the root's router routes none to them yet.
+             (`DesktopSettings::owned`), but the root's router routes none to them yet: a
+             press on a window's layer (hit whole while its child takes input) reaches nothing.
+             Where the compositor thinks a window is (`place_windows`) is its layer's origin,
+             upright and unscaled, which pointer and popup mapping need to follow once a
+             window is placed zoomed or turned.
            - Left: a window's popups (menus) show only within its place, clipped by its layer,
              where under be-host they hang outside the window's view.
            - 4g7e3c. Input to `Surface::Host` layers: what the root's router delivers to one

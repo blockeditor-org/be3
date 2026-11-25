@@ -750,6 +750,25 @@ impl State {
         }
     }
 
+    /// Whether `id` was configured since it last committed what it acknowledged: it has yet to
+    /// draw what it was told (a size, a state). Never for an X11 window, which says nothing of
+    /// a configure it took in.
+    pub fn configure_outstanding(&self, id: WindowId) -> bool {
+        let Some(toplevel) = self.toplevel(id) else {
+            return false;
+        };
+        with_states(toplevel.wl_surface(), |states| {
+            states
+                .data_map
+                .get::<XdgToplevelSurfaceData>()
+                .is_some_and(|data| {
+                    let data = data.lock().unwrap();
+                    !data.pending_configures().is_empty()
+                        || data.configure_serial != data.current_serial
+                })
+        })
+    }
+
     pub fn mapped_size(&self, id: WindowId) -> Option<beui::Vec2> {
         let window = self.find(id)?;
         if self.layers(id).is_empty() {

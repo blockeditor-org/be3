@@ -358,31 +358,24 @@ impl WindowPicture {
 
     /// Its surfaces with something to show, bottom first.
     pub fn surfaces(&self) -> impl Iterator<Item = ShownSurface<'_>> {
+        self.shown().map(|(_, _, surface)| surface)
+    }
+
+    /// `surfaces`, each with its texture and layer, which its drawing draws from.
+    fn shown(&self) -> impl Iterator<Item = (&Rc<SurfaceTexture>, &Layer, ShownSurface<'_>)> {
         self.layers
             .iter()
             .filter(|(_, layer)| layer.buffer.w > 0.0 && layer.buffer.h > 0.0)
             .map(|(texture, layer)| {
-                let (width, height) = (layer.buffer.w, layer.buffer.h);
-                let source = layer.source;
-                ShownSurface {
+                let (rect, uv) = geometry(layer.rect, layer.source, layer.buffer);
+                let surface = ShownSurface {
                     texture: &texture.texture,
                     opaque: texture.opaque,
-                    rect: Rect::from_min_size(
-                        beui::pos2(layer.rect.loc.x as f32, layer.rect.loc.y as f32),
-                        beui::vec2(layer.rect.size.w as f32, layer.rect.size.h as f32),
-                    ),
-                    uv: Rect::from_min_max(
-                        beui::pos2(
-                            (source.loc.x / width) as f32,
-                            (source.loc.y / height) as f32,
-                        ),
-                        beui::pos2(
-                            ((source.loc.x + source.size.w) / width) as f32,
-                            ((source.loc.y + source.size.h) / height) as f32,
-                        ),
-                    ),
+                    rect,
+                    uv,
                     alpha: layer.alpha,
-                }
+                };
+                (texture, layer, surface)
             })
     }
 
@@ -434,32 +427,52 @@ impl WindowDraw {
     }
 }
 
+/// Where a surface shows in its window's logical pixels, `rect`, and the part of its buffer
+/// shown there, from 0 to 1 across and down: what its drawing and a host compositing its window
+/// itself both draw (`WindowPicture::surfaces`).
+fn geometry(
+    rect: Rectangle<f64, Logical>,
+    source: Rectangle<f64, Logical>,
+    buffer: Size<f64, Logical>,
+) -> (Rect, Rect) {
+    let (width, height) = (
+        buffer.w.max(f64::MIN_POSITIVE),
+        buffer.h.max(f64::MIN_POSITIVE),
+    );
+    (
+        Rect::from_min_size(
+            beui::pos2(rect.loc.x as f32, rect.loc.y as f32),
+            beui::vec2(rect.size.w as f32, rect.size.h as f32),
+        ),
+        Rect::from_min_max(
+            beui::pos2((source.loc.x / width) as f32, (source.loc.y / height) as f32),
+            beui::pos2(
+                ((source.loc.x + source.size.w) / width) as f32,
+                ((source.loc.y + source.size.h) / height) as f32,
+            ),
+        ),
+    )
+}
+
+/// The quad drawing a surface where `at` draws its window, its edges on whole pixels.
 fn place(
     rect: Rectangle<f64, Logical>,
     source: Rectangle<f64, Logical>,
     buffer: Size<f64, Logical>,
     at: &DrawAt,
 ) -> Quad {
+    let (rect, uv) = geometry(rect, source, buffer);
     let scale = at.pixels_per_point;
-    let left = (at.rect[0] + rect.loc.x as f32 * scale).round();
-    let top = (at.rect[1] + rect.loc.y as f32 * scale).round();
-    let (width, height) = (
-        buffer.w.max(f64::MIN_POSITIVE),
-        buffer.h.max(f64::MIN_POSITIVE),
-    );
+    let left = (at.rect[0] + rect.min.x * scale).round();
+    let top = (at.rect[1] + rect.min.y * scale).round();
     Quad {
         rect: [
             left,
             top,
-            left + (rect.size.w as f32 * scale).round(),
-            top + (rect.size.h as f32 * scale).round(),
+            left + (rect.width() * scale).round(),
+            top + (rect.height() * scale).round(),
         ],
-        uv: [
-            (source.loc.x / width) as f32,
-            (source.loc.y / height) as f32,
-            ((source.loc.x + source.size.w) / width) as f32,
-            ((source.loc.y + source.size.h) / height) as f32,
-        ],
+        uv: [uv.min.x, uv.min.y, uv.max.x, uv.max.y],
         clip: [
             at.clip[0].max(at.rect[0]),
             at.clip[1].max(at.rect[1]),
@@ -478,20 +491,18 @@ impl Draw for WindowDraw {
         _encoder: &mut wgpu::CommandEncoder,
         at: DrawAt,
     ) {
-        let quads = self
+        let quads: Vec<_> = self
             .picture
-            .layers
-            .iter()
-            .filter(|(_, layer)| layer.buffer.w > 0.0 && layer.buffer.h > 0.0)
-            .map(|(texture, layer)| {
+            .shown()
+            .map(|(texture, layer, surface)| {
                 let quad = Quad {
-                    opaque: texture.opaque,
-                    opacity: layer.alpha,
+                    opaque: surface.opaque,
+                    opacity: surface.alpha,
                     ..place(layer.rect, layer.source, layer.buffer, &at)
                 };
                 (texture, layer, quad)
-            });
-        let quads: Vec<_> = quads.collect();
+            })
+            .collect();
         // A program window is a surface the host owns, drawn here so it blends over the host's
         // UI (client shadows, translucent terminals); where the renderer composites, each of
         // its surfaces is also listed as a layer for damage and input.
@@ -547,22 +558,23 @@ impl Paints for WindowDraw {
     fn painting(&self, rect: Rect) -> Option<Painting> {
         let mut textures = BTreeMap::new();
         let mut primitives = Vec::new();
-        for (texture, layer) in &self.picture.layers {
+        for (texture, _, surface) in self.picture.shown() {
             let Some(pixels) = self.picture.pixels(&texture.texture) else {
                 continue;
             };
             let key = std::ptr::from_ref(texture.as_ref()) as u64;
             textures.insert(key, pixels);
-            let left = rect.min.x + layer.rect.loc.x as f32;
-            let top = rect.min.y + layer.rect.loc.y as f32;
-            let right = left + layer.rect.size.w as f32;
-            let bottom = top + layer.rect.size.h as f32;
-            let (width, height) = (layer.buffer.w.max(1.0), layer.buffer.h.max(1.0));
-            let u0 = (layer.source.loc.x / width) as f32;
-            let v0 = (layer.source.loc.y / height) as f32;
-            let u1 = ((layer.source.loc.x + layer.source.size.w) / width) as f32;
-            let v1 = ((layer.source.loc.y + layer.source.size.h) / height) as f32;
-            let alpha = (layer.alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
+            let left = rect.min.x + surface.rect.min.x;
+            let top = rect.min.y + surface.rect.min.y;
+            let right = left + surface.rect.width();
+            let bottom = top + surface.rect.height();
+            let (u0, v0, u1, v1) = (
+                surface.uv.min.x,
+                surface.uv.min.y,
+                surface.uv.max.x,
+                surface.uv.max.y,
+            );
+            let alpha = (surface.alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
             let corner = |x: f32, y: f32, u: f32, v: f32| PaintVertex {
                 pos: [x, y],
                 uv: [u, v],

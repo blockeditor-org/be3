@@ -143,6 +143,12 @@ pub trait DesktopHost {
     /// configures it, and every other one it showed before let go of, as a view's going does.
     fn place_windows(_placed: &[(HostWindowId, Rect)]) {}
 
+    /// Why the desktop is not settled, if it is not (a program window shown has yet to draw
+    /// what it was configured to), which a host waits out as it waits for its own UI.
+    fn busy() -> Option<String> {
+        None
+    }
+
     fn close(_window: HostWindowId) {}
 
     fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
