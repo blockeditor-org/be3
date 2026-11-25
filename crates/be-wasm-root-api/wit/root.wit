@@ -1267,6 +1267,12 @@ interface host {
     /// it sends its own editors those, and drops any other.
     tell-editor: async func(instance: u64, editor: u64, event: list<u8>);
 
+    /// Asks an editor the host opened in an app the root spawned to show one of the host's
+    /// panels (the app protocol's `host-panel`, be-sdk-api's `HostPanel`, in be-wasm-ops'
+    /// encoding), as be-host asks its shell when its menu opens one: the root asks the
+    /// editor showing its session's block. The host drops a panel it cannot read.
+    show-panel: async func(instance: u64, editor: u64, panel: list<u8>);
+
     /// A rectangle in a view's points.
     record view-rect {
         min-x: f32,

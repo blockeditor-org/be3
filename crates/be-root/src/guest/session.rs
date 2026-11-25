@@ -242,6 +242,8 @@ impl Root {
         let Some(layer) = hosted.app.layer(SESSION_SCREEN, pos2(0.0, 0.0)) else {
             return Vec::new();
         };
+        // The host panels its children place, which the root draws itself.
+        be_sdk_root::show_panels(self.settle_panels(children.panels()));
         let mut layers = Vec::new();
         children.layers(
             &screen(hosted.editor, self.window.get()),
@@ -252,6 +254,17 @@ impl Root {
         // everything they place (`anchored-placement`).
         children.anchored_layers(&hosted.app, Some(hosted.editor), &mut layers);
         layers
+    }
+
+    /// The app showing the session's editor, by its handle, and the editor, while it runs.
+    pub(super) fn session_editor(&self) -> Option<(u64, u64)> {
+        match &*self.session.borrow() {
+            Some(Session {
+                state: Showing::Running(hosted),
+                ..
+            }) => Some((hosted.app.instance(), hosted.editor.0)),
+            _ => None,
+        }
     }
 
     /// Whether the session's editor, or a child it places, is still being opened: its host has

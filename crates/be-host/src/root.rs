@@ -905,6 +905,15 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
             forwarded.tell(EditorInstanceId(editor), event);
         }
     }
+    for (instance, editor, panel) in root.take_panel_shows() {
+        let Some(forwarded) = served.get_mut(&instance) else {
+            continue;
+        };
+        // A root that encodes what no editor can read asks for nothing.
+        if let Some(panel) = be_sdk_api::ops::decode::<be_sdk_api::HostPanel>(&panel) {
+            forwarded.show_panel(EditorInstanceId(editor), panel);
+        }
+    }
     for (instance, editor, updates) in root.take_dock_updates() {
         let Some(forwarded) = served.get_mut(&instance) else {
             continue;

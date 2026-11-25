@@ -156,6 +156,12 @@ impl Forwarded {
         self.wire.send(messages);
     }
 
+    /// Asks the editor `instance` to show the host's panel `panel`, as be-host asks its shell
+    /// (`show_panel`): it hears it with its shows.
+    pub fn show_panel(&mut self, instance: EditorInstanceId, panel: be_sdk_api::HostPanel) {
+        self.instances.show_panel(instance, panel);
+    }
+
     /// Whether the editor `instance` opened in its app.
     pub fn is_open(&self, instance: EditorInstanceId) -> bool {
         self.instances.is_open(instance)

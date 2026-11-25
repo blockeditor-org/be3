@@ -1890,9 +1890,19 @@ Each step lands on its own.
                `set_artifact_states` reach be-host's own editors only), so its artifact bar
                says Loading and be-host may hold no session to make the artifact again; left
                for later.
-             - Left: host panels. be-host keeps no beui but its platform adapters,
-               so it draws no panel: be-root draws the block stack, performance, apps and menu
-               panels itself, as its own surfaces (the user's decision).
+             - 4g7b3m. Built: host panels. be-host keeps no beui but its platform adapters,
+               so it draws no panel: be-root draws them itself (the user's decision).
+               be-sdk-root lists each host panel child placed and not hidden
+               (`Children::panels`, a `PanelPlace`), reports it shown, and places the layer
+               the root hands it there (`show_panels`, layer ids from `PANEL_LAYERS`), framed,
+               clipped and cut out as a child. be-root keeps a `BeuiSurface` per place
+               (`guest/panels.rs`), drawing Performance (`StatisticsPanel`, its own statistics
+               watch) and Menu (`HostMenu` as rows). Its menu gains Block Stack State and
+               Running Apps, asking the session's editor to show the panel
+               (`host.show-panel`, `Forwarded::show_panel`) as be-host asks its shell. Host
+               test `be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places`.
+               Left: Block Stack State and Running Apps show `PANEL_NOT_DRAWN` until the
+               host's block stack and app pool reach be3:root.
              - One app crashing fails every child it runs: expected, as the pool shares one
                app per staged app. Apps may later isolate themselves by spawning more wasm
                processes (deferred, plans/deferred/backlog.md).
