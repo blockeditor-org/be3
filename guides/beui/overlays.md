@@ -428,7 +428,8 @@ What the host gets:
 - `Document::escaped_layers()`: an `EscapedLayer` per layer, in layer order,
   each after its parent (submenus nest). A layer that blocks only its parent
   leaves the owner's view live; the document blocks it itself and never asks
-  it to close on a press outside.
+  it to close on a press outside. Nor does one that dims (a confirmation): it
+  blocks only its own frame, so a press in a sibling frame leaves it open.
 - `FrameOutput::escaped`: per layer, that record and a `WindowOutput` painted
   from the layer's top-left in host units, ready for its own surface. The
   layer is left out of its window's painting and rect lists.
