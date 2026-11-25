@@ -11,6 +11,19 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../beui" }
 be-sdk-beui-platform = { path = "../be-sdk-beui-platform" }
 be-sdk-beui = { path = "../be-sdk-beui" }
+# Vello's GPU renderer, for beui-renderer-wgpu and for apps that draw with it
+# directly (plans/beui_on_vello.md). wgpu's `webgl` is not wanted: the browser
+# build runs wgpu over be3:gpu; nor `text`: beui shapes and draws its own glyphs.
+vello_gpu = { version = "0.4", default-features = false, features = [
+    "wgpu",
+    "wgpu_external_texture",
+    "gradient_sweep",
+    "blurred_rounded_rect",
+    "full_image_support",
+] }
+# Without `png` (the font stack decodes strikes itself), `pico_svg`, or
+# `multithreading` (decisions/guests_are_single_threaded.md).
+vello_common = { version = "0.4", default-features = false }
 
 [lints]
 workspace = true
