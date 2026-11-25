@@ -460,7 +460,7 @@ pub struct ListedBlock {
     pub head: Option<CommitId>,
 }
 
-/// A signing key this device knows an account by (plans/authorship.md): verified when a
+/// A signing key this device knows an account by (guides/blocks/keys.md, "Signing what a person writes"): verified when a
 /// contact's card or key change named it, otherwise pinned the first time the server did.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct KnownSigner {
