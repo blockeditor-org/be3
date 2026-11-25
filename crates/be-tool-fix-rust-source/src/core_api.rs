@@ -83,8 +83,8 @@ fn visit(
         }) {
             continue;
         }
-        if let ast::Item::Module(module) = &item {
-            if let Some(list) = module.item_list() {
+        if let ast::Item::Module(module) = &item
+            && let Some(list) = module.item_list() {
                 visit(
                     list.items(),
                     core_file,
@@ -94,7 +94,6 @@ fn visit(
                     violations,
                 );
             }
-        }
         if !(core_file || chosen) || !unrestricted(&item) {
             continue;
         }
