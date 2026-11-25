@@ -1,6 +1,6 @@
 # A modal reports dismissal at once and goes only when its owner closes it
 
-Escape, back and a press on the scrim reach `unstyled::Modal`'s `on_dismiss` immediately; the modal goes only when its owner closes it after such a request, and stays put if the owner keeps it open. A modal sheet then slides down out of sight; every other modal (`ModalMotion::Still`) goes at once.
+Escape, back and a press on the scrim reach `unstyled::Modal`'s `on_dismiss` immediately; the modal goes only when its owner closes it after such a request, and stays put if the owner keeps it open. A modal sheet then slides down out of sight; a modal or a dialog's window goes at once. The same holds for a dialog's window that blocks its owner.
 
 ## Why
 

@@ -12,7 +12,7 @@ use crate::theme::{POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ActionRole, DialogAction, DialogAnchor, DialogBodyHandle, DialogCardHandle, DialogKind,
-    DialogLayout, DialogSheetHandle, DialogSize, ModalHandle, ModalPlacement,
+    DialogLayout, DialogSheetHandle, DialogSize,
 };
 use beui_view::primitives::{KeepAlive, Kept, Spacer};
 use beui_view::reactive::NodeId;
@@ -41,7 +41,6 @@ pub enum Scrim {
 pub fn Modal(
     open: Prop<bool>,
     #[prop(default = Scrim::Dim)] scrim: Scrim,
-    #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     on_dismiss: Callback<()>,
     #[prop(children)] content: BuildFn<NodeId>,
@@ -57,11 +56,9 @@ pub fn Modal(
         <unstyled::Modal
             open
             scrim={color}
-            placement
             level
-            motion=unstyled::ModalMotion::Still
             on_dismiss={on_dismiss}
-        >|_: ModalHandle| {
+        >|| {
             content.call()
         }</unstyled::Modal>
     }
