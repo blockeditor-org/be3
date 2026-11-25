@@ -206,7 +206,7 @@ impl Reader {
     fn targets(&self) -> Vec<String> {
         let data = self.read("TARGETS").expect("the owner lists its targets");
         data.as_chunks::<4>().0.iter()
-            .map(|atom| u32::from_ne_bytes(atom.try_into().expect("four bytes")))
+            .map(|atom| u32::from_ne_bytes(*atom))
             .map(|atom| {
                 let name = self
                     .connection

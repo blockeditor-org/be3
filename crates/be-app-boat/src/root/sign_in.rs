@@ -14,6 +14,8 @@ use crate::api::{self, ACTIONS, API_KEYS, Account, BoatError, KEY_DAYS};
 use crate::time::DAY;
 
 #[component]
+// A view! prop takes its own closure: a reference to the function does not live long enough.
+#[allow(clippy::redundant_closure)]
 pub(super) fn SignIn(state: State) -> NodeId {
     let editor = state.editor;
     let read_only = editor.read_only();
@@ -122,7 +124,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                                     label="Open API Keys"
                                     glyph=ICON_EXTERNAL_LINK
                                     @test_id="boat.sign-in.open"
-                                    on_click={&open_keys}
+                                    on_click={move || open_keys()}
                                 />
                             </List>
                             <Text style=TextStyle::CAPTION>"Organization, by name or id"</Text>
@@ -191,7 +193,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             disabled={unchecked}
                             busy={checking}
                             @test_id="boat.sign-in.connect"
-                            on_click={&connect}
+                            on_click={move || connect()}
                         />
                         <Show value={replacing}>
                             <Button

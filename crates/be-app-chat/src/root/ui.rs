@@ -394,6 +394,8 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
 }
 
 #[component]
+// A view! prop takes its own closure: a reference to the function does not live long enough.
+#[allow(clippy::redundant_closure)]
 pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
     let me = editor.blocks().account_id();
@@ -876,7 +878,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             glyph=ICON_SEND
                             variant=ButtonVariant::Primary
                             @test_id={"chat.send"}
-                            on_click={&send}
+                            on_click={move || send()}
                         />
                     </List>
                 </List>

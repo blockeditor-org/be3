@@ -12,7 +12,9 @@ fn settling_alone_wakes_a_reader_whose_value_stays_equal() {
         let loading = Boundary::provide();
         // Handles the pending source, so its value is the same before and after: it is still
         // pending until the source settles.
-        let shown = create_memo(move || 0);
+        // It reads the source, for its loading, though its value is always 0.
+        #[allow(clippy::unnecessary_min_or_max)]
+        let shown = create_memo(move || source.get().unwrap_or(0).min(0));
         create_effect(move || {
             seen.set(seen.get() + 1);
             let _ = shown.get();
