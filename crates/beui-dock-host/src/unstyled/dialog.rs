@@ -2,13 +2,13 @@ use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
 use beui_view::components::overlay::Modality;
+use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::PointerPress;
 use beui_view::types::{Dismiss, Placement};
 use beui_view::types::{Pos2, Rect, Vec2};
-use beui_view::measure::measure;
 use beui_view::window::{Window, WindowAnchor, WindowHandle, opens_windows};
 
 use super::{DockState, State, TabId};
@@ -448,12 +448,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     };
     let overlay = NodeRef::new();
     let hosted = opens_windows();
-    let shown_in = create_memo(move || {
-        hosted
-            .get()
-            .then(|| owner.get().map(window_of))
-            .flatten()
-    });
+    let shown_in = create_memo(move || hosted.get().then(|| owner.get().map(window_of)).flatten());
     let windowed = create_memo(move || shown.get() && !sheeted.get());
     let anchor = create_memo(move || match (moved.get(), pointed.get()) {
         (Some(_), _) => None,
@@ -513,10 +508,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 }),
             });
             view! {
-                <List spacing=0.0>
-                    {view}
-                    {sheet}
-                </List>
+                <List spacing=0.0>{view}{sheet}</List>
             }
         }
     };

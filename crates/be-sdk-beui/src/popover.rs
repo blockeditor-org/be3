@@ -7,7 +7,6 @@ use beui::{Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, V
 
 use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
 
-
 #[derive(Clone, Copy)]
 pub(crate) struct PopoverWindow(pub(crate) Memo<Option<beui::WindowId>>);
 
@@ -154,7 +153,10 @@ fn AnchoredPopover(
         // keeps the size it was asked to fit.
         match anchored {
             Some(anchored) => beui::layer::room(area, anchored, Placement::CARD),
-            None => area.shrink(f32::from(Placement::CARD.edge_margin())).size().max(Vec2::ZERO),
+            None => area
+                .shrink(f32::from(Placement::CARD.edge_margin()))
+                .size()
+                .max(Vec2::ZERO),
         }
     });
     create_effect(move || {

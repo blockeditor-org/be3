@@ -63,7 +63,10 @@ fn players_carry_on_with_the_next_host_once_the_first_closes_the_world() {
     phone.wait("#counter.value");
     hosts(&mut phone, false);
 
-    let mut players = [Player::sign_in(&server, "Ada"), Player::sign_in(&server, "Bo")];
+    let mut players = [
+        Player::sign_in(&server, "Ada"),
+        Player::sign_in(&server, "Bo"),
+    ];
     let mut first = Vec::new();
     for player in &mut players {
         let block = player.open_share_link(&link);

@@ -1570,8 +1570,7 @@ impl Member {
         name: &str,
         refs: be_block_client::RefsDb,
     ) -> Self {
-        let someone =
-            Someone::register(harness.server.directory(), &harness.url, email, name);
+        let someone = Someone::register(harness.server.directory(), &harness.url, email, name);
         let code = made_link(None);
         let runtime = runtime();
         let peer = runtime.block_on(someone.peer_keeping(&harness.url, personal, refs));

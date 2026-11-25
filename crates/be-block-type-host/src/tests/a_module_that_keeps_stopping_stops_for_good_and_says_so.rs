@@ -17,7 +17,11 @@ fn a_module_that_keeps_stopping_stops_for_good_and_says_so() {
             replicas.take_stopped_modules()
         };
         for _ in 1..FAILURES_BEFORE_STOPPING {
-            assert_eq!(restart(&mut replicas), Vec::<String>::new(), "it is started again");
+            assert_eq!(
+                restart(&mut replicas),
+                Vec::<String>::new(),
+                "it is started again"
+            );
         }
         // A minute on, the failures before have left the window.
         moved.advance(Duration::from_secs(61));

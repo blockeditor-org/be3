@@ -110,12 +110,9 @@ impl Server {
         let directory = std::env::temp_dir().join(format!("be3-test-server-{}", Uuid::new_v4()));
         let store = be_server::ServerStore::open(&directory)
             .unwrap_or_else(|error| panic!("the test server's data could not be set up: {error}"));
-        let running = crate::start_embedded_server_at(
-            "127.0.0.1:0",
-            directory.clone(),
-            options.push.clone(),
-        )
-        .expect("the test server starts");
+        let running =
+            crate::start_embedded_server_at("127.0.0.1:0", directory.clone(), options.push.clone())
+                .expect("the test server starts");
         let address = running
             .url
             .trim_start_matches("http://")

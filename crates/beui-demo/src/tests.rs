@@ -7,6 +7,7 @@ use beui_host::native::build;
 
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
+use std::time::Duration;
 
 mod a_back_swipe_let_go_fast_carries_the_page_off_at_its_speed;
 mod a_banner_says_what_failed_until_it_is_dismissed;
@@ -27,6 +28,7 @@ mod a_disabled_button_says_why_in_its_tooltip;
 mod a_dock_dialog_dragged_by_its_bar_stays_where_it_was_left;
 mod a_dock_dialog_on_a_phone_is_a_sheet;
 mod a_dock_dialog_open_across_a_mode_change_moves_between_window_and_sheet;
+mod a_dock_dialog_sheet_that_stays_on_an_outside_press_stays_on_a_scrim_press;
 mod a_dock_dialog_whose_tab_shows_no_label_opens_at_the_top_of_its_panel;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped;
@@ -375,4 +377,12 @@ fn tab(page: Page) -> u64 {
     Pages::tab_of(page)
         .expect("the page is open in a tab")
         .value()
+}
+
+const PHONE: Vec2 = Vec2::new(390.0, 844.0);
+fn settle(test: &mut DocumentTest) {
+    for _ in 0..30 {
+        test.advance(Duration::from_millis(16));
+        test.frame(Vec::new());
+    }
 }

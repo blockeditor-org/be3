@@ -10,8 +10,8 @@ use beui_paint_snapshot::Snapshot;
 
 mod player;
 
-pub use player::Player;
 pub use be_host_server::testing::{Account, Server};
+pub use player::Player;
 
 /// A test's own server, on the test's clock: its devices' clocks start at the test's moment,
 /// so the server's does too, since it stamps when it took each edit, which a device reads
