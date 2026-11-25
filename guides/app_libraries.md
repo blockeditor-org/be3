@@ -257,8 +257,9 @@ app's own thread and a per-draw call takes only wasm values.
 
 The app GPU API is meant to be everything JS WebGPU gives a page, with the
 host device's optional features and limits, since the same app runs in a
-browser (decisions/be3_gpu_matches_webgpu.md). What it still lacks is listed
-in plans/be3_gpu_matches_webgpu.md, and reached from wgpu is an
+browser (decisions/be3_gpu_matches_webgpu.md); plans/be3_gpu_is_wasi_webgpu.md
+replaces `be3:gpu/device` with wasi:webgpu to get there. What it lacks, reached
+from wgpu, is an
 `unimplemented!` in `be-wasm-gpu-guest/src/objects.rs`; whatever wgpu marks
 `unsafe` is refused for good, since apps are untrusted. A native-only feature
 would be added only behind a feature the app checks.
