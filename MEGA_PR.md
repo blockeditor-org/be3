@@ -107,6 +107,7 @@ Landed on 2026-11-24:
 - `authorship-4`: a block's log doubt shows as a bar above it, with Details and Dismiss; dismissing hides only the verdict shown, and only the workspace may dismiss. The authorship plan's open items are set aside in plans/deferred/authorship.md.
 - `keys-backlog`: keys a contact sealed to a replaced key open with retired secrets; an acceptance over the account's bound says why; offers of ownership are listed under "Offered to you" in the files pane.
 - `dialogs-dock-6`: a window of its own points at its anchor, blocks its owner across windows (a no-owner cover blocks only its own window), closes while locked, and pushes the lock state.
+- `fix-type-module-restart-count`: a restarted type module's replica takes no edit before its rejoin opens it, and gets each edit once, offline or through a second restart.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
