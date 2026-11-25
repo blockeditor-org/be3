@@ -445,7 +445,10 @@ fn geometry(
             beui::vec2(rect.size.w as f32, rect.size.h as f32),
         ),
         Rect::from_min_max(
-            beui::pos2((source.loc.x / width) as f32, (source.loc.y / height) as f32),
+            beui::pos2(
+                (source.loc.x / width) as f32,
+                (source.loc.y / height) as f32,
+            ),
             beui::pos2(
                 ((source.loc.x + source.size.w) / width) as f32,
                 ((source.loc.y + source.size.h) / height) as f32,

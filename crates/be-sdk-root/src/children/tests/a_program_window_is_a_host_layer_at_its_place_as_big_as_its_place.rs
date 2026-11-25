@@ -56,7 +56,10 @@ fn a_program_window_is_a_host_layer_at_its_place_as_big_as_its_place() {
     // host configures it to.
     assert_eq!(window.size, (320, 240));
     assert_eq!(window.transform.apply(pos2(0.0, 0.0)), pos2(60.0, 20.0));
-    assert_eq!(window.transform.apply(pos2(320.0, 240.0)), pos2(380.0, 260.0));
+    assert_eq!(
+        window.transform.apply(pos2(320.0, 240.0)),
+        pos2(380.0, 260.0)
+    );
     // It shows only what its place's clip lets through.
     assert_eq!(window.clip, rect((0.0, 0.0), (190.0, 180.0)));
     // It takes the presses where it is, below its placer, which is hit around it.

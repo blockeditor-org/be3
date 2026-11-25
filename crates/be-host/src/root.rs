@@ -68,8 +68,7 @@ use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
     ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, HostWindowId,
-    InteractionMode,
-    ParentView, ResizeMode, ViewId, app::EditorEvent, shell_types::ShellMessage,
+    InteractionMode, ParentView, ResizeMode, ViewId, app::EditorEvent, shell_types::ShellMessage,
 };
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::{EditorApp, OpenedEditor, ShownPreview};
@@ -361,12 +360,7 @@ impl RootShell {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
-        publish_tree(
-            &mut self.tree,
-            context,
-            area,
-            done.accessibility.as_deref(),
-        );
+        publish_tree(&mut self.tree, context, area, done.accessibility.as_deref());
         clipboard(context, root, &self.pasted);
         serve_editors(&mut self.core, root, &mut self.editors);
         for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {

@@ -37,11 +37,11 @@ pub use compositor::{Compositor, CursorImage, Monitor};
 pub use layout_names::{NamedLayout, named_layouts};
 pub use pointer::HeldPointer;
 pub use presentation::Presented;
+pub use render::{ShownSurface, WindowPicture};
 pub use server::Server;
 pub use state::{Grab, KeyboardConfig, WindowId};
 pub use toplevel_icon::ICON_PIXELS;
 pub use view::{Carrier, WindowView, register_restore_shortcuts};
-pub use render::{ShownSurface, WindowPicture};
 pub use windows::{Launch, Popups, WindowInfo, Windows};
 
 #[cfg(test)]
