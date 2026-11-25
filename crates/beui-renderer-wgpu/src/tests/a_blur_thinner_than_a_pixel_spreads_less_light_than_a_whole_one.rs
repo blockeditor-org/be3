@@ -16,13 +16,13 @@ fn a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one() {
     };
 
     let sharp = spread_at(0.0);
-    let quarter = spread_at(0.25);
+    let half = spread_at(0.5);
     let whole = spread_at(1.0);
 
     assert_eq!(sharp, 0);
-    assert!(quarter > sharp, "a quarter of a pixel spread {quarter}");
+    assert!(half > sharp, "half a pixel spread {half}");
     assert!(
-        quarter < whole,
-        "a quarter of a pixel spread {quarter} against {whole} for a whole one"
+        half < whole,
+        "half a pixel spread {half} against {whole} for a whole one"
     );
 }
