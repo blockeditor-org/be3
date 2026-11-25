@@ -9,6 +9,9 @@
 //! - `POST …/http`: the long-poll fallback, posts carrying frames (`posts`);
 //! - anything else: a websocket upgrade, handed to tokio-tungstenite (`socket`).
 //!
+//! A connection whose answer makes no progress for `IDLE_TIMEOUT` (a client that stopped
+//! reading it) is given up (`stalled`).
+//!
 //! Paths are matched by their end, since the server is reached below whatever path a proxy
 //! mounts it at.
 
@@ -52,6 +55,7 @@ use crate::{
 
 mod auth;
 mod s3;
+pub(crate) mod stalled;
 
 const PATH_SUFFIX: &str = "/http";
 /// Where a one-shot call is posted: a greeting and one call that needs no sign-in, answered and
@@ -202,14 +206,7 @@ pub(crate) async fn serve(
     };
     // hyper's head timeout covers every head, the first and those after one is answered; the
     // first must also arrive within `HANDSHAKE_TIMEOUT`.
-    let connection = hyper::server::conn::http1::Builder::new()
-        .timer(TokioTimer::new())
-        .header_read_timeout(IDLE_TIMEOUT)
-        .max_header_size(MAX_HEAD_BYTES)
-        .max_headers(MAX_HEADERS)
-        .title_case_headers(true)
-        .serve_connection(TokioIo::new(stream), service)
-        .with_upgrades();
+    let connection = connection(stream, service);
     let first = async {
         tokio::select! {
             () = link.requested.notified() => std::future::pending().await,
@@ -221,6 +218,32 @@ pub(crate) async fn serve(
         () = first => Err(crate::refused("the request never finished its head")),
         () = eviction.wait() => Ok(()),
     }
+}
+
+/// hyper's HTTP/1 connection over `io`, as `serve` serves each: its heads read within
+/// `IDLE_TIMEOUT`, and given up once an answer makes no progress for as long (`stalled`).
+pub(crate) fn connection<I, S, B>(
+    io: I,
+    service: S,
+) -> impl std::future::Future<Output = Result<(), hyper::Error>>
+where
+    I: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+    S: hyper::service::HttpService<hyper::body::Incoming, ResBody = B>,
+    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B: hyper::body::Body + 'static,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    hyper::server::conn::http1::Builder::new()
+        .timer(TokioTimer::new())
+        .header_read_timeout(IDLE_TIMEOUT)
+        .max_header_size(MAX_HEAD_BYTES)
+        .max_headers(MAX_HEADERS)
+        .title_case_headers(true)
+        .serve_connection(
+            TokioIo::new(stalled::WriteDeadline::new(io, IDLE_TIMEOUT)),
+            service,
+        )
+        .with_upgrades()
 }
 
 /// Counts a request against its client's places, as the accept loop counts a connection, and

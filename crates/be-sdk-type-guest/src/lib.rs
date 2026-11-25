@@ -61,7 +61,11 @@ type ChildFn = fn(Option<&[u8]>, ChildChange, u64) -> Result<Option<Vec<u8>>, St
 
 type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
 
-type ReplayFn = fn(Option<&[u8]>, &Journal) -> Result<Vec<u8>, String>;
+type ReplayFn = fn(
+    Option<Vec<u8>>,
+    Journal,
+    PartReader,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>>>>;
 
 /// A type's `Unread`: `places` of the account's layers of its reads kind, lowest first, each
 /// block's place in postcard bytes; and `count_unread` of content as a host loads it (`Loaded`)
@@ -1109,13 +1113,13 @@ impl replicas::Guest for Module {
         bytes: Option<Vec<u8>>,
         journal: Journal,
     ) -> LocalFuture<Result<Vec<u8>, Failure>> {
-        Box::pin(ready(
-            self.with_kind(content_type, |kind| {
-                (kind.replay)(bytes.as_deref(), &journal)
-            })
-            .ok_or(Failure::UnknownType)
-            .and_then(|replayed| replayed.map_err(Failure::Malformed)),
-        ))
+        let replay = self.with_kind(content_type, |kind| kind.replay);
+        Box::pin(async move {
+            let replay = replay.ok_or(Failure::UnknownType)?;
+            replay(bytes, journal, request_parts())
+                .await
+                .map_err(Failure::Malformed)
+        })
     }
 
     fn describe(

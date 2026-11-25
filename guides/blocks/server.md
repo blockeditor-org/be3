@@ -1324,7 +1324,8 @@ starts one beside the web build.
 - One fixture serves every test of the block stack and of what runs on it. Its
   server, `be_host_server::testing::Server`, is be-server on data of its own
   with accounts (`account`, `token`), a fault relay per device (`relay`,
-  `offline`, `slow`), push options, and a listener that stops and starts again
+  `offline`, `slow`), push options, a smaller host-channel burst for a test of
+  `slow-down` (`Options::host_message_burst`), and a listener that stops and starts again
   at its address (`stop`, `start_again`); be-host's host tests sign each host in
   as a device of one of its accounts. The harness,
   `be_host_stack::testing::Harness`, signs one account's stack in, in the
@@ -1344,6 +1345,13 @@ starts one beside the web build.
   connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are
   `be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so a test waits for a
   ping to be sent.
+- `be-lib-test-pause` forces a race that lands between two awaits: the code
+  calls `point(NAME, key)` there under `#[cfg(test)]`, keyed by the block so
+  tests running side by side hold only their own, and a test `hold`s the place,
+  waits until code is `reached` it, changes access or bans, then `release`s it
+  (be-host-stack's `hosting::ANSWER_PAUSE`, `RECHECK_PAUSE` and
+  `RECHECKED_PAUSE`; be-server's `client::JOIN_PAUSE`). A pause point works only
+  in its own crate's tests.
 - crates/be-host-tests' `Server` runs one in a host test's process, and be-hosts
   join it as devices of its accounts, each through a relay of its own
   (guides/testing_a_gui.md, 6).

@@ -255,16 +255,20 @@ app's own thread and a per-draw call takes only wasm values.
 - be-wasm-host links the glue natively; `be-wasm-gpu-shim` is the same in a
   browser worker.
 
-The app GPU API is what browser WebGPU exposes, with the host device's
-optional features and limits, since the same app runs in a browser. Anything
-missing is an `unimplemented!` in `be-wasm-gpu-guest/src/objects.rs`;
-whatever wgpu marks `unsafe` is refused for good, since apps are untrusted.
-A native-only feature would be added only behind a feature the app checks.
+The app GPU API is meant to be everything JS WebGPU gives a page, with the
+host device's optional features and limits, since the same app runs in a
+browser (decisions/be3_gpu_matches_webgpu.md); plans/be3_gpu_is_wasi_webgpu.md
+replaces `be3:gpu/device` with wasi:webgpu to get there. What it lacks, reached
+from wgpu, is an
+`unimplemented!` in `be-wasm-gpu-guest/src/objects.rs`; whatever wgpu marks
+`unsafe` is refused for good, since apps are untrusted. A native-only feature
+would be added only behind a feature the app checks.
 
 Traps when changing it:
 
-- An app's device has only the features it requested; the guest
-  (`features.rs`) and host both validate against that, not the host device.
+- An app's device has only the features and limits it requested, which only
+  the guest (`features.rs`) validates against: `request-device` does not tell
+  the host what was requested, so the host validates against its own device.
 - Buffer mapping, `on_submitted_work_done` and compilation info are
   asynchronous on both hosts: `map-async` and `on-submitted-work-done` answer
   tickets, the host wakes the app when one settles or the device is lost, and

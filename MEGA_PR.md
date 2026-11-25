@@ -18,7 +18,6 @@ Development resumed on 2026-11-24, with eight builders. Nothing below is on this
 - `flakes-server-runtime` rebased for review, then plans/one_way_in_the_block_stack.md.
 - Host adapter 4g7a2, then 4g7b and on.
 - The member list leak through the organization's log, then the owner transfer's accept step.
-- plans/dialogs_are_dock_windows.md.
 
 Landed on 2026-11-24:
 - `chat-stall-3`: an editor's log read in flight when its replica reopens is answered; before, a fresh chat editor could wait forever.
@@ -116,6 +115,15 @@ Landed on 2026-11-24:
 - `pure-guest-opt-s`: a pure guest's own crate builds at opt-level s in a release build (about 5.6% smaller apps).
 - `backlog-30-31`: the shared WIT's hash and uuid, and be3:ui's block-ref, are list<u8> as on the wire; a move into a block's own descendant is refused on the device; a secret shown once survives a stray press on its scrim.
 - `beui-vello-7`: paintings hold paths (Content::Path), the tessellator and lyon go, one merge rule for seamed fills in raster and renderer; plans/beui_on_vello.md is done and deleted (decisions/beui_draws_with_vello.md).
+- `server-protocol-26`: §26 of the server protocol plan, split; a replica's logged input that arrives while it loads is queued as a job.
+- `flakes-15`: an_editor_hears_the_author_go waits for the restarted stack to connect; five §15 flakes no longer reproduce.
+- `host-stack-shared`: be-host-stack tests start from no notices or account reads.
+- `host-adapter-4g7e3d`: program windows' statuses and closes reach their placer under the root; be-host answers close with windows open.
+- `gpu-webgpu`: surface-configuration takes view-formats as a list again; decisions/be3_gpu_matches_webgpu.md and decisions/be3_gpu_is_wasi_webgpu.md, and plans/be3_gpu_is_wasi_webgpu.md (wasi:webgpu 0.3.0-rc.2, pinned and fetched).
+- `host-adapter-4g7e3d-sugg`: 4g7e3d review suggestions: a close answered once the session ended, only the shell's windows worded; under the root the core's repaints stay the root's to ask.
+- `dialogs-10`: a Dialog opens as a window of its own where windows are hosted, at its level (session notices Raised, above the programs' windows); the desk harness lifts no scrim.
+- `dialogs-clear-color`: a dialog's window of its own clears to nothing, not its app's surface; the export dialog's child sits inside the card's border, rounded by the card's inner radius (card tokens RADIUS, BORDER, INSIDE_BORDER, INNER_RADIUS).
+- `backlog-7`: backlog §7 sessions: a reader outside the session replays a journal by parts; a stateless request's scope reads only its own block's parts (Scope::check); hosted channel slow-down (configurable burst), waiting join, newest handshake, inherited players; a recheck drops only the admission it checked; an edit given again by its part goes as its kept submission.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).

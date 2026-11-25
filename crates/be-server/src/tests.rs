@@ -21,6 +21,7 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_ban_made_after_a_joins_first_check_is_caught_once_it_registers;
 mod a_block_agent_is_deleted_with_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
@@ -41,6 +42,7 @@ mod a_change_a_follower_read_before_it_was_told_leaves_the_next_one_told;
 mod a_change_made_while_a_follow_is_read_is_read_or_told;
 mod a_changed_provider_email_held_by_another_account_is_not_taken;
 mod a_client_speaks_the_protocol_over_http_posts;
+mod a_client_that_stops_reading_an_answer_is_given_up;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_code_from_another_provider_or_sent_to_its_callback_is_refused;
@@ -2714,6 +2716,39 @@ impl TestClient {
             },
         );
         Some(entry.encode())
+    }
+
+    /// Bars `account` from joining `block`'s host as a device does (`Peer::ban`): a ban record
+    /// this client's test keys sign, by the Edit it holds on the block.
+    async fn ban(&mut self, block: Uuid, account: Uuid) -> Result<(), Error> {
+        use be_block_keys::{Ban, Record};
+        let me = self.account.expect("signed in");
+        let log = decode_steps(self.access_log(Some(block)).await.unwrap_or_default());
+        let authority = self
+            .authority(block, &log, be_block_keys::Level::Edit)
+            .await;
+        let signed = be_block_keys::Entry::sign(
+            &test_secret(me),
+            me.into_bytes(),
+            block.into_bytes(),
+            log.last().map(be_block_keys::Step::hash),
+            false,
+            Record::Ban(Ban {
+                account: account.into_bytes(),
+                authority,
+            }),
+        )
+        .encode();
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AppendLog(
+                be_block_protocol::LogRecord::Ban {
+                    block,
+                    account,
+                    signed: signed.clone(),
+                },
+            ))
+        })
+        .await
     }
 }
 

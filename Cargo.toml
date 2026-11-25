@@ -199,6 +199,7 @@ members = [
     "crates/be-lib-layers",
     "crates/be-lib-graphemes",
     "crates/be-lib-failure-budget",
+    "crates/be-lib-test-pause",
     "crates/be-lib-ghostty-vt",
     "crates/be-sdk-type-host",
     "crates/be-tool-local",

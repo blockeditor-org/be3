@@ -273,6 +273,10 @@ fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
 
+/// How many times `follow_logs` reads a page again that lost a race with another read of the
+/// log, before it records the failure.
+const FOLLOW_CONTENDED: u32 = 3;
+
 const PUBLISHING: u8 = 0;
 const RELEASED: u8 = 1;
 const SETTLED: u8 = 2;
@@ -4363,19 +4367,32 @@ impl<H: Host> Replicas<H> {
     /// asked for offline was never made. Each reads on from the head this device kept to the
     /// log's head, a page at a time, so what was appended meanwhile (this device's own entries
     /// the outbox drained among them) reaches the replica as appends told do.
-    pub fn follow_logs(&mut self, (peer, _): Ctx<'_, H>) {
+    pub fn follow_logs(&mut self, (peer, shared): Ctx<'_, H>) {
         for open in self.open.values() {
             if !crate::kind_of(open.content_type).is_some_and(|kind| kind.log) {
                 continue;
             }
             let (block, app) = (open.block, self.modules.name(open.module).to_owned());
-            let (peer, io) = (Arc::clone(peer), self.io.clone());
+            let (peer, io, shared) = (Arc::clone(peer), self.io.clone(), Arc::clone(shared));
             H::spawn(async move {
                 // A page at a time on to the head, which a read names: the server caps a page.
                 let mut from = peer.log_head(block).map_or(0, |head| head.size);
+                let mut contended = 0;
                 loop {
-                    let Ok(read) = peer.read_log(block, from, u32::MAX).await else {
-                        return;
+                    let read = match peer.read_log(block, from, u32::MAX).await {
+                        Ok(read) => read,
+                        // A read that lost a race with another of the log is made again.
+                        Err(ClientError::Contended) if contended < FOLLOW_CONTENDED => {
+                            contended += 1;
+                            continue;
+                        }
+                        // Recorded as other reads' failures are; the next reconnect follows on.
+                        Err(error) => {
+                            if !unreachable(&error) {
+                                H::record(&shared, error);
+                            }
+                            return;
+                        }
                     };
                     let size = read.head.size;
                     let read_to = from + read.entries.len() as u64;
@@ -5371,6 +5388,11 @@ impl<H: Host> Replicas<H> {
                             });
                             H::wake();
                         });
+                    }
+                    // Its scopes hold no block, so nothing reaches past what they were handed.
+                    Some(types::Under::Check(read)) => {
+                        self.modules
+                            .call(module, |connection| read.refuse(connection));
                     }
                     Some(types::Under::Error(message)) => {
                         H::report(ctx.1, None, format!("a type module: {message}"));

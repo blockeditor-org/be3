@@ -114,6 +114,11 @@ says `impl Wraps for Fixture {}` to be one too.
   editor stalls it until the deadline, as it would in be-host.
 - `settle()` paints until a frame stops asking for another at once. Call it before a snapshot
   of something that animates in.
+- A `be_host_stack` reply (a served command's answer, a listing, members) reaches its callback
+  only while the stack's updates are taken. A test that blocks on a channel the callback sends
+  on (`recv()`) takes none, so it hangs: loop on
+  `be_host_stack::take_updates_or_wait(what, || received())`, which takes them and waits for
+  the worker to hand over more until `received` holds.
 - The editor's clock (`timer::now()`) is the harness's: each frame is one frame interval
   later, so an animation lands on the same frame everywhere. `advance(by)` moves it on and
   delivers queued host calls without painting; the next `run()` or gesture paints the frame
@@ -308,8 +313,10 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   one window titled TITLE filled with one color at whatever size it is configured to (green once
   pressed and red once a key reached it, with `.pressed` or `.typed` added to its app id, which
   names its chip: a test waits for that before it snapshots), started
-  with the variables `drive env` gives programs. The test's programs stop as it closes and before
-  `restart_as_root`, which waits for the desktop to list no window. drive's `settle` waits for a
+  with the variables `drive env` gives programs. Its window is still open as the host closes,
+  which closes it first as its session ends (`close` answers once it has); before
+  `restart_as_root` the test's programs stop, and it waits for the desktop to list no window, so
+  the root starts without their placeholders. drive's `settle` waits for a
   program window shown to draw what it was last configured to (be-host-wayland's
   `Compositor::busy`), so a painting of it is settled once its program answered.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app

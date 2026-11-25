@@ -18,6 +18,8 @@ use be_host_runtime::EditorAction;
 pub(crate) use anchored::AnchoredViews;
 pub(crate) use app_view::{AppView, ChildView, ViewEditor};
 pub(crate) use desktop::DesktopPlace;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+pub(crate) use editors::with_window;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };

@@ -98,6 +98,9 @@ mod a_held_block_stays_open_when_its_editors_close;
 mod a_held_block_whose_known_head_was_replaced_reads_the_next_and_is_not_reset;
 mod a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight;
 mod a_holder_cut_off_before_it_seals_leaves_its_edits_to_the_next_holder;
+mod a_host_answers_the_newest_of_two_handshakes_sent_while_the_first_was_checked;
+mod a_join_members_sends_held_back_by_the_server_are_sent_again_in_order;
+mod a_join_waits_for_this_devices_replica_of_the_block_to_leave;
 mod a_joined_channel_opens_to_its_host_and_again_to_the_next;
 mod a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one;
 mod a_lease_held_here_passes_to_a_peer_that_claims_it;
@@ -122,6 +125,7 @@ mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
 mod a_push_opens_through_the_stack_running_in_its_organization;
 mod a_queued_block_the_mirror_cannot_place_is_dropped_and_counted;
 mod a_read_answered_after_a_later_one_stored_is_not_stored;
+mod a_recheck_drops_only_the_admission_it_checked;
 mod a_reconnected_session_hears_the_edits_of_what_it_versions;
 mod a_redactions_removal_outlasts_an_edit_the_clock_estimate_lags;
 mod a_reply_travels_as_its_number_and_one_dropped_unanswered_drops_what_waits;
@@ -138,6 +142,7 @@ mod a_search_index_that_fails_every_write_waits_for_the_next_connection;
 mod a_search_index_write_that_could_not_reach_the_server_waits_for_the_next_connection;
 mod a_search_index_write_that_fails_is_queued_again;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_second_host_hears_the_players_it_inherits_join_once;
 mod a_seen_reads_the_same_from_its_bytes;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_server_that_says_the_account_has_no_key_never_has_a_device_replace_its_own;
@@ -183,6 +188,7 @@ mod an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same;
 mod an_invitation_code_opened_as_a_contact_link_is_refused;
 mod an_invitation_the_host_makes_opens_the_block_to_the_one_it_admits;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
+mod an_open_chat_shows_every_message_appended_past_a_page_while_this_device_was_away;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owed_seal_keeps_only_a_hurried_driver_waiting;
 mod an_undo_made_while_the_server_is_silent_survives_a_crash;
@@ -377,15 +383,27 @@ impl std::ops::DerefMut for Harness {
 
 impl Harness {
     pub fn start() -> Self {
-        Self::serving(be_server::push::PushConfig::DEFAULT)
+        Self::serving(be_host_server::testing::Options::default())
     }
 
     /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
     fn pushing() -> Self {
-        Self::serving(be_server::push::PushConfig {
-            allow_local_endpoints: true,
-            fcm: None,
-            hosts: vec!["127.0.0.1".to_owned()].into(),
+        Self::serving(be_host_server::testing::Options {
+            push: be_server::push::PushConfig {
+                allow_local_endpoints: true,
+                fcm: None,
+                hosts: vec!["127.0.0.1".to_owned()].into(),
+            },
+            ..be_host_server::testing::Options::default()
+        })
+    }
+
+    /// A harness whose server lets an account send a lease holder only `burst` host-channel
+    /// messages at once before it holds them back (`slow-down`).
+    fn holding_host_messages_after(burst: f64) -> Self {
+        Self::serving(be_host_server::testing::Options {
+            host_message_burst: Some(burst),
+            ..be_host_server::testing::Options::default()
         })
     }
 
@@ -468,11 +486,8 @@ impl Harness {
         });
     }
 
-    fn serving(push: be_server::push::PushConfig) -> Self {
-        let server = be_host_server::testing::Server::with(be_host_server::testing::Options {
-            push,
-            ..be_host_server::testing::Options::default()
-        });
+    fn serving(options: be_host_server::testing::Options) -> Self {
+        let server = be_host_server::testing::Server::with(options);
         let counter = server.account("Counter");
         let harness = crate::testing::Harness::start(crate::testing::SignIn {
             url: server.url(),

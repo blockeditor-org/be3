@@ -608,9 +608,9 @@ impl HostTest {
     }
 
     /// Closes the host once it has settled, so nothing is left unsaved for it to ask about, and
-    /// fails unless it exits cleanly.
+    /// fails unless it exits cleanly. Its programs' windows still open close first, as its
+    /// session ends, and the programs with them.
     pub fn close(mut self) {
-        self.end_programs();
         self.run(&["settle"]);
         self.steps.push("close".to_owned());
         let host = self.host.take().expect("the host is still open");
@@ -684,8 +684,9 @@ impl HostTest {
 }
 
 impl HostTest {
-    /// Ends the test's programs, before the host closes or restarts, once each window is gone
-    /// from the desktop, so the host does not close while it changes.
+    /// Ends the test's programs before the host restarts, once each window is gone from the
+    /// desktop, so it starts again with none: a window still open as it closes would come back
+    /// as its placeholder (the desktop keeps the windows that close as its session ends).
     fn end_programs(&mut self) {
         if self.programs.is_empty() {
             return;

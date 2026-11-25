@@ -190,7 +190,7 @@ pub async fn collect<S: ObjectStore>(
         if block.content.is_none()
             && let Some(read) = read.next()
         {
-            block.content = open.modules().readable(read).await;
+            block.content = open.modules().readable(peer, read).await;
         }
         if let Some(derived) = open.derived(block.id) {
             block.metadata.derived = derived;
