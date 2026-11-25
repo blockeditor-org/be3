@@ -821,7 +821,7 @@ impl Client {
                 {
                     self.following.sessions.remove(&block);
                 }
-                session(block, SessionEvent::Membership((*entry)))
+                session(block, SessionEvent::Membership(*entry))
             }
             Push::Sealed {
                 block,
