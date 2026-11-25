@@ -296,7 +296,9 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   desktop's compositor: be-tool-wayland-window (`WAYLAND_TEST_WINDOW` in the tests' environment),
   one window titled TITLE filled with one color at whatever size it is configured to, started
   with the variables `drive env` gives programs. The test's programs stop as it closes and before
-  `restart_as_root`, which waits for the desktop to list no window.
+  `restart_as_root`, which waits for the desktop to list no window. drive's `settle` waits for a
+  program window shown to draw what it was last configured to (be-host-wayland's
+  `Compositor::busy`), so a painting of it is settled once its program answered.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK (the comment there

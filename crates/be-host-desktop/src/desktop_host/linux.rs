@@ -333,6 +333,10 @@ impl DesktopHost for Linux {
         }
     }
 
+    fn busy() -> Option<String> {
+        RUNNING.with_borrow(|running| running.as_ref()?.compositor.busy())
+    }
+
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
         let windows = windows()?;
         windows.changes().track();

@@ -551,6 +551,7 @@ impl beui::native::Program for Shell {
         let mut reasons = self.core.busy(self.hurried);
         reasons.extend(be_host_runtime::busy());
         reasons.extend(compositor::owes_frame());
+        reasons.extend(Host::busy());
         reasons
     }
 

@@ -18,7 +18,8 @@ fn be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop() {
         ..Options::default()
     });
     host.open_test_window("Test window");
-    // Titled once the program says its title.
+    // Titled once the program says its title. Settling waits for the window to draw at the
+    // size its tab configured it to, so the whole window is painted.
     host.wait("Button \"Be tool wayland window — Test window\"");
     host.run(&["settle"]);
     host.snapshot("the_host_lists_a_programs_window_on_the_desktop");

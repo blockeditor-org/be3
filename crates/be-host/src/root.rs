@@ -436,6 +436,10 @@ impl RootShell {
                 // A program window the root placed, which the desktop host configures to its
                 // layer's size (its pixels are the window's logical pixels) and draws once it
                 // drew something (`DesktopHost::picture`).
+                // Where it is placed is its layer's origin and its size, upright and unscaled:
+                // a window placed zoomed or turned is configured to its place's size, but where
+                // the compositor thinks it is (for its popups and the pointer, 4g7e3c) does not
+                // follow the zoom or the turn.
                 Surface::Host(window) if self.core.desktop => {
                     let window = HostWindowId(window);
                     let origin = layer.transform.apply(beui::pos2(0.0, 0.0));
@@ -572,6 +576,7 @@ impl beui::native::Program for RootShell {
             false => self.core.busy(self.hurried),
         };
         busy.extend(be_host_runtime::busy());
+        busy.extend(Host::busy());
         if self.core.root_session_pending {
             busy.push("the session's block is not listed yet".to_owned());
         }
@@ -1777,7 +1782,9 @@ fn surface_layer(window: &Layer, surface: &PictureSurface) -> Option<Layer> {
         y: surface.rect.min.y - source.min.y * down,
     };
     let transform = into_window.then(&window.transform);
-    let shows = transform.inverse()?.bounds(window.bounds());
+    // What the window's layer shows, in the window's logical pixels, in the texture's: exact
+    // however the window's layer is turned, as the surface is upright in the window.
+    let shows = into_window.inverse()?.bounds(window.clip);
     Some(Layer {
         size: (size.width, size.height),
         transform,
@@ -1939,11 +1946,23 @@ impl Draw for ShownLayers {
                         let Some(placed) = surface_layer(layer, surface) else {
                             continue;
                         };
-                        let quad = Quad {
+                        let mut quad = Quad {
                             clip: at.clip,
                             opaque: surface.opaque,
                             ..compose::quad(&placed, at.pixels_per_point, [0.0; 2])
                         };
+                        // On whole pixels when upright, as its view's drawing places it, so a
+                        // buffer drawn one texel a pixel stays sharp.
+                        if quad.rotation == 0.0 {
+                            let [left, top, right, bottom] = quad.rect;
+                            let (left, top) = (left.round(), top.round());
+                            quad.rect = [
+                                left,
+                                top,
+                                left + (right - quad.rect[0]).round(),
+                                top + (bottom - quad.rect[1]).round(),
+                            ];
+                        }
                         bound.push((pipelines.bind(&surface.texture), quad));
                     }
                 }

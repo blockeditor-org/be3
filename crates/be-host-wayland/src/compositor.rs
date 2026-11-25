@@ -633,14 +633,16 @@ impl Compositor {
                 self.waker.clone(),
             ))
         };
-        let whole = picture(
-            layers
-                .iter()
-                .filter(|(_, layer)| !layer.popup)
-                .chain(layers.iter().filter(|(_, layer)| layer.popup))
-                .cloned()
-                .collect(),
-        );
+        let whole = self.windows.composited(id).then(|| {
+            picture(
+                layers
+                    .iter()
+                    .filter(|(_, layer)| !layer.popup)
+                    .chain(layers.iter().filter(|(_, layer)| layer.popup))
+                    .cloned()
+                    .collect(),
+            )
+        });
         let (popups, own): (Vec<_>, Vec<_>) =
             layers.into_iter().partition(|(_, layer)| layer.popup);
         let drawing = WindowDraw::drawing(picture(own));
@@ -678,7 +680,7 @@ impl Compositor {
         Drawn {
             drawing: Some(drawing),
             popups,
-            picture: Some(whole),
+            picture: whole,
         }
     }
 
@@ -1054,6 +1056,22 @@ impl Compositor {
         self.server.state.presentation.flipped(screen, presented);
     }
 
+    /// Why the desktop is not settled, if it is not: a program window shown (placed, by its
+    /// view or a host that composites it) has yet to draw what it was last configured to, so
+    /// what shows of it is still arriving. One that stopped responding is not waited for.
+    pub fn busy(&self) -> Option<String> {
+        let state = &self.server.state;
+        state
+            .windows()
+            .into_iter()
+            .any(|id| {
+                self.windows.rect(id).is_some()
+                    && state.responding(id)
+                    && state.configure_outstanding(id)
+            })
+            .then(|| "a program window has yet to draw what it was configured to".to_owned())
+    }
+
     pub fn awaits_flip(&self) -> bool {
         self.server.state.presentation.awaits_flip()
     }
@@ -1125,6 +1143,14 @@ impl Compositor {
     pub fn before(&mut self, context: &Context, rect: Rect) {
         self.show_painted(context);
         self.receive(context);
+        // A window a host composites itself from now on, which drew before it was: its picture,
+        // which it would otherwise have only once it draws again.
+        let unpictured: Vec<_> = (self.server.state.windows().into_iter())
+            .filter(|id| self.windows.composited(*id) && self.windows.picture(*id).is_none())
+            .collect();
+        if !unpictured.is_empty() {
+            self.redraw(unpictured);
+        }
         self.scale = context.pixels_per_point();
         self.area = match self.monitors.is_empty() {
             true => rect,
@@ -1215,6 +1241,13 @@ impl Compositor {
         self.ping_unowned(context);
         self.watch_pings(context);
         if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
+            context.request_repaint();
+        }
+        // A window a host just began compositing itself is pictured in the next frame's
+        // `before`.
+        if (self.server.state.windows().into_iter())
+            .any(|id| self.windows.composited(id) && self.windows.picture(id).is_none())
+        {
             context.request_repaint();
         }
         let awaits = (self.server.state.presentation).awaits_frame(|id| self.shown(id));

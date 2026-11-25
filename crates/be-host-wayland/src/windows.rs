@@ -83,6 +83,9 @@ struct View {
     catchers: Vec<NodeId>,
     popups: Vec<NodeId>,
     mounts: u32,
+    /// Placed by a host that composites it itself (`place`), with no view: it keeps a picture
+    /// of the whole window (`picture`).
+    composited: bool,
 }
 
 struct Inner {
@@ -390,33 +393,54 @@ impl Windows {
     }
 
     /// What `id` shows, its own surfaces and then its popups', where each is in the window: what
-    /// a host that composites the window itself draws, as its `WindowView` draws it. A new
-    /// picture each time it draws anew.
+    /// a host that composites the window itself draws, as its `WindowView` draws it, kept while
+    /// it is placed so (`place`). A new picture each time it draws anew.
     pub fn picture(&self, id: WindowId) -> Option<Rc<WindowPicture>> {
         self.signals(id)?.picture.borrow().clone()
     }
 
     /// Shows `id` at `rect`, in the host window's points, as a host that composites it itself
     /// places it, with no `WindowView`: configured to its size as a view laid out there would
-    /// be. `None` lets go of it, as a view's going does.
+    /// be. `None` lets go of it, as a view's going does. A window is placed this way or by its
+    /// views, never both: the mount this places is its own.
     pub fn place(&self, id: WindowId, rect: Option<Rect>) {
-        let shown = self
-            .0
-            .value()
-            .views
-            .borrow()
-            .get(&id)
-            .is_some_and(|view| view.mounts > 0);
-        match (rect, shown) {
-            (Some(rect), shown) => {
-                if !shown {
+        let placed = {
+            let inner = self.0.value();
+            let views = inner.views.borrow();
+            let view = views.get(&id);
+            debug_assert!(
+                view.is_none_or(|view| view.composited || view.mounts == 0),
+                "a window placed without a view has no view placing it"
+            );
+            view.is_some_and(|view| view.composited)
+        };
+        match (rect, placed) {
+            (Some(rect), placed) => {
+                if !placed {
                     self.mounted(id);
+                    let inner = self.0.value();
+                    inner.views.borrow_mut().entry(id).or_default().composited = true;
                 }
                 self.placed(id, rect);
             }
-            (None, true) => self.unplaced(id, [None, None]),
+            (None, true) => {
+                self.unplaced(id, [None, None]);
+                if let Some(signals) = self.signals(id) {
+                    signals.picture.borrow_mut().take();
+                }
+            }
             (None, false) => {}
         }
+    }
+
+    /// Whether a host that composites `id` itself placed it (`place`).
+    pub(crate) fn composited(&self, id: WindowId) -> bool {
+        let inner = self.0.value();
+        inner
+            .views
+            .borrow()
+            .get(&id)
+            .is_some_and(|view| view.composited)
     }
 
     pub(crate) fn take_painted(&self) -> Vec<WindowId> {
