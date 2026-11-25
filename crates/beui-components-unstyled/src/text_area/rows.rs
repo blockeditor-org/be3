@@ -970,7 +970,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 color: Color::TRANSPARENT,
                 underline: false,
                 strikethrough: false,
-                ..base
             };
             let room = format!("{CONTROL_SPACE}{glyph}{CONTROL_SPACE}");
             builder.push(&room, index..index + 1, false, unseen, SpanKind::Text);
