@@ -68,6 +68,7 @@ pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 
 pub mod account_block;
 mod authorship;
+pub mod forks;
 pub mod hosted;
 mod import;
 mod journal;

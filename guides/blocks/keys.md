@@ -1047,8 +1047,9 @@ who lost access. Cited from code by these names.
   differently for different participants
   (decisions/live_edits_are_ordered_by_the_server.md). The fix
   (plans/authorship.md) is fork detection: signed log heads carried in sessions, relays and
-  commits, compared when two devices meet. A block's signed log already has
-  them per device: each device keeps the log's head it verified and takes a
+  commits, compared when two devices meet (`Peer::compare_log_head`, which keeps
+  a verdict per block: guides/blocks/client.md, "Signed logs"). A block's signed
+  log already has them per device: each device keeps the log's head it verified and takes a
   later one only with a proof that it extends it (`ClientError::LogForked`;
   guides/blocks/client.md, "Signed logs"), so a cut or rewritten log is caught
   by every device that saw the head, though two devices shown different logs

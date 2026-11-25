@@ -334,6 +334,19 @@ taken unproven.
   own head takes the page as it is. A push told late is checked against its
   own proof first: one that does not prove is `Tampered`, not a fork. `forget` drops a log's entries
   but keeps its head.
+- **Comparing heads across devices** (`peer/forks.rs`; guides/blocks/keys.md,
+  "Forks"). A server can show two devices two logs, each consistent with itself;
+  only comparing their heads catches it. `Peer::compare_log_head(block, theirs,
+  from)` first reads the log's head as served now (proved against the kept
+  one), then takes a head of the same size only if it is that head, a shorter
+  one only with the server's consistency proof from its size to the head just
+  read (`query.block-log` with `known`), and no longer one, since the server's
+  logs only grow and this device read after the other kept its head. A pair
+  that does not prove is a fork (`LogAgreement::Forked`): the first per block
+  is kept in the refs database (`LogFork`: both heads, where the other came
+  from as a `HeadFrom`, when; `Peer::log_fork`) and told once as
+  `Event::LogForked`. It needs the server; offline it answers
+  `Disconnected`.
 - **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
   export carries it (`ExportedEntry`, `transfer::SavedBlock::log`), each entry
   naming the block it was written in, and `Peer::verify_exported` checks an
