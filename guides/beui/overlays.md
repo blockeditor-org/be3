@@ -283,8 +283,11 @@ A dialog's buttons are data
 `actions` is a list of `DialogAction`s with an `ActionRole`, and the dialog
 places, orders, focuses and binds them (`unstyled::DialogBody`, painted by
 `styled::DialogBody`). Cancel, Escape, back, the scrim and the close button
-all run the dialog's `on_dismiss`. A confirmation inside a dialog is an alert
-of its own opened over it.
+all run the dialog's `on_dismiss`, but a dialog given
+`dismiss_on_outside_press=false` stays on a press on its scrim: one showing a
+secret it cannot show again (an agent's credentials, a contact link) sets it
+while the secret shows, so a stray press does not lose it. A confirmation
+inside a dialog is an alert of its own opened over it.
 
 `styled::Dialog` is `DialogFrame` (outer part) plus `DialogBody` (title row,
 scrolling content, pinned footer); `DialogFrame` alone presents a body of the

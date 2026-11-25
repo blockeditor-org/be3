@@ -1253,7 +1253,13 @@ impl Root {
                     }
                 };
                 // be-host's own dialog: a card at its width over beui's scrim, or a sheet in a
-                // narrow window, which Escape and a press on the scrim dismiss.
+                // narrow window, which Escape and a press on the scrim dismiss. While it shows a
+                // secret it cannot show again (an agent's credentials, an invite or contact
+                // link), a stray press on the scrim leaves it open, as be-host's do.
+                let secret = secret_shown.get();
+                let shows_secret = create_memo(move || {
+                    secret.is_some_and(|(held, _)| held.with(Option::is_some))
+                });
                 view! {
                     <Root clear_color=ColorRole::None>
                         <DialogFrame
@@ -1261,6 +1267,7 @@ impl Root {
                             kind={presented.kind}
                             width={Size::Custom(presented.width)}
                             size={presented.size}
+                            dismiss_on_outside_press={move || !shows_secret.get()}
                             on_dismiss={move || dismissed.call(())}
                         >
                             {shown}

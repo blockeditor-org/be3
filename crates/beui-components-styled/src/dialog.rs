@@ -70,11 +70,14 @@ pub fn Dialog(
     #[prop(default = String::new())] id: Prop<String>,
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
+    /// Whether a press on the scrim dismisses it (`unstyled::Dialog`'s).
+    #[prop(default = true)]
+    dismiss_on_outside_press: Prop<bool>,
     on_dismiss: Callback<()>,
     #[prop(children)] content: BuildFn<Children<ListItem>>,
 ) -> NodeId {
     view! {
-        <DialogFrame open kind width size anchor on_dismiss={on_dismiss}>
+        <DialogFrame open kind width size anchor dismiss_on_outside_press on_dismiss={on_dismiss}>
             <DialogBody
                 kind
                 title={title.clone()}
@@ -102,6 +105,9 @@ pub fn DialogFrame(
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
+    /// Whether a press on the scrim dismisses it (`unstyled::Dialog`'s).
+    #[prop(default = true)]
+    dismiss_on_outside_press: Prop<bool>,
     on_dismiss: Callback<()>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
@@ -117,6 +123,7 @@ pub fn DialogFrame(
             size
             anchor
             beak=POINTER_REACH
+            dismiss_on_outside_press
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
                 <Frame padding=MARGIN>
@@ -126,15 +133,15 @@ pub fn DialogFrame(
                 </Frame>
             }}
             sheet={|handle: DialogSheetHandle| {
-                let DialogSheetHandle { open, close, tall, body } = handle;
+                let DialogSheetHandle { open, close, outside, tall, body } = handle;
                 match tall {
                     true => view! {
-                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>|| {
+                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close} on_outside={outside}>|| {
                             body.call()
                         }</ModalSheet>
                     },
                     false => view! {
-                        <ModalSheet open fit=true on_close={close}>|| { body.call() }</ModalSheet>
+                        <ModalSheet open fit=true on_close={close} on_outside={outside}>|| { body.call() }</ModalSheet>
                     },
                 }
             }}
