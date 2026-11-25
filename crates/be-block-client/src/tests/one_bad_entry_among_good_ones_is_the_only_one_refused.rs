@@ -13,7 +13,12 @@ async fn one_bad_entry_among_good_ones_is_the_only_one_refused() {
     let store = MemoryStore::new();
     let online = harness.device(&owner, &refs, &store).await;
     online
-        .append(chat, "test.app", b"zero", be_block_content::Along::default())
+        .append(
+            chat,
+            "test.app",
+            b"zero",
+            be_block_content::Along::default(),
+        )
         .await
         .unwrap();
     drop(online);
@@ -68,7 +73,11 @@ async fn one_bad_entry_among_good_ones_is_the_only_one_refused() {
             _ => None,
         })
         .collect();
-    assert_eq!(appended, [first, last], "the good entries are logged, in order");
+    assert_eq!(
+        appended,
+        [first, last],
+        "the good entries are logged, in order"
+    );
     let refused: Vec<Uuid> = drained
         .iter()
         .filter_map(|outcome| match outcome {

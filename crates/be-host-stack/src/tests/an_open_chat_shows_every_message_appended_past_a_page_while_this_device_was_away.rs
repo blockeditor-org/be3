@@ -53,7 +53,9 @@ fn an_open_chat_shows_every_message_appended_past_a_page_while_this_device_was_a
         .mirror
         .append(said("before".to_owned()).encode(), Default::default());
     editor.send(append);
-    editor.until("heard the first message", |editor| editor.messages().len() == 1);
+    editor.until("heard the first message", |editor| {
+        editor.messages().len() == 1
+    });
     wait_until("sent it", |shared| shared.connected && shared.waiting == 0);
 
     harness.relay().offline(true);
