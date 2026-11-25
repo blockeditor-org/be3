@@ -49,7 +49,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                 name: "Choose what to version".into(),
                 ..BlockFilter::default()
             },
-            &adopt,
+            adopt,
             move |picked| {
                 editor.version(VersionCommand::Adopt {
                     block_id: picked.id().into_bytes(),
