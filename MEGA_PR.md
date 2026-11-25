@@ -101,6 +101,7 @@ Landed on 2026-11-24:
 - `clippy-mechanical`: clippy's mechanical fixes across the workspace's crates.
 - `host-adapter-4g7e3c`: the root hands program windows their input; a composited window let go of loses the keyboard; router scales deltas to a zoomed surface.
 - `beui-vello-3`: Vello (vello_gpu, vello_common) linked into the beui app library (+1.2% library size).
+- `authorship-1d`: one person's devices compare log heads through the account's block (bounded at 512, forward only on agreement); log-head signatures bind the organization.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
