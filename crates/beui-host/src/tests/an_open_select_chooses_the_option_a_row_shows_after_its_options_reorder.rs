@@ -33,7 +33,7 @@ fn an_open_select_chooses_the_option_a_row_shows_after_its_options_reorder() {
             .layers()
             .iter()
             .filter_map(|layer| layer.overlay)
-            .find_map(|overlay| text_within(document, overlay.id(), label))
+            .find_map(|overlay| find_text(document, overlay.id(), label, Match::Exact))
             .unwrap_or_else(|| panic!("the popup shows {label}"))
     };
     row(&harness, "Apple");

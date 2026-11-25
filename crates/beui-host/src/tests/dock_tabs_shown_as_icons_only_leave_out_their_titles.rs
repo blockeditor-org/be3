@@ -9,7 +9,7 @@ fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = text_within(harness.document(), dock, item)
+    let row = find_text(harness.document(), dock, item, Match::Exact)
         .unwrap_or_else(|| panic!("the grip's menu offers {item}"));
     harness.click(harness.center(row));
     harness.frame(Vec::new());
@@ -34,7 +34,7 @@ fn dock_tabs_shown_as_icons_only_leave_out_their_titles() {
     );
     for title in ["Tab 1", "Tab 2", "Tab 3"] {
         assert!(
-            text_within(harness.document(), dock, title).is_none(),
+            find_text(harness.document(), dock, title, Match::Exact).is_none(),
             "{title} is not written in its tab"
         );
     }
@@ -53,7 +53,7 @@ fn dock_tabs_shown_as_icons_only_leave_out_their_titles() {
             .is_icons_only(leaf),
         "choosing it again shows the titles"
     );
-    assert!(text_within(harness.document(), dock, "Tab 2").is_some());
+    assert!(find_text(harness.document(), dock, "Tab 2", Match::Exact).is_some());
 
     choose(&mut harness, dock, grip, "Close all tabs");
     assert!(

@@ -41,7 +41,7 @@ fn a_menu_opened_from_a_zoomed_text_area_opens_where_it_was_asked_for() {
         pressed: false,
     }]);
     harness.frame(Vec::new());
-    let paste = text_within(harness.document(), root, "Paste")
+    let paste = find_text(harness.document(), root, "Paste", Match::Exact)
         .map(|paste| harness.rect(paste))
         .expect("a right click opens the text menu");
     assert!(

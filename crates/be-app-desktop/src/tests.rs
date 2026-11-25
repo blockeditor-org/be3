@@ -582,7 +582,7 @@ impl Fixture {
             let document = fixture.test.document();
             let node = document
                 .root()
-                .and_then(|root| text_within(&document, root, title))
+                .and_then(|root| find_text(&document, root, title, Match::Contains))
                 .unwrap_or_else(|| panic!("{title} has a tab"));
             document.node_rect(node).expect("the tab is laid out")
         };
@@ -690,7 +690,7 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(&document, root, words).is_some())
+            .is_some_and(|root| find_text(&document, root, words, Match::Contains).is_some())
     }
 
     fn times_said(&self, words: &str) -> usize {
@@ -704,7 +704,7 @@ impl Fixture {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(&document, root, words))
+            .and_then(|root| find_text(&document, root, words, Match::Contains))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         let center = document
             .node_rect(node)
@@ -741,7 +741,7 @@ impl Fixture {
             let document = self.test.document();
             document
                 .root()
-                .and_then(|root| text_within(&document, root, words))
+                .and_then(|root| find_text(&document, root, words, Match::Contains))
                 .unwrap_or_else(|| panic!("{words:?} is on screen"))
         };
         self.test
@@ -1186,20 +1186,6 @@ fn dialog_tab(window: u64) -> u64 {
 
 fn kept_keys(fixture: &Fixture) -> Vec<u64> {
     fixture.kept().iter().map(|kept| kept.tab).collect()
-}
-
-fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
-    if document
-        .arena
-        .kind_of(id)
-        .is_some_and(|node| document.text(node).contains(words))
-    {
-        return Some(id);
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| text_within(&document, child, words))
 }
 
 fn texts_within(document: &Document, id: NodeId, words: &str) -> usize {

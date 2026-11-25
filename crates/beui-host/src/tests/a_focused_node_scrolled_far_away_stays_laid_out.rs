@@ -50,7 +50,7 @@ fn a_focused_node_scrolled_far_away_stays_laid_out() {
         "the row holding the focus is not"
     );
     assert!(
-        text_within(harness.document(), first, "Row 0").is_some(),
+        find_text(harness.document(), first, "Row 0", Match::Exact).is_some(),
         "what the focus is on stays laid out"
     );
 }

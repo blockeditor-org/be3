@@ -1,8 +1,7 @@
 use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::be_block_content::be_block_model::{Anchor, FieldRef, List};
 use be_sdk_beui::be_block_content::presence::PresenceKind;
-use be_sdk_beui::beui::native::Document;
-use be_sdk_beui::beui::{Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
+use be_sdk_beui::beui::{Key, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor, PeerPresence};
 use be_sdk_test::BeuiTest;
 use be_sdk_test::prelude::*;
@@ -199,7 +198,7 @@ impl Harness {
         let document = self.editor.document();
         document
             .root()
-            .and_then(|root| text_within(&document, root, words))
+            .and_then(|root| find_text(&document, root, words, Match::Contains))
             .is_some()
     }
 
@@ -207,7 +206,7 @@ impl Harness {
         let document = self.editor.document();
         let node = document
             .root()
-            .and_then(|root| text_within(&document, root, words))
+            .and_then(|root| find_text(&document, root, words, Match::Contains))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         document.node_rect(node).expect("the text is laid out")
     }
@@ -227,20 +226,6 @@ impl Harness {
         self.editor.key(Key::C, ctrl_shift());
         self.editor.take_copied_text()
     }
-}
-
-fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
-    if document
-        .arena
-        .kind_of(id)
-        .is_some_and(|node| document.text(node).contains(words))
-    {
-        return Some(id);
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| text_within(&document, child, words))
 }
 
 fn ctrl() -> Modifiers {

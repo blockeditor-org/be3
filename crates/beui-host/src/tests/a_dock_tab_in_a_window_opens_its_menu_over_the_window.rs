@@ -9,7 +9,7 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     right_click(&mut harness, dock, "Tab 2");
-    let row = text_within(harness.document(), dock, "Pop out into a window")
+    let row = find_text(harness.document(), dock, "Pop out into a window", Match::Exact)
         .expect("the menu offers to pop the tab out");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
@@ -24,7 +24,7 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
     );
 
     right_click(&mut harness, dock, "Tab 2");
-    let row = text_within(harness.document(), dock, "Close tab")
+    let row = find_text(harness.document(), dock, "Close tab", Match::Exact)
         .expect("the tab in the window opens its menu too");
     harness.click(harness.center(row));
     harness.frame(Vec::new());

@@ -66,7 +66,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
         harness.frame(Vec::new());
         assert_eq!(harness.document().focused, Some(focused));
         assert!(
-            text_within(harness.document(), focused, "Row 0").is_some(),
+            find_text(harness.document(), focused, "Row 0", Match::Exact).is_some(),
             "the focused row keeps its key"
         );
     }

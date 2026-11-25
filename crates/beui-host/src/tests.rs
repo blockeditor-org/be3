@@ -1,6 +1,8 @@
 use super::*;
 use crate::native::rich::RichLayout;
-use crate::native::testing::{Gui, Wraps};
+use crate::native::testing::{
+    Gui, Match, PanZoomStage, Wraps, build_node, dock_tab, find_text, windowed_dock,
+};
 use crate::native::*;
 use crate::native::{Embed, EmbedPlacement, EmbedSlot};
 use crate::reactive::Painter;
@@ -1288,18 +1290,6 @@ pub(crate) fn area_look() -> unstyled::TextAreaLook {
     styled::text_area_look()
 }
 
-// beui-layer-space's src/tests.rs has a copy, for the space host's tests.
-pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
-    build(|| {
-        let content = view();
-        view! {
-            <beui_view::primitives::Root clear_color={Color32::BLACK}>
-                {content}
-            </beui_view::primitives::Root>
-        }
-    })
-}
-
 pub(crate) fn prompt_and_late<T>(run: impl Fn() -> T) -> (T, T) {
     struct Prompt;
     impl Drop for Prompt {
@@ -1936,25 +1926,6 @@ pub(crate) fn LabelledButton(label: String, on_click: Callback<()>) -> NodeId {
     }
 }
 
-// beui-layer-space's src/tests.rs has a copy, for the space host's tests.
-#[component]
-pub(crate) fn PanZoomStage(
-    #[prop(default = unstyled::PanZoomView::IDENTITY)] view: crate::reactive::Binding<
-        unstyled::PanZoomView,
-    >,
-) -> NodeId {
-    view! {
-        <unstyled::PanZoom @test_id="stage" view>|handle: unstyled::PanZoomHandle| {
-            let unstyled::PanZoomHandle { view, .. } = handle;
-            view! {
-                <Canvas view>
-                    <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
-                </Canvas>
-            }
-        }</unstyled::PanZoom>
-    }
-}
-
 /// The look the unstyled `Scroll` tests give it: no bar or fade, springing back
 /// on the theme's `Movement::Rubber`.
 pub(crate) fn plain_scroll() -> crate::unstyled::ScrollStyle {
@@ -2371,57 +2342,10 @@ fn pick_menu_of(harness: &mut Harness, dock: NodeId, node: NodeId, name: &str, r
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let found = text_within(harness.document(), dock, row)
+    let found = find_text(harness.document(), dock, row, Match::Exact)
         .unwrap_or_else(|| panic!("the menu of {name} offers {row}"));
     harness.click(harness.center(found));
     harness.frame(Vec::new());
-}
-
-// beui-layer-space's src/tests.rs has a copy, for the space host's tests.
-pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
-    let dock = NodeRef::new();
-    let document = build_node(move || {
-        let layout = dock::DockingLayout::<u64>::new();
-        view! {
-            <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
-                <dock::Docking layout>
-                    <dock::DockSplit id="split">
-                        <dock::DockPane id="left">
-                            <dock::DockTab id=1u64 title="Tab 1">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                        <dock::DockPane id="right">
-                            <dock::DockTab id=2u64 title="Tab 2">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockSplit>
-                    <dock::DockWindow
-                        id="first"
-                        rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
-                    >
-                        <dock::DockPane id="third">
-                            <dock::DockTab id=3u64 title="Tab 3">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockWindow>
-                    <dock::DockWindow
-                        id="second"
-                        rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
-                    >
-                        <dock::DockPane id="fourth">
-                            <dock::DockTab id=4u64 title="Tab 4">
-                                <Frame />
-                            </dock::DockTab>
-                        </dock::DockPane>
-                    </dock::DockWindow>
-                </dock::Docking>
-            </dock_host::styled::DockHost>
-        }
-    });
-    (document, dock.get())
 }
 
 pub(crate) fn window_showing(harness: &Harness, dock: NodeId, title: &str) -> crate::WindowId {
@@ -2539,22 +2463,6 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> dock::Surfa
         .windows()[0]
 }
 
-// beui-layer-space's src/tests.rs has a copy, for the space host's tests.
-pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
-    if document
-        .arena
-        .kind_of(root)
-        .is_some_and(|node| document.text(node) == text)
-        && document.node_rect(root).is_some()
-    {
-        return Some(root);
-    }
-    document
-        .children(root)
-        .into_iter()
-        .find_map(|child| text_within(document, child, text))
-}
-
 pub(crate) fn icon_within(
     document: &Document,
     root: NodeId,
@@ -2595,11 +2503,6 @@ pub(crate) fn dock_tab_extent(harness: &Harness, dock: NodeId, title: &str, tab:
     let label = harness.rect(dock_tab(harness.document(), dock, title));
     let close = harness.rect(harness.find(&format!("dock.tab.{tab}.close")));
     label.union(close)
-}
-
-// beui-layer-space's src/tests.rs has a copy, for the space host's tests.
-pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId {
-    text_within(document, dock, title).unwrap_or_else(|| panic!("the dock shows {title}"))
 }
 
 pub(crate) fn drag_with(harness: &mut Harness, from: Pos2, to: Pos2, modifiers: Modifiers) {
