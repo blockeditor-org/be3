@@ -484,7 +484,7 @@ pub fn Dialog(
     });
     let touched = create_signal(false);
     let opener = create_signal(None::<NodeId>);
-    let asked = anchor.clone();
+    let asked = anchor;
     create_effect(move || {
         if open.get() {
             let touched_now = untrack(touched_by_finger);
@@ -614,7 +614,7 @@ pub fn Dialog(
     });
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
-    let dims = scrim.clone();
+    let dims = scrim;
     let layer_scrim = create_memo(move || match placed.get().2 {
         true => dims.get(),
         false => Color::TRANSPARENT,

@@ -320,7 +320,7 @@ pub fn Sheet(
             });
         }
     });
-    let shown = open.clone();
+    let shown = open;
     create_effect_on(
         move || shown.get(),
         move |&now_open, was| {
@@ -400,7 +400,7 @@ pub fn Sheet(
                 .map_or(0.0, |tracked| tracked.get().y)
         })
     };
-    on_back(open.clone(), move |gesture: BackGesture| match gesture {
+    on_back(open, move |gesture: BackGesture| match gesture {
         BackGesture::Started { .. } => {
             let from = raised.get_untracked();
             backed.set(Some(from));
@@ -596,7 +596,7 @@ pub fn ModalSheet(
     on_outside: Option<Callback<()>>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
-    let shown = open.clone();
+    let shown = open;
     let outside = on_outside.unwrap_or(on_close);
     view! {
         <Modal
@@ -607,7 +607,7 @@ pub fn ModalSheet(
             on_dismiss={on_close}
         >|modal: ModalHandle|
             <ModalSheetBody
-                open={shown.clone()}
+                open={shown}
                 rest
                 stops={stops.clone()}
                 fit
@@ -643,7 +643,7 @@ fn ModalSheetBody(
     children: NodeId,
 ) -> NodeId {
     let gone = create_signal(false);
-    let reopened = open.clone();
+    let reopened = open;
     create_effect(move || {
         if reopened.get() {
             gone.set(false);
