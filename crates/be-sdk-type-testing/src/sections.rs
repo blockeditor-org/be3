@@ -128,7 +128,7 @@ impl BlockContent for Sections {
         let header = bytes.get(..HEADER).ok_or(ContentError::Truncated)?;
         let mut at = HEADER;
         let mut sections = Vec::with_capacity(SECTIONS);
-        for length in header.chunks_exact(4) {
+        for length in header.as_chunks::<4>().0 {
             let length = u32::from_le_bytes(length.try_into().unwrap_or_default()) as usize;
             let held = bytes.get(at..at + length).ok_or(ContentError::Truncated)?;
             at += length;
@@ -321,8 +321,8 @@ impl MergeParts for Sections {
                     bytes.push(match side {
                         Section::Held { bytes, .. } => bytes,
                         Section::Unloaded(part) => {
-                            if !read.contains_key(&part) {
-                                read.insert(part, parts.read_all(part).await?);
+                            if let std::collections::hash_map::Entry::Vacant(e) = read.entry(part) {
+                                e.insert(parts.read_all(part).await?);
                             }
                             read[&part].clone()
                         }
