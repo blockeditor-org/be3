@@ -2152,7 +2152,16 @@ Each step lands on its own.
              window but the one moving with its grip on it, as be-host's desktop does
              (`note_work_area`, `keep_in_work_areas`): kept again as the area changes, as the
              root asks its screens, and once a move ends (`floating::keep_in_work_areas`).
-             be-sdk-root's `floating::tests`.
+             be-sdk-root's `floating::tests`; host test
+             `be_root_in_place_of_the_hosts_ui_keeps_a_window_dragged_onto_the_bar_clear_of_it`.
+             A move or resize follows a finger or a pen as well as the mouse, and ends as it
+             lifts (`Embedded::follow_held`, host test
+             `be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip`).
+             - Left: `above` and `fullscreen` are tested in be-sdk-window-stack alone, not
+               under the root.
+             - Left: a window opened over one being moved moves with it but is kept in the
+               work area each time the root asks its screens, so while held over a bar it can
+               lag there, as under be-host.
              - Left: one display, the root's window: a window is kept within the work area of
                the view it opened from, not of the display it is on.
          - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as

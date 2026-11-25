@@ -73,12 +73,44 @@ fn type_into(host: &mut HostTest, grip: &str) {
     host.wait("zebra");
 }
 
+/// Drags the window by `grip` with a finger by (40, 30) points: its grip moves by as much, and
+/// once the finger lifts the window stays put as the mouse moves, a move begun by a touch ending
+/// with it.
+fn touch_drag(host: &mut HostTest, grip: &str) {
+    let from = host.place(grip);
+    let (x, y) = (from.0 + from.2 / 2.0, from.1 + from.3 / 2.0);
+    host.run(&["touch", "down", &format!("0={x},{y}")]);
+    for step in 1..=4 {
+        let step = step as f32 / 4.0;
+        host.run(&[
+            "touch",
+            "move",
+            &format!("0={},{}", x + 40.0 * step, y + 30.0 * step),
+        ]);
+    }
+    host.run(&["touch", "up"]);
+    host.run(&["settle"]);
+    let to = host.place(grip);
+    assert!(
+        (to.0 - from.0 - 40.0).abs() < 2.0 && (to.1 - from.1 - 30.0).abs() < 2.0,
+        "the window follows the finger: its grip from {from:?} to {to:?}"
+    );
+    host.run(&["move", &format!("{},{}", x + 200.0, y + 150.0)]);
+    host.run(&["settle"]);
+    assert_eq!(
+        host.place(grip),
+        to,
+        "the finger lifted, the window no longer follows the pointer"
+    );
+}
+
 #[test]
 fn be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip() {
     // A press on a desktop window's grip and a drag move the window with the pointer, under
     // be-host's UI and under the root alike: the desktop asks for the move (`begin-move`), and
     // be-host's desktop, or the root that floats its windows, follows the pointer until it is
-    // released. Where it moved to, it takes a press and the keys typed then.
+    // released. Where it moved to, it takes a press and the keys typed then. Under the root a
+    // finger moves it too, until it lifts.
     let mut host = HostTest::start(Options {
         desktop: true,
         previews: true,
@@ -92,6 +124,7 @@ fn be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip
     host.run(&["settle"]);
     let grip = new_session(&mut host);
     drag(&mut host, &grip);
+    touch_drag(&mut host, &grip);
     type_into(&mut host, &grip);
     host.snapshot("be_root_moves_a_window_the_desktop_opens_by_its_grip");
     host.close();
