@@ -24,13 +24,17 @@ stays an anchored view, so the app protocol does not change
    and `blocks`, so `DockDialog` stays an overlay there (`own_window=false`). Place it beside its
    anchor through `WindowPlacement::Over`, and block its owner across windows, before a dialog
    may be one.
-2. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
-   - Small forms (1): an anchored window with a beak.
-   - Confirmations (2): a window centred on its frame that blocks it.
-   - Large forms and embedded editors (3): a window attached to its frame, blocking it.
+2. **Dialogs become windows.** `Dialog` stays the one place that presents a dialog by its
+   kind (decisions/dialogs_are_presented_by_kind.md), rebuilt on `Window`, and `DialogFrame` is
+   it around a body of the caller's own:
+   - Small forms (1): a window beside its control (`WindowAnchor::Node`) or rect with a beak, or
+     at the top of its window when neither shows.
+   - Confirmations (2) and large forms and embedded editors (3): a window centred on its frame
+     (`WindowAnchor::Centre`) that blocks it, with a scrim.
+   - A sheet where the window is narrow or a finger opened it.
    - Program dialogs (5): already windows.
-   - The command palette (6): a borderless top-centred window.
-   `Dialog`, its sheet handle and anchor types, `DialogCard`'s placement copies and
+   - The command palette (6): a blocking window at the top centre (`WindowAnchor::Top`).
+   Its own `Modal` and anchored `Overlay`, `DialogTarget`, `DialogPresentation` and
    `ModalPlacement` go; `DialogBody` stays the inside of these windows, and
    decisions/app_dialogs_are_drawn_by_the_app_with_dialog_body.md holds for an app's.
    decisions/beui_modal_asks_before_it_slides_away.md holds for a blocking window: dismissal is
