@@ -1043,26 +1043,44 @@ async fn counter_with_an_edit_past_its_seal(
     replicas.pump((peer, shared)).await;
     replicas.attach(block, 7, true);
     add_to_counter(replicas, block, 7, 1);
-    step_until_replicas(peer, shared, replicas, "journaled the first edit", |replicas, _| {
-        replicas
-            .status(block)
-            .is_some_and(|status| status.taken >= 1 && status.journaled)
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "journaled the first edit",
+        |replicas, _| {
+            replicas
+                .status(block)
+                .is_some_and(|status| status.taken >= 1 && status.journaled)
+        },
+    )
     .await;
     let before = replicas.status(block).and_then(|status| status.head);
     replicas.seal_later(block, true);
-    step_until_replicas(peer, shared, replicas, "sealed the first edit", |replicas, _| {
-        replicas
-            .status(block)
-            .is_some_and(|status| status.head != before)
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "sealed the first edit",
+        |replicas, _| {
+            replicas
+                .status(block)
+                .is_some_and(|status| status.head != before)
+        },
+    )
     .await;
     add_to_counter(replicas, block, 7, 2);
-    step_until_replicas(peer, shared, replicas, "journaled the second edit", |replicas, _| {
-        replicas
-            .status(block)
-            .is_some_and(|status| status.taken >= 2 && status.journaled)
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "journaled the second edit",
+        |replicas, _| {
+            replicas
+                .status(block)
+                .is_some_and(|status| status.taken >= 2 && status.journaled)
+        },
+    )
     .await;
     block
 }
@@ -1081,8 +1099,12 @@ async fn add_while_a_restarted_replica_rejoins(
     replicas.pump((peer, shared)).await;
     assert!(replicas.joining(), "the replica opened again rejoins");
     add_to_counter(replicas, block, 7, 4);
-    step_until_replicas(peer, shared, replicas, "held the rejoin's answer", |replicas, _| {
-        replicas.rejoin_parked(block)
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "held the rejoin's answer",
+        |replicas, _| replicas.rejoin_parked(block),
+    )
     .await;
 }

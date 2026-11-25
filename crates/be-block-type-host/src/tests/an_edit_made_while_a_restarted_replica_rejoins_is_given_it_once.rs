@@ -21,7 +21,9 @@ fn an_edit_made_while_a_restarted_replica_rejoins_is_given_it_once() {
             "and took none"
         );
         assert_eq!(
-            replicas.submissions_of(block).map(|(submitting, ..)| submitting),
+            replicas
+                .submissions_of(block)
+                .map(|(submitting, ..)| submitting),
             Some(0),
             "so it submits none"
         );
