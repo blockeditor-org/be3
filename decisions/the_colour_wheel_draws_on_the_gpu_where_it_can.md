@@ -23,5 +23,5 @@ scale for nothing on the CPU.
 ## Rejected
 
 - **The cached image on both cores**, dropping `gpu.rs` and the crate's optional wgpu, bytemuck
-  and beui-draw dependencies (plans/kept_content_and_one_scroller.md, step 6, which made this
-  conditional on the image holding a frame).
+  and beui-draw dependencies. A plan proposed it on the condition that the image held a frame,
+  which it does not.
