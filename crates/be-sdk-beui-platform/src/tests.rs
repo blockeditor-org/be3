@@ -121,6 +121,7 @@ struct Windowed {
     views: Option<Views>,
     requested: OwnedSignal<Vec<View>>,
     /// Each view's window, once built, when the program reports its overlays as an app's does.
+    #[allow(clippy::type_complexity)] // spelled out where it is used; a name would add nothing
     reported: Option<Rc<RefCell<Vec<(ViewRef, beui::WindowId)>>>>,
 }
 
