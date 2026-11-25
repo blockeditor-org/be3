@@ -2269,7 +2269,49 @@ Each step lands on its own.
              panels and the inspector; the invite's QR code and Share; Invite member inside
              Members; the web's local account note).
          - 4g7g2. The root becomes the default, and be-host's `src/ui` and `src/compositor` go,
-           once the real root passes the host tests that exercise be-host's own UI.
+           once the real root passes the host tests that exercise be-host's own UI. Surveyed
+           (not started): the host tests that drive `src/ui` or the compositor's palette by its
+           test ids (`host.*`, `account.*`, `sessions.*`) and have no counterpart under the
+           root, each to run under the root with its paintings compared to be-host's:
+           - Accounts and onboarding: `a_local_account_needs_only_a_display_name`,
+             `adding_an_account_chooses_a_local_or_custom_server`,
+             `removing_a_local_account_asks_first_and_names_what_is_lost`. Under the root only
+             `be_root_in_place_of_the_hosts_ui_shows_its_onboarding` (no painting) and
+             `..._shows_its_signed_in_block_stack` (`be_root_signed_in`, `_menu`) exist,
+             not compared to be-host's.
+           - The host menu: `the_host_menu_opens_under_its_button`,
+             `on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself`,
+             `the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu`
+             (inspector, recovery phrase, status: entries 4g7a2 left to be-host).
+           - Organizations and sessions: `the_organizations_screen_takes_an_invite_link`,
+             `players_carry_on_with_the_next_host_once_the_first_closes_the_world`,
+             `killing_the_desktop_shell_shows_the_session_picker` and
+             `a_wait_names_an_app_that_stopped_instead_of_running_out` (`sessions.keep`).
+           - Members, invitations and agents: `the_members_dialog_lists_an_organizations_members_and_their_roles`,
+             `the_members_dialog_warns_of_a_member_no_invitation_signed_in`,
+             `an_invitation_shows_the_link_to_send_the_invited_person` (its QR code, which
+             be-root does not show), `a_personal_organization_can_create_an_agent`.
+           - Contacts and share links: `a_contact_link_asks_before_connecting_two_accounts`,
+             `a_contact_the_server_rolls_back_keeps_the_key_this_device_saw`,
+             `leaving_a_workspace_someone_shared_asks_first`,
+             `keep_hosting_outlives_the_editor_until_stop`,
+             `a_share_link_asks_before_opening_a_block_someone_shared`,
+             `an_outsider_opens_a_share_link_as_a_guest`,
+             `a_player_digs_through_the_editor_that_hosts_the_hunt`.
+           - The palette (`src/compositor`): `quick_open_finds_a_word_typed_in_a_text_and_opens_it`,
+             `quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions`
+             (the host's own actions, which be-root's palette does not list),
+             `the_host_palette_lists_the_desktops_window_keys`,
+             `ctrl_tab_leaves_the_workspace_tabs_alone_while_the_host_palette_is_open`.
+             `the_host_palette_lists_a_text_on_a_canvas_before_the_canvas` has a counterpart
+             (`be_root_..._lists_a_text_on_a_canvas_in_its_palette`) whose paintings are its
+             own, not compared to be-host's.
+           With counterparts whose paintings match be-host's: the desktop shell, F6 between
+           views, and the lock screen on Super+L (4g7g1). The test ids above are be-host's;
+           be-root sets almost none (`session.crashed`, `root.palette`), so each test needs
+           be-root to give its controls be-host's ids as it moves. src/ui's own component tests (`ui/tests`,
+           `ui/lock/tests`, `ui/keep_changes/tests`, `ui/saving/tests`, `ui/onboarding/tests`,
+           `ui/organization/tests`) go with it, their cases covered by be-root's tests.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.
