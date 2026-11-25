@@ -1048,11 +1048,11 @@ impl Shared {
     pub(crate) fn log_unlisted_held(&mut self) {
         for unlisted in self.graph.take_unlisted_held() {
             eprintln!(
-                "be-host: the answer to {listing:?} {at} left out {blocks:?}, \
+                "be-host: the answer to {listing:?} at sequence {sequence} left out {blocks:?}, \
                  which this device holds as listed there (an answer to a request from before a \
                  change asked again: {stale}), connected: {connected}",
                 listing = unlisted.listing,
-                at = format!("at sequence {}", unlisted.sequence),
+                sequence = unlisted.sequence,
                 blocks = unlisted.blocks,
                 stale = unlisted.stale,
                 connected = self.connected,
