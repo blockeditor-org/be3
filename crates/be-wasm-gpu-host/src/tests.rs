@@ -21,7 +21,7 @@ fn configuration(width: u32, height: u32) -> abi::SurfaceConfiguration {
         width,
         height,
         format: abi::TextureFormat::Rgba8Unorm,
-        view_format: None,
+        view_formats: Vec::new(),
     }
 }
 
@@ -97,7 +97,7 @@ mod a_rejected_shader_module_is_kept_and_says_why;
 mod a_render_bundle_that_fails_validation_is_reported_not_panicked;
 mod a_result_longer_than_its_room_waits_to_be_taken;
 mod a_settled_map_wakes_the_app_without_its_polling;
-mod a_surface_configured_alike_keeps_its_textures_and_refuses_another_formats_view;
+mod a_surface_configured_alike_keeps_its_textures_however_its_view_formats_are_named;
 mod a_surface_must_be_attached_before_it_is_acquired;
 mod a_surface_of_no_size_is_reported;
 mod a_surface_reports_how_many_presents_ago_its_texture_was_drawn;

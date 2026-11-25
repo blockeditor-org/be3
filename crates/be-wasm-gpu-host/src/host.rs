@@ -1322,7 +1322,7 @@ impl Host for Gpu {
             width,
             height,
             format,
-            view_format,
+            view_formats,
         } = configuration;
         let limit = self.device.limits().max_texture_dimension_2d;
         if width == 0 || height == 0 || width > limit || height > limit {
@@ -1332,12 +1332,15 @@ impl Host for Gpu {
             return;
         }
         let format = Convert::<wgpu::TextureFormat>::convert(format);
-        // The format itself asks for nothing more: equal configurations keep their textures.
-        let view_formats: Vec<wgpu::TextureFormat> = view_format
-            .map(Convert::<wgpu::TextureFormat>::convert)
-            .filter(|view| *view != format)
-            .into_iter()
-            .collect();
+        // The format itself, and a format named twice, ask for nothing more: equal
+        // configurations keep their textures.
+        let mut views: Vec<wgpu::TextureFormat> = Vec::new();
+        for view in view_formats.into_iter().map(Convert::<wgpu::TextureFormat>::convert) {
+            if view != format && !views.contains(&view) {
+                views.push(view);
+            }
+        }
+        let view_formats = views;
         if let Some(view) = view_formats
             .iter()
             .find(|view| view.remove_srgb_suffix() != format.remove_srgb_suffix())
