@@ -89,7 +89,7 @@ pub struct RetentionPlan {
 /// earlier one. The server runs it on each publish (guides/blocks/server.md).
 pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> RetentionPlan {
     let mut ordered: Vec<_> = summaries.to_vec();
-    ordered.sort_by(|left, right| right.time.cmp(&left.time));
+    ordered.sort_by_key(|summary| std::cmp::Reverse(summary.time));
 
     let mut candidates: HashMap<(usize, i64), usize> = HashMap::new();
     let mut plan = RetentionPlan::default();
