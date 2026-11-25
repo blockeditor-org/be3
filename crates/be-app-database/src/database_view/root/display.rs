@@ -143,16 +143,14 @@ fn KindSwitch(data: Data) -> NodeId {
                     let first = |wanted: DatabaseFieldType| data.fields.with_untracked(|fields| {
                         fields.iter().find(|field| field.field_type == wanted).map(|field| field.id)
                     });
-                    if wanted == DatabaseViewKind::Kanban && data.group_by.get_untracked().is_none() {
-                        if let Some(status) = first(DatabaseFieldType::Enum) {
+                    if wanted == DatabaseViewKind::Kanban && data.group_by.get_untracked().is_none()
+                        && let Some(status) = first(DatabaseFieldType::Enum) {
                             data.operate_view(DatabaseView::set_group_by(Some(status)));
                         }
-                    }
-                    if wanted == DatabaseViewKind::Calendar && data.calendar_start.get_untracked().is_none() {
-                        if let Some(date) = first(DatabaseFieldType::Datetime) {
+                    if wanted == DatabaseViewKind::Calendar && data.calendar_start.get_untracked().is_none()
+                        && let Some(date) = first(DatabaseFieldType::Datetime) {
                             data.operate_view(DatabaseView::set_calendar_start(Some(date)));
                         }
-                    }
                 };
                 view! {
                     <ToggleButton

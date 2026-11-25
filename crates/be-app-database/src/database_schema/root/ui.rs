@@ -837,7 +837,7 @@ fn RelationOptions(
                 templates: false,
                 place: None,
             },
-            &button,
+            button,
             move |picked| {
                 schema.operate(DatabaseSchema::set_relation_options(
                     id,
