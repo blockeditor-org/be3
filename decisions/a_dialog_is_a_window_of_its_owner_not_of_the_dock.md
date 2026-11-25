@@ -8,7 +8,9 @@ plan's next step:
 - **The base `Window` carries it**: pointing at an anchor with a beak, blocking its owner (no
   presses, a scrim, focus trapped and given back), and showing as a sheet. The dock's floating
   dialog window (`DockDialog`) builds on it, and a `Dialog` with no dock above it is a plain
-  `Window` overlay. So be-host's own UI, a root guest, the desktop's bar and every test that opens
+  `Window` overlay. `Dialog` stays the one component that presents a dialog by its kind
+  (decisions/dialogs_are_presented_by_kind.md) over `Window`, rather than each caller composing
+  a `Window` and a `DialogBody` and repeating which kind goes where. So be-host's own UI, a root guest, the desktop's bar and every test that opens
   a dialog with no dock keep one API.
 - **A dialog window is not a `DockState` surface.** It is not saved with the layout and its body
   never becomes a tab: it cannot be docked into a pane. It moves (and later snaps) as a window

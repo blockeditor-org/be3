@@ -398,13 +398,13 @@ pub enum DialogAnchor {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DialogTarget {
+enum DialogTarget {
     Node(NodeId),
     Rect(Rect),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DialogPresentation {
+enum DialogPresentation {
     Centred,
     Anchored(Option<DialogTarget>),
     OverFrame,
@@ -433,7 +433,7 @@ pub fn use_frame_anchor() -> Memo<Option<Rect>> {
 /// opened, which the caller folds into `narrow`) is a sheet. An anchored one
 /// with a lost control falls back to `frame`, and with nothing visible to
 /// point at opens at the top centre with no beak.
-pub fn dialog_presentation(
+fn dialog_presentation(
     kind: DialogKind,
     size: DialogSize,
     anchor: DialogAnchor,
