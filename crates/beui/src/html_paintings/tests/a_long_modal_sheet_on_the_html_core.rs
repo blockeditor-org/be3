@@ -10,10 +10,8 @@ fn a_long_modal_sheet_on_the_html_core() {
                 <unstyled::Modal
                     open=true
                     scrim={crate::Color32::from_rgba_unmultiplied(0, 0, 0, 96)}
-                    placement=unstyled::ModalPlacement::Fill
-                    motion=unstyled::ModalMotion::Still
                     on_dismiss={|| {}}
-                >|_|
+                >
                     <List spacing=Space::None>
                         <primitives::Spacer />
                         <ListItem shrink=1.0>

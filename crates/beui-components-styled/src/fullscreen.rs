@@ -1,5 +1,4 @@
 use crate::dialog::{Modal, Scrim};
-use beui_components_unstyled::ModalPlacement;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
@@ -10,7 +9,7 @@ pub fn Fullscreen(
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     view! {
-        <Modal open scrim=Scrim::Strong placement=ModalPlacement::Fill on_dismiss={on_dismiss}>
+        <Modal open scrim=Scrim::Strong on_dismiss={on_dismiss}>
             {content.call()}
         </Modal>
     }

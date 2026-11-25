@@ -70,7 +70,7 @@ pub use back_slide::BackSlide;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize,
     provide_frame_anchor, use_frame_anchor,
 };
 pub use beui_components_unstyled::{

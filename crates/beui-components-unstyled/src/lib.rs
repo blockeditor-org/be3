@@ -121,7 +121,7 @@ pub use menu::{
 };
 pub use menu_button::MenuButton;
 pub use menu_popup::{MenuPopup, MenuRows, MenuStyle};
-pub use modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
+pub use modal::Modal;
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, NumberInputApi,
 };

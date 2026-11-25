@@ -123,8 +123,7 @@ nodes may not exist.
 An animated close belongs to the overlay, not its owner: the content calls
 `use_overlay_presence()` and hands `linger_while` a memo that stays true until
 its exit finishes. The owner just writes `open` false. `ModalSheet` leaves this
-way; every other `Modal` (`ModalMotion::Still`) shows and goes at once, with no
-motion of its own.
+way; a `Modal` and a `Window` show and go at once, with no motion of their own.
 
 Whatever an overlay is opened from can hear whether any is open beneath it:
 provide an `OverlaysWithin` and read `any()`. Every `Overlay` built under it
@@ -267,13 +266,16 @@ lock and the password check are its host's (`be3:root`'s `host.lock` and
 
 A dialog is a `Window` (guides/beui/docking.md, Windows and window hosts) that
 points at its anchor or is centred on its frame and blocks it, or a
-`ModalSheet` on a phone. `unstyled::Modal` is an overlay with a scrim that fades
-with its presence: `Fullscreen` and `ModalSheet` sit on it, and be-host's lock
-screen. Neither has an exit motion but a sheet's: Escape, back and the scrim ask
-the owner at once
+`ModalSheet` on a phone, an overlay on the bottom edge whose scrim fades as it
+rises. `unstyled::Modal` is only what is not a window and must never move or be
+covered: an overlay over its whole window on a scrim, which be-host's lock
+screen (at `LayerLevel::Lock`) and `Fullscreen` use. be-host's other host-level
+dialogs (reauthentication, onboarding, adding a device) are centred `Dialog`s,
+windows that block the host window and are never moved. Escape, back and
+the scrim ask the owner at once
 ([decision](../../decisions/beui_modal_asks_before_it_slides_away.md)), and a
-window the owner closes is gone that frame. Only a `ModalSheet`
-(`ModalMotion::Reported`) moves, sliding down out of sight.
+window or modal the owner closes is gone that frame. Only a `ModalSheet` moves,
+sliding down out of sight.
 
 A dialog's buttons are data
 ([decision](../../decisions/beui_dialog_actions_are_data_with_roles.md)):
