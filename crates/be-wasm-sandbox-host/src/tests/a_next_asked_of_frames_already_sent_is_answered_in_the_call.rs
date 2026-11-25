@@ -13,7 +13,7 @@ fn a_next_asked_of_frames_already_sent_is_answered_in_the_call() {
             .expect("the echo guest compiles");
         let instance = guest::sandbox::Instance::new(
             Source::Module(FromBytes {
-                module: module,
+                module,
                 seed: [0; 32],
             }),
             config(),
