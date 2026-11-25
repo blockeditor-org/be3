@@ -188,8 +188,8 @@ struct Root {
     session_notice_shown: Rc<Cell<Option<Signal<Option<SessionShown>>>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
-    /// What its last frame told its host its apps want (`frame-done`'s `next` and `owed`),
-    /// against which what they want after a step is read (`Root::stepped`).
+    /// What its apps wanted (`Embedding::wants`) when its last frame was done, against
+    /// which what they want after a step is read (`Root::stepped`).
     told: Rc<Cell<Wants>>,
 }
 
