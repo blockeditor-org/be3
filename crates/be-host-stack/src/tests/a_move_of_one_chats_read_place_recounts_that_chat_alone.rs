@@ -17,7 +17,6 @@ fn counts(chat: Uuid, count: u32, what: &str) {
 /// its place, so only it is loaded and counted again, and the other chat is not.
 #[test]
 fn a_move_of_one_chats_read_place_recounts_that_chat_alone() {
-    crate::unread::forget();
     let harness = Harness::pushing();
     let room = ChatRoom::start(&harness, &[("rosa", None, true)]);
     let lunch = room.another("Lunch", "rosa", "Who's in?");
@@ -46,5 +45,4 @@ fn a_move_of_one_chats_read_place_recounts_that_chat_alone() {
         "only the chat whose place moved is loaded and counted again"
     );
     counts(minutes, 1, "the minutes chat keeps its count");
-    crate::unread::forget();
 }

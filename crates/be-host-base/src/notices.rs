@@ -201,5 +201,15 @@ pub fn shown() -> Vec<Notice> {
     notices().shown.clone()
 }
 
+/// Lets go of every notice, and of the account notices dismissed here: what a test that starts
+/// a host of its own begins from, since they are one per process and outlive the stack that
+/// showed them.
+pub fn clear() {
+    let mut notices = notices();
+    notices.shown.clear();
+    notices.dismissed.clear();
+    notices.generation += 1;
+}
+
 #[cfg(test)]
 mod tests;
