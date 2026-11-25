@@ -1568,12 +1568,6 @@ downloads = {
         "size_bytes": 10102,
         "version": "0.9.0",
     },
-    "float_next_after-1.0.0": {
-        "name": "float_next_after",
-        "sha256": "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8",
-        "size_bytes": 6965,
-        "version": "1.0.0",
-    },
     "fnv-1.0.7": {
         "name": "fnv",
         "sha256": "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1",
@@ -2587,24 +2581,6 @@ downloads = {
         "sha256": "52d3a9855747c17eaf4383823f135220716ab49bea5fbea7dd42cc9a92f8aa31",
         "size_bytes": 8193,
         "version": "0.16.1",
-    },
-    "lyon_geom-1.0.20": {
-        "name": "lyon_geom",
-        "sha256": "d82dd26aa4dc0b5b70b9115de59824842bcb43cf4a28e1b1e6d0ad148c93f93e",
-        "size_bytes": 56493,
-        "version": "1.0.20",
-    },
-    "lyon_path-1.0.19": {
-        "name": "lyon_path",
-        "sha256": "5c463f9c428b7fc5ec885dcd39ce4aa61e29111d0e33483f6f98c74e89d8621e",
-        "size_bytes": 37028,
-        "version": "1.0.19",
-    },
-    "lyon_tessellation-1.0.22": {
-        "name": "lyon_tessellation",
-        "sha256": "43b8dcf906637ecef61b3c0740c7a4e7f27caeb31257cfac0cc579ce15be6005",
-        "size_bytes": 188138,
-        "version": "1.0.22",
     },
     "mach2-0.4.3": {
         "name": "mach2",

@@ -12,7 +12,6 @@ foldhash = "0.2"
 be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-graphemes = { path = "../be-lib-graphemes" }
 kurbo = "0.13"
-lyon_tessellation = "1"
 beui-paint-format = { path = "../beui-paint-format" }
 raw-window-handle = { version = "0.6", features = ["alloc"] }
 beui-reactive = { path = "../beui-reactive" }

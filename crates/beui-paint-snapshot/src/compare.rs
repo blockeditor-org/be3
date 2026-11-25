@@ -165,6 +165,15 @@ fn summary(content: &Content) -> String {
                 .collect::<std::collections::BTreeSet<_>>()
                 .len()
         ),
+        Content::Path(path) => format!(
+            "a {} path over {:?} in {:?}",
+            match path.style {
+                beui_paint_format::PathStyle::Fill { .. } => "filled",
+                beui_paint_format::PathStyle::Stroke(_) => "stroked",
+            },
+            path.bounds(),
+            path.color
+        ),
         Content::Callback(rect) => format!("a callback over {rect:?}"),
         Content::RoundedRect(shape) => format!(
             "a rect over {:?} in {:?} with corner radius {} and stroke {}",

@@ -12,21 +12,20 @@ directly. The HTML core is unaffected.
 ## Why
 
 - Exact anti-aliased fills and strokes of curves, gradients, clip paths, blend modes and COLRv1
-  colour glyphs, for every component and editor, not only the canvas. beui-renderer-wgpu draws
-  with Vello now; paintings still hold paths as triangles the CPU tessellated
-  (`beui-core/src/path.rs`).
+  colour glyphs, for every component and editor, not only the canvas.
 - Vello's Gaussian blur halves the image until little blur remains and finishes with a kernel of
   at most 13 taps, keeping exact count of the variance each level adds
   (`vello_common/src/filter/gaussian_blur.rs`). So the blur equals the σ asked for at every radius,
   and costs about the same for a large radius as a small one (decisions/beui_filter_blur_is_vellos_gaussian.md).
 - Apps that draw their own 2D (charts, annotations) get the renderer beui uses.
-- Lines of ours still to go: the tessellator (`ui.wgsl`, the instance encoding, most of
-  `group.rs`, beui-paint-format's `raster.rs` and the dual-Kawase blur have gone).
+- Lines of ours gone: `ui.wgsl`, the instance encoding, most of `group.rs`, beui-paint-format's
+  `raster.rs`, the dual-Kawase blur and the tessellator.
 
 ## What maps to what
 
 - **Shapes.** Rounded and cornered rects, segments and turns become Vello fills and strokes;
-  `Content::Mesh` paths become `BezPath` fills or strokes with their fill rule. Fills that meet on
+  paths are `BezPath` fills or strokes with their fill rule, and paintings hold them as
+  `Content::Path`, which the rasterizer draws the same way. Fills that meet on
   seams (`PathPaint::with_seams`, the canvas's freehand pieces) and follow each other alike are
   filled as one nonzero path, so their shared edges cancel.
 - **Glyphs.** Rectangles drawn with an image paint from beui's atlas, sampled at the lowest
@@ -84,15 +83,7 @@ which this plan leaves for later.
 
 ## Steps
 
-1. **Paths in paintings.** `Content::Mesh` becomes a path with its fill rule or stroke style,
-   `Frame::tidy` and the rasterizer learn it. Until then beui-paint-raster draws a mesh itself, as
-   a GPU draws triangles (`mesh.rs`: no antialiasing, colours interpolated across each), since
-   Vello cannot interpolate a colour across a triangle's corners; images, colour glyphs and lines
-   reach paintings as meshes too. Seamed fills are rasterized as one path, as the renderer fills
-   them. Bump the format's
-   `VERSION` (guides/testing_a_gui.md, 4) and let verify rewrite the paintings. Delete the
-   tessellator in `beui-core/src/path.rs`.
-2. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
+1. **Documents.** Update guides/beui/core.md (Retained paint and damage), guides/beui.md's crate
    map, guides/beui/components.md (Drawing with the gpu), guides/testing_a_gui.md and
    guides/canvas.md. Record the choice in decisions/ with
    what was rejected below, and delete this plan.
