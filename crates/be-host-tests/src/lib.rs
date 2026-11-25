@@ -53,6 +53,9 @@ pub struct HostTest {
     desktop: bool,
     editors: Option<String>,
     device: Option<Device>,
+    /// The programs it started in the desktop's compositor (`open_test_window`), stopped as it
+    /// ends.
+    programs: Vec<std::process::Child>,
 }
 
 /// How [`HostTest::start`] starts the host. The default is the Files pane, painted without a
@@ -171,6 +174,11 @@ impl HostTest {
     /// does: what be-host's own UI made, the root shows. Start the host with
     /// [`Options::previews`], since the root's apps draw on the window's device.
     pub fn restart_as_root(&mut self, app: &str) {
+        // The test's programs end first, each window gone from the desktop before it closes.
+        if !self.programs.is_empty() {
+            self.stop_programs();
+            self.run(&["pause", "500"]);
+        }
         self.run(&["settle"]);
         self.steps.push(format!("restart --root={app}"));
         let restarted = self
@@ -294,6 +302,7 @@ impl HostTest {
             reported: Cell::new(false),
             space,
             desktop,
+            programs: Vec::new(),
             editors: std::env::var("HOST_TEST_APPS").ok(),
             device,
         };
@@ -552,10 +561,36 @@ impl HostTest {
         }
     }
 
+    /// Runs the test's program window (be-tool-wayland-window) titled `title` in the desktop's
+    /// compositor, as `drive exec` runs a program: with the variables the host gives programs
+    /// (`drive env`), under `--desktop` only. It runs until the host closes it or the test ends.
+    pub fn open_test_window(&mut self, title: &str) {
+        self.steps
+            .push(format!("exec $WAYLAND_TEST_WINDOW {title}"));
+        let environment = self.run(&["env"]);
+        let program = std::env::var("WAYLAND_TEST_WINDOW").expect(
+            "WAYLAND_TEST_WINDOW names the test's program window; run these through ./scripts/buck test //crates/be-host-tests:test",
+        );
+        let mut command = std::process::Command::new(program);
+        command.arg(title).env_remove("WAYLAND_DISPLAY").env_remove("DISPLAY");
+        // It loads the Wayland client library from the test's sysroot, as the host loads its own.
+        if let Ok(libraries) = std::env::var("HOST_LIBRARIES") {
+            command.env("LD_LIBRARY_PATH", libraries);
+        }
+        for (name, value) in environment.lines().filter_map(|line| line.split_once('=')) {
+            command.env(name, value);
+        }
+        match command.spawn() {
+            Ok(child) => self.programs.push(child),
+            Err(error) => self.fail(&format!("the test window did not start: {error}")),
+        }
+    }
+
     /// Closes the host once it has settled, so nothing is left unsaved for it to ask about, and
     /// fails unless it exits cleanly.
     pub fn close(mut self) {
         self.run(&["settle"]);
+        self.stop_programs();
         self.steps.push("close".to_owned());
         let host = self.host.take().expect("the host is still open");
         if let Err(error) = host.close() {
@@ -627,8 +662,18 @@ impl HostTest {
     }
 }
 
+impl HostTest {
+    fn stop_programs(&mut self) {
+        for mut program in self.programs.drain(..) {
+            let _ = program.kill();
+            let _ = program.wait();
+        }
+    }
+}
+
 impl Drop for HostTest {
     fn drop(&mut self) {
+        self.stop_programs();
         match std::thread::panicking() {
             true if !self.reported.get() => eprintln!("\n{}", self.context()),
             true => {}

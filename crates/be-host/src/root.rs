@@ -77,6 +77,7 @@ use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
+use be_host_desktop::desktop_host::{DesktopHost, Host};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, Input, WindowId};
@@ -209,7 +210,14 @@ impl RootShell {
         // the editors it opens draw none of their own (`open-block.host-palette`).
         be_host_runtime::draw_palette(true);
         let mut shown = None;
+        let desktop = core.desktop;
         let document = beui_host::native::build(|| {
+            // Under `--desktop` the platform's desktop host runs here as under be-host's own UI
+            // (the Wayland compositor on Linux), so programs run and their windows reach the
+            // desktop app (plans/host_as_platform_adapter.md, 4g7e3a).
+            if desktop {
+                Host::create();
+            }
             let drawing = create_signal(None::<GpuDrawing>);
             shown = Some(drawing);
             view! {
@@ -443,6 +451,9 @@ impl beui::native::Program for RootShell {
         // The host's own apps the core runs (its blocks' host components) draw on the window's
         // device too.
         be_host_runtime::install(setup);
+        if self.core.desktop {
+            Host::start(setup);
+        }
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
             Err(why) => self.stopped(&format!("it did not start: {why}")),
@@ -473,7 +484,13 @@ impl beui::native::Program for RootShell {
         beui::native::enter(&mut self.document, be_host_base::host::deliver);
         self.deliver_input(origin);
         self.frame(context, time, rect);
+        if self.core.desktop {
+            Host::before(context, rect, &mut self.document);
+        }
         self.document.show(context, rect);
+        if self.core.desktop {
+            Host::after(context, &mut self.document);
+        }
         // After the document, whose own requests (it hears no input, so the default cursor) the
         // root's replace.
         let Requests {
@@ -573,9 +590,21 @@ impl beui::native::Program for RootShell {
         }
     }
 
+    /// What a program `drive exec` starts is given to reach the desktop host's compositor, as
+    /// under be-host's own UI: nothing without `--desktop`.
+    fn environment(&self) -> Vec<(String, String)> {
+        match self.core.desktop {
+            true => Host::environment(),
+            false => Vec::new(),
+        }
+    }
+
     fn exiting(&mut self) {
         // Stops the root and every instance it spawned.
         self.root = None;
+        if self.core.desktop {
+            Host::exiting();
+        }
     }
 }
 
@@ -1546,6 +1575,11 @@ fn open_editor(
     let forwarded = served
         .entry(opening.instance)
         .or_insert_with(|| Forwarded::new(&app));
+    // The session's own editor is the shell, as be-host's own UI makes it (`set_shell`): what
+    // only the shell hears (be3:desktop's windows, contacts, the screen's input) is its.
+    if block.is_some() && block == core.root_session {
+        forwarded.set_shell(Some(instance));
+    }
     let frames = match &artifact {
         Some((_, exporter, data)) => forwarded.open_artifact(
             instance,

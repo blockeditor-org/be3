@@ -152,6 +152,13 @@ impl Forwarded {
         self.wire.send(messages);
     }
 
+    /// Makes the editor `instance` the shell, the session's own editor, as be-host's own UI makes
+    /// its (`set_shell`): it alone hears what only the shell does, such as be3:desktop's
+    /// windows.
+    pub fn set_shell(&mut self, instance: Option<EditorInstanceId>) {
+        self.instances.set_shell(instance);
+    }
+
     /// Asks the editor `instance` to show the host's panel `panel`, as be-host asks its shell
     /// (`show_panel`): it hears it with its shows.
     pub fn show_panel(&mut self, instance: EditorInstanceId, panel: be_sdk_api::HostPanel) {
@@ -228,6 +235,11 @@ impl Forwarded {
     /// what the services it asked for answered, and what it watches. The frames that say it,
     /// for the root to relay.
     pub fn step(&mut self) -> Vec<Vec<u8>> {
+        // What the host publishes (be-host-base's watches: be3:desktop's windows, the desktop's
+        // bar), as be-host's own runtimes hear it (`Watches::published`).
+        for (open, value) in be_host_base::watches::published() {
+            self.instances.publish(open, value);
+        }
         let next = self.instances.next_screens(host::pass());
         let mut messages: Vec<Outbound> = next.opened;
         messages.extend(self.instances.drive_web_views());

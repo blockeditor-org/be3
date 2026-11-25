@@ -2893,6 +2893,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-tool-wayland-window"
+version = "0.1.0"
+dependencies = [
+ "rustix 1.1.4",
+ "wayland-client",
+ "wayland-protocols",
+]
+
+[[package]]
 name = "be-type-audio"
 version = "0.1.0"
 dependencies = [

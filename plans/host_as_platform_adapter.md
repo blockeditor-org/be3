@@ -2113,11 +2113,24 @@ Each step lands on its own.
            is driven by be-host's shell (`create`, `start`, `before`, `after`, `frame`,
            `exiting`), and a window is a forwarding catcher it draws (`WindowView`); under the
            root none of it runs yet, and no host test runs a program. In parts:
-           - 4g7e3a. The compositor under the root: `RootShell` drives `DesktopHost` under
-             `--desktop`, so programs run and their windows reach the desktop app through
-             be3:desktop's `windows`; and a program host tests run (a small Wayland client
-             staged for them, started with `drive exec`). Host test: the desktop's windows
-             bar lists the program's window under the root as under be-host.
+           - 4g7e3a. Built: the compositor under the root. `RootShell` drives `DesktopHost`
+             under `--desktop` (`create` in its document, `start`, `before` and `after` around
+             its document's frame, `exiting`, and `environment` for `drive exec`), and the
+             core publishes the window list and steps the desktop host as under be-host's UI
+             (`HostCore::publish_windows`, `Host::frame`). The root's apps hear what the host
+             publishes (`Forwarded::step`, which be-host's own runtimes hear through
+             `Watches::published`), and the session's editor is the shell
+             (`Forwarded::set_shell`), which alone hears be3:desktop's windows. Host tests run a
+             program of their own, be-tool-wayland-window (`HostTest::open_test_window`, one
+             window filled with one color), stopped before the host restarts. Host test
+             `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop`: the
+             windows bar lists it and the desktop opens it in a tab, under be-host and the root.
+             - Left, for 4g7e3b and 4g7e3d: under the root the tab shows nothing of the window,
+               and both are named by the program (its app id) rather than its window's title.
+             - Left: be-host closed with a program window open stops without answering drive's
+               `close`; the tests stop their programs first.
+             - Left: under the root the desktop with a program's window needs a short pause
+               before its painting settles where be-host's settles at once.
            - 4g7e3b. The root places a window child as a `Surface::Host` layer at its place,
              which be-host composites from the compositor's texture of it and configures to
              its place's size; `drive paint` paints it as the placeholder it paints for a

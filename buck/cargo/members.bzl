@@ -144,6 +144,7 @@ members = [
     "crates/be-tool-storage",
     "crates/be-tool-terminal-emulator",
     "crates/be-tool-verify",
+    "crates/be-tool-wayland-window",
     "crates/be-type-audio",
     "crates/be-type-boat",
     "crates/be-type-browser-tab",
