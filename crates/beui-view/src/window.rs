@@ -369,6 +369,16 @@ pub fn Window(
         let dialog = anchor.get().is_some() || blocking.get();
         opened.get() && !(hosted.get() && dialog && locked.get())
     });
+    // A dialog's window of its own shows only its card, so it clears to nothing rather than to
+    // the colour of the window it is opened from, which a window with no `Root` of its own takes:
+    // a host backs a view with the colour it clears to (`FrameReport::backdrop`).
+    let blocking = blocks;
+    let clears = create_memo(move || hosted.get() && (anchor.get().is_some() || blocking.get()));
+    crate::reactive::create_effect(move || {
+        if clears.get() {
+            crate::core::window::clear_window(id, crate::types::Color32::TRANSPARENT);
+        }
+    });
     // A window of its own that blocks covers its owner (its parent window, with no owner) in
     // the owner's window, as an overlay that takes the presses there and draws the scrim.
     let covering = create_memo(move || shows.get() && hosted.get() && blocks.get());
