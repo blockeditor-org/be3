@@ -33,5 +33,5 @@ fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
         || document
             .children(node)
             .into_iter()
-            .any(|child| says_within(&document, child, words))
+            .any(|child| says_within(document, child, words))
 }
