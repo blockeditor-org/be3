@@ -99,7 +99,7 @@ fn face_covers(file: &mut File, start: u64, character: char) -> Option<bool> {
     ));
     let records = read_at(file, start + 12, count * 16)?;
     let tables: Vec<(&[u8], u32, u32)> = records
-        .chunks_exact(16)
+        .as_chunks::<16>().0.iter()
         .map(|record| (&record[..4], u32_at(record, 8), u32_at(record, 12)))
         .collect();
     let has = |tag: &[u8]| tables.iter().any(|(name, ..)| *name == tag);
