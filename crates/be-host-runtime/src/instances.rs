@@ -1199,7 +1199,9 @@ impl Instances {
 
     /// Whether the instance `instance` opened in its app.
     pub(super) fn is_open(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_some_and(|entry| entry.opened)
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.opened)
     }
 
     fn editable(&self, block: Uuid) -> bool {

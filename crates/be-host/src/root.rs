@@ -1353,21 +1353,22 @@ fn open_editor(
         ));
     }
     let instance = crate::editors::app::next_instance();
-    let creation = match &shows {
-        Shows::Creation(target) => Some(RootCreation {
-            target: *target,
-            commit: None,
-            committed: false,
-            progress: None,
-            created: crate::editors::app::Inbox::new(&app.identity.id, instance, |event| {
-                match event {
-                    be_host_runtime::InstanceEvent::Created(created) => Some(created),
-                    _ => None,
-                }
+    let creation =
+        match &shows {
+            Shows::Creation(target) => Some(RootCreation {
+                target: *target,
+                commit: None,
+                committed: false,
+                progress: None,
+                created: crate::editors::app::Inbox::new(&app.identity.id, instance, |event| {
+                    match event {
+                        be_host_runtime::InstanceEvent::Created(created) => Some(created),
+                        _ => None,
+                    }
+                }),
             }),
-        }),
-        _ => None,
-    };
+            _ => None,
+        };
     let (role, block) = match shows {
         Shows::Block(opened) => (
             InstanceRole::Editor(
