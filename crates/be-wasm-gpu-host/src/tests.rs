@@ -81,6 +81,12 @@ impl Caller for Guest {
     }
 }
 
+mod a_webgpu_canvas_has_textures_once_resized_and_configured;
+mod a_webgpu_device_has_only_what_it_asked_for;
+mod a_webgpu_error_goes_to_the_innermost_scope_of_its_kind;
+mod an_uncaptured_webgpu_error_reaches_the_listener_or_the_log;
+mod several_webgpu_devices_are_lost_apart;
+mod webgpu_maps_and_work_settle_through_the_poll;
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
 mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
@@ -110,3 +116,56 @@ mod only_a_texture_the_app_created_is_destroyed;
 mod only_the_calls_that_record_into_a_pass_go_untimed;
 mod submitted_work_wakes_the_app_once_the_gpu_has_done_it;
 mod unbinding_a_vertex_buffer_takes_no_offset_or_size;
+
+/// wasi:webgpu's side of the host: a device requested as an app would, and what its promises
+/// settle to.
+mod web {
+    pub(super) use be_wasm_gpu_abi::embed::webgpu::Host as _;
+    use be_wasm_gpu_abi::embed::webgpu::Host;
+    pub(super) use be_wasm_gpu_abi::webgpu::webgpu::*;
+    use be_wasm_ops::local::{Promise, Settled};
+
+    use super::Gpu;
+
+    pub(super) const TICKET: u64 = 1000;
+
+    /// The value that settled for `ticket` in the next poll.
+    pub(super) fn settled<T: be_wasm_ops::DeserializeOwned>(gpu: &mut Gpu, ticket: u64) -> T {
+        let settled: Vec<Settled> = Host::settle(gpu, true);
+        let value = settled
+            .into_iter()
+            .find(|settled| settled.ticket == ticket)
+            .and_then(|settled| settled.value)
+            .unwrap_or_else(|| panic!("ticket {ticket} did not settle"));
+        be_wasm_ops::decode(&value).expect("what settled decodes")
+    }
+
+    pub(super) fn device(gpu: &mut Gpu, features: Vec<GpuFeatureName>) -> Result<GpuDevice, RequestDeviceError> {
+        let instance = gpu.get_gpu();
+        gpu.gpu_request_adapter(instance, None, Promise::new(TICKET));
+        let adapter: Option<GpuAdapter> = settled(gpu, TICKET);
+        let descriptor = GpuDeviceDescriptor {
+            required_features: Some(features),
+            required_limits: None,
+            default_queue: None,
+            label: Some("app".into()),
+        };
+        gpu.gpu_adapter_request_device(adapter.expect("the host has an adapter"), Some(descriptor), Promise::new(TICKET + 1));
+        settled(gpu, TICKET + 1)
+    }
+
+    pub(super) fn buffer(usage: GpuBufferUsage) -> GpuBufferDescriptor {
+        GpuBufferDescriptor {
+            size: 256,
+            usage,
+            mapped_at_creation: None,
+            label: None,
+        }
+    }
+
+    /// Pops the innermost error scope and answers the error it caught.
+    pub(super) fn pop(gpu: &mut Gpu, device: GpuDevice, ticket: u64) -> Result<Option<GpuError>, PopErrorScopeError> {
+        gpu.gpu_device_pop_error_scope(device, Promise::new(ticket));
+        settled(gpu, ticket)
+    }
+}

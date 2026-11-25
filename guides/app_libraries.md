@@ -255,6 +255,21 @@ app's own thread and a per-draw call takes only wasm values.
 - be-wasm-host links the glue natively; `be-wasm-gpu-shim` is the same in a
   browser worker.
 
+The world holds `be3:gpu/device`, which apps use today, and beside it
+wasi:webgpu (`webgpu`) and `be3:gpu/host` (`wit/host.wit`: surfaces as canvas
+contexts and shared images), which `Gpu` answers too (`src/webgpu.rs`) and
+apps move to in plans/be3_gpu_is_wasi_webgpu.md. wasi:webgpu's WIT is not in
+the repository: buck2 fetches it pinned by its hash (`:webgpu.wit` in
+`crates/be-wasm-gpu-abi/BUCK`) and maps it to `wit/deps/webgpu/webgpu.wit`
+for the generator, in be-wasm-gpu-abi and in every crate whose WIT uses
+`be3:gpu`. Read it with
+`./scripts/buck build //crates/be-wasm-gpu-abi:webgpu.wit --show-output`.
+On wasi:webgpu, each app device keeps the features and limits it asked for
+and its own error scopes: the host wraps creates, queue calls, `finish` and
+pass `end` in wgpu scopes of all three kinds and files what they catch into
+the app's innermost scope of that kind, or its uncaptured errors
+(`Gpu::take_logged` when nothing listens), settling pops through the poll.
+
 The app GPU API is meant to be everything JS WebGPU gives a page, with the
 host device's optional features and limits, since the same app runs in a
 browser (decisions/be3_gpu_matches_webgpu.md); plans/be3_gpu_is_wasi_webgpu.md

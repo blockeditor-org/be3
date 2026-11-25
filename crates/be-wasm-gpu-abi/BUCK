@@ -1,9 +1,26 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/tools:defs.bzl", "configured_once")
 
 cargo_package()
 
+# wasi:webgpu, pinned to one commit of WebAssembly/wasi-gfx and never patched
+# (decisions/be3_gpu_is_wasi_webgpu.md). It is not in the repository: the
+# generator reads this fetched file at wit/deps/webgpu/webgpu.wit. To read it,
+# `./scripts/buck build //crates/be-wasm-gpu-abi:webgpu.wit --show-output`.
+configured_once(
+    http_file,
+    name = "webgpu.wit",
+    sha256 = "8e34bf2a365bc0bbcdd16d0b30a55f1e5c7b26246728e7e5516f74ff9eb968b7",
+    size_bytes = 35321,
+    urls = ["https://raw.githubusercontent.com/WebAssembly/wasi-gfx/6a776bada0b66d3dbf9da304a49ff2947ce4e1f8/wit/webgpu.wit"],
+    visibility = ["PUBLIC"],
+)
+
+# Where a crate whose WIT uses be3:gpu maps the fetched file, beside `:wit`.
+WEBGPU = {":webgpu.wit": "crates/be-wasm-gpu-abi/wit/deps/webgpu/webgpu.wit"}
+
 WIT = {
-    "foreign_resources": {"//crates/be-wasm-ops:wit": "crates/be-wasm-ops"},
+    "foreign_resources": dict({"//crates/be-wasm-ops:wit": "crates/be-wasm-ops"}, **WEBGPU),
     "resources": glob(["wit/*.wit"]),
 }
 

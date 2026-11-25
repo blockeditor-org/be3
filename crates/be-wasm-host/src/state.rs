@@ -5,7 +5,6 @@ use std::{
 
 use be_wasm_gpu_host::{
     Gpu, Imports,
-    be_wasm_gpu_abi::embed::device::Caller,
     transport::{Transport, Transported},
 };
 
@@ -234,7 +233,7 @@ impl State {
 
     fn took(&mut self, function: &str, took: Duration) {
         self.gpu_time += took;
-        if function == "submit" {
+        if be_wasm_gpu_host::submits(function) {
             self.submit_time += took;
         }
     }
@@ -286,30 +285,44 @@ impl<'a> Guest<'a> {
     }
 }
 
-impl Caller for Guest<'_> {
-    type Host = Gpu;
+/// One `Caller` per local gpu interface: each reads and writes the guest's memory, and
+/// answers through the same `Gpu`.
+macro_rules! callers {
+    ($($interface:ident $(with $ticket:ident)?),*) => {$(
+        impl be_wasm_gpu_host::be_wasm_gpu_abi::embed::$interface::Caller for Guest<'_> {
+            type Host = Gpu;
 
-    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        self.view.read(pointer, length)
-    }
+            fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+                self.view.read(pointer, length)
+            }
 
-    fn write(&mut self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
-        self.view.write(pointer, bytes)
-    }
+            fn write(&mut self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
+                self.view.write(pointer, bytes)
+            }
 
-    #[inline]
-    fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
-        self.state.host(function, call)
-    }
+            #[inline]
+            fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+                self.state.host(function, call)
+            }
 
-    fn refuse(&mut self, message: String) {
-        self.state.refuse(message);
-    }
+            fn refuse(&mut self, message: String) {
+                self.state.refuse(message);
+            }
 
-    fn returned(&mut self) -> &mut Vec<u8> {
-        &mut self.state.returned
-    }
+            fn returned(&mut self) -> &mut Vec<u8> {
+                &mut self.state.returned
+            }
+
+            $(fn $ticket(&mut self) -> u64 {
+                self.state
+                    .host("[ticket]", Gpu::webgpu_ticket)
+                    .unwrap_or_default()
+            })?
+        }
+    )*};
 }
+
+callers!(device, webgpu with ticket, host);
 
 impl Transported for Guest<'_> {
     fn transport(&mut self) -> &mut Transport {

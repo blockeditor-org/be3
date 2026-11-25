@@ -37,8 +37,19 @@ impl<T> Table<T> {
         handle
     }
 
+    /// Puts back a value `take` took, under the handle it had.
+    pub(crate) fn put(&mut self, handle: Handle, value: T) {
+        self.entries.insert(handle, value);
+    }
+
     pub(crate) fn skip(&mut self) -> Handle {
         self.counter.take()
+    }
+
+    pub(crate) fn handles(&self) -> impl Iterator<Item = Handle> + use<T> {
+        let mut handles: Vec<Handle> = self.entries.keys().copied().collect();
+        handles.sort_unstable();
+        handles.into_iter()
     }
 
     pub(crate) fn values(&self) -> impl Iterator<Item = &T> {
@@ -65,5 +76,11 @@ impl<T> Table<T> {
 
     pub(crate) fn remove(&mut self, handle: Handle) {
         self.entries.remove(&handle);
+    }
+}
+
+impl<T> Default for Table<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }

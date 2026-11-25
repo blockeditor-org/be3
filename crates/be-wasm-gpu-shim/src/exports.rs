@@ -1,4 +1,4 @@
-use be_wasm_gpu_host::{Gpu, be_wasm_gpu_abi::embed::device::Caller};
+use be_wasm_gpu_host::Gpu;
 use wasm_bindgen::JsCast;
 
 use crate::{Shim, with};
@@ -26,21 +26,46 @@ impl Shim {
     }
 }
 
-impl Caller for Shim {
-    type Host = Gpu;
+/// One `Caller` per local gpu interface, all answered by the shim's `Gpu`.
+macro_rules! callers {
+    ($($interface:ident $(with $ticket:ident)?),*) => {$(
+        impl be_wasm_gpu_host::be_wasm_gpu_abi::embed::$interface::Caller for Shim {
+            type Host = Gpu;
 
-    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        let (bytes, end) = self.range(pointer, length)?;
-        Ok(bytes.subarray(pointer, end).to_vec())
-    }
+            fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+                let (bytes, end) = self.range(pointer, length)?;
+                Ok(bytes.subarray(pointer, end).to_vec())
+            }
 
-    fn write(&mut self, pointer: u32, data: &[u8]) -> Result<(), String> {
-        let (bytes, end) = self.range(pointer, data.len() as u32)?;
-        bytes.subarray(pointer, end).copy_from(data);
-        Ok(())
-    }
+            fn write(&mut self, pointer: u32, data: &[u8]) -> Result<(), String> {
+                let (bytes, end) = self.range(pointer, data.len() as u32)?;
+                bytes.subarray(pointer, end).copy_from(data);
+                Ok(())
+            }
 
-    fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+            fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+                self.timed(function, call)
+            }
+
+            fn refuse(&mut self, message: String) {
+                self.gpu.report(message);
+            }
+
+            fn returned(&mut self) -> &mut Vec<u8> {
+                &mut self.returned
+            }
+
+            $(fn $ticket(&mut self) -> u64 {
+                self.gpu.webgpu_ticket()
+            })?
+        }
+    )*};
+}
+
+callers!(device, webgpu with ticket, host);
+
+impl Shim {
+    fn timed<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
         if be_wasm_gpu_host::only_records(function) {
             return Some(call(&mut self.gpu));
         }
@@ -48,18 +73,10 @@ impl Caller for Shim {
         let result = call(&mut self.gpu);
         let took = crate::now() - started;
         self.gpu_time += took;
-        if function == "submit" {
+        if be_wasm_gpu_host::submits(function) {
             self.submit_time += took;
         }
         Some(result)
-    }
-
-    fn refuse(&mut self, message: String) {
-        self.gpu.report(message);
-    }
-
-    fn returned(&mut self) -> &mut Vec<u8> {
-        &mut self.returned
     }
 }
 
