@@ -1,16 +1,54 @@
 use std::io::Write as _;
 
 use wayland_client::protocol::{
-    wl_buffer, wl_compositor, wl_registry, wl_shm, wl_shm_pool, wl_surface,
+    wl_buffer, wl_compositor, wl_keyboard, wl_pointer, wl_registry, wl_seat, wl_shm, wl_shm_pool,
+    wl_surface,
 };
-use wayland_client::{Connection, Dispatch, QueueHandle, delegate_noop};
+use wayland_client::{Connection, Dispatch, QueueHandle, WEnum, delegate_noop};
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base};
 
 /// The size it takes when the compositor lets it choose.
 const CHOSEN: (i32, i32) = (320, 240);
 
+/// Its app id, which names it in the desktop's windows bar.
+const APP_ID: &str = "be-tool-wayland-window";
+
 /// Its color, as `wl_shm`'s little-endian XRGB8888: a mid blue.
 const COLOR: [u8; 4] = [0xd0, 0x80, 0x30, 0xff];
+
+/// Its color once a pointer pressed it: a green.
+const PRESSED_COLOR: [u8; 4] = [0x40, 0xb0, 0x40, 0xff];
+
+/// Its color once a key was pressed while it had the keyboard: a red.
+const TYPED_COLOR: [u8; 4] = [0x30, 0x40, 0xd0, 0xff];
+
+/// What reached it last, which it shows in its color and says in its app id, so a test sees the
+/// window hear its input under the root, which names windows by their app ids.
+#[derive(Clone, Copy, Default, PartialEq)]
+enum Heard {
+    #[default]
+    Nothing,
+    Pressed,
+    Typed,
+}
+
+impl Heard {
+    fn color(self) -> [u8; 4] {
+        match self {
+            Self::Nothing => COLOR,
+            Self::Pressed => PRESSED_COLOR,
+            Self::Typed => TYPED_COLOR,
+        }
+    }
+
+    fn app_id(self) -> String {
+        match self {
+            Self::Nothing => APP_ID.to_owned(),
+            Self::Pressed => format!("{APP_ID}.pressed"),
+            Self::Typed => format!("{APP_ID}.typed"),
+        }
+    }
+}
 
 #[derive(Default)]
 struct State {
@@ -21,6 +59,11 @@ struct State {
     asked: Option<(i32, i32)>,
     /// The serial of the configure to acknowledge.
     serial: Option<u32>,
+    /// The size it drew last.
+    size: Option<(i32, i32)>,
+    heard: Heard,
+    /// What it heard since it last drew.
+    changed: bool,
     closed: bool,
 }
 
@@ -46,7 +89,7 @@ pub(super) fn run(title: &str) -> Result<(), String> {
     let xdg = wm_base.get_xdg_surface(&surface, &handle, ());
     let toplevel = xdg.get_toplevel(&handle, ());
     toplevel.set_title(title.to_owned());
-    toplevel.set_app_id("be-tool-wayland-window".to_owned());
+    toplevel.set_app_id(APP_ID.to_owned());
     surface.commit();
     while !state.closed {
         queue
@@ -56,28 +99,37 @@ pub(super) fn run(title: &str) -> Result<(), String> {
             xdg.ack_configure(serial);
             let (width, height) = match state.asked.take() {
                 Some((width, height)) if width > 0 && height > 0 => (width, height),
-                _ => CHOSEN,
+                _ => state.size.unwrap_or(CHOSEN),
             };
-            draw(&surface, &shm, &handle, width, height)?;
+            state.size = Some((width, height));
+            draw(&surface, &shm, &handle, (width, height), state.heard.color())?;
+        }
+        // What it heard says itself in its app id, and in its color unless the configure it
+        // took in with it drew that already.
+        if std::mem::take(&mut state.changed)
+            && let Some(size) = state.size
+        {
+            toplevel.set_app_id(state.heard.app_id());
+            draw(&surface, &shm, &handle, size, state.heard.color())?;
         }
     }
     Ok(())
 }
 
-/// Attaches a buffer `width` by `height` filled with `COLOR` and commits it.
+/// Attaches a buffer `size` big filled with `color` and commits it.
 fn draw(
     surface: &wl_surface::WlSurface,
     shm: &wl_shm::WlShm,
     handle: &QueueHandle<State>,
-    width: i32,
-    height: i32,
+    (width, height): (i32, i32),
+    color: [u8; 4],
 ) -> Result<(), String> {
     let stride = width * 4;
     let length = stride * height;
     let fd = rustix::fs::memfd_create("buffer", rustix::fs::MemfdFlags::CLOEXEC)
         .map_err(|error| format!("no memfd for its buffer: {error}"))?;
     let mut file = std::fs::File::from(fd);
-    let pixels: Vec<u8> = COLOR.repeat((width * height) as usize);
+    let pixels: Vec<u8> = color.repeat((width * height) as usize);
     file.write_all(&pixels)
         .map_err(|error| format!("its buffer was not written: {error}"))?;
     let pool = shm.create_pool(std::os::fd::AsFd::as_fd(&file), length, handle, ());
@@ -116,6 +168,9 @@ impl Dispatch<wl_registry::WlRegistry, ()> for State {
             "wl_compositor" => state.compositor = Some(registry.bind(name, 4, handle, ())),
             "wl_shm" => state.shm = Some(registry.bind(name, 1, handle, ())),
             "xdg_wm_base" => state.wm_base = Some(registry.bind(name, 1, handle, ())),
+            "wl_seat" => {
+                registry.bind::<wl_seat::WlSeat, _, _>(name, 1, handle, ());
+            }
             _ => {}
         }
     }
@@ -166,6 +221,70 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for State {
             }
             xdg_toplevel::Event::Close => state.closed = true,
             _ => {}
+        }
+    }
+}
+
+impl Dispatch<wl_seat::WlSeat, ()> for State {
+    fn event(
+        _: &mut Self,
+        seat: &wl_seat::WlSeat,
+        event: wl_seat::Event,
+        _: &(),
+        _: &Connection,
+        handle: &QueueHandle<Self>,
+    ) {
+        if let wl_seat::Event::Capabilities {
+            capabilities: WEnum::Value(capabilities),
+        } = event
+        {
+            if capabilities.contains(wl_seat::Capability::Pointer) {
+                seat.get_pointer(handle, ());
+            }
+            if capabilities.contains(wl_seat::Capability::Keyboard) {
+                seat.get_keyboard(handle, ());
+            }
+        }
+    }
+}
+
+impl Dispatch<wl_pointer::WlPointer, ()> for State {
+    fn event(
+        state: &mut Self,
+        _: &wl_pointer::WlPointer,
+        event: wl_pointer::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_pointer::Event::Button {
+            state: WEnum::Value(wl_pointer::ButtonState::Pressed),
+            ..
+        } = event
+        {
+            state.heard = Heard::Pressed;
+            state.changed = true;
+        }
+    }
+}
+
+impl Dispatch<wl_keyboard::WlKeyboard, ()> for State {
+    fn event(
+        state: &mut Self,
+        _: &wl_keyboard::WlKeyboard,
+        event: wl_keyboard::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        // The keymap's file closes as the event drops: it types nothing, so it needs none.
+        if let wl_keyboard::Event::Key {
+            state: WEnum::Value(wl_keyboard::KeyState::Pressed),
+            ..
+        } = event
+        {
+            state.heard = Heard::Typed;
+            state.changed = true;
         }
     }
 }

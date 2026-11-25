@@ -143,6 +143,11 @@ pub trait DesktopHost {
     /// configures it, and every other one it showed before let go of, as a view's going does.
     fn place_windows(_placed: &[(HostWindowId, Rect)]) {}
 
+    /// Hands `window`, which a host that composites windows itself shows (`place_windows`),
+    /// what its router delivered to it, in the window's logical pixels, each with when it was
+    /// sampled: the pointer, the keys and the keyboard's focus, as its view would catch them.
+    fn deliver(_window: HostWindowId, _input: Vec<(beui::Input, std::time::Instant)>) {}
+
     /// Why the desktop is not settled, if it is not (a program window shown has yet to draw
     /// what it was configured to), which a host waits out as it waits for its own UI.
     fn busy() -> Option<String> {

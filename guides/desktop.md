@@ -26,9 +26,10 @@ session's editor the root shows (`run_desktop_shell`) but starts none of the des
 yet (the screen lock and its power actions, notifications, the tray, screenshots). Its compositor
 runs as under be-host's UI (`RootShell` drives `DesktopHost`), and a program window the desktop
 places is a `Surface::Host` layer of the root's, which `RootShell` configures to its place's size
-and draws from the compositor's picture of it (`DesktopHost::place_windows`, `picture`); it routes
-them no input yet, and the root shows no app windows yet (plans/host_as_platform_adapter.md,
-4g7e).
+and draws from the compositor's picture of it (`DesktopHost::place_windows`, `picture`). What the
+root's router delivers to a window's layer comes back with the root's frame (`frame-done.host-input`)
+and reaches the compositor as the window's view would catch it (`DesktopHost::deliver`). The root
+shows no app windows yet (plans/host_as_platform_adapter.md, 4g7e).
 
 To run it headless: `./scripts/buck run //crates/be-host:dev -- --desktop`, then drive it
 (guides/running/drive.md). The host test `the_desktop_shell_opens_and_closes_cleanly`

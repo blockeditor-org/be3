@@ -45,6 +45,9 @@ thread_local! {
     static ICONS: RefCell<NamedIcons> = RefCell::new(NamedIcons::default());
     /// The windows a host that composites them itself showed last (`place_windows`).
     static PLACED: RefCell<Vec<HostWindowId>> = const { RefCell::new(Vec::new()) };
+    /// What each of those windows was delivered so far (`deliver`): where its pointer is, its
+    /// modifiers and whether it has the keyboard.
+    static CATCHES: RefCell<HashMap<HostWindowId, beui::Catch>> = RefCell::new(HashMap::new());
 }
 
 fn tag(
@@ -322,6 +325,9 @@ impl DesktopHost for Linux {
             return;
         };
         let before = PLACED.replace(placed.iter().map(|(window, _)| *window).collect());
+        CATCHES.with_borrow_mut(|catches| {
+            catches.retain(|window, _| placed.iter().any(|(placed, _)| placed == window));
+        });
         for gone in before
             .into_iter()
             .filter(|window| !placed.iter().any(|(placed, _)| placed == window))
@@ -331,6 +337,21 @@ impl DesktopHost for Linux {
         for (window, rect) in placed {
             windows.place(WindowId(window.0), Some(*rect));
         }
+    }
+
+    fn deliver(window: HostWindowId, input: Vec<(beui::Input, std::time::Instant)>) {
+        let Some(windows) = windows() else {
+            return;
+        };
+        let id = WindowId(window.0);
+        let size = windows.rect(id).map_or(beui::Vec2::ZERO, |rect| rect.size());
+        let caught = CATCHES.with_borrow_mut(|catches| {
+            catches
+                .entry(window)
+                .or_default()
+                .caught(input, beui::WindowId::MAIN, size)
+        });
+        windows.deliver(id, caught);
     }
 
     fn busy() -> Option<String> {

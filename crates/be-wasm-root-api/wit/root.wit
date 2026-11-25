@@ -1424,6 +1424,20 @@ interface frames {
         /// window's points, with ids the root chooses, which the host grafts
         /// under its own window as it grafts an app's screen.
         accessibility: option<list<u8>>,
+        /// What the root's router delivered to the surfaces the host owns
+        /// (`Surface::Host` layers: program windows) since its last frame, in
+        /// order: the host hands each to what it owns, as its own UI hands a
+        /// program window what its view catches.
+        host-input: list<host-input>,
+    }
+
+    /// What the root's router delivered to one surface the host owns: be-lib-ui-types'
+    /// input events (`input::encode`), in the surface's pixels, each with the time it
+    /// was sampled at as `input.deliver` gave it.
+    record host-input {
+        /// The surface, as the layer list names it (`Surface::Host`).
+        surface: u64,
+        events: list<u8>,
     }
 
     /// Draws a frame. The host steps the root until it answers: between
