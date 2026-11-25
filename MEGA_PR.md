@@ -70,6 +70,7 @@ Landed on 2026-11-24:
 - `follower-fetches-heads`: a replica following its holder fetches the holder's seals (one at a time per block, skipping its own, cancelled at stop); a canvas with no measured camera takes no input.
 - `sheets-motion-toasts`: springs overshoot once and land (SpringMotion); a sheet thrown or let go settles on its stop with the release speed; content flung past the top moves the sheet; the back gesture slides a dialog away; toasts shrink to fit a narrow screen.
 - `flake-not-numbered`: an entry of the order that waits for its key counts as heard only once it opens, so it is not passed over when the key arrives (one cause of "1 submitted, not yet numbered").
+- `join-left-suspicions`: of a block's joins on their way only the newest still out answers for the session, and a dropped join stops holding events once no other is out.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
