@@ -59,7 +59,6 @@ pub fn load() -> Result<Loaded, String> {
             ));
         }
     };
-    drop(negotiate);
     let entry = unsafe { xr::Entry::from_get_instance_proc_addr(get_instance_proc_addr, &()) }
         .map_err(|error| format!("the OpenXR runtime's entry points did not load: {error}"))?;
     Ok(Loaded {
