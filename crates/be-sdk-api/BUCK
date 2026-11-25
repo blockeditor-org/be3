@@ -16,4 +16,7 @@ WIT = {
 
 cargo_library(**WIT)
 
-cargo_test(**WIT)
+cargo_test(
+    foreign_resources = WIT["foreign_resources"],
+    resources = WIT["resources"] + glob(["test-wit/*.wit"]),
+)

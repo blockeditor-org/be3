@@ -13,5 +13,6 @@ be_wasm_ops_bindgen::generate!({
         "hash": [u8; 32],
         "module-id": [u8; 32],
     },
+    encodings: {"hash": ::be_wasm_ops::wire::Bytes, "module-id": ::be_wasm_ops::wire::Bytes},
     copy: ["hash", "module-id"],
 });

@@ -15,6 +15,7 @@ be_wasm_ops_bindgen::generate!({
         "uuid": [u8; 16],
         "password": ::be_wasm_password::Password,
     },
+    encodings: {"uuid": ::be_wasm_ops::wire::Bytes},
     copy: ["uuid"],
     default: [
         "agents-area", "memory-minutes", "contacts-area", "recovery-area", "unlock-area", "core-view", "share-links-area", "invitations-area", "members-area", "organizations-area", "organizations-listed", "sessions-area",

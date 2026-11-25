@@ -153,6 +153,7 @@ mod creation_children_round_trip;
 mod creation_messages_round_trip;
 mod dock_bar_requests_round_trip_and_reach_the_root_through_their_owner;
 mod every_block_id_a_message_carries_is_visited;
+mod every_id_the_wit_maps_onto_an_array_has_its_wire_form;
 mod every_key_round_trips;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;

@@ -3,3 +3,4 @@ use super::*;
 mod a_reference_change_carries_only_what_moved_and_rebuilds_the_list;
 mod an_escrow_key_on_the_wire_encodes_as_the_one_clients_seal;
 mod an_object_change_carries_only_the_objects_that_differ;
+mod every_type_the_wit_maps_has_its_wire_form;
