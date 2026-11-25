@@ -3691,7 +3691,7 @@ where
             self.merge_failures = 0;
             self.merge_retry_at = None;
         }
-        let before = std::mem::replace(&mut self.confirmed, C::default());
+        let before = std::mem::take(&mut self.confirmed);
         let mut reapplied = false;
         if !replace && !restart {
             for logged in self.log.iter().filter(|logged| logged.sequence > op.base) {

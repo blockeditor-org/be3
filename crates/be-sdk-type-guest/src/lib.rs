@@ -366,7 +366,7 @@ pub fn request_parts() -> PartReader {
     let request = ops::request();
     PartReader::new(move |part, offset, length| {
         let range = be_sdk_type_api::ByteRange { offset, length };
-        let read = || host::read_part(part.into(), range);
+        let read = || host::read_part(part, range);
         let pending = match request {
             Some(request) => ops::with_parent(request, read),
             None => read(),
@@ -576,7 +576,7 @@ impl Module {
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
-                sealed_head: opening.sealed_head.clone(),
+                sealed_head: opening.sealed_head,
                 lost_edits: opening.journal.as_ref().is_some_and(|journal| journal.lost),
                 journal_kept: opening.journal_kept,
                 commits_kept: opening.commits_kept,
@@ -812,9 +812,7 @@ impl Module {
                 restarts,
             } => {
                 let journal_parts = journal_parts
-                    .into_iter()
-                    .map(be_sdk_type_api::PartRef::from)
-                    .collect();
+                    .into_iter().collect();
                 let pending = ops::with_parent(replica, || {
                     host::publish(
                         expected,
@@ -888,7 +886,7 @@ impl Module {
                 length,
             } => {
                 let range = be_sdk_type_api::ByteRange { offset, length };
-                let pending = ops::with_parent(replica, || host::read_part(part.into(), range));
+                let pending = ops::with_parent(replica, || host::read_part(part, range));
                 self.answer_later(replica, pending, move |result| Input::PartRead {
                     token,
                     result: result.and_then(|read| read),
@@ -989,9 +987,7 @@ impl Module {
                 parts,
             } => {
                 let parts = parts
-                    .into_iter()
-                    .map(be_sdk_type_api::PartRef::from)
-                    .collect();
+                    .into_iter().collect();
                 ops::with_parent(replica, || host::rebase_journal(base, restarts, parts)).detach()
             }
             Effect::Release { replica } => {

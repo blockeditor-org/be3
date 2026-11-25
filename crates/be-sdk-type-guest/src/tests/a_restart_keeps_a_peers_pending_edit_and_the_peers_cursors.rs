@@ -65,7 +65,7 @@ fn a_restart_keeps_a_peers_pending_edit_and_the_peers_cursors() {
         "a cursor in visible offsets carries over"
     );
 
-    let undo = sim.devices[1].undo.clone();
+    let undo = sim.devices[1].undo;
     assert!(!undo.can_undo, "no step from before the restart applies");
     assert!(undo.restarted_at.is_some(), "undo stops at the restart");
     assert!(!sim.change(1, Change::Undo));
