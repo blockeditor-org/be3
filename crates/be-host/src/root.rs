@@ -540,9 +540,9 @@ impl beui::native::Program for RootShell {
         let now = context.now();
         let origin = *self.time_origin.get_or_insert(now);
         let time = now.saturating_duration_since(origin);
-        // The host's frame, as be-host's own UI begins and ends it (`Shell::update`): its clock,
-        // which the screen lock and the displays' question count on, and what its apps asked of
-        // the window.
+        // The host's frame, as be-host's own UI begins it (`Shell::update`): its clock, which the
+        // screen lock and the displays' question count on. It is not ended as be-host's own UI
+        // ends it (`frame::end`): what the core asks of the window is read below.
         crate::frame::begin(context);
         if std::mem::take(&mut self.active) {
             self.document.note_input();
@@ -576,9 +576,8 @@ impl beui::native::Program for RootShell {
         if self.core.desktop {
             Host::after(context, &mut self.document);
         }
-        crate::frame::end(context);
-        // After the document and the host's frame, whose own requests (it hears no input, so the
-        // default cursor) the root's replace.
+        // After the document, whose own requests (it hears no input, so the default cursor) the
+        // root's replace.
         let Requests {
             cursor,
             pointer_locked,
@@ -602,6 +601,10 @@ impl beui::native::Program for RootShell {
             Some(at) if at <= time => context.request_repaint(),
             Some(at) => context.request_repaint_after(at - time),
             None => {}
+        }
+        // The frames the screen lock and the displays' question need of their own.
+        if let Some(due) = self.platform.due() {
+            context.request_repaint_after(due);
         }
     }
 

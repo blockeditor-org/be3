@@ -99,7 +99,8 @@ impl ScreenLock {
         };
     }
 
-    fn shown(&self) -> bool {
+    /// Whether the lock screen has been drawn the frames a suspend waits for.
+    pub(crate) fn shown(&self) -> bool {
         self.locked() && self.drawn >= SHOWN_FRAMES
     }
 
