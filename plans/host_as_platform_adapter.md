@@ -2008,7 +2008,29 @@ Each step lands on its own.
            the root, a zoomed or nested child anchoring a view, an editor closed while its view
            is open, or a raster other than 1.
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
-         focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).
+         focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`). The
+         editors and the camera came with 4g7b3 (children, their frames, `place-content`).
+         - 4g7d1. Built: the command palette. The root draws the one palette over every app,
+           as be-host's own UI does (be-root's `guest/palette.rs`, on a surface and layer of
+           its own over everything but the lock screen, taking the keyboard and giving it back
+           to the layer that had it), so be-host tells the editors under `--root` that the
+           host draws it (`draw_palette`, `open-block.host-palette`). Ctrl+Shift+P, which the
+           root always intercepts but while locked, opens it and closes it; an editor's
+           `shell-message.open-palette` opens it too (`Embedded::take_palette_ask`). It lists
+           the live actions each screen last described (`frame-report.actions`, kept by
+           `Embedded::actions_of`) of the editor whose view has the keyboard
+           (`Embedding::focused_editor`), that screen's first, then of each editor placing it
+           out to the session's (`Children::editors_around`), each under its app's name, the
+           disabled after the rest; choosing one gives the keyboard back and sends
+           `app.run-action` on the screen that described it (`Embedded::run_action`). Host
+           test `be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette`.
+           - Left: quick open (`PaletteMode::Blocks`), which needs the host's blocks and
+             search through be3:root.
+           - Left: be-host's own rows (switch account, theme, lock): the root lists none of
+             its own yet.
+           - Left: a canvas whose content moved into the workspace's dock tab lists none of
+             its frame's actions (File details), as be-host's `offers_actions` keeps them.
+         - 4g7d2. Tab and F6 between surfaces.
        - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and
          win32 hosts' surfaces, which stay the host's.
        - 4g7f. drive's commands split as The root guest says: `tree`, `find`, `paint`,
@@ -2024,7 +2046,9 @@ Each step lands on its own.
          real root passes the host tests that exercise be-host's own
          `src/ui` today, with their paintings compared, and only then, the root
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
-         noted above (`SlowSave`, the memory graph).
+         noted above (`SlowSave`, the memory graph). With be-host's `panel_icon`
+         (`src/ui/organization.rs`) gone, be-root's `panel_glyph` and be-sdk-shell's
+         `panel_icon` fold into one.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.

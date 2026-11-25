@@ -159,6 +159,12 @@ struct State {
     /// their details, picks from their children's menus, and asks to leave the frame), in order,
     /// until taken (`Embedded::take_told`).
     told: Vec<(EditorInstanceId, ShellMessage)>,
+    /// The actions each screen last described (`frame-report.actions`), which the root's
+    /// command palette lists.
+    actions: HashMap<ScreenId, Vec<be_sdk_api::DescribedAction>>,
+    /// The palette an editor of it asked the root to open (`shell-message.open-palette`),
+    /// until the root takes it.
+    palette_asked: Option<(EditorInstanceId, be_sdk_api::PaletteMode)>,
     /// The block one of its editors began to drag out of itself, until its root carries it.
     drag: Option<DragStart>,
     /// The editors that take the block dragged over them, as they last said.
@@ -422,6 +428,8 @@ impl Embedded {
             placing: false,
             docks: Vec::new(),
             told: Vec::new(),
+            actions: HashMap::default(),
+            palette_asked: None,
             drag: None,
             accepting: HashSet::default(),
             restyled: false,
@@ -839,6 +847,63 @@ impl Embedded {
     /// Tells the app that a press outside them closed its anchored views `views`, which all hang
     /// from its view shown on `screen` (`input-batch.dismissed`), as be-host does: each hears it
     /// before anything else the app is sent.
+    /// The editor and screen the layer `layer` shows, as it painted it last.
+    pub fn screen_at(&self, layer: LayerId) -> Option<(EditorInstanceId, ScreenId)> {
+        let state = self.state.borrow();
+        state
+            .painted
+            .values()
+            .find(|placement| self.layer_id(placement.screen) == layer)
+            .map(|placement| (placement.instance, placement.screen))
+    }
+
+    /// The actions every screen of its editor `editor` last described, those of `first` first,
+    /// each with the screen that runs it: an id listed once.
+    pub fn actions_of(
+        &self,
+        editor: EditorInstanceId,
+        first: Option<ScreenId>,
+    ) -> Vec<(ScreenId, be_sdk_api::DescribedAction)> {
+        let state = self.state.borrow();
+        let mut screens: Vec<ScreenId> = state
+            .painted
+            .values()
+            .filter(|placement| placement.instance == editor)
+            .map(|placement| placement.screen)
+            .filter(|screen| state.actions.contains_key(screen))
+            .collect();
+        screens.sort_by_key(|screen| (Some(*screen) != first, screen.0));
+        let mut listed = HashSet::default();
+        screens
+            .into_iter()
+            .flat_map(|screen| {
+                state.actions[&screen]
+                    .iter()
+                    .map(move |action| (screen, action.clone()))
+            })
+            .filter(|(_, action)| listed.insert(action.id.clone()))
+            .collect()
+    }
+
+    /// Runs the action `id` of the view shown on `screen` (`app.run-action`), as be-host runs
+    /// one its palette lists.
+    pub fn run_action(&self, screen: ScreenId, id: String) {
+        let mut state = self.state.borrow_mut();
+        if state.failure.is_some() || !state.run.session.running() {
+            return;
+        }
+        let send = state
+            .run
+            .send_for_frame(vec![AppCall::RunAction { screen, id }.into()], Some);
+        state.wire.send(send);
+        state.flush();
+    }
+
+    /// The palette one of its editors asked the root to open, once.
+    pub(crate) fn take_palette_ask(&self) -> Option<(EditorInstanceId, be_sdk_api::PaletteMode)> {
+        self.state.borrow_mut().palette_asked.take()
+    }
+
     pub(crate) fn dismiss(&self, screen: ScreenId, views: Vec<be_sdk_api::ViewId>) {
         let mut state = self.state.borrow_mut();
         if state.failure.is_some() || !state.run.session.running() || views.is_empty() {
@@ -1189,6 +1254,7 @@ impl State {
                 self.painted.retain(|screen, _| laid_out(screen));
                 self.windows.retain(|screen, _| laid_out(screen));
                 self.contents.retain(|screen, _| laid_out(screen));
+                self.actions.retain(|screen, _| laid_out(screen));
                 self.used.retain(|screen, _| laid_out(screen));
                 self.anchored.retain(|screen, _| laid_out(screen));
                 // A view the layout no longer has (an anchored view that closed) places nothing.
@@ -1218,6 +1284,9 @@ impl State {
                 self.hear_docks(std::mem::take(&mut commit.docks));
                 for report in &commit.reports {
                     self.contents.insert(report.screen, report.content);
+                    if let Some(actions) = &report.actions {
+                        self.actions.insert(report.screen, actions.clone());
+                    }
                     match &report.anchored {
                         Some(anchored) => {
                             let opened = self
@@ -1330,6 +1399,13 @@ impl State {
                         // A host that stopped answering stops the root too.
                         let _ = told.await;
                     });
+                    continue;
+                }
+                // The root's palette, asked for from the editor's menu or its own chord: the
+                // root opens it with its next frame (`Embedding::take_palette_ask`).
+                ShellMessage::OpenPalette(mode) => {
+                    self.palette_asked = Some((instance, mode));
+                    self.wake();
                     continue;
                 }
                 // A drag its root carries once it hears it (`Embedding::input`).

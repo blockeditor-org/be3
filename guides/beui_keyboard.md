@@ -213,7 +213,8 @@ opened and puts the focus back before running one. Given
 `items={PaletteItems::list(..)}` it searches arbitrary `PaletteItem`s instead,
 which is how be-host draws its one palette over every app (Ctrl+Shift+P; an
 editor frame opens its own only in a host that draws none; guides/apps/editor.md,
-Actions and the palette). A document publishes its actions outside itself
+Actions and the palette). Under a root, the root draws it instead, from the
+actions its apps' frames describe (be-root's `guest/palette.rs`). A document publishes its actions outside itself
 (`Document::published_actions`, from a reactive effect over the registry, the
 focus and each action's label, enabled and checked state), and runs one asked
 for by id (`Context::request_action_in`) whether or not a driver is attached. It, `styled::SearchList` (inline, no overlay) and

@@ -58,6 +58,14 @@ pub const DIALOG_LAYER: LayerId = LayerId(5);
 /// its width (or a sheet in a narrow window) over beui's scrim, which dismisses it when pressed.
 pub const DIALOG_SURFACE: u32 = 6;
 
+/// The layer showing `PALETTE_SURFACE` while the command palette is open: over everything but
+/// the lock screen, taking every press and the keyboard.
+pub const PALETTE_LAYER: LayerId = LayerId(6);
+
+/// A surface of the root's own the size of the window that beui draws the command palette on,
+/// over every app, as be-host draws its own.
+pub const PALETTE_SURFACE: u32 = 7;
+
 /// The title of the question of keeping display settings that just changed, which the root
 /// asks in its dialog's place while its host asks it (`host.displays`).
 pub const KEEP_DISPLAY_TITLE: &str = "Keep these display settings?";

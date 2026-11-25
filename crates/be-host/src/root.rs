@@ -166,6 +166,9 @@ struct Requests {
 
 impl RootShell {
     fn new(app: String, core: crate::HostCore, stopped: Rc<RefCell<Option<String>>>) -> Self {
+        // The root draws the one command palette over every app, as be-host's own UI does, so
+        // the editors it opens draw none of their own (`open-block.host-palette`).
+        be_host_runtime::draw_palette(true);
         let mut shown = None;
         let document = beui_host::native::build(|| {
             let drawing = create_signal(None::<GpuDrawing>);
