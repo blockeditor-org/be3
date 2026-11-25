@@ -1,0 +1,19 @@
+package be3:local-test@0.1.0;
+
+/// This package's local interface, using the other's resource.
+interface frames {
+    use be3:shapes/shapes@0.1.0.{shape};
+
+    show: func(shape: borrow<shape>) -> u32;
+    /// More than 16 wasm arguments flat, so its widest is encoded.
+    wide: func(
+        first: tuple<u32, u32, u32, u32, u32, u32, u32, u32, u32, u32>,
+        second: tuple<u32, u32, u32, u32, u32, u32, u32, u32>,
+        last: u32,
+    ) -> u32;
+}
+
+world test {
+    import be3:shapes/shapes@0.1.0;
+    import frames;
+}

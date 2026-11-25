@@ -1,0 +1,26 @@
+package be3:shapes@0.1.0;
+
+/// Another package's local interface, with what wasi:webgpu asks of the generator.
+interface shapes {
+    resource shape {
+        area: func() -> u32;
+        grow: async func(by: u32) -> u32;
+        label: func() -> option<string>;
+    }
+
+    record failed {
+        message: string,
+    }
+
+    variant broken {
+        failed(failed),
+        unknown,
+    }
+
+    make: func(sides: u32) -> shape;
+    name: func(label: option<string>, offsets: option<list<u32>>, bytes: option<list<u8>>) -> u32;
+    check: func(value: u32) -> result<_, broken>;
+    ready: async func();
+    lost: func() -> future<string>;
+    errors: func() -> stream<failed>;
+}
