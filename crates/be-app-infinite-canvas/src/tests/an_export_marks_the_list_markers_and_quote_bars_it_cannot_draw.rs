@@ -24,9 +24,7 @@ fn pink_pixels(editor: &mut BeuiTest<CanvasRoot>) -> usize {
 }
 
 fn pink_rects(editor: &mut BeuiTest<CanvasRoot>) -> usize {
-    let copied = vec![
-        String::from_utf8(copied_export(editor, "svg", "image/svg+xml")).expect("the SVG is text"),
-    ];
+    let copied = [String::from_utf8(copied_export(editor, "svg", "image/svg+xml")).expect("the SVG is text")];
     copied
         .iter()
         .flat_map(|svg| svg.lines())

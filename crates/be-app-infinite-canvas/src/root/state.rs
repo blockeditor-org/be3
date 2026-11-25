@@ -3482,7 +3482,7 @@ impl CanvasState {
         if pasted.format == formats::PNG {
             let center = self.paste_center();
             self.add_imported_image(
-                ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),
+                ImageFile::from_file("Pasted Image.png", pasted.data),
                 center,
             );
         }
