@@ -1075,6 +1075,11 @@ interface host {
         /// handed the part of its world it shows (`place-content`) rather
         /// than laid out at that size and drawn at its place's zoom.
         pan-and-zoom: bool,
+        /// Whether the host shows the windows the editor opens from its
+        /// main view as its own, as a desktop shows its shell's: the root
+        /// asks the view with windows (`screen-request.windows`) and floats
+        /// each window the editor opens (`window-request.open`).
+        hosts-windows: bool,
     }
 
     /// A block the root shows in an editor, as its placement names it.

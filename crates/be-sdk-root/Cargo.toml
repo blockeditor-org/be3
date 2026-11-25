@@ -13,6 +13,7 @@ be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-app-host = { path = "../be-sdk-app-host" }
+be-sdk-window-stack = { path = "../be-sdk-window-stack" }
 be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }

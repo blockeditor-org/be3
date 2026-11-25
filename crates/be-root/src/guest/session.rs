@@ -159,7 +159,11 @@ impl Root {
                     *state = Showing::Failed(failure);
                 }
                 None => {
-                    let mut screens = vec![screen(hosted.editor, self.window.get())];
+                    let mut screens = vec![screen(
+                        hosted.editor,
+                        self.window.get(),
+                        hosted.hosts_windows,
+                    )];
                     children.withdraw_chrome(&hosted.app, &mut screens);
                     hosted.app.show(screens);
                     let spawning = self.spawning();
@@ -200,7 +204,8 @@ impl Root {
                     editor: None,
                     view_block: None,
                 },
-                screens: Box::new(move |editor| vec![screen(editor, window.get())]),
+                // Asked with windows once the host says it shows them (`settle_session`).
+                screens: Box::new(move |editor| vec![screen(editor, window.get(), false)]),
                 surface: SESSION_SURFACE,
                 fonts: self.fonts.borrow().clone().unwrap_or_default(),
             },
@@ -265,10 +270,15 @@ impl Root {
         children.show_panels(&self.settle_panels(children.panels()));
         let mut layers = Vec::new();
         children.layers(
-            &screen(hosted.editor, self.window.get()),
+            &screen(hosted.editor, self.window.get(), hosted.hosts_windows),
             layer,
             &mut layers,
         );
+        // The windows it opened that the root floats, over it, each with the children it
+        // places, the last raised on top.
+        for (request, layer) in hosted.app.window_layers() {
+            children.layers(&request, layer, &mut layers);
+        }
         // The views the session's editor and its children anchored outside their groups, over
         // everything they place (`anchored-placement`).
         children.anchored_layers(&hosted.app, Some(hosted.editor), &mut layers);
@@ -304,8 +314,9 @@ impl Root {
         }
     }
 
-    /// The apps showing the session's editor and the children it places while it runs, each
-    /// with the screen it is asked for and the id of the layer showing it once it painted it.
+    /// The apps showing the session's editor, the windows it opened and the children it places
+    /// while it runs, each with the screen it is asked for and the id of the layer showing it
+    /// once it painted it.
     pub(super) fn session_screens(&self) -> Vec<(Embedded, ScreenId, be_lib_layers::LayerId)> {
         let session = self.session.borrow();
         let Some(Session {
@@ -322,7 +333,13 @@ impl Root {
         let anchored = anchored(hosted, children)
             .into_iter()
             .map(|(app, view)| (app, view.screen, view.layer.id));
+        let windows = hosted
+            .app
+            .window_layers()
+            .into_iter()
+            .map(|(request, layer)| (hosted.app.clone(), request.screen, layer.id));
         std::iter::once((hosted.app.clone(), SESSION_SCREEN, layer.id))
+            .chain(windows)
             .chain(children.screens())
             .chain(anchored)
             .collect()
@@ -414,8 +431,9 @@ impl Root {
 }
 
 /// The screen the session's editor `editor` is asked for: the whole window, at its pixels per
-/// point.
-fn screen(editor: EditorInstanceId, window: Window) -> ScreenRequest {
+/// point, with the windows it opens floated by the root where the host shows them as its own
+/// (`windows`).
+fn screen(editor: EditorInstanceId, window: Window, windows: bool) -> ScreenRequest {
     let (pixel_width, pixel_height) = window.whole();
     ScreenRequest {
         screen: SESSION_SCREEN,
@@ -434,7 +452,7 @@ fn screen(editor: EditorInstanceId, window: Window) -> ScreenRequest {
             scale_factor: window.pixels_per_point,
             raster: window.pixels_per_point,
         },
-        windows: false,
+        windows,
         host_place: None,
         docked: false,
         // The session's views anchor theirs anywhere in the window, in its points.

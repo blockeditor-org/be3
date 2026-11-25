@@ -17,7 +17,8 @@ fn be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens() {
     // under the root alike, pressed by name in both: a tab of the desktop's dock window, whose
     // workspace's dock joins the window's, its Files, Settings and History tabs and its
     // editors' area in it. Under the root it is the second session, since the first is kept,
-    // and opens beside where the first did.
+    // and opens beside where the first did, whose window shows again under it: the root floats
+    // the windows the desktop opens as be-host's own UI does.
     let mut host = HostTest::start(Options {
         desktop: true,
         previews: true,
