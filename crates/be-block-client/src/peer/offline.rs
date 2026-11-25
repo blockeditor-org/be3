@@ -119,6 +119,28 @@ impl<S: ObjectStore> Peer<S> {
                 "block {block} is not saved on this device, so it cannot move offline"
             )));
         };
+        // Refused as the server refuses it, so a move that waits to be sent (offline, or on a
+        // local account, which never sends it) never leaves a block its own ancestor here: up
+        // from the new parent, as far as this device knows the blocks above.
+        if let BlockParent::Block(target) = parent {
+            let mut above = Some(target);
+            let mut seen = HashSet::new();
+            while let Some(up) = above {
+                if up == block {
+                    return Err(ClientError::Refused(
+                        ErrorCode::ParentCycle,
+                        "that parent would make the block its own ancestor".into(),
+                    ));
+                }
+                if !seen.insert(up) {
+                    break;
+                }
+                above = match self.refs.summary(up).and_then(|summary| summary.parent) {
+                    Some(BlockParent::Block(next)) => Some(next),
+                    _ => None,
+                };
+            }
+        }
         let from = summary.parent;
         self.refs.push(Op::Move(Moving {
             block,
