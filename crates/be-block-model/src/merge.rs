@@ -320,7 +320,7 @@ fn merge_text(
         &split_lines(&ours.items()),
         &merged,
         Vec::len,
-        |lines| join_lines(lines),
+        join_lines,
     )
 }
 
@@ -406,7 +406,7 @@ fn spliced_rich(ours: &Rich, ours_lines: &[RichLine], merged: &[RichLine]) -> Ri
         &rich_lines_bytes(ours_lines),
         &rich_lines_bytes(merged),
         Vec::len,
-        |lines| join_lines(lines),
+        join_lines,
     );
     let marks = be_lib_sequence::marks::Marks::loaded(&text, &join_rich(merged).seeds());
     Rich { text, marks }
