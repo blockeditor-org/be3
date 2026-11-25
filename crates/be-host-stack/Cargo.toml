@@ -52,6 +52,8 @@ web-sys = { version = "0.3", features = ["MessageChannel", "MessageEvent", "Mess
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 be-host-server = { path = "../be-host-server" }
 be-server = { path = "../be-server" }
+be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
+rusqlite = { version = "0.32", features = ["bundled"] }
 be-sdk = { path = "../be-sdk" }
 be-type-chat = { path = "../be-type-chat" }
 be-type-checklist = { path = "../be-type-checklist" }
