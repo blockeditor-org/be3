@@ -42,7 +42,8 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
             payload: phone
                 .commits()
                 .vault()
-                .seal(key, text)
+                // Framed as a module's relay (`Peer::relay`).
+                .seal(key, &[&[0][..], text].concat())
                 .expect("the phone seals with its key"),
             received: 0,
         };

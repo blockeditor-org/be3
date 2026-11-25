@@ -11,11 +11,14 @@ async fn a_relay_sealed_under_another_blocks_key_is_refused() {
         owner
             .commits()
             .vault()
-            .seal(owner.current_key(block).expect("a key"), b"relayed")
+            .seal(owner.current_key(block).expect("a key"), b"\0relayed")
             .unwrap()
     };
 
-    assert_eq!(owner.unseal(secret, &seal(secret)).unwrap(), b"relayed");
+    assert_eq!(
+        owner.unseal(secret, &seal(secret)).unwrap(),
+        crate::Relayed::Module(b"relayed".to_vec())
+    );
     let opened = owner.unseal(secret, &seal(open));
     assert!(
         matches!(opened, Err(ClientError::Forged(block)) if block == secret),

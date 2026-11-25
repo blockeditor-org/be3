@@ -26,7 +26,7 @@ fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
         let payload = phone
             .commits()
             .vault()
-            .seal(key, b"from the phone")
+            .seal(key, b"\0from the phone")
             .expect("the phone seals with its key");
         // A search for it is on its way already.
         assert!(peer.first_search_for(key));

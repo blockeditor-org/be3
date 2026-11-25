@@ -137,7 +137,12 @@ A block being edited is in a session, which each device holds in its type
 module's replica (guides/type_modules.md); the peer only relays, submits, seals
 and stores for it. `Peer::relay` puts a relay on the connection without waiting
 for the answer to the one before, so a pen stroke's presence costs no more round
-trips than one message.
+trips than one message. A relay's sealed bytes start with a tag that tells the
+module's messages from the stack's own (`peer/forks.rs`, `Peer::unseal` answers
+`Relayed`): the one the stack sends is the head of the block's signed log a
+device kept (`Peer::tell_log_head`), which be-block-type-host's replicas send
+as they join the session and to each participant that joins after, and compare
+as they hear one (`Peer::compare_log_head`; "Signed logs").
 
 The server orders the session (decisions/live_edits_are_ordered_by_the_server.md).
 `Connection::join_session(organization, block, tag)` (a `session` read that

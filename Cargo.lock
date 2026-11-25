@@ -1522,6 +1522,7 @@ dependencies = [
  "be-block-keys",
  "be-block-protocol",
  "be-block-session",
+ "be-block-sqlite-schema",
  "be-block-store",
  "be-lib-build-id",
  "be-lib-failure-budget",
