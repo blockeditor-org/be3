@@ -170,6 +170,9 @@ struct Root {
     memory_fed: Rc<Cell<bool>>,
     /// The session's screen lock as the host said last, until a frame shows it.
     lock_state: Rc<RefCell<Option<LockState>>>,
+    /// Whether the host can lock the session and it is not locked, as the host said last: Super+L
+    /// asks it to lock then (`host.lock-session`), as it does under be-host's own UI.
+    lockable: Rc<Cell<bool>>,
     /// Its lock screen, while the session is locked.
     lock: Rc<RefCell<Option<Locked>>>,
     /// The editor of the block the session shows, while it shows one.
@@ -404,6 +407,7 @@ impl Root {
             statistics_fed: Rc::default(),
             memory_fed: Rc::default(),
             lock_state: Rc::default(),
+            lockable: Rc::default(),
             lock: Rc::default(),
             session: Rc::default(),
             session_rounds: Rc::default(),
@@ -633,6 +637,7 @@ impl Root {
         let mut seen = 0;
         while let Ok(lock) = host::lock(seen).await {
             seen = lock.generation;
+            self.lockable.set(lock.available && !lock.locked);
             *self.lock_state.borrow_mut() = Some(lock);
             self.waker.wake();
         }
@@ -821,6 +826,18 @@ impl Root {
                     }
                     Some(Key::F6) => {
                         self.cycle_asked.set(Some(delivery.modifiers.shift));
+                        None
+                    }
+                    Some(key)
+                        if self.lockable.get()
+                            && lock_chord().matches(KeyPress {
+                                key,
+                                pressed: true,
+                                repeat: false,
+                                modifiers: delivery.modifiers,
+                            }) =>
+                    {
+                        lock_session();
                         None
                     }
                     _ => None,
@@ -1338,7 +1355,8 @@ impl Presented {
 const DIALOG_POINTS: f32 = 400.0;
 
 /// The chords the root takes ahead of whatever has the keyboard, while the session is not
-/// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views, and
+/// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views,
+/// Super+L while the host can lock the session (`lock_chord`, added where the frame intercepts), and
 /// Escape while `escape` (its dialog is open but the keyboard is outside it). With the keyboard
 /// in the dialog, Escape is its document's, which closes it once nothing in it (a popup) took
 /// the key first.
@@ -1665,7 +1683,13 @@ impl frames::Guest for Root {
                 && embedding.focused(None).map(|layer| layer.id) != Some(DIALOG_LAYER);
             embedding.intercept(match locked {
                 true => Vec::new(),
-                false => chords(outside),
+                false => {
+                    let mut chords = chords(outside);
+                    if root.lockable.get() {
+                        chords.push(lock_chord());
+                    }
+                    chords
+                }
             });
             drop(embedding);
             root.heard(&drawn.own);

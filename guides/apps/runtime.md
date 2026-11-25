@@ -287,9 +287,12 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   watches its statistics it samples its memory, writing it nowhere and parking
   the sampler when the watch ends, and each sample wakes the window; it hands
   the root be-host-base's performance rows each frame and its memory rows once
-  a sample came. It runs no screen lock, so it leaves the root's lock unavailable
-  and answers every password handed over no, unchecked; it manages no displays,
-  so it asks to keep none. What the root
+  a sample came. It serves the root what it keeps of the platform
+  (`root/platform.rs`): the login session's screen lock in a login session and
+  under `--desktop` (`host.lock`: the password goes to PAM, `host.lock-session`
+  locks it, `host.lock-power` does an offered power action), and the displays'
+  question while display settings wait to be kept (`host.displays`), with
+  times on the root's clock. What the root
   copies it puts on the window's clipboard (`Context::copy`), and each paste it
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
@@ -297,8 +300,10 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   shows it.
   It runs the host's core (`HostCore`: its data directory, block stack,
   accounts, session and the dev workspace), which fills `host.core` and serves
-  the editors of the session's view, but no screen lock or OS services, so it is
-  refused as a login session; a
+  the editors of the session's view, and what it keeps of the platform as
+  be-host's own UI does (`HostCore::start_platform`, the host's frame begun and
+  ended around the root's, and under `--desktop` the desktop's OS services), so
+  it runs as a login session too; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet: be-host's
   own UI stays the default until be-root passes the host tests that exercise it
   (plans/host_as_platform_adapter.md, 4g7). The host test

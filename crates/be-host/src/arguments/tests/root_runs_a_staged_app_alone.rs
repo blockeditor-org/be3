@@ -40,8 +40,14 @@ fn root_runs_a_staged_app_alone() {
         }),
         "the dev workspace is the host's block stack's, which a root shows"
     );
-    assert!(
-        parse(&words("--root=be3.root-testing"), Some(DRM), true).is_err(),
-        "a login session needs the lock screen, which a root does not have yet"
+    assert_eq!(
+        parse(&words("--root --desktop"), Some(DRM), true),
+        Ok(Arguments {
+            root: Some("be3.root".to_owned()),
+            desktop: true,
+            drm: true,
+            ..Arguments::default()
+        }),
+        "a root runs as a login session, its lock screen showing the host's screen lock"
     );
 }

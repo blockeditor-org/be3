@@ -5,6 +5,7 @@ fn each_trigger_locks_the_screen() {
     for trigger in [
         Trigger::Shortcut,
         Trigger::Menu,
+        Trigger::Root,
         Trigger::Logind,
         Trigger::Sleep,
         Trigger::Idle,

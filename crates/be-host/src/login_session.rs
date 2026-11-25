@@ -110,6 +110,21 @@ impl ScreenLock {
     pub(crate) fn user(&self) -> &str {
         &self.user
     }
+
+    /// The lock as a root guest is shown it (`be3:root`'s `lock-state`): whether a password is
+    /// being checked, why the last was refused, and when on the host's clock the wait after
+    /// failed ones ends, which the root counts down itself.
+    pub(crate) fn checking(&self) -> bool {
+        self.lock.checking()
+    }
+
+    pub(crate) fn refused(&self) -> Option<&str> {
+        self.lock.refused()
+    }
+
+    pub(crate) fn retry_at(&self) -> Option<Duration> {
+        self.lock.retry_at(be_host_base::host::now())
+    }
 }
 
 fn until_next_second(wait: Duration) -> Duration {

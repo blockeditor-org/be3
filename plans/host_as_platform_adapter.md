@@ -1431,10 +1431,8 @@ Each step lands on its own.
          buffers (its text field and what encoded the call) and, on the web, the page's copy
          are not scrubbed, so a root clears its field as it hands it over and keeps no copy
          (be-wasm-root-host's `Root::show_lock`, `take_lock_asked`, `take_unlock`,
-         `take_lock_powers`). be-host's `--root` runs no screen lock, being refused as a login
-         session, so the lock stays unavailable and no password reaches it; the login session's
-         lock (`login_session`'s `ScreenLock`, PAM) reaches the root once `--root` runs as one
-         (4g7). be-sdk-root-testing shows a lock screen while locked (`LOCK_LAYER`, beui on
+         `take_lock_powers`). be-host's `--root` serves the login session's lock
+         (`login_session`'s `ScreenLock`, PAM) since 4g7g1. be-sdk-root-testing shows a lock screen while locked (`LOCK_LAYER`, beui on
          `LOCK_SURFACE`, hit everywhere, capturing and focusing): over everything, toasts
          hidden, taking the focus for its password field once drawn and giving it back once
          unlocked, the root intercepting none of its own keys meanwhile, only the F5 test
@@ -2070,10 +2068,8 @@ Each step lands on its own.
          win32 hosts' surfaces, which stay the host's.
          - 4g7e1. Built: the desktop shell under the root. `--root` takes `--desktop` (no
            longer refused), which makes the desktop app the session's editor, its bars shown
-           (`HostCore::run_desktop_shell`), without the desktop's OS services, which come back
-           with 4g7g (the screen lock and its power actions, notifications, the tray,
-           screenshots): the Status bar shows Quick settings' glyph where be-host's shows
-           power's. The apps the root embeds are told its host's wall clock with each frame
+           (`HostCore::run_desktop_shell`); the desktop's OS services came back with 4g7g1
+           (`HostCore::run_as_desktop` under the root too). The apps the root embeds are told its host's wall clock with each frame
            and its UTC offset as they say hello (be-sdk-root's `set_clock`, from
            `frame-request`), so the clock reads as be-host's. Host test
            `be_root_in_place_of_the_hosts_ui_shows_the_desktop_shell`, beside be-host's own
@@ -2227,7 +2223,48 @@ Each step lands on its own.
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
          noted above (`SlowSave`, the memory graph). With be-host's `panel_icon`
          (`src/ui/organization.rs`) gone, be-root's `panel_glyph` and be-sdk-shell's
-         `panel_icon` fold into one.
+         `panel_icon` fold into one. In parts:
+         - 4g7g1. Built: what the host keeps of the platform, under `--root`. `RootShell` starts
+           and stops it as be-host's `Shell` does (`HostCore::start_platform`, `stop_platform`:
+           the input devices, the displays, the login session on a seat it owns), begins and
+           ends the host's frame as `Shell` does (`frame::begin`, `frame::end`: the host's clock,
+           which the lock's wait and the displays' question count on, and what its apps asked
+           of the window), and `--root` runs as a login session (`BEUI_PLATFORM=drm`, no longer
+           refused). In a login session and under `--desktop` it runs the screen lock, and under
+           `--desktop` the desktop's OS services as be-host does (`run_as_desktop`: power and
+           Quick settings' power row, notifications, the tray, screenshots, media keys).
+           `root/platform.rs` serves the root each frame: `host.lock` from the login session's
+           `ScreenLock` (its user, whether a password is checked, why the last was refused, the
+           power actions be-host's lock screen offers, and the end of the wait after failed
+           passwords on the root's clock as `retry-at`), `host.lock-session` locking it,
+           `host.unlock` handing PAM the password, `host.lock-power` doing an offered action while
+           locked; `host.displays` from the displays' guard (`display::prompt`, its revert time
+           on the root's clock), `answer-display` keeping or reverting the round asked. Its
+           triggers lock it as under be-host's own UI: idle and the displays turning off (the
+           root's input counts as the person's, `Document::note_input`, which the desktop host
+           counts idle time from), logind's Lock and a suspend (held back until the root drew
+           two frames since it was shown the lock), Quick settings' Lock; and Super+L, which
+           be-root intercepts while the host can lock and asks the host with
+           (`host.lock-session`; be-root's `a_root_asks_its_host_to_lock_on_super_l`). Host test
+           `be_root_in_place_of_the_hosts_ui_locks_the_screen_on_super_l`, beside be-host's own
+           lock screen; `be_root_shows_the_desktop_shell` now shows the Status bar's power
+           glyph, as be-host's does. Clipboard and notices were already wired as 4g3 and 4g4
+           say (`clipboard`, `show_notices`, `answer_notices`).
+           - Left: no host test keeps or reverts display settings: headless be-host has no
+             displays to change (`display::set_screens` comes from DRM), so be-root's
+             `a_root_asks_to_keep_display_settings_its_host_changed` is what covers it.
+           - Left: the login session's "drawn twice" before a suspend counts the root's frames
+             after it was shown the lock rather than frames whose layer list holds its lock
+             layer, which the host cannot name.
+           - Left: the lock layer per display a real root shows (4g7, above): be-root shows one
+             over its one window.
+           - Left: unlocking with a password has no host test (PAM needs the machine's
+             password); be-root's `a_root_shows_its_hosts_lock_screen` covers handing it over.
+           - Left: what 4g7a2 left to be-host's menu (About, Close be-host, its other debug
+             panels and the inspector; the invite's QR code and Share; Invite member inside
+             Members; the web's local account note).
+         - 4g7g2. The root becomes the default, and be-host's `src/ui` and `src/compositor` go,
+           once the real root passes the host tests that exercise be-host's own UI.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.

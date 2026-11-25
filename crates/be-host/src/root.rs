@@ -39,16 +39,18 @@
 //! It runs the host's core (`HostCore`), as be-host's own UI does: its data directory and the
 //! lock that keeps a second be-host off it, the block stack, accounts and session, and the dev
 //! workspace (`--dev-workspace`), each stepped every frame before the root's (step 4g7b2). The
-//! core opens no editor of its own here: the root embeds them. It runs no screen lock and none
-//! of the desktop's OS services: step 4g7g brings back the rest of what the host keeps (the
-//! plan's What the host keeps) before the root becomes the default; until then `--root` is
-//! refused as a login session (`BEUI_PLATFORM=drm`), which would have no lock screen, and with
-//! `--desktop`.
+//! core opens no editor of its own here: the root embeds them. It runs what the host keeps of the
+//! platform as be-host's own UI does (step 4g7g; `platform`): the input devices and displays,
+//! the login session (`BEUI_PLATFORM=drm`), and under it or `--desktop` the screen lock with its
+//! password check and power actions, which the root shows (`host.lock`); the displays' keep
+//! changes (`host.displays`); and under `--desktop` the desktop's OS services (notifications,
+//! the tray, screenshots, media keys).
 //!
 //! The root is the app: one that fails to start or stops closes the window, and be-host exits
 //! saying why, as it would on a panic.
 
 mod block_stack;
+mod platform;
 
 use std::{
     cell::RefCell,
@@ -161,6 +163,12 @@ struct RootShell {
     tree: be_sdk_app_host::accessibility::Graft,
     /// Whether the root was last asked for its tree (`frame-request.describe`).
     describing: bool,
+    /// What the root was last shown of the platform: the screen lock and the displays.
+    platform: platform::Platform,
+    /// Whether the person did anything (a key, the pointer, a touch) since the last frame, which
+    /// the root took before beui's document could hear it: the desktop host counts the time to
+    /// lock the screen and turn the displays off from the document's input.
+    active: bool,
     /// Whether the last frame was hurried (`Context::hurried`), as be-host's own UI keeps it:
     /// the block stack seals what its blocks owe at once, and `busy` waits for that.
     hurried: bool,
@@ -267,6 +275,8 @@ impl RootShell {
                 beui::native::accessibility::next_document_id(),
             ),
             describing: false,
+            platform: platform::Platform::default(),
+            active: false,
             hurried: false,
         }
     }
@@ -391,7 +401,8 @@ impl RootShell {
         for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {
             self.core.store_artifact_settings(id, data);
         }
-        refuse_unserved(root);
+        // The screen lock and the displays' keep changes, what the host keeps of the platform.
+        self.platform.serve(&mut self.core, root, time);
         // What the root asked of the block stack in this frame, done at once; what that changed
         // reaches it with its next frame, which showing it wakes the host for.
         self.block_stack.step(&mut self.core, root, context);
@@ -510,6 +521,7 @@ impl beui::native::Program for RootShell {
         if self.core.desktop {
             Host::start(setup);
         }
+        self.core.start_platform(setup);
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
             Err(why) => self.stopped(&format!("it did not start: {why}")),
@@ -528,6 +540,13 @@ impl beui::native::Program for RootShell {
         let now = context.now();
         let origin = *self.time_origin.get_or_insert(now);
         let time = now.saturating_duration_since(origin);
+        // The host's frame, as be-host's own UI begins and ends it (`Shell::update`): its clock,
+        // which the screen lock and the displays' question count on, and what its apps asked of
+        // the window.
+        crate::frame::begin(context);
+        if std::mem::take(&mut self.active) {
+            self.document.note_input();
+        }
         self.hurried = context.hurried();
         if self.hurried {
             be_host_stack::seal_owed();
@@ -557,7 +576,8 @@ impl beui::native::Program for RootShell {
         if self.core.desktop {
             Host::after(context, &mut self.document);
         }
-        // After the document, whose own requests (it hears no input, so the default cursor) the
+        crate::frame::end(context);
+        // After the document and the host's frame, whose own requests (it hears no input, so the default cursor) the
         // root's replace.
         let Requests {
             cursor,
@@ -588,6 +608,7 @@ impl beui::native::Program for RootShell {
     /// The root takes all of its windows' input, which it routes to its surfaces itself; beui's
     /// document, which only shows what the root drew, hears none of it.
     fn input(&mut self, window: WindowId, input: &Input, time: Option<Instant>) -> bool {
+        self.active |= activity(input);
         self.input.push((window, input.clone(), time));
         true
     }
@@ -680,7 +701,27 @@ impl beui::native::Program for RootShell {
             Host::exiting();
         }
         be_host_runtime::exiting();
+        self.core.stop_platform();
     }
+}
+
+/// Whether `input` is the person doing something, as beui's document counts its input frames
+/// (`Document::note_input`).
+fn activity(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::Key(_)
+            | Input::Text(_)
+            | Input::Paste(_)
+            | Input::PointerMoved(_)
+            | Input::PointerMotion(_)
+            | Input::PointerButton { .. }
+            | Input::Scroll(_)
+            | Input::Zoom(_)
+            | Input::Touchpad(_)
+            | Input::Touch { .. }
+            | Input::Pen { .. }
+    )
 }
 
 /// Starts `app`'s entry point as the root on the window's device, which it and its staged apps,
@@ -858,21 +899,6 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
         average: row.average,
         peak: row.peak,
     }
-}
-
-/// Answers what the root asked of what `--root` does not run yet (4g7 brings each back), so
-/// that each request changes nothing:
-/// - The session's screen lock: it runs none (it is refused as a login session), so the lock is
-///   unavailable, as `be3:root` answers by default, and asking to lock or a power action from
-///   the lock screen changes nothing. `be3:root` drops a password handed over while the session
-///   is not locked, so none reaches here.
-/// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
-///
-/// The block stack it serves (`block_stack`), and its apps' editors (`serve_editors`).
-fn refuse_unserved(root: &mut Root) {
-    root.take_lock_asked();
-    root.take_lock_powers();
-    root.take_display_answers();
 }
 
 /// Serves the root the editors of the blocks it shows (plans/host_as_platform_adapter.md,
