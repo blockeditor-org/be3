@@ -162,7 +162,7 @@ async fn agent(
             &peer.connection(),
             Some(organization),
             be_block_protocol::Op::CreateAgent {
-                account: account,
+                account,
                 name: "Claude".into(),
                 recovery: public.0,
                 signing: phrase.secret().signing().0,
