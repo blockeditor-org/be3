@@ -4417,15 +4417,30 @@ impl<S: ObjectStore> Peer<S> {
         if !access.can_view() {
             return grant().await;
         }
-        // The key goes first: the grant tells the account's devices at once, and a device that
-        // finds no key for the block then shows it locked until something else opens a key.
+        // The key goes with the grant, in one write: the grant tells the account's devices at
+        // once, and a device that finds no key for the block then shows it locked until
+        // something else opens a key; and a refused grant takes the key with it, as a device
+        // takes a contact's key without a grant (`KeyBook::sender_may` checks the sender).
         // Not when this device thinks the grant will be refused: a refused grant leaves the
         // block as it was, not made a scope of its own, and one it was wrong about is keyed
         // after.
         match self.summary(block).await?.access.can_manage() {
             true => {
-                self.seal_share(block, account, public).await?;
-                grant().await
+                let sealed = self.share_key(block, account, public).await?;
+                let grant = self.grant_op(block, account, access, identity).await?;
+                be_block_protocol::write_all::<(), _>(
+                    &self.connection(),
+                    Some(self.organization),
+                    vec![
+                        be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(
+                            sealed.clone(),
+                        )),
+                        grant,
+                    ],
+                )
+                .await??;
+                self.recorded(&sealed);
+                Ok(())
             }
             false => {
                 grant().await?;
@@ -4459,18 +4474,28 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         public: &be_block_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
+        let sealed = self.share_key(block, account, public).await?;
+        self.put_keys(sealed).await
+    }
+
+    /// Makes `block` a scope of its own, which the server then holds, and answers its key sealed
+    /// to `account` by `public`, for the caller to send.
+    async fn share_key(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        public: &be_block_keys::RecoveryPublic,
+    ) -> Result<KeySet, ClientError> {
         let keys = self.own_scope(block).await?;
         self.put_keys(keys).await?;
         let scope = self
             .keys
             .scope_key(block)
             .ok_or(ClientError::Locked(block))?;
-        let sealed = self.keys.seal_to(scope, account, public)?;
-        self.put_keys(KeySet {
+        Ok(KeySet {
             keys: Vec::new(),
-            wrapped: vec![sealed],
+            wrapped: vec![self.keys.seal_to(scope, account, public)?],
         })
-        .await
     }
 
     /// Makes `block` a scope of its own and answers its key as a share link hands it over.
@@ -4658,19 +4683,29 @@ impl<S: ObjectStore> Peer<S> {
         access: Access,
         identity: Option<be_block_keys::PublicIdentity>,
     ) -> Result<(), ClientError> {
-        let signed = self.signed_grant(block, account, access, identity).await?;
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant {
-                block: block,
-                account: account,
-                access: access,
-                signed: signed,
-            }),
-        )
-        .await??;
+        let grant = self.grant_op(block, account, access, identity).await?;
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), grant)
+            .await??;
         Ok(())
+    }
+
+    /// The op granting `access` to `account`, by the record `signed_grant` signs.
+    async fn grant_op(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        identity: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<be_block_protocol::Op, ClientError> {
+        let signed = self.signed_grant(block, account, access, identity).await?;
+        Ok(be_block_protocol::Op::AppendLog(
+            be_block_protocol::LogRecord::Grant {
+                block,
+                account,
+                access,
+                signed,
+            },
+        ))
     }
 
     /// The record granting `access` to `account`, whose keys are `identity`, as `grant` signs
