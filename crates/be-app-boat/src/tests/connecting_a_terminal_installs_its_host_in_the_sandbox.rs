@@ -66,13 +66,13 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
     assert!(!boat.test.has_fetches());
 
     boat.test
-        .click(&format!("boat.sandbox.{RUNNING}.terminal.open"));
+        .click(format!("boat.sandbox.{RUNNING}.terminal.open"));
     let opened = boat.test.take_opens();
     assert_eq!(opened.len(), 1);
     assert_eq!(opened[0].block_id, block);
 
     boat.test
-        .click(&format!("boat.sandbox.{RUNNING}.terminal.disconnect"));
+        .click(format!("boat.sandbox.{RUNNING}.terminal.disconnect"));
     let (reply, removed) = boat.host_call("the agent removed", |call| match call {
         HostCall::RemoveAgent { reply, agent } => Ok((reply, agent)),
         call => Err(call),

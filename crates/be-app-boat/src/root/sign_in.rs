@@ -122,7 +122,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                                     label="Open API Keys"
                                     glyph=ICON_EXTERNAL_LINK
                                     @test_id="boat.sign-in.open"
-                                    on_click={move || open_keys()}
+                                    on_click={&open_keys}
                                 />
                             </List>
                             <Text style=TextStyle::CAPTION>"Organization, by name or id"</Text>
@@ -191,7 +191,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             disabled={unchecked}
                             busy={checking}
                             @test_id="boat.sign-in.connect"
-                            on_click={move || connect()}
+                            on_click={&connect}
                         />
                         <Show value={replacing}>
                             <Button

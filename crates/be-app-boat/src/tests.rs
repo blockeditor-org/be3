@@ -350,7 +350,7 @@ impl Boat {
     /// the terminal block it was made for.
     fn connect_terminal(&mut self, agent: Uuid) -> Uuid {
         self.test
-            .click(&format!("boat.sandbox.{RUNNING}.terminal.connect"));
+            .click(format!("boat.sandbox.{RUNNING}.terminal.connect"));
         let (reply, block, name) = self.host_call("the agent", |call| match call {
             HostCall::CreateBlockAgent { reply, block, name } => Ok((reply, block, name)),
             call => Err(call),

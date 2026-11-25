@@ -11,7 +11,7 @@ fn a_terminal_of_a_sandbox_no_longer_listed_can_be_removed() {
     boat.answer(&list, 200, EMPTY);
     assert!(boat.test.shown("boat.gone"));
 
-    boat.test.click(&format!("boat.gone.{block}.remove"));
+    boat.test.click(format!("boat.gone.{block}.remove"));
     let (reply, removed) = boat.host_call("the agent removed", |call| match call {
         HostCall::RemoveAgent { reply, agent } => Ok((reply, agent)),
         call => Err(call),
