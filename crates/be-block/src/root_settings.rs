@@ -4,31 +4,36 @@
 //! under them. Each reader implements `SettingsGraph` over what it reads blocks through.
 
 use be_block_content::{BlockContent, Edit, Root, SettingsLayer};
+use be_block_graph::BlockParent;
 use uuid::Uuid;
 
 use crate::SettingsContent;
 use crate::settings::{Settings, SettingsProfile};
 
 pub trait SettingsGraph {
+    /// The blocks at the root with their types and authors, or `None` until the roots have
+    /// been listed. The rules read only the `Settings` among them, so a reader may leave the
+    /// rest out.
     fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>>;
     fn account(&self) -> Uuid;
     fn settings(&self, block: Uuid) -> Option<Settings>;
     fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile>;
-    /// Makes `block` under the block `under`, or at the root when it is `None`; `owner_only`
-    /// makes one only this account reads (`KindVisibility::Owner`).
+    /// Makes `block` at `parent`, the root or a block; `owner_only` makes one only this
+    /// account reads (`KindVisibility::Owner`).
     fn create(
         &self,
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        under: Option<Uuid>,
+        parent: BlockParent,
         owner_only: bool,
     ) -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
     fn edit_settings_profile(&self, block: Uuid, edit: Edit);
     /// Whether the roots have been listed, so settings the account authored would be among
     /// them and it may be given its first. A reader that keeps what it read of the roots drops
-    /// what it read before this listing, so `roots` reads them from it.
+    /// what it read before this listing, so `roots` reads them from it. It may be asked more
+    /// than once, so it is cheap.
     fn listed(&self) -> bool {
         self.roots().is_some()
     }
@@ -119,7 +124,7 @@ impl RootSettings {
             block,
             SettingsContent::CONTENT_TYPE,
             content.encode(),
-            None,
+            BlockParent::Root,
             false,
         );
         self.created = Some(block);
@@ -129,12 +134,17 @@ impl RootSettings {
 
 pub use be_block_content::Layers;
 
-pub fn layers(graph: &dyn SettingsGraph, held: &HeldSettings, kind: Uuid, client: Uuid) -> Layers {
-    let profile = held
-        .settings
-        .profile(client)
-        .and_then(|profile| graph.settings_profile(profile));
-    held.settings.layers(kind, profile.as_ref())
+/// The blocks that hold `kind` for the account: the every-device one `settings` names, and
+/// the this-device one in `profile`, the profile this device reads by (most readers
+/// `settings.profile(client)`; be-host the one the person just chose or it just made, too).
+pub fn layers(
+    graph: &dyn SettingsGraph,
+    settings: &Settings,
+    kind: Uuid,
+    profile: Option<Uuid>,
+) -> Layers {
+    let profile = profile.and_then(|profile| graph.settings_profile(profile));
+    settings.layers(kind, profile.as_ref())
 }
 
 pub struct RootSetting<C> {
@@ -176,7 +186,12 @@ impl<C: BlockContent + Default> RootSetting<C> {
 
     pub fn layers(&self, graph: &dyn SettingsGraph, client: Uuid) -> Option<Layers> {
         let held = self.settings.read(graph)?;
-        Some(layers(graph, &held, C::CONTENT_TYPE, client))
+        Some(layers(
+            graph,
+            &held.settings,
+            C::CONTENT_TYPE,
+            held.settings.profile(client),
+        ))
     }
 
     pub fn find(&mut self, graph: &dyn SettingsGraph, client: Uuid) -> Option<Uuid> {
@@ -240,7 +255,7 @@ impl<C: BlockContent + Default> RootSetting<C> {
             block,
             C::CONTENT_TYPE,
             content.encode(),
-            Some(parent),
+            BlockParent::Block(parent),
             self.owner_only,
         );
         match layer {

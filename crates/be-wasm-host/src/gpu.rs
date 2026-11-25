@@ -105,14 +105,7 @@ macro_rules! returns {
 /// Runs a host call's body so that a panic in it (in the gpu glue, say) stops the one guest rather
 /// than unwinding into V8, which would abort the process.
 pub(crate) fn contained<R>(call: impl FnOnce() -> R) -> Result<R, String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(call)).map_err(|panic| {
-        let message = panic
-            .downcast_ref::<&str>()
-            .map(|message| (*message).to_owned())
-            .or_else(|| panic.downcast_ref::<String>().cloned())
-            .unwrap_or_default();
-        format!("a host call panicked: {message}")
-    })
+    be_wasm_panic::contain(call).map_err(|message| format!("a host call panicked: {message}"))
 }
 
 /// Throws an Error with `message` into the guest that called.

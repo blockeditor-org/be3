@@ -57,7 +57,7 @@ fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
 /// (`RootSettings::heard`).
 #[derive(Default)]
 struct Cache {
-    /// The roots with their types and authors.
+    /// The settings at the root, with their types and authors.
     roots: Option<Vec<(Uuid, Uuid, Uuid)>>,
     settings: HashMap<Uuid, Settings>,
     profiles: HashMap<Uuid, SettingsProfile>,
@@ -103,11 +103,13 @@ impl SettingsGraph for Stack<'_> {
         be_host_stack::account()?;
         let mut cache = self.0.borrow_mut();
         let roots = cache.roots.get_or_insert_with(|| {
-            // A listing answered offline from what the device keeps carries each root's author
+            // Only the settings among them, all the rules read, so a read copies a few. A
+            // listing answered offline from what the device keeps carries each root's author
             // too, as the server gave it or as this device made the block (be-host-stack's
             // `roots_listed_offline_after_a_restart_keep_their_author`).
             be_host_stack::query(be_host_stack::Query::Roots)
                 .into_iter()
+                .filter(|node| node.content_type == Settings::CONTENT_TYPE)
                 .filter_map(|node| Some((node.id, node.content_type, node.author?)))
                 .collect()
         });
@@ -150,10 +152,9 @@ impl SettingsGraph for Stack<'_> {
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        under: Option<Uuid>,
+        parent: BlockParent,
         owner_only: bool,
     ) -> Uuid {
-        let parent = under.map_or(BlockParent::Root, BlockParent::Block);
         // A guest's settings only it reads (`be_host_stack::guest`).
         let owner_only = owner_only || (parent == BlockParent::Root && be_host_stack::guest());
         be_host_stack::create(
@@ -227,6 +228,7 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
+        // Not `self.graph()`, which borrows all of `self` while `root` is borrowed mutably.
         self.root.ensure(&Stack(&self.cache))
     }
 
@@ -401,10 +403,8 @@ impl RootSettings {
         let Some(settings) = self.settings() else {
             return be_block_content::Layers::default();
         };
-        let profile = self
-            .current_profile(&settings, client)
-            .and_then(|profile| self.graph().settings_profile(profile));
-        settings.layers(kind, profile.as_ref())
+        let profile = self.current_profile(&settings, client);
+        be_block::root_settings::layers(&self.graph(), &settings, kind, profile)
     }
 
     /// The account's layers of each reads kind of `kinds` (`be_host_stack::unread`) whose layers

@@ -8,6 +8,7 @@ license.workspace = true
 be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-wasm-gpu-host = { path = "../be-wasm-gpu-host" }
 rustc-demangle = "0.1"
 # Pinned exactly: third-party/v8/BUCK's _VERSION and its pins, and

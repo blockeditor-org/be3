@@ -1590,14 +1590,20 @@ impl crate::root_settings::SettingsGraph for Editor {
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        under: Option<Uuid>,
+        parent: be_block_graph::BlockParent,
         owner_only: bool,
     ) -> Uuid {
+        // The graph's parent, as the app protocol names it.
+        let parent = match parent {
+            be_block_graph::BlockParent::Detached => BlockParent::Detached,
+            be_block_graph::BlockParent::Root => BlockParent::Root,
+            be_block_graph::BlockParent::Block(parent) => BlockParent::Block(parent),
+        };
         self.blocks().create_at(
             block,
             block_type,
             Some(content),
-            under.map_or(BlockParent::Root, BlockParent::Block),
+            parent,
             be_block_content::BlockMetadata::default(),
             owner_only,
         )

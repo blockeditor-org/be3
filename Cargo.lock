@@ -1624,7 +1624,6 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-ui-types",
  "be-sdk-api",
- "be-wasm-guest-host",
  "be-wasm-panic",
  "be-wasm-threads",
  "jni 0.22.4",
@@ -2234,6 +2233,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-block-content",
+ "be-block-graph",
  "be-lib-stable-hash",
  "be-sdk",
  "be-sdk-api",
@@ -3316,6 +3316,7 @@ dependencies = [
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
  "be-wasm-ops",
+ "be-wasm-panic",
  "be-wasm-pure-wasi",
  "getrandom 0.3.4",
  "libc",

@@ -5,7 +5,6 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-wasm-panic = { path = "../be-wasm-panic" }
 be-block-protocol = { path = "../be-block-protocol" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-lib-build-id = { path = "../be-lib-build-id" }
@@ -16,6 +15,7 @@ serde_json = "1"
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
+be-wasm-panic = { path = "../be-wasm-panic" }
 be-wasm-threads = { path = "../be-wasm-threads" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -49,10 +49,6 @@ web-sys = { version = "0.3", features = [
     "WorkerGlobalScope",
     "console",
 ] }
-
-# A guest thread that panics, in a test of the hook.
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 
 [lints]
 workspace = true
