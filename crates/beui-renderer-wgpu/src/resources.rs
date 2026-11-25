@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use be_lib_stable_hash::HashMap;
 
@@ -7,6 +9,36 @@ use beui_core::font::{GlyphId, GlyphImage};
 use beui_types::{Image, ImageId};
 
 use crate::Atlas;
+
+/// Whether a device is lost: set by the device's one lost callback, which whoever opened the
+/// device holds (`Lost::watch`), and read by every renderer on it, which stops drawing while it is
+/// set (Vello's buffer uploads panic on a lost device). The platform opens a new device and new
+/// renderers on it.
+#[derive(Clone, Default, Debug)]
+pub struct Lost(Arc<AtomicBool>);
+
+impl Lost {
+    /// Takes `device`'s lost callback, which sets the flag this returns.
+    pub fn watch(device: &wgpu::Device) -> Self {
+        let lost = Self::default();
+        let flag = lost.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            if reason != wgpu::DeviceLostReason::Destroyed {
+                eprintln!("beui: the GPU was lost: {message}");
+            }
+            flag.set();
+        });
+        lost
+    }
+
+    pub fn set(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_lost(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
 
 #[derive(Clone)]
 /// What every renderer on one device and surface format shares: the glyph atlases and
@@ -23,6 +55,7 @@ pub(crate) struct Shared {
     pub(crate) colors: Option<Atlas>,
     pub(crate) pictures: HashMap<ImageId, Picture>,
     pub(crate) epoch: u64,
+    pub(crate) lost: Lost,
 }
 
 /// An uploaded image: premultiplied RGBA8, as Vello samples it, with a view of each level of
@@ -33,9 +66,11 @@ pub(crate) struct Picture {
 }
 
 impl Resources {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    /// Resources on `device`, which `lost` says the loss of.
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, lost: &Lost) -> Self {
         Self(Rc::new(RefCell::new(Shared {
             device: device.clone(),
+            lost: lost.clone(),
             format,
             atlas: Atlas::new(device, "beui glyph atlas"),
             colors: None,
@@ -47,7 +82,7 @@ impl Resources {
     /// The resources this thread last made for `device` and `format`, or new ones: what every
     /// target a guest draws on one device shares (an app module's screens, a root's own
     /// surfaces), so each glyph is uploaded once.
-    pub fn shared(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub fn shared(device: &wgpu::Device, format: wgpu::TextureFormat, lost: &Lost) -> Self {
         thread_local! {
             static HELD: RefCell<Option<(wgpu::Device, Resources)>> = const { RefCell::new(None) };
         }
@@ -58,7 +93,7 @@ impl Resources {
                     resources.clone()
                 }
                 _ => {
-                    let resources = Self::new(device, format);
+                    let resources = Self::new(device, format, lost);
                     *held = Some((device.clone(), resources.clone()));
                     resources
                 }
@@ -68,6 +103,11 @@ impl Resources {
 
     pub fn format(&self) -> wgpu::TextureFormat {
         self.0.borrow().format
+    }
+
+    /// Whether their device is lost.
+    pub fn lost(&self) -> bool {
+        self.0.borrow().lost.is_lost()
     }
 
     pub fn holds_colour_glyphs(&self) -> bool {

@@ -610,7 +610,7 @@ impl Gpu {
                 blend: None,
             },
         );
-        let resources = beui_renderer_wgpu::Resources::new(&device, setup.format);
+        let resources = beui_renderer_wgpu::Resources::new(&device, setup.format, &setup.lost);
         Self {
             device,
             queue: setup.queue.clone(),

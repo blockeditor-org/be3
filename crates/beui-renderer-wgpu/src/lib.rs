@@ -28,7 +28,7 @@ pub mod present;
 mod resources;
 mod scene;
 
-pub use resources::Resources;
+pub use resources::{Lost, Resources};
 use scene::{Item, Painted};
 
 #[cfg(all(target_arch = "wasm32", feature = "web"))]
@@ -320,9 +320,6 @@ pub struct Renderer {
     vello: Option<Vello>,
     /// The filter scene the scene being drawn blurs, while it is drawn.
     filtered: Option<wgpu::TextureView>,
-    /// Whether the device was alive when the frame began: Vello's buffer uploads panic on a lost
-    /// device, where the frame then draws nothing, as wgpu's own pipelines draw nothing there.
-    alive: bool,
 }
 
 /// Vello's renderer, made for the format it draws on when it first draws.
@@ -780,7 +777,6 @@ impl Renderer {
             cleared: Vec::new(),
             vello: None,
             filtered: None,
-            alive: true,
         }
     }
 
@@ -2005,7 +2001,6 @@ impl Renderer {
         if let Some(vello) = &mut self.vello {
             vello.rendered = 0;
         }
-        self.alive = alive(device);
         let Some(mut composition) = self.composition.take() else {
             self.render_into(device, queue, encoder, target, load, 0..self.steps.len());
             return;
@@ -2130,7 +2125,8 @@ impl Renderer {
         if onto.clip.is_some() {
             vello.scene.pop_clip();
         }
-        let wanted = (onto.first || onto.drawn.get()) && self.alive;
+        // Checked at each render: a submit before it may have found the device lost.
+        let wanted = (onto.first || onto.drawn.get()) && !self.resources.lost();
         if wanted {
             if vello.format != format || !vello.made() {
                 vello.make(device, queue, format, onto.size);
@@ -2618,19 +2614,6 @@ impl Vello {
         self.format = format;
     }
 
-}
-
-/// Whether `device` is not lost: a lost device makes invalid buffers, which have no mapped range.
-fn alive(device: &wgpu::Device) -> bool {
-    let probe = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("beui device probe"),
-        size: wgpu::COPY_BUFFER_ALIGNMENT,
-        usage: wgpu::BufferUsages::MAP_WRITE,
-        mapped_at_creation: true,
-    });
-    let alive = probe.get_mapped_range_mut(..).is_ok();
-    probe.destroy();
-    alive
 }
 
 /// A clear colour as wgpu takes it for a target of `format` (linear on an sRGB target), back

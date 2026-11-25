@@ -4,7 +4,7 @@ use super::*;
 fn a_shape_is_drawn_once_per_icon_around_its_hotspot() {
     let (device, queue) =
         be_lib_dmabuf::testing::vulkan_device(beui_host::native::open_vulkan_device);
-    let gpu = Gpu::new(device, queue, FORMAT);
+    let gpu = Gpu::new(device, queue, FORMAT, &Default::default());
     let mut cursors = Cursors::new(2.0);
     assert!(
         cursors.get(&gpu, CursorIcon::None).is_none(),
