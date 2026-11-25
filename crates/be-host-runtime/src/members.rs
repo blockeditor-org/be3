@@ -28,8 +28,9 @@ pub(super) struct Members {
     /// What the server last named, once it answered.
     named: Option<NamesAnswer>,
     /// The block's change when the server was last asked: it is asked again whenever the block
-    /// changes, since a grant, a revoke, a move or a share above it can change who may view it,
-    /// and any of them can land in the same summary as a new head.
+    /// changes, since a grant, a revoke, a move, a share above it or a member's removal from
+    /// the organization (which the server marks as a change of everything they could view) can
+    /// change who may view it, and any of them can land in the same summary as a new head.
     asked: Option<u64>,
     asking: bool,
 }

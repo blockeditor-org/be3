@@ -864,7 +864,7 @@ impl ServerStore {
         identity: Identity,
         signed: Vec<u8>,
         revocations: Vec<Vec<u8>>,
-    ) -> Result<Option<Vec<crate::contacts::Granted>>, ServerError> {
+    ) -> Result<Option<Removed>, ServerError> {
         let organization = identity.organization;
         self.with_graph(organization, move |store, graph, database| {
             let entry = be_block_keys::Entry::decode(&signed).map_err(|_| {
@@ -977,7 +977,7 @@ impl ServerStore {
         account: Uuid,
         signed: Option<Vec<u8>>,
         revocations: Vec<Vec<u8>>,
-    ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+    ) -> Result<Removed, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             remove_account(
                 store,
@@ -1852,7 +1852,7 @@ fn remove_account(
     signed: Option<Vec<u8>>,
     revocations: Vec<Vec<u8>>,
     agent: bool,
-) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+) -> Result<Removed, ServerError> {
     let organization = identity.organization;
     // Each grant a log names is revoked there by the remover's signed record.
     let pairs = member_grants(graph, account);
@@ -1916,7 +1916,7 @@ fn remove_account(
         }
         (false, None) => {}
     }
-    let revoked = match agent {
+    let removed = match agent {
         true => delete_agent(store, graph, &transaction, organization, account)?,
         false => remove_from(store, graph, &transaction, organization, account)?,
     };
@@ -1936,7 +1936,7 @@ fn remove_account(
     if agent || !forgotten.is_empty() {
         store.sessions_changed();
     }
-    Ok(revoked)
+    Ok(removed)
 }
 
 fn refuse_last_administrator(
@@ -1957,13 +1957,21 @@ fn refuse_last_administrator(
     }
 }
 
+/// What removing an account from an organization changed: the blocks its grants, or others'
+/// grants beside its own, were revoked from, and the tops of what it could view, each of which
+/// changed (`changed`) with everything below it.
+pub struct Removed {
+    pub revoked: Vec<crate::contacts::Granted>,
+    pub viewed: Vec<Uuid>,
+}
+
 fn remove_from(
     store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
     account: Uuid,
-) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+) -> Result<Removed, ServerError> {
     let role = crate::contacts::role_in(connection, account, organization)?;
     let mut revoked = Vec::new();
     let mut kinds = std::collections::BTreeSet::new();
@@ -1976,6 +1984,17 @@ fn remove_from(
             block,
         )?);
     }
+    // Everything it could view changes, so that whoever reads one of them hears that who may
+    // view it changed: a block it authored, or viewed below one it held a grant on, or an open
+    // kind, holds no grant of its own to revoke. Read before its grants go.
+    let settings = crate::organization::settings_of(organization);
+    let (viewed, tops) = graph.subtrees(
+        graph
+            .entry_points(account)
+            .into_iter()
+            .chain(kinds.iter().copied())
+            .chain([settings]),
+    );
     for block in graph.entry_points(account) {
         let Some(node) = graph.get(block) else {
             continue;
@@ -2019,12 +2038,17 @@ fn remove_from(
     if role == Some(OrganizationRole::Administrator) {
         crate::keys::rotate_escrow_later(connection, organization, account)?;
     }
-    let settings = crate::organization::settings_of(organization);
     if graph.contains(settings) {
         crate::keys::lost_view(connection, organization, settings, account)?;
     }
     crate::keys::lost_open_kinds(connection, graph, organization, account, kinds)?;
-    Ok(revoked)
+    if !viewed.is_empty() {
+        crate::changes::touch(connection, graph, organization, &viewed)?;
+    }
+    Ok(Removed {
+        revoked,
+        viewed: tops,
+    })
 }
 
 /// Refuses unless `agent` is one `caller` made in `organization` and, for a block's agent, the
@@ -2099,8 +2123,8 @@ fn delete_agent(
     connection: &Connection,
     organization: Uuid,
     agent: Uuid,
-) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-    let revoked = remove_from(store, graph, connection, organization, agent)?;
+) -> Result<Removed, ServerError> {
+    let removed = remove_from(store, graph, connection, organization, agent)?;
     connection.execute("DELETE FROM accounts WHERE id = ?1", [agent.to_string()])?;
     connection.execute(
         "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
@@ -2108,7 +2132,7 @@ fn delete_agent(
             be_block_protocol::WrappedBy::Account(agent),
         )],
     )?;
-    Ok(revoked)
+    Ok(removed)
 }
 
 /// Deletes the blocks' agents of `organization` whose block was collected, who lost their grant

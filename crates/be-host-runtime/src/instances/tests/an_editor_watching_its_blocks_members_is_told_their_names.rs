@@ -1,29 +1,7 @@
 use super::*;
 
-use be_sdk_api::{
-    BlockMember, Failure,
-    blocks::{BlockSubject, BlockValue},
-};
+use be_sdk_api::blocks::BlockSubject;
 use be_type_example_counter::CounterContent;
-
-/// What the watch is answered next, waiting for the server's names to come back.
-fn members(instances: &mut Instances, watch: OpId) -> Result<Vec<BlockMember>, Failure> {
-    loop {
-        let seen = be_host_base::host::letters_posted();
-        next_screens(instances);
-        instances.pending();
-        if let Some(value) = answered::<BlockValue>(instances, watch) {
-            match value {
-                BlockValue::Members(members) => return members,
-                other => panic!("not members: {other:?}"),
-            }
-        }
-        // The stack's reply reaches the runtime's mailbox as its updates are taken.
-        be_host_stack::take_updates_or_wait("the members the server named", || {
-            be_host_base::host::letters_posted() > seen
-        });
-    }
-}
 
 #[test]
 fn an_editor_watching_its_blocks_members_is_told_their_names() {
