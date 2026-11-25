@@ -64,30 +64,24 @@ pub(crate) fn KeepChanges(
     });
     let title = create_memo(move || title.get());
     view! {
-        <Modal open on_dismiss={revert}>|| {
+        <DialogFrame open kind=DialogKind::Alert width=WIDTH on_dismiss={revert}>|| {
             let countdown_id = format!("{id}.countdown");
             let body_id = id.clone();
             view! {
-                <Frame padding=beui::styled::dialog::MARGIN>
-                    <Card padding=Space::None max_width=Some(WIDTH)>
-                        <DialogBody
-                            kind=DialogKind::Alert
-                            title
-                            id={body_id}
-                            actions={vec![
-                                DialogAction::primary("Keep", keep),
-                                DialogAction::cancel("Revert"),
-                            ]}
-                            on_dismiss={revert}
-                        >
-                            <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>
-                                {message}
-                            </Text>
-                        </DialogBody>
-                    </Card>
-                </Frame>
+                <DialogBody
+                    kind=DialogKind::Alert
+                    title
+                    id={body_id}
+                    actions={vec![
+                        DialogAction::primary("Keep", keep),
+                        DialogAction::cancel("Revert"),
+                    ]}
+                    on_dismiss={revert}
+                >
+                    <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>{message}</Text>
+                </DialogBody>
             }
-        }</Modal>
+        }</DialogFrame>
     }
 }
 
