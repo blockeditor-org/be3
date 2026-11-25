@@ -406,6 +406,8 @@ pub enum Io {
         kept: bool,
     },
     Relayed,
+    /// A head the session's holder sealed was fetched, as much of it as the server had.
+    SealFetched,
     Left(Uuid),
     Sealed,
     /// A search for `key`, which relayed messages waited on, answered: how many keys it opened.
@@ -1088,6 +1090,8 @@ pub struct Replicas<H: Host> {
     scopes: HashMap<(usize, OpId), types::Scope>,
     pending: Vec<Io>,
     relaying: usize,
+    /// Heads sealed by the holder this device is fetching (`Io::SealFetched`).
+    fetching_seals: usize,
     left: usize,
     /// The blocks whose sessions those leaves are leaving, each with how many.
     left_blocks: HashMap<Uuid, usize>,
@@ -1183,6 +1187,7 @@ impl<H: Host> Replicas<H> {
             scopes: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
+            fetching_seals: 0,
             left: 0,
             left_blocks: HashMap::new(),
             unsealing: HashMap::new(),
@@ -1228,6 +1233,11 @@ impl<H: Host> Replicas<H> {
 
     pub fn relaying(&self) -> bool {
         self.relaying > 0
+    }
+
+    /// Whether a head the session's holder sealed is still being fetched (`Io::SealFetched`).
+    pub fn fetching_seals(&self) -> bool {
+        self.fetching_seals > 0
     }
 
     pub fn leaving(&self) -> bool {
@@ -3799,6 +3809,29 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
+                if !self.open.contains_key(&replica) {
+                    return;
+                }
+                // A replica following the holder takes its seal as its head by id alone, and
+                // the server prunes that head once a publish replaces it: this device fetches it
+                // now, so what it seals on it offline merges against it (`Peer::reconcile`). Its
+                // own seals it holds already, which costs no request.
+                self.fetching_seals += 1;
+                let (holding, io, shared, head) = (
+                    Arc::clone(peer),
+                    self.io.clone(),
+                    Arc::clone(shared),
+                    *commit,
+                );
+                H::spawn(async move {
+                    if let Err(error) = holding.try_hold(head).await
+                        && !unreachable(&error)
+                    {
+                        H::record(&shared, error);
+                    }
+                    let _ = io.send(Io::SealFetched);
+                    H::wake();
+                });
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
@@ -4208,6 +4241,7 @@ impl<H: Host> Replicas<H> {
                 }
             }
             Io::Relayed => self.relaying -= 1,
+            Io::SealFetched => self.fetching_seals -= 1,
             Io::Left(block) => {
                 self.left -= 1;
                 if let Some(count) = self.left_blocks.get_mut(&block) {

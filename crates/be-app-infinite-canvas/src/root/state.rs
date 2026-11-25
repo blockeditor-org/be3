@@ -843,6 +843,8 @@ impl CanvasState {
         self.editor.block_id()
     }
 
+    /// The camera as the stage shows it: only a preview whose stage is not measured yet has
+    /// none (`camera_view`), and a preview takes no input, so the unit camera stands in.
     pub(crate) fn camera(&self) -> CanvasView {
         camera_view(
             self.editor.canvas().get_untracked(),
@@ -850,6 +852,7 @@ impl CanvasState {
             self.cells.value().stage.get(),
             self.framed(),
         )
+        .unwrap_or_else(|| CanvasView::new(Pos2::ZERO, 1.0))
     }
 
     pub(crate) fn framed(&self) -> Option<WorldRect> {
@@ -969,32 +972,38 @@ impl CanvasState {
     }
 }
 
+/// The camera the stage shows the canvas through: the host's `view`, or, with none, one fitted
+/// to `framed` (a preview's). None while fitting to a stage not measured yet, which has no
+/// scale: the canvas is then shown through none, rather than one of nothing.
 pub(crate) fn camera_view(
     view: Option<CanvasView>,
     world: Option<Vec2>,
     stage: Rect,
     framed: Option<WorldRect>,
-) -> CanvasView {
+) -> Option<CanvasView> {
     let centre = framed.map_or_else(CanvasPoint::default, WorldRect::center);
     let Some(view) = view else {
+        if framed.is_some() && !stage.is_positive() {
+            return None;
+        }
         let scale = framed.map_or(1.0, |framed| fit_scale(stage, framed));
-        return CanvasView::new(
+        return Some(CanvasView::new(
             Pos2::new(
                 stage.center().x - centre.x * scale,
                 stage.center().y - centre.y * scale,
             ),
             scale,
-        );
+        ));
     };
     let scale = view.scale.max(f32::EPSILON);
     let world = world.unwrap_or_else(|| Vec2::new(stage.width() / scale, stage.height() / scale));
-    CanvasView::new(
+    Some(CanvasView::new(
         Pos2::new(
             view.origin.x + (world.x / 2.0 - centre.x) * scale,
             view.origin.y + (world.y / 2.0 - centre.y) * scale,
         ),
         scale,
-    )
+    ))
 }
 
 const FIT_MARGIN: f32 = 20.0;

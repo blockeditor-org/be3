@@ -43,14 +43,6 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     let camera = create_memo(move || {
         super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
     });
-    // A camera fitted to the stage (a preview's, with no view of the host's) has no scale
-    // before the stage is measured: the canvas is handed none until then, rather than one of
-    // nothing, at which it would draw its text until its raster settled on the next.
-    let shown_camera = create_memo(move || {
-        let unfitted =
-            view.get().is_none() && state.framed().is_some() && !placed.get().is_positive();
-        (!unfitted).then(|| camera.get())
-    });
     let ids = state.entities.ids();
     let embedding = create_memo(move || state.entities.embedding());
     let inset = create_memo(move || {
@@ -94,7 +86,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             <Frame padding={inset} fill={outside_frames}>
                 <CanvasSurface state={state}>
                     <Canvas
-                        view={shown_camera}
+                        view={camera}
                         on_reveal={reveal_by(state.editor())}
                         @test_id={"infinite-canvas.canvas"}
                     >
@@ -146,7 +138,7 @@ fn reveal_by(editor: be_sdk_beui::Editor) -> Callback<Vec2> {
 
 fn grid_of(
     state: CanvasState,
-    camera: Memo<CanvasView>,
+    camera: Memo<Option<CanvasView>>,
     stage: Memo<Rect>,
 ) -> (Memo<Option<GridLook>>, Memo<Vec<GridTile>>) {
     let grid = state.grid();
@@ -156,12 +148,15 @@ fn grid_of(
         let spacing = grid.get().shown().filter(|_| live)?;
         GridLook::new(
             spacing,
-            camera.get().scale,
+            camera.get()?.scale,
             beui::reactive::resolve_color(theme.border.get()),
         )
     });
     let tiles = create_memo(move || match look.get() {
-        Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),
+        Some(look) => camera
+            .get()
+            .map(|camera| look.tiles(camera.rect_to_canvas(stage.get())))
+            .unwrap_or_default(),
         None => Vec::new(),
     });
     (look, tiles)
@@ -218,7 +213,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 #[component]
 fn CanvasHint(
     state: CanvasState,
-    camera: Memo<CanvasView>,
+    camera: Memo<Option<CanvasView>>,
     stage: Memo<Rect>,
 ) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
@@ -229,10 +224,12 @@ fn CanvasHint(
             color: beui::reactive::resolve_color(theme.text_muted.get()),
         })
     });
-    let shown = create_memo(move || hint.with(Option::is_some));
-    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+    let visible = create_memo(move || {
+        let visible = camera.get()?.rect_to_canvas(stage.get());
+        hint.with(Option::is_some).then_some(visible)
+    });
     view! {
-        <Show value={shown}>
+        <Show value={visible}>|visible: ReadSignal<Rect>|
             <CanvasItem
                 x={move || visible.get().left()}
                 y={move || visible.get().top()}
@@ -255,12 +252,12 @@ fn CanvasHint(
 }
 
 #[component]
-fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment<CanvasItem> {
+fn CanvasOverlay(state: CanvasState, camera: Memo<Option<CanvasView>>) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let bounds = create_signal(None::<Rect>);
     let shown = RefCell::new(None::<Overlay>);
-    let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
+    let scale = create_memo(move || camera.get().map(|camera| camera.scale));
     let drawn_line = create_memo(move || {
         state.gesture.with(|gesture| match gesture {
             Some(Gesture::Create { id, tool, .. }) if tool.draws_a_line() => Some(*id),
@@ -270,7 +267,9 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     create_effect(move || {
         let selection = state.selection.get();
         let selected = state.entities.among(&selection);
-        let scale = scale.get();
+        let Some(scale) = scale.get() else {
+            return bounds.set(None);
+        };
         let selected_path = state.selected_path();
         let mut overlay = Overlay {
             camera: CanvasView::from_corner(Pos2::ZERO, scale),
@@ -325,22 +324,25 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
 #[component]
 fn LiveOverlay(
     state: CanvasState,
-    camera: Memo<CanvasView>,
+    camera: Memo<Option<CanvasView>>,
     stage: Memo<Rect>,
 ) -> DynamicSegment<CanvasItem> {
-    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+    let visible = create_memo(move || {
+        let camera = camera.get()?;
+        Some((camera.rect_to_canvas(stage.get()), camera.scale))
+    });
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let present = create_signal(false);
     let shown = RefCell::new(None::<Live>);
     create_effect(move || {
+        let Some((visible, scale)) = visible.get() else {
+            return present.set(false);
+        };
         let presence = state.presence.get();
         let tool = state.tool.get();
         let live = Live {
-            camera: CanvasView::from_corner(
-                visible.get().min,
-                camera.get().scale.max(f32::EPSILON),
-            ),
+            camera: CanvasView::from_corner(visible.min, scale),
             palette: palette(&theme),
             gesture: state.gesture.get(),
             cursors: presence.cursors,
@@ -371,10 +373,10 @@ fn LiveOverlay(
     view! {
         <Show value={present}>
             <CanvasItem
-                x={move || visible.get().left()}
-                y={move || visible.get().top()}
-                width={move || visible.get().width().max(1.0)}
-                height={move || visible.get().height().max(1.0)}
+                x={move || visible.get().map_or(0.0, |(visible, _)| visible.left())}
+                y={move || visible.get().map_or(0.0, |(visible, _)| visible.top())}
+                width={move || visible.get().map_or(1.0, |(visible, _)| visible.width().max(1.0))}
+                height={move || visible.get().map_or(1.0, |(visible, _)| visible.height().max(1.0))}
             >
                 <Drawing draw={draw} />
             </CanvasItem>
@@ -383,9 +385,14 @@ fn LiveOverlay(
 }
 
 #[component]
-fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<Option<CanvasView>>) -> CanvasItem {
     let entity = entity_of(state, id);
-    let label = create_memo(move || FRAME_LABEL_HEIGHT / camera.get().scale.max(f32::EPSILON));
+    // No label before the camera has a scale: it is a constant height on screen.
+    let label = create_memo(move || {
+        camera
+            .get()
+            .map_or(0.0, |camera| FRAME_LABEL_HEIGHT / camera.scale)
+    });
     let bounds = create_memo(move || {
         let Some(entity) = entity.get() else {
             return Rect::ZERO;

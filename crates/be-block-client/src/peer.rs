@@ -3472,6 +3472,32 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// Fetches what this device lacks of `commit` and of its content (every object of its
+    /// manifest tree), as much as the server still has, and answers whether it holds it all
+    /// now: whether it loads as a merge's base. One the server pruned may be held nowhere.
+    pub async fn try_hold(&self, commit: CommitId) -> Result<bool, ClientError> {
+        if !self.try_fetch(commit.hash()).await? {
+            return Ok(false);
+        }
+        let Some(held) = self.commits.try_get(commit)? else {
+            return Ok(false);
+        };
+        let vault = self.commits.vault();
+        loop {
+            // A level of the tree at a time: the nodes fetched name the next.
+            let missing = vault.missing_objects(&held.manifest, 0, u64::MAX)?;
+            if missing.is_empty() {
+                return Ok(true);
+            }
+            self.try_fetch_all(&missing).await?;
+            for hash in missing {
+                if !vault.store().has(hash)? {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
     /// A commit reached by hash from one already checked (a parent, a repository's history):
     /// bound by that hash, whichever key sealed it. A block's head, which the server names,
     /// goes through `load_head`.

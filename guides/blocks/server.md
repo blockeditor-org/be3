@@ -47,8 +47,11 @@ the server are in guides/blocks/keys.md.
   pruned commit truncates a chain; a device merges an offline edit against
   its last-known remote head, which it holds locally, so the server pruning
   that head costs nothing (`Peer::reconcile`). A replica following a holder
-  seals on the holder's heads by id alone, so it may hold neither: a common
-  ancestor held nowhere is no base, and the merge has none. A reader that has a head but
+  hears the holder's seals by id, and fetches each as it hears it, while the
+  server still has it (`Replicas::heard`, `Peer::try_hold`). Only one offline
+  at the seal may lack it: a base must load (its commit and its manifest's
+  objects), and one that does not is no base, so the merge falls back to the
+  head the waiting commits left from, or to none. A reader that has a head but
   not yet its objects can find them gone once a newer head replaces it in its
   slot: it reads the server's head again (`be_host_stack::search::write`). The
   indexer gives a batch back after a few such heads in a row and holds it until

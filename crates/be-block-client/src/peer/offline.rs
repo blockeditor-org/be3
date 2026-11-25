@@ -715,12 +715,13 @@ impl<S: ObjectStore> Peer<S> {
             if let Some(theirs) = remote
                 && !self.commits.is_ancestor(theirs, ours)?
             {
-                // A common ancestor named by both sides' parents may be held nowhere: the
-                // server prunes the head a publish replaces, and this device may have built on
-                // it as a head it heard of without its commit (a holder's seal, followed).
+                // A common ancestor named by both sides' parents may not load: the server
+                // prunes the head a publish replaces, with the parts no other commit holds, and
+                // this device may have built on it as a head it heard of and could not fetch (a
+                // holder's seal, followed while offline).
                 let base = match self.commits.common_ancestor(ours, theirs)? {
-                    Some(base) if self.try_fetch(base.hash()).await? => Some(base),
-                    _ => self.left_from(&waiting)?,
+                    Some(base) if self.try_hold(base).await? => Some(base),
+                    _ => self.left_from(&waiting).await?,
                 };
                 return Ok(Reconciled::Merge { base, ours, theirs });
             }
@@ -750,9 +751,12 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The remote head the waiting commits were built on, which this device holds: the base of
     /// their merge when the server pruned the history between it and the new head, so no common
-    /// ancestor can be walked to or the one walked to is held nowhere. With none, the merge has
-    /// no base.
-    fn left_from(&self, waiting: &[(u64, Pending)]) -> Result<Option<CommitId>, ClientError> {
+    /// ancestor can be walked to or the one walked to does not load. With none that loads, the
+    /// merge has no base.
+    async fn left_from(
+        &self,
+        waiting: &[(u64, Pending)],
+    ) -> Result<Option<CommitId>, ClientError> {
         for (_, pending) in waiting.iter().rev() {
             let Some(expected) = pending.expected else {
                 continue;
@@ -760,7 +764,7 @@ impl<S: ObjectStore> Peer<S> {
             if waiting.iter().any(|(_, other)| other.commit == expected) {
                 continue;
             }
-            if self.commits.has(expected)? {
+            if self.try_hold(expected).await? {
                 return Ok(Some(expected));
             }
         }

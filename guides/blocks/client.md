@@ -158,6 +158,10 @@ yet numbered). The lease holder seals at pauses (guides/type_modules.md, Peers):
 a seal is a publish whose `Write::seals_journal` carries the journal's base, which
 trims the server's journal only as the commit wins the head, and every
 participant hears which commit holds which sequence number (`Event::Sealed`).
+A replica that follows takes the seal as its head by id, and its host fetches the
+commit and its content at once (`Peer::try_hold`): the server prunes it once a
+later publish replaces it, and what the follower seals offline on it needs it,
+to seal and as the base its merge is made against.
 
 - **One edit in flight.** A replica's typing waits in its `unsent` queue while an
   edit of its own is unconfirmed, folded by `LiveEdit::absorb_operation`
