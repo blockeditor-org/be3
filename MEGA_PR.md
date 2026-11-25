@@ -92,6 +92,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7e3b`: the root shows program windows where its apps place them, from pictures the desktop host hands it; drive's settle waits for a shown program window to draw its configure
 - `one-way-host-3`, `-7`: one shared test server fixture in be-host-server; the test harness is ordinary code in be_host_stack::testing (decisions/test_hooks_are_ordinary_code.md); FailureBudget keeps restart counts
 - `dialogs-dock-1`..`3b`: a Window points at its anchor and may block its owner; a DockDialog drags within its window; dialogs are sheets on phones
+- `hosted-blocks-6`, `-7`: the gem hunt, the first hosted block type, played through its host; a Join editor's frame offers no content actions and its row marks it joinable
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
