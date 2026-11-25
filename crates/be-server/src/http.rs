@@ -338,6 +338,9 @@ fn failed(error: ServerError) -> Response {
 
 /// A body read whole, within `within` if given; its route's layers cap its size and how long
 /// it may stall.
+// The refusal is the response the route answers with, at once: boxing it would add an
+// allocation to every refused request and nothing else.
+#[allow(clippy::result_large_err)]
 async fn read(body: Body, within: Option<Duration>) -> Result<Bytes, Response> {
     let read = axum::body::to_bytes(body, usize::MAX);
     let read = match within {
@@ -565,10 +568,10 @@ impl Sessions {
         queued: Arc<Outbound>,
         outbound: mpsc::UnboundedReceiver<Vec<u8>>,
         place: Held,
-    ) -> Result<String, Client> {
+    ) -> Result<String, Box<Client>> {
         let mut sessions = self.open.lock().unwrap();
         if sessions.len() >= MAX_HTTP_SESSIONS {
-            return Err(client);
+            return Err(Box::new(client));
         }
         let id = crate::new_secret();
         let session = Session {
@@ -847,7 +850,7 @@ async fn open_session(
     match services.http.insert(client, queued, outbound, place) {
         Ok(id) => Ok(greeted(&welcome, Some(id))),
         Err(client) => {
-            client.close().await;
+            (*client).close().await;
             Ok(Answer::refused(
                 503,
                 "too many sessions are open; try again later",

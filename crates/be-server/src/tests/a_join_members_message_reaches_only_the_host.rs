@@ -118,7 +118,7 @@ async fn a_join_members_message_reaches_only_the_host() {
         );
     }
 
-    let sent = first.to_host(world, None, b"move north".to_vec()).await;
+    let sent = first.send_to_host(world, None, b"move north".to_vec()).await;
     assert!(sent.is_ok(), "{sent:?}");
     assert_eq!(
         heard(&mut owner, world).await,
@@ -140,7 +140,7 @@ async fn a_join_members_message_reaches_only_the_host() {
     }
 
     let sent = owner
-        .to_host(world, Some(first_client), b"you see a door".to_vec())
+        .send_to_host(world, Some(first_client), b"you see a door".to_vec())
         .await;
     assert!(sent.is_ok(), "{sent:?}");
     assert_eq!(
@@ -156,7 +156,7 @@ async fn a_join_members_message_reaches_only_the_host() {
 
     // A viewer speaks to the host on the same channel, and its relays to everyone reach no
     // Join member.
-    let sent = viewer.to_host(world, None, b"a viewer".to_vec()).await;
+    let sent = viewer.send_to_host(world, None, b"a viewer".to_vec()).await;
     assert!(sent.is_ok(), "{sent:?}");
     assert!(matches!(
         &heard(&mut owner, world).await[..],
@@ -172,22 +172,22 @@ async fn a_join_members_message_reaches_only_the_host() {
         (
             "a Join member sent to another",
             first
-                .to_host(world, Some(second_client), b"psst".to_vec())
+                .send_to_host(world, Some(second_client), b"psst".to_vec())
                 .await,
         ),
         (
             "a viewer sent to a Join member",
             viewer
-                .to_host(world, Some(first_client), b"psst".to_vec())
+                .send_to_host(world, Some(first_client), b"psst".to_vec())
                 .await,
         ),
         (
             "the host sent to itself",
-            owner.to_host(world, Some(host), b"psst".to_vec()).await,
+            owner.send_to_host(world, Some(host), b"psst".to_vec()).await,
         ),
         (
             "the host sent to no one",
-            owner.to_host(world, None, b"psst".to_vec()).await,
+            owner.send_to_host(world, None, b"psst".to_vec()).await,
         ),
         (
             "a Join member relayed to the session",
@@ -211,7 +211,7 @@ async fn a_join_members_message_reaches_only_the_host() {
     let mut sent = 0;
     let mut flooded = Vec::new();
     let limited = loop {
-        let answer = second.to_host(world, None, vec![sent as u8]).await;
+        let answer = second.send_to_host(world, None, vec![sent as u8]).await;
         match answer {
             Ok(()) => sent += 1,
             Err(error) => break error,
@@ -268,7 +268,7 @@ async fn a_join_members_message_reaches_only_the_host() {
         }),
         "a Join member hears that no one hosts"
     );
-    let sent = second.to_host(world, None, b"anyone?".to_vec()).await;
+    let sent = second.send_to_host(world, None, b"anyone?".to_vec()).await;
     assert!(
         refused_as(&sent, ErrorCode::InvalidRequest),
         "a message to no host: {sent:?}"
