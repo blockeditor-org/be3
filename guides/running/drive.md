@@ -178,8 +178,8 @@ Every input command waits until the program settles, then prints the tree's chan
 `+` lines (`--changes=N|all|0`). `--no-settle` answers after the frame that took the input, to
 see the program part way through something. On a session command (`settle`, `clock`, `hurry`,
 `present`), `--no-settle` answers after one frame rather than once the program settles; `paint`, which
-paints the settled frame, under `--no-settle` paints the next frame as it is. Each command
-a stopped clock waits on runs a frame of its own, so a test steps frame by frame with them. A command gives up after 30 s
+paints the settled frame, under `--no-settle` paints the next frame as it is. With the clock
+stopped and `step on`, a test steps frame by frame with commands (The clock, below). A command gives up after 30 s
 (`--timeout=SECONDS`) and names what kept the program busy.
 
 A program has settled once a frame asks for no other and `Program::busy` gives no reason.
@@ -228,7 +228,23 @@ frame at a time, so an animation can be captured at any point the same way every
 program that animates forever still settles. A pause runs its frames at once, costing only
 the frames, not the time it names. With the clock stopped, it runs each frame only once the program has nothing to wait
 for, such as an app's answer to the one before, so what apps report across threads of their own
-does not depend on how fast they are. `drive clock run` restarts it. With the clock stopped:
+does not depend on how fast they are. `drive clock run` restarts it.
+
+With the clock stopped, be-host starts each frame only once, within `STOPPED_CLOCK_FRAME_BUDGET`
+(10 s), the block store has run every command sent to it and its type modules have settled, and
+every app is idle, steps it woke itself for included (guides/apps/runtime.md, Settling); it never
+waits for the server. Frames the program asks for still run between commands, so which command's
+frame takes in what a thread did meanwhile depends on how soon that command came. `drive step on`
+stops that: with the clock stopped, no frame runs between commands (the drive layer holds them,
+`Layer::holds_frames`), and a command that does not settle (`--no-settle`, `state`) runs one
+frame. Then which frame takes in what the program's threads did no longer depends on how soon
+a command came, though not every frame is the same every run yet: an app's view can still be
+drawn a frame later in a few runs in a hundred (plans/backlog.md, "A stacked dock's old bar
+over the child that replaced it"), and what comes from outside the process (the server's
+answers, another device, a program in the desktop's compositor) lands when it lands. Leave it off
+where another device in the test needs this one between commands: a held device serves no
+hosted block, so a wait on the other device's side times out. `drive step off` lets frames run
+again. With the clock stopped:
 
 - a menu or sheet that closes stays in the tree until its animation ends, so `wait not` after
   closing it needs a `pause` first;

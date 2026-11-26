@@ -556,7 +556,8 @@ settled (`be_host_stack::finish_commands`, in `begin_host_frame`), and the poll 
 every app's steps to finish, those it woke itself for included (`finish_steps`, `Worker::idle`): what an
 app or the block store sends between frames (a dock request from a tap, a layout or present the
 host did not ask a frame for, a block's content) lands in the frame after the one that set it
-off, however fast their threads ran.
+off, however fast their threads ran. Under `drive step on` no frame runs between commands either
+(guides/running/drive.md, The clock).
 
 ### Layout and present commits
 

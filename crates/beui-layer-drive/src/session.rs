@@ -54,6 +54,8 @@ pub const USAGE: &str = "Session:
   hold NAME / hold off      hold back everything the program's own program NAME sends it (a be-host
                             app, by its id) as though it were slow to answer, counting it settled,
                             until hold off hands it all over in order
+  step on / step off        with the clock stopped, run no frame between commands, so each command
+                            runs only its own frames; or run the frames the program asks for
   frames                    how many frames ran since the last frames, and the longest one's wall time:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
@@ -179,8 +181,8 @@ enum Kind {
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
-        "help" | "settle" | "pause" | "clock" | "hurry" | "present" | "hold" | "frames"
-        | "close" | "synced" | "offline" | "network" => Kind::Session,
+        "help" | "settle" | "pause" | "clock" | "hurry" | "present" | "hold" | "step"
+        | "frames" | "close" | "synced" | "offline" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "env"
         | "windows" | "paint" | "overflows" => Kind::Reading,
         // Old names, here only so the parser refuses them with a pointer to the new forms.
@@ -283,6 +285,10 @@ impl Layer for Drive {
         let mut session = self.session.borrow_mut();
         let view = View::of(&dump, frame);
         session.end(&view, run, output, frame);
+    }
+
+    fn holds_frames(&self) -> bool {
+        self.bottom() && self.session.borrow().holds_frames()
     }
 
     fn wants_sight(&self) -> bool {
@@ -517,6 +523,8 @@ struct Session {
     unhurried: bool,
     presents_late: bool,
     held: Option<String>,
+    /// `step on`: with the clock stopped, frames run only for commands (`holds_frames`).
+    stepping: bool,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
     saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
@@ -558,6 +566,7 @@ impl Session {
             unhurried: false,
             presents_late: false,
             held: None,
+            stepping: false,
             focused: true,
             picks: Vec::new(),
             saves: Vec::new(),
@@ -601,6 +610,19 @@ impl Session {
                     }
                 }),
         }
+    }
+
+    /// Under `step on` with the clock stopped, the program runs no frame between commands: each
+    /// frame is one a command runs, so what a command sees never depends on how soon the next one
+    /// came. Off by default: a program that serves others while no command runs (a device whose
+    /// hosted block another device in the test joins) needs its frames.
+    fn holds_frames(&self) -> bool {
+        self.stepping
+            && self.clock_stopped
+            && self.active.is_none()
+            && self.pending.is_none()
+            && self.flush.is_none()
+            && !self.inbox.waiting()
     }
 
     fn take_frames(&mut self) -> String {
@@ -1419,6 +1441,14 @@ impl Session {
                 frame.context.set_held(self.held.clone());
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
+            "step" => {
+                self.stepping = match argument(0)? {
+                    "on" => true,
+                    "off" => false,
+                    other => return Err(format!("step takes on or off, not {other}")),
+                };
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }
     }
@@ -1967,6 +1997,9 @@ impl Session {
         }
         if let Some(held) = &self.held {
             text.push_str(&format!("hold {held}: what it sends is held back\n"));
+        }
+        if self.stepping {
+            text.push_str("step on: with the clock stopped, frames run only for commands\n");
         }
         if let Some(progress) = gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));
