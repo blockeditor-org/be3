@@ -40,8 +40,8 @@ async fn follow_known(client: &mut TestClient, block: Uuid) -> Option<BlockSumma
 
 /// A block a viewer knows of only through a reference, followed by itself, is told of changes
 /// to its own summary alone: once until it is read again, never of a change to a block below
-/// it the viewer may not know of, and no more once a revoke means the viewer may not know of
-/// it.
+/// it the viewer may not know of, and never once a revoke means the viewer may not know of it,
+/// whose roots the revoke tells instead.
 #[tokio::test]
 async fn a_block_followed_as_known_is_told_of_its_own_changes_alone() {
     let harness = Harness::start().await;
@@ -96,18 +96,22 @@ async fn a_block_followed_as_known_is_told_of_its_own_changes_alone() {
     );
     viewer.read_block(hidden).await;
 
-    // The viewer's grant on the page that references it is revoked: it may not know of the
-    // block now, is told once, and the follow goes.
+    // The viewer's grant on the page that references it is revoked: its roots are told, and the
+    // follow goes without a word, which would tell it when a block it may not know of changed.
+    viewer.notifications.retain(|notice| !matches!(notice, Notice::Roots));
     let revoked = owner.grant(page, account, Access::None).await;
     assert!(matches!(revoked, Ok(())), "{revoked:?}");
     describe(&mut owner, hidden, &[], b"out of reach").await;
-    assert!(
-        viewer.told(known.clone()).await,
-        "losing sight of the block is told once"
-    );
     describe(&mut owner, hidden, &[], b"unseen").await;
     assert!(
         !viewer.told(known).await,
-        "nothing more is told of a block the viewer may not know of"
+        "nothing is told of a block the viewer may no longer know of"
+    );
+    assert!(
+        viewer
+            .notifications
+            .iter()
+            .any(|notice| matches!(notice, Notice::Roots)),
+        "the revoke tells the viewer's roots"
     );
 }

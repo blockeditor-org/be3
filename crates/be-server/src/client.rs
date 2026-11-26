@@ -3462,8 +3462,9 @@ pub(crate) async fn advance(
 /// Tells whoever follows a block on `path` as one it knows of (`topic.known`) that it changed,
 /// only when what its summary says moved past what the follower last read: a change below the
 /// block, which the follower may not know of, moves nothing of it. One that may no longer know
-/// of the block (a revoke, a move out of reach) is told once more and let go, so it reads the
-/// summary again and lets go of what it showed.
+/// of the block (a revoke, a move out of reach) is let go without a word, which would tell it
+/// when a block it may not know of changed: the change that took it out of reach tells its
+/// roots (`topic.roots`), and it reads its known blocks again then.
 async fn tell_known(store: &ServerStore, hub: &WatchHub, organization: Uuid, path: &[Uuid]) {
     let followers = hub.known_followers(organization, path).await;
     if followers.is_empty() {
@@ -3478,8 +3479,8 @@ async fn tell_known(store: &ServerStore, hub: &WatchHub, organization: Uuid, pat
     };
     for ((client, _, place, read), state) in followers.into_iter().zip(states) {
         match state {
-            None => hub.known_changed(client, place, true).await,
-            Some(state) if read != Some(state) => hub.known_changed(client, place, false).await,
+            None => hub.unfollow_known(client, place).await,
+            Some(state) if read != Some(state) => hub.known_changed(client, place).await,
             Some(_) => {}
         }
     }

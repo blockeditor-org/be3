@@ -469,9 +469,8 @@ impl WatchHub {
     }
 
     /// Tells `client` that `place`, which it follows as a block it knows of, changed: once,
-    /// until it reads the summary again (`known_read`). With `gone`, it may no longer know of
-    /// it: told once more, and the follow let go.
-    pub async fn known_changed(&self, client: u64, place: Place, gone: bool) {
+    /// until it reads the summary again (`known_read`).
+    pub async fn known_changed(&self, client: u64, place: Place) {
         let send = {
             let mut joined = self.joined.lock().await;
             let Some(told) = joined
@@ -481,15 +480,7 @@ impl WatchHub {
             else {
                 return;
             };
-            let send = !told.outstanding;
-            told.outstanding = true;
-            if gone {
-                if let Some(follows) = joined.known_follows.get_mut(&client) {
-                    follows.remove(&place);
-                }
-                unindex(&mut joined.known_followers, place, client);
-            }
-            send
+            !std::mem::replace(&mut told.outstanding, true)
         };
         if send {
             self.send_to(client, Push::Known(place)).await;

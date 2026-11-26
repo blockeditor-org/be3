@@ -437,10 +437,11 @@ the connection a stopping stack closed.
   that drain missed (`Outbox::signalled`). After a revoke, a drain running
   beside the lane's rotation can meet the old epoch shown outdated before the
   new one exists (not reproduced: no test makes a drain fail this way), and the
-  timer alone would hold the edit 30 s. A drain does not wait for the lane's
-  commands on its blocks instead: a lane command first waits for the drain to
-  send what it needs of its block (`Tasks::sent`), so a drain that skipped the
-  lane's blocks would leave that command waiting on itself.
+  timer alone would hold the edit 30 s. This retry on events was chosen over
+  gating a block's drain while a lane command rotates its key: such a gate must
+  cover the rotation alone, since a lane command first waits for the drain to
+  send what it needs of its block (`Tasks::sent`), and a gate over the whole
+  command would leave it waiting on itself.
 - **Session calls off the loop.** Relays, claims, leaves, unwatches
   and resynchronizing joins are answered in tasks (`Io::*`). They are written
   the moment they are made, so a leave and the next join reach the server in
