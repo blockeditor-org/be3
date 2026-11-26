@@ -410,18 +410,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`, `..._lands_a_block_dragged_from_the_files_on_a_canvas`
   and `..._shows_a_picker_a_canvas_places` (50 of 50 each, 6 at a time with `--apart`), which
   verify has seen fail too: their next failure's output is what to read.
-- **A dropped image's card that never shows its image, under the root.**
-  `be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canvas` paints 1200
-  shapes for the accepted 1201 in about 1 run in 8 (8 of 80, and 23 of 160, `stress --apart
-  --parallel 8` on 4 cores): the two cards the test drops, one under be-host's UI and one under
-  the root, lie on one another, and one of their image children draws nothing (its `Artwork`
-  has no image and no thumbhash, so a zero rect). It is a steady state, not a late arrival: a
-  painting taken after a further `pause 1000` and `settle` is the same. Once in 40 the card
-  dropped under the root was also fitted to 25x61 points, as if its child told no intrinsic
-  size before the card was made. Suspects: which child's payload never reaches `watch`
-  (be-app-image `root/picture.rs`; the reopened card's payload is left in the store and read by
-  range), and how the root sizes a dropped card. Done: the cause found and fixed at its source,
-  and the painting the same every run.
 
 ## 16. Host test tools
 
