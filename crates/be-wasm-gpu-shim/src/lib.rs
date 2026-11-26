@@ -206,10 +206,10 @@ pub fn failure() -> Option<String> {
     )
 }
 
+/// The global's clock, in a worker as on the page (a root's shim runs on the page).
 fn now() -> f64 {
-    js_sys::global()
-        .dyn_into::<web_sys::WorkerGlobalScope>()
+    js_sys::Reflect::get(&js_sys::global(), &"performance".into())
         .ok()
-        .and_then(|scope| scope.performance())
+        .and_then(|performance| performance.dyn_into::<web_sys::Performance>().ok())
         .map_or(0.0, |performance| performance.now())
 }

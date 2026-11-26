@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_lib_layers::{LayerId, LayerList};
+use be_lib_layers::{LayerId, LayerList, Surface};
 use be_wasm_guest_host::Wake;
 use be_wasm_ops::{Connection, Incoming, Side};
 use be_wasm_root_api::{FrameDone, FrameRequest};
@@ -42,6 +42,10 @@ const ECHO: &str = "../echo-pure.wasm";
 const PURE_WASI: &str = "../pure-wasi.wasm";
 const READS_A_FILE: &str = "../reads-a-file.wasm";
 
+/// The root built on be-sdk-root (be-sdk-root-testing), linked against the base and beui
+/// libraries, staged in the bundle beside app.js and the libraries it links.
+const EMBEDDING_ROOT: &str = "./root_testing.wasm";
+
 /// Far enough off that a child that answers at all answers before it.
 const PATIENT: Duration = Duration::from_secs(30);
 
@@ -51,6 +55,7 @@ pub async fn run() -> Result<String, JsValue> {
     be_wasm_threads::initialize_page();
     let mut passed = Vec::new();
     passed.push(a_frame_waits_for_its_child_and_shows_it().await?);
+    passed.push(a_linked_root_draws_its_own_surface_on_the_page().await?);
     passed.push(a_frame_past_its_deadline_draws_without_the_child_it_waits_for().await?);
     passed.push(a_root_that_keeps_waking_itself_stops_at_its_patience().await?);
     passed.push(a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks().await?);
@@ -132,6 +137,80 @@ fn shown(done: &FrameDone) -> Result<Vec<LayerId>, String> {
 
 fn check(holds: bool, why: impl FnOnce() -> String) -> Result<(), JsValue> {
     if holds { Ok(()) } else { Err(why().into()) }
+}
+
+/// The fonts the page gives the linked root: beui's text face and its icons, as be-host hands its
+/// bundled fonts (be-sdk-api's `Fonts`, encoded).
+fn fonts() -> Vec<u8> {
+    let face = |role, data: &[u8]| be_sdk_api::FontFace {
+        role,
+        index: 0,
+        data: data.to_vec(),
+    };
+    be_wasm_ops::encode(&be_sdk_api::Fonts {
+        replace: true,
+        faces: vec![
+            face(be_sdk_api::FontRole::Text, beui_fonts::INTER_REGULAR),
+            face(be_sdk_api::FontRole::Icons, beui_fonts::ICONS),
+        ],
+    })
+}
+
+/// The colour at the middle of what `canvas` shows, read back through a canvas of its own.
+fn middle(canvas: &web_sys::OffscreenCanvas) -> Result<[u8; 4], JsValue> {
+    let bitmap = canvas.transfer_to_image_bitmap()?;
+    let (width, height) = (bitmap.width(), bitmap.height());
+    let reader = web_sys::OffscreenCanvas::new(width, height)?;
+    let context: web_sys::OffscreenCanvasRenderingContext2d = reader
+        .get_context("2d")?
+        .ok_or("no 2d context")?
+        .unchecked_into();
+    context.draw_image_with_image_bitmap(&bitmap, 0.0, 0.0)?;
+    let pixel = context
+        .get_image_data(f64::from(width / 2), f64::from(height / 2), 1.0, 1.0)?
+        .data();
+    Ok([pixel[0], pixel[1], pixel[2], pixel[3]])
+}
+
+async fn a_linked_root_draws_its_own_surface_on_the_page() -> Result<String, JsValue> {
+    // be-sdk-root-testing's, which the page does not link: the module is its guest's.
+    const EMBEDDING_LAYER: LayerId = LayerId(0);
+    const ROOT_SURFACE: u32 = 0;
+    const ROOT_COLOR: [f64; 4] = [0.3, 0.1, 0.4, 1.0];
+    const SIZE: (u32, u32) = (400, 240);
+    // Its child, the triangle, is not staged: the frame ends at its deadline without it.
+    let root = Rc::new(
+        Root::load(EMBEDDING_ROOT, Box::new(staged))
+            .await?
+            .with_fonts(fonts())
+            .with_patience(PATIENT),
+    );
+    let canvas = web_sys::OffscreenCanvas::new(SIZE.0, SIZE.1)?;
+    root.show_surface(1, &canvas, ROOT_SURFACE);
+    let done = frame(&root, 1, Duration::from_secs(2)).await??;
+    let list = LayerList::decode(&done.layers)
+        .map_err(|error| format!("the frame is no layer list: {error}"))?;
+    let own = list
+        .windows
+        .iter()
+        .flat_map(|window| window.layers.iter())
+        .find(|layer| layer.id == EMBEDDING_LAYER)
+        .ok_or("the frame shows no layer of the root's own")?;
+    check(own.surface == Surface::Root(ROOT_SURFACE), || {
+        format!("the root's layer shows {:?}, not its own surface", own.surface)
+    })?;
+    root.paint()?;
+    let shown = middle(&canvas)?;
+    // ROOT_COLOR, sRGB-encoded as the surface holds it, to the byte, give or take one.
+    let wanted = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
+    let close = shown
+        .iter()
+        .zip(wanted)
+        .all(|(shown, wanted)| shown.abs_diff(wanted) <= 1);
+    check(close, || {
+        format!("the canvas showing the root's surface shows {shown:?}, not {wanted:?}")
+    })?;
+    Ok("a linked root drew its own surface on the page's device, which a canvas showed".to_owned())
 }
 
 async fn a_frame_waits_for_its_child_and_shows_it() -> Result<String, JsValue> {

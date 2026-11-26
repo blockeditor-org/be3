@@ -3523,6 +3523,7 @@ name = "be-wasm-root-web-testing"
 version = "0.1.0"
 dependencies = [
  "be-lib-layers",
+ "be-sdk-api",
  "be-wasm-guest-host",
  "be-wasm-ops",
  "be-wasm-pure-wasi",
@@ -3532,6 +3533,7 @@ dependencies = [
  "be-wasm-sandbox-api",
  "be-wasm-sandbox-host",
  "be-wasm-threads",
+ "beui-fonts",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",

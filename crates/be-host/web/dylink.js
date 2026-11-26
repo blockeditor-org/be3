@@ -104,15 +104,16 @@ function fillSlots(plan, table, instance, module) {
 /**
  * Links every module above the root, by the plan: relocates each one's data
  * and runs its constructors. host(module) gives the imports neither the plan
- * nor the other modules answer: WASI, the be3 abi and the memory. Returns the
- * app's instance.
+ * nor the other modules answer: WASI, the be3 abi and the memory. Answers the
+ * app's instance. Each is instantiated asynchronously, as a page's main thread
+ * must instantiate a module past 8MB (a root linked on the page).
  */
-export function link(modules, plan, root, host) {
+export async function link(modules, plan, root, host) {
     const table = root.exports[TABLE];
     table.grow(plan.tableGrow);
     fillSlots(plan, table, root, 0);
     const instances = [root];
-    modules.slice(1).forEach((module, at) => {
+    for (const [at, module] of modules.slice(1).entries()) {
         const index = at + 1;
         const placed = plan.modules[index];
         const imports = host(module);
@@ -139,7 +140,7 @@ export function link(modules, plan, root, host) {
                 }
             }
         });
-        const instance = new WebAssembly.Instance(module, imports);
+        const instance = await WebAssembly.instantiate(module, imports);
         for (const [name, global] of own) {
             global.value = placed.memoryBase + exported(instance, name).value;
         }
@@ -147,6 +148,6 @@ export function link(modules, plan, root, host) {
         instance.exports.__wasm_apply_data_relocs?.();
         instance.exports.__wasm_call_ctors?.();
         instances.push(instance);
-    });
+    }
     return instances[instances.length - 1];
 }

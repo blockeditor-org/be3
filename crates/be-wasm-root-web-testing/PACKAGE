@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-sdk-api:be-sdk-api",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
@@ -27,6 +28,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
                 "//crates/be-wasm-sandbox-host:be-wasm-sandbox-host",
                 "//crates/be-wasm-threads:be-wasm-threads",
+                "//crates/beui-fonts:beui-fonts",
                 "//third-party/rust:js-sys-0.3.107",
                 "//third-party/rust:wasm-bindgen-0.2.130",
                 "//third-party/rust:wasm-bindgen-futures-0.4.80",
