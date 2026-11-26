@@ -490,16 +490,22 @@ Fixed items are removed as they land.
   the same daemon fails with "Action ... is missing from CAS" until someone runs
   `./scripts/buck kill` (guides/build_server.md). re-relay already forgets such
   blobs. buck2's restarter (`[buck2] restarter`, on in .buckconfig) does not
-  help: it restarts only on errors buck2 marks as corrupting its state, and it
-  counts an `Execute` FAILED_PRECONDITION as an ordinary failure. Fixing that
+  help: it restarts only on errors buck2 marks as corrupting its state. Fixing that
   in buck2 (mark the refusal as corrupt state, or forget the named digests in
-  `FindMissingCache`) would replace this item. Done: when an attempt fails that way, `retrying` in
-  crates/be-tool-bootstrap/src/buck.rs runs `buck2 kill` before the next
-  attempt, and the guide's first step goes. First check that buck2 exits 2
-  (which `retrying` retries) rather than 3 on an `Execute` FAILED_PRECONDITION,
-  and that the failure can be seen: the output is not captured when the
-  command is not quiet, so the wrapper may need another sign, such as a
-  `forgot` line re-relay wrote to `target/re-relay.log` during the attempt.
+  `FindMissingCache`) would replace this item. buck2 exits 3 on the refusal, not 2,
+  so `retrying` in crates/be-tool-bootstrap/src/buck.rs, which retries only 2, never
+  sees it: the pinned buck2 (2026-09-15) tags it `ReFailedPrecondition`, which
+  app/buck2_error/src/classify.rs ranks an input error, and a daemon started with
+  `BUCK2_TEST_FAIL_RE_EXECUTE=true` (which makes every `Execute` fail that way)
+  builds a target with `--no-remote-cache` to exit 3, `Internal error (stage:
+  remote_call_error)`. Exit 3 is also every failed action's, so the code cannot be
+  the sign. What can: a `forgot` line re-relay writes to `target/re-relay.log` during
+  the attempt (it logs one for each refused `Execute`, whether or not buck2's output
+  was captured; a `forgot` from another command of the checkout running at the same
+  time would only cost a spare retry). Done: when an attempt exits 3 and the relay's log
+  gained a `forgot` line during it, `retrying` runs `buck2 kill` and tries again (within
+  `BE3_BUCK_ATTEMPTS`), and the guide's first step goes; a test drives `retrying` with
+  a stand-in buck2 and log.
 - **CI still installs Python Playwright for old pull requests.** ci.yml's
   "Install the browser preview runtime" step serves only checkouts from before
   the browser rasterizer ran `render.mjs` (those with
