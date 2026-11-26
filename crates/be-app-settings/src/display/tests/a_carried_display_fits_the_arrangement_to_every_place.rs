@@ -23,6 +23,7 @@ fn a_carried_display_fits_the_arrangement_to_every_place() {
     );
 
     let from = on_desk(fit, laptop.center());
+    let fill = tile_fill(&settings.editor, "display.arrangement.eDP-1");
     settings.editor.down(from, PointerButton::Primary);
     settings.editor.hover(from + vec2(0.0, 8.0));
     settings.run();
@@ -37,7 +38,7 @@ fn a_carried_display_fits_the_arrangement_to_every_place() {
     settings.editor.hover(from + (to - from) / 2.0);
     settings.editor.hover(to);
     settings.run();
-    let carried = settings.editor.rect_of("display.arrangement.eDP-1");
+    let carried = drawn_tile(&settings.editor, fill);
     assert!(
         desk.contains_rect(carried),
         "the carried laptop is drawn whole, inside the area: {carried:?} in {desk:?}"

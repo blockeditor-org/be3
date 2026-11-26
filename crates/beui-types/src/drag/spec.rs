@@ -492,10 +492,10 @@ impl<D: 'static> DragSpec<D> {
 pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
     pub item: Option<Rect>,
-    /// The node the item is (`of_source`): measured at each point, so a source drawn at
-    /// another size while carried (a canvas refitting under it) is held at the fraction of
-    /// it that was grabbed, at the size it is drawn now.
-    pub source: Option<NodeId>,
+    /// The node the item is, while the source is its face (`lifted_from`): measured at each
+    /// point, so a source drawn at another size while carried (a canvas refitting under it)
+    /// is held at the fraction of it that was grabbed, at the size it is drawn now.
+    source: Option<NodeId>,
     face: CarryFace,
     pub outside: Option<Rc<dyn Fn(DragPoint)>>,
     /// The window the carry is read in, whatever window the pointer is over (`kept_in`).
@@ -579,6 +579,7 @@ impl Carry {
     pub fn preview(self, preview: impl Fn() -> NodeId + 'static) -> Self {
         Self {
             face: CarryFace::Preview(Rc::new(preview)),
+            source: None,
             ..self
         }
     }
@@ -592,6 +593,7 @@ impl Carry {
     pub fn drawn_by_site(self) -> Self {
         Self {
             face: CarryFace::Site,
+            source: None,
             ..self
         }
     }
@@ -605,15 +607,24 @@ impl Carry {
     }
 
     /// The item is `node`, grabbed where `item` (relative to the pointer, as `node` was drawn
-    /// at the lift) says: the board measures `node` at each point and holds it at the
-    /// fraction of it that was grabbed, so a source that changes size while carried stays
-    /// under the pointer, and the places compare against the rect that is drawn.
-    pub fn of_source(self, node: NodeId, item: Rect) -> Self {
+    /// at the lift) says. While the source is the carry's face, the board measures `node` at
+    /// each point and holds it at the fraction of it that was grabbed, so a source that
+    /// changes size while carried stays under the pointer, and the places compare against
+    /// the rect that is drawn; a preview or a site draws it as it was lifted (a `Reorder`
+    /// collapses the source), so `item` stays as given.
+    pub fn lifted_from(self, node: NodeId, item: Rect) -> Self {
+        let source = matches!(self.face, CarryFace::Source).then_some(node);
         Self {
             item: Some(item),
-            source: Some(node),
+            source,
             ..self
         }
+    }
+
+    /// The node the board measures for the item at each point (`lifted_from`), while the
+    /// source is the carry's face.
+    pub fn source(&self) -> Option<NodeId> {
+        self.source
     }
 
     /// The item relative to the pointer, at `size` (its source as drawn now): held at the

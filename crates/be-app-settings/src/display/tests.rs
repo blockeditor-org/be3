@@ -5,7 +5,8 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::native::Document;
-use be_sdk_beui::beui::{Key, Modifiers, Vec2};
+use be_sdk_beui::beui::native::Shape;
+use be_sdk_beui::beui::{Color32, Key, Modifiers, Vec2};
 use be_sdk_beui::{
     BlockInfo, BlockParent, DesktopBarWatch, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor,
     PowerAvailability, PowerWatch,
@@ -16,6 +17,8 @@ use uuid::Uuid;
 
 use crate::display::DisplaySettingsRoot;
 
+mod a_carried_display_grabbed_by_its_corner_snaps_by_the_rect_it_is_drawn_at;
+mod a_carried_display_reaches_the_areas_far_corner;
 mod a_carried_display_stays_under_the_pointer_where_it_was_grabbed;
 mod a_carried_display_snaps_where_it_lines_up_with_another;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
@@ -326,5 +329,47 @@ fn gaming_monitor() -> HostDisplay {
         rect: be_sdk_beui::Rect::ZERO,
         scale: 1.0,
         default_scale: 1.0,
+    }
+}
+
+fn filled_rects(editor: &BeuiTest<DisplaySettingsRoot>) -> Vec<(be_sdk_beui::Rect, Color32)> {
+    let output = editor.drawn().expect("the settings have drawn");
+    output
+        .shapes()
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect {
+                rect,
+                stroke_width,
+                color,
+                ..
+            } if stroke_width == 0.0 => Some((rect, color)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The fill of the arrangement's tile `test_id`, as it is drawn where it is laid out.
+fn tile_fill(editor: &BeuiTest<DisplaySettingsRoot>, test_id: &str) -> Color32 {
+    let laid = editor.rect_of(test_id);
+    filled_rects(editor)
+        .into_iter()
+        .find(|(rect, _)| (rect.min - laid.min).length() < 0.5 && (rect.max - laid.max).length() < 0.5)
+        .map(|(_, color)| color)
+        .unwrap_or_else(|| panic!("{test_id} is drawn filled where it is laid out"))
+}
+
+/// Where the one tile filled with `fill` is drawn in the arrangement: a carried tile keeps
+/// its place, drawing nothing there, and is drawn where its carry is, above the window.
+fn drawn_tile(editor: &BeuiTest<DisplaySettingsRoot>, fill: Color32) -> be_sdk_beui::Rect {
+    let area = editor.rect_of("display.arrangement").expand(1.0);
+    let drawn: Vec<_> = filled_rects(editor)
+        .into_iter()
+        .filter(|(rect, color)| *color == fill && area.contains_rect(*rect))
+        .map(|(rect, _)| rect)
+        .collect();
+    match drawn.as_slice() {
+        [rect] => *rect,
+        _ => panic!("one tile in the arrangement is drawn in {fill:?}, not {drawn:?}"),
     }
 }

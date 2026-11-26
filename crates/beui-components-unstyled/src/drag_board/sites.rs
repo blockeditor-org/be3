@@ -68,11 +68,11 @@ fn closest_of(specs: &[(u64, DragSpec<Placed>)]) -> DragSpec<Placed> {
 
 impl Board {
     /// `placing`'s item relative to the pointer: as lifted, but for a source measured now
-    /// (`Carry::of_source`), at the size it is drawn now, held at the fraction of it grabbed.
+    /// (`Carry::lifted_from`), at the size it is drawn now, held at the fraction of it grabbed.
     fn item_of(&self, carry: &Carry) -> Option<Rect> {
         let item = carry.item?;
         let now = carry
-            .source
+            .source()
             .and_then(|source| self.space.placed(source))
             .map(|(rect, _)| rect.size());
         Some(match now {
