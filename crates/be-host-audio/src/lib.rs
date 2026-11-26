@@ -11,7 +11,7 @@ use be_sdk_api::{AudioSource, AudioStatus};
 
 /// A player for one editor instance, which calls `changed` whenever its status changes.
 pub fn open(changed: Box<dyn Fn() + Send + Sync>) -> Box<dyn be_host_runtime::AudioPlayer> {
-    Box::new(AudioPlayer::new(Changed(Arc::from(changed))))
+    Box::new(Player::new(Changed(Arc::from(changed))))
 }
 
 struct Source {
@@ -37,18 +37,18 @@ impl Changed {
     }
 }
 
-impl be_host_runtime::AudioPlayer for AudioPlayer {
+impl be_host_runtime::AudioPlayer for Player {
     fn load(&mut self, source: AudioSource) {
         self.reset();
         self.source = Some(source.into());
     }
 
     fn toggle(&mut self) {
-        AudioPlayer::toggle(self);
+        Player::toggle(self);
     }
 
     fn reset(&mut self) {
-        AudioPlayer::reset(self);
+        Player::reset(self);
     }
 
     fn status(&self) -> AudioStatus {
@@ -62,7 +62,7 @@ impl be_host_runtime::AudioPlayer for AudioPlayer {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-struct AudioPlayer {
+struct Player {
     source: Option<Source>,
     stream: Option<(rodio::OutputStream, rodio::OutputStreamHandle)>,
     sink: Option<rodio::Sink>,
@@ -73,7 +73,7 @@ struct AudioPlayer {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl AudioPlayer {
+impl Player {
     fn new(changed: Changed) -> Self {
         Self {
             source: None,
@@ -209,7 +209,7 @@ impl Drop for Element {
 }
 
 #[cfg(target_arch = "wasm32")]
-struct AudioPlayer {
+struct Player {
     source: Option<Source>,
     element: Option<Element>,
     error: Option<String>,
@@ -217,7 +217,7 @@ struct AudioPlayer {
 }
 
 #[cfg(target_arch = "wasm32")]
-impl AudioPlayer {
+impl Player {
     fn new(changed: Changed) -> Self {
         Self {
             source: None,
