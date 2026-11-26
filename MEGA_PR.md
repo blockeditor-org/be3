@@ -131,6 +131,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7g2b`: host tests for the root's own members, invite, agents, contacts and share-link UI, using be-host's test ids and layout.
 - `host-adapter-4g7g2a`: the root's accounts, host menu panel (sized to its rows, closed by a pick, a sheet on a phone), Running Apps and session picker on a stopped session app, as be-host's own UI.
 - `backlog-9`: a stopped sandbox keeps saying why, the PDF renderer keeps its documents, children as an array, game layout indexes, a lift wakes only its own readers, a first measurement at once.
+- `one-way-in-the-host`: one grip rule in be-lib-geometry for the window stack, be-host and the dock; the host's windows and program editors are pushed, not polled; why the two shrink rules stay apart.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
