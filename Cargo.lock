@@ -3311,6 +3311,7 @@ dependencies = [
  "be-wasm-gpu-convert",
  "be-wasm-guest-abi",
  "be-wasm-ops",
+ "foldhash 0.2.0",
  "wgpu",
 ]
 

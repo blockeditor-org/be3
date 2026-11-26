@@ -21,5 +21,5 @@ fn a_webgpu_error_goes_to_the_innermost_scope_of_its_kind() {
         "a pop with no scope open is refused"
     );
     assert!(gpu.take_logged().is_empty());
-    assert_eq!(gpu.take_error(), None, "be3:gpu/device's error is not touched");
+    assert_eq!(gpu.take_error(), None, "an app's error is not a fault of the guest");
 }

@@ -1,6 +1,4 @@
 mod bundles;
-mod convert;
-mod host;
 mod queries;
 mod settling;
 mod tables;
@@ -12,12 +10,10 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::pin::{Pin, pin};
+use std::pin::pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
-use be_wasm_gpu_abi::device as abi;
-use be_wasm_gpu_convert::Convert;
 use settling::Settling;
 use tables::Table;
 
@@ -37,7 +33,6 @@ pub type Imports = Arc<Mutex<HashMap<u64, wgpu::Texture>>>;
 pub struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    limits: abi::SupportedLimits,
     buffers: Table<wgpu::Buffer>,
     textures: Table<wgpu::Texture>,
     made_textures: HashSet<u32>,
@@ -47,10 +42,8 @@ pub struct Gpu {
     groups: Table<wgpu::BindGroup>,
     pipeline_layouts: Table<wgpu::PipelineLayout>,
     modules: Table<wgpu::ShaderModule>,
-    compilations: HashMap<u32, Compilation>,
     pipelines: Table<wgpu::RenderPipeline>,
     settling: Settling,
-    destroyed: bool,
     encoders: Table<wgpu::CommandEncoder>,
     command_buffers: Table<wgpu::CommandBuffer>,
     passes: Table<wgpu::RenderPass<'static>>,
@@ -60,7 +53,6 @@ pub struct Gpu {
     coarsening: Option<queries::Coarsening>,
     bundle_encoders: Table<bundles::BundleEncoder>,
     bundles: Table<wgpu::RenderBundle>,
-    surface_ids: Table<u32>,
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
     presented: Vec<u32>,
@@ -75,11 +67,6 @@ pub struct Gpu {
 }
 
 type Outcome<T> = Result<T, String>;
-
-#[cfg(not(target_arch = "wasm32"))]
-type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo> + Send>>;
-#[cfg(target_arch = "wasm32")]
-type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo>>>;
 
 struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
@@ -133,9 +120,6 @@ impl Surface {
 /// timed: that is where wgpu validates and encodes everything recorded.
 pub fn only_records(function: &str) -> bool {
     [
-        "[method]render-pass.",
-        "[method]compute-pass.",
-        "[method]render-bundle-encoder.",
         "[method]gpu-render-pass-encoder.",
         "[method]gpu-compute-pass-encoder.",
         "[method]gpu-render-bundle-encoder.",
@@ -147,16 +131,14 @@ pub fn only_records(function: &str) -> bool {
 
 /// Whether a gpu import submits work to the queue, which a host times apart.
 pub fn submits(function: &str) -> bool {
-    matches!(function, "submit" | "[method]gpu-queue.submit")
+    function == "[method]gpu-queue.submit"
 }
 
 impl Gpu {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let limits = convert::limits(&device.limits());
         Self {
             device,
             queue,
-            limits,
             buffers: Table::new(),
             textures: Table::new(),
             made_textures: HashSet::new(),
@@ -166,10 +148,8 @@ impl Gpu {
             groups: Table::new(),
             pipeline_layouts: Table::new(),
             modules: Table::new(),
-            compilations: HashMap::new(),
             pipelines: Table::new(),
             settling: Settling::new(),
-            destroyed: false,
             encoders: Table::new(),
             command_buffers: Table::new(),
             passes: Table::new(),
@@ -179,7 +159,6 @@ impl Gpu {
             coarsening: None,
             bundle_encoders: Table::new(),
             bundles: Table::new(),
-            surface_ids: Table::new(),
             surfaces: HashMap::new(),
             imports: Imports::default(),
             presented: Vec::new(),
@@ -285,99 +264,8 @@ impl Gpu {
         }
     }
 
-    fn fail<T>(&mut self, result: Outcome<T>, fallback: T) -> T {
-        match result {
-            Ok(value) => value,
-            Err(message) => {
-                self.report(message);
-                fallback
-            }
-        }
-    }
-
     fn lost(&self) -> bool {
-        self.destroyed || self.settling.lost().is_some()
-    }
-
-    /// Why the app's device is lost: destroyed by the app, or lost by the host. None while it
-    /// is not.
-    pub fn lost_info(&self) -> Option<abi::DeviceLostInfo> {
-        if self.destroyed {
-            return Some(abi::DeviceLostInfo {
-                reason: abi::DeviceLostReason::Destroyed,
-                message: "the app destroyed its device".to_owned(),
-            });
-        }
-        self.settling.lost().map(|message| abi::DeviceLostInfo {
-            reason: abi::DeviceLostReason::Unknown,
-            message,
-        })
-    }
-
-    fn create<T>(
-        &mut self,
-        table: fn(&mut Self) -> &mut Table<T>,
-        act: impl FnOnce(&mut Self) -> Outcome<T>,
-    ) -> Option<u32> {
-        if self.destroyed {
-            return Some(table(self).skip());
-        }
-        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let created = act(self);
-        let caught = caught(scope.pop());
-        let result = match (created, caught) {
-            (Ok(_), Some(error)) | (Err(error), _) => {
-                table(self).skip();
-                Err(error)
-            }
-            (Ok(value), None) => Ok(table(self).insert(value)),
-        };
-        self.fail(result.map(Some), None)
-    }
-
-    fn guard(&mut self, act: impl FnOnce(&mut Self) -> Outcome<()>) {
-        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let result = act(self);
-        let result = match caught(scope.pop()) {
-            Some(error) => result.and(Err(error)),
-            None => result,
-        };
-        self.fail(result, ());
-    }
-
-    fn surface_id(&mut self, surface: abi::Surface) -> Option<u32> {
-        let found = self.surface_ids.get(surface.0, "surface").copied();
-        self.fail(found.map(Some), None)
-    }
-}
-
-fn texel_copy_texture(
-    texture: &wgpu::Texture,
-    info: abi::TexelCopyTextureInfo,
-) -> wgpu::TexelCopyTextureInfo<'_> {
-    wgpu::TexelCopyTextureInfo {
-        texture,
-        mip_level: info.mip_level,
-        origin: wgpu::Origin3d {
-            x: info.origin.x,
-            y: info.origin.y,
-            z: info.origin.z,
-        },
-        aspect: Convert::<wgpu::TextureAspect>::convert(info.aspect),
-    }
-}
-
-fn texel_copy_buffer(
-    buffer: &wgpu::Buffer,
-    layout: abi::TexelCopyBufferLayout,
-) -> wgpu::TexelCopyBufferInfo<'_> {
-    wgpu::TexelCopyBufferInfo {
-        buffer,
-        layout: wgpu::TexelCopyBufferLayout {
-            offset: layout.offset,
-            bytes_per_row: layout.bytes_per_row,
-            rows_per_image: layout.rows_per_image,
-        },
+        self.settling.is_lost()
     }
 }
 

@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use be_wasm_gpu_abi::device as abi;
 use be_wasm_gpu_abi::embed::webgpu::Host;
 use be_wasm_gpu_abi::webgpu::webgpu as web;
 use be_wasm_gpu_convert::allowed::Allowed;
@@ -73,6 +72,24 @@ impl Gpu {
             ))),
             _ => Ok(()),
         }
+    }
+
+    /// The buffer and the range of it a mapped-range call names, which must be mapped for
+    /// reading or, `writing`, for writing.
+    fn mapped_range(
+        &self,
+        buffer: u32,
+        offset: u64,
+        size: u64,
+        writing: bool,
+    ) -> Result<(wgpu::Buffer, std::ops::Range<u64>), String> {
+        let mapped = self.buffers.get(buffer, "buffer")?.clone();
+        let range = offset
+            .checked_add(size)
+            .map(|end| offset..end)
+            .ok_or_else(|| "a mapped range ran past the end of its buffer".to_owned())?;
+        self.settling.mapped(buffer, &range, writing)?;
+        Ok((mapped, range))
     }
 
     /// A texture's default view, as `create-view` with no descriptor and a texture bound
@@ -1068,8 +1085,8 @@ impl Host for Gpu {
             return self.settling.wake();
         }
         let mapping = match (mode.contains(web::GpuMapMode::READ), mode.contains(web::GpuMapMode::WRITE)) {
-            (true, false) => Ok(abi::MapMode::Read),
-            (false, true) => Ok(abi::MapMode::Write),
+            (true, false) => Ok(wgpu::MapMode::Read),
+            (false, true) => Ok(wgpu::MapMode::Write),
             _ => Err(Failure::validation("a map is for reading or for writing, not both or neither")),
         };
         // Mapping a destroyed buffer is a validation error wgpu raises on the device, so the
@@ -1113,7 +1130,7 @@ impl Host for Gpu {
             message,
         };
         let (_, offset, size) = self.buffer_range(this.0, offset, size).map_err(|failure| refuse(failure.message))?;
-        let (buffer, range) = self.mapped_range(abi::Buffer(this.0), offset, size, false).map_err(refuse)?;
+        let (buffer, range) = self.mapped_range(this.0, offset, size, false).map_err(refuse)?;
         match range.is_empty() {
             true => Ok(Vec::new()),
             false => buffer
@@ -1143,7 +1160,7 @@ impl Host for Gpu {
             });
         }
         let offset = offset.unwrap_or(0);
-        let (buffer, range) = self.mapped_range(abi::Buffer(this.0), offset, size, true).map_err(refuse)?;
+        let (buffer, range) = self.mapped_range(this.0, offset, size, true).map_err(refuse)?;
         if !range.is_empty() {
             buffer
                 .slice(range)

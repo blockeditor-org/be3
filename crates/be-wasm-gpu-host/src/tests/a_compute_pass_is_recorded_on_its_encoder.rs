@@ -1,44 +1,40 @@
+use super::web::*;
 use super::*;
 
 #[test]
 fn a_compute_pass_is_recorded_on_its_encoder() {
     let mut gpu = gpu();
-    let module = gpu
-        .create_shader_module(abi::ShaderModuleDescriptor {
-            label: None,
-            wgsl: "@compute @workgroup_size(1) fn main() {}".into(),
-        })
-        .unwrap();
-    let pipeline = gpu
-        .create_compute_pipeline(abi::ComputePipelineDescriptor {
-            label: Some("nothing".into()),
-            layout: None,
-            module,
-            entry_point: None,
-            constants: Vec::new(),
-        })
-        .unwrap();
-    let encoder = gpu
-        .create_command_encoder(abi::CommandEncoderDescriptor { label: None })
-        .unwrap();
-    let pass = gpu
-        .command_encoder_begin_compute_pass(
-            encoder,
-            abi::ComputePassDescriptor {
-                label: None,
-                timestamp_writes: None,
+    let device = device(&mut gpu, Vec::new()).unwrap();
+    let module = module(&mut gpu, device, "@compute @workgroup_size(1) fn main() {}");
+    let pipeline = gpu.gpu_device_create_compute_pipeline(
+        device,
+        GpuComputePipelineDescriptor {
+            compute: GpuProgrammableStage {
+                module,
+                entry_point: None,
+                constants: None,
             },
-        )
-        .unwrap();
-    gpu.compute_pass_set_pipeline(pass, pipeline);
-    gpu.compute_pass_dispatch_workgroups(pass, 2, 1, 1);
-    gpu.compute_pass_end(pass);
-    let buffer = gpu.command_encoder_finish(encoder).unwrap();
-    gpu.submit(&[buffer]);
-    assert_eq!(gpu.take_error(), None);
-    gpu.compute_pass_dispatch_workgroups(pass, 1, 1, 1);
-    let error = gpu
-        .take_error()
-        .expect("a dispatch on an ended pass should report");
+            layout: GpuLayoutMode::Auto,
+            label: Some("nothing".into()),
+        },
+    );
+    let queue = gpu.gpu_device_queue(device);
+    let mut pass = None;
+    let recorded = scoped(&mut gpu, device, |gpu| {
+        let encoder = gpu.gpu_device_create_command_encoder(device, None);
+        let begun = gpu.gpu_command_encoder_begin_compute_pass(encoder, None);
+        gpu.gpu_compute_pass_encoder_set_pipeline(begun, pipeline);
+        gpu.gpu_compute_pass_encoder_dispatch_workgroups(begun, 2, None, None);
+        gpu.gpu_compute_pass_encoder_end(begun);
+        let commands = gpu.gpu_command_encoder_finish(encoder, None);
+        gpu.gpu_queue_submit(queue, &[commands]);
+        pass = Some(begun);
+    });
+    assert_eq!(recorded, None);
+    let pass = pass.unwrap();
+    let error = scoped(&mut gpu, device, |gpu| {
+        gpu.gpu_compute_pass_encoder_dispatch_workgroups(pass, 1, None, None)
+    })
+    .expect("a dispatch on an ended pass is refused");
     assert!(error.contains("compute pass"), "{error}");
 }

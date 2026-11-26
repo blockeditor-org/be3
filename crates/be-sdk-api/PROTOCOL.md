@@ -4,8 +4,9 @@ The host and an app speak the `be3:app` WIT world `editor-app`
 (`wit/`), carried by be-wasm-ops (guides/type_modules.md, "Operations and WIT"); the
 Rust on both sides is generated from it into this crate. The world imports:
 
-- `be3:gpu/device` (crates/be-wasm-gpu-abi/wit), the device the app draws with,
-  answered inside the app's own worker or thread;
+- wasi:webgpu and `be3:gpu/host` (crates/be-wasm-gpu-abi/wit), the gpu the app
+  draws with and the surfaces it draws into, answered inside the app's own
+  worker or thread;
 - `host` (`host.wit`): the handshake (`connect`, the app's first call), what a
   frame tells the host besides itself (`layout`, `frame-needed`,
   `missing-characters`) and the watches of preferences, the UTC offset, fonts

@@ -322,7 +322,7 @@ macro_rules! callers {
     )*};
 }
 
-callers!(device, webgpu with ticket, host);
+callers!(webgpu with ticket, host);
 
 impl Transported for Guest<'_> {
     fn transport(&mut self) -> &mut Transport {

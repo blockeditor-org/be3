@@ -1,6 +1,5 @@
 //! wasi:webgpu (decisions/be3_gpu_is_wasi_webgpu.md) and `be3:gpu/host` over the host's wgpu
-//! device. Its objects share `Gpu`'s tables with `be3:gpu/device`, which apps use until they
-//! move to it (plans/be3_gpu_is_wasi_webgpu.md, step 3).
+//! device: the gpu every app draws with.
 //!
 //! Every app device here is a view of the one wgpu device: it keeps the features and limits the
 //! app asked for, which creates are checked against, its own lost state and its own error
@@ -211,8 +210,8 @@ pub(crate) struct Web {
     events: Table<u32>,
     constants: Table<BTreeMap<String, f64>>,
     sizes: Table<BTreeMap<String, Option<u64>>>,
-    labels: HashMap<(Kind, u32), String>,
-    owners: HashMap<(Kind, u32), u32>,
+    labels: HashMap<(Kind, u32), String, foldhash::fast::FixedState>,
+    owners: HashMap<(Kind, u32), u32, foldhash::fast::FixedState>,
     buffers: HashMap<u32, web::GpuBufferUsage>,
     query_sets: HashMap<u32, (web::GpuQueryType, u32)>,
     maps: HashMap<u64, (u32, Promise<Result<(), web::MapAsyncError>>)>,
@@ -328,7 +327,7 @@ impl Gpu {
 
     /// Whether an app device is lost or destroyed, or the host's is.
     pub(crate) fn device_lost(&self, device: u32) -> bool {
-        self.settling.lost().is_some()
+        self.settling.is_lost()
             || self
                 .web
                 .devices

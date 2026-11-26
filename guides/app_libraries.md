@@ -261,9 +261,7 @@ app's own thread and a per-draw call takes only wasm values.
 - be-wasm-host links the glue natively; `be-wasm-gpu-shim` is the same in a
   browser worker.
 
-`Gpu` answers both in `src/webgpu.rs`. The world still holds the old
-`be3:gpu/device`, which nothing uses and plans/be3_gpu_is_wasi_webgpu.md (3b)
-deletes. wasi:webgpu's WIT is not in
+`Gpu` answers both in `src/webgpu.rs`. wasi:webgpu's WIT is not in
 the repository: buck2 fetches it pinned by its hash (`:webgpu.wit` in
 `crates/be-wasm-gpu-abi/BUCK`) and maps it to `wit/deps/webgpu/webgpu.wit`
 for the generator, in be-wasm-gpu-abi and in every crate whose WIT uses
@@ -290,9 +288,8 @@ for none.
 
 The app GPU API is meant to be everything JS WebGPU gives a page, with the
 host device's optional features and limits, since the same app runs in a
-browser (decisions/be3_gpu_matches_webgpu.md); plans/be3_gpu_is_wasi_webgpu.md
-replaces `be3:gpu/device` with wasi:webgpu to get there. What it lacks, reached
-from wgpu, is an
+browser (decisions/be3_gpu_matches_webgpu.md), which wasi:webgpu is. What it
+lacks, reached from wgpu, is an
 `unimplemented!` in `be-wasm-gpu-guest/src/objects.rs`; whatever wgpu marks
 `unsafe` is refused for good, since apps are untrusted. A native-only feature
 would be added only behind a feature the app checks.

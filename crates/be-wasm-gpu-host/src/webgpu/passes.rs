@@ -218,8 +218,8 @@ impl Gpu {
         })
     }
 
-    /// Resolves queries into a buffer, timestamps converted to nanoseconds and coarsened as
-    /// `be3:gpu/device`'s are (queries.rs).
+    /// Resolves queries into a buffer, timestamps converted to nanoseconds and coarsened to
+    /// 100 µs (queries.rs).
     pub(super) fn resolve(&mut self, encoder: u32, set: u32, first: u32, count: u32, destination: u32, offset: u64) {
         self.record(encoder, |gpu| {
             let found_set = gpu.held(&gpu.query_sets, Kind::QuerySet, set, "query set")?;

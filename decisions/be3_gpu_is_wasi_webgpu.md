@@ -38,7 +38,8 @@ streams settle through the one poll our binding generator gives every local inte
 - **Its shape costs no more per draw.** Per-draw calls (`draw`, `set-vertex-buffer`,
   `set-pipeline`) take scalars, borrows and options of them, which our `local` generator
   already passes as flat wasm values. `set-bind-group` takes `option<list<u32>>` and returns
-  a `result`; the generator learns to pass both without encoding (plan step 1). What is
+  a `result`; the generator passes both without encoding (guides/type_modules.md, "Local
+  interfaces"). What is
   shaped differently (limits and features as resources with a getter each, pipeline
   constants as a resource) runs only when an app starts or creates a pipeline.
 

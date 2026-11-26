@@ -17851,7 +17851,12 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32-bindgen": {},
+            "wasm32-bindgen": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "features": [
                     "default",

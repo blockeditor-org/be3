@@ -62,7 +62,7 @@ macro_rules! callers {
     )*};
 }
 
-callers!(device, webgpu with ticket, host);
+callers!(webgpu with ticket, host);
 
 impl Shim {
     fn timed<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {

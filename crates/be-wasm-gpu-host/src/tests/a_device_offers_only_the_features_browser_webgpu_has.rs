@@ -1,3 +1,4 @@
+use super::web::*;
 use super::*;
 
 #[test]
@@ -10,12 +11,17 @@ fn a_device_offers_only_the_features_browser_webgpu_has() {
         ..Default::default()
     });
     let mut gpu = Gpu::new(device, queue);
-    assert_eq!(
-        gpu.features(),
-        [
-            abi::FeatureName::TextureCompressionBc,
-            abi::FeatureName::ShaderF16
-        ],
-        "immediate data and native-only features are not offered"
-    );
+    let instance = gpu.get_gpu();
+    gpu.gpu_request_adapter(instance, None, be_wasm_ops::local::Promise::new(TICKET));
+    let adapter: Option<GpuAdapter> = settled(&mut gpu, TICKET);
+    let features = gpu.gpu_adapter_features(adapter.unwrap());
+    for offered in ["core-features-and-limits", "texture-compression-bc", "shader-f16"] {
+        assert!(gpu.gpu_supported_features_has(features, offered), "{offered} is offered");
+    }
+    for native in ["immediates", "mappable-primary-buffers", "timestamp-query"] {
+        assert!(
+            !gpu.gpu_supported_features_has(features, native),
+            "{native}, which browsers do not have, is not offered"
+        );
+    }
 }

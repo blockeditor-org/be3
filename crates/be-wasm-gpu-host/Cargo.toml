@@ -9,6 +9,7 @@ be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-gpu-convert = { path = "../be-wasm-gpu-convert" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
+foldhash = "0.2"
 wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [lints]
