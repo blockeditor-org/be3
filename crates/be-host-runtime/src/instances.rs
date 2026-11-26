@@ -25,7 +25,6 @@ use uuid::Uuid;
 use super::{
     ChildCommit, EditorAction, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
-    audio::AudioPlayer,
     calls::{self, AppCall, BlockIds, EditorAnswer, EditorCall, Outbound},
     events::InstanceEvent,
     heads::{HeadRead, Heads},
@@ -205,7 +204,7 @@ struct Instance {
     revision_previews: HashMap<be_sdk_api::ops::OpId, services::RevisionPreview>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
-    audio: Option<AudioPlayer>,
+    audio: Option<Box<dyn super::audio::AudioPlayer>>,
     reported_size: Option<Vec2>,
     picked: Option<BlockPick>,
     card: bool,
@@ -4318,7 +4317,7 @@ impl Instances {
                 let changes = self.mail.audio_changes.1.clone();
                 let player = entry
                     .audio
-                    .get_or_insert_with(|| AudioPlayer::new(move || changes.send(instance)));
+                    .get_or_insert_with(|| super::audio::open(Box::new(move || changes.send(instance))));
                 match command {
                     AudioCommand::Load(source) => player.load(source),
                     AudioCommand::Toggle => player.toggle(),

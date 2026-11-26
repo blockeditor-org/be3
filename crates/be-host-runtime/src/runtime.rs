@@ -1510,12 +1510,14 @@ pub fn place_screens(
     });
 }
 
-pub fn install(setup: &beui::native::Setup) {
+pub fn install(setup: &beui::native::Setup, audio: super::AudioOutput) {
+    super::audio::set_output(audio);
     install_with(presenter::install(setup));
 }
 
 /// Installs the runtime with no beui setup: no presenter and no gpu, so an app that asks for
-/// the device is told there is none (guides/apps/runtime.md, "Headless"; `Headless`).
+/// the device is told there is none (guides/apps/runtime.md, "Headless"; `Headless`), and no
+/// audio output, so an app that plays is told there is none.
 pub fn install_headless() {
     HEADLESS.store(true, std::sync::atomic::Ordering::Relaxed);
     install_with(Availability(Ok(())));
@@ -1557,7 +1559,7 @@ pub fn exiting() {
 }
 
 pub fn replace_gpu(setup: &beui::native::Setup) {
-    install(setup);
+    install_with(presenter::install(setup));
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
             runtime.restart();

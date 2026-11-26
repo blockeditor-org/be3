@@ -11,6 +11,7 @@ use uuid::Uuid;
 use be_sdk_app_host::{calls, sent, session, wire};
 
 mod audio;
+pub use audio::{AudioOutput, AudioPlayer};
 mod backend;
 mod description;
 mod docks;

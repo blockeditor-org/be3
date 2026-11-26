@@ -26,7 +26,8 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
 - `be-host-*`: be-host, split into crates that build in parallel. `be-host-base`,
   `be-host-stack` and `be-host-server` (be-server on a thread, which tests start to sign in
   against) have no beui, and `be-host-services` (the Linux D-Bus services) and `be-host-programs` (the desktop's
-  installed programs and icons) only beui's types; `be-host-runtime` runs apps;
+  installed programs and icons) only beui's types; `be-host-runtime` runs apps, and
+  `be-host-audio` plays their sound, which be-host hands the runtime so that `be` links no audio library;
   `be-host-desktop` holds the desktop hosts; `be-host-testing` and `be-host-tests` are its test
   harness and host tests.
 - `be-root-*`: the root be-host runs in place of its own UI (`be-root`), a guest on the apps'

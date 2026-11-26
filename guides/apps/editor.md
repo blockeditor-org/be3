@@ -308,6 +308,8 @@ editor). The host holds it while any screen asks, so a closed instance cannot
 leave it trapped.
 
 `editor.audio()` changes only when playback starts, pauses, seeks, ends or
-fails; the editor advances the position on its own clock. The host decodes
+fails; the editor advances the position on its own clock. The host plays through
+be-host-audio (guides/apps/runtime.md, "Headless"); one with no audio output, `be`, answers
+a play with an error. The host decodes
 only by media type, so an editor loads its bytes again after its content
 changes.

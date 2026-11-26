@@ -53,6 +53,7 @@ members = [
     "crates/be-block-vcs",
     "crates/be-host",
     "crates/be-host-archive",
+    "crates/be-host-audio",
     "crates/be-host-base",
     "crates/be-host-bench",
     "crates/be-host-desktop",

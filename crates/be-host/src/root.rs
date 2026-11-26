@@ -505,7 +505,7 @@ impl beui::native::Program for RootShell {
         be_host_base::host::install_clock(beui::reactive::now);
         // The host's own apps the core runs (its blocks' host components) draw on the window's
         // device too.
-        be_host_runtime::install(setup);
+        be_host_runtime::install(setup, be_host_audio::open);
         if self.core.desktop {
             Host::start(setup);
         }

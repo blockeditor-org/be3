@@ -55,6 +55,7 @@ be-block-session = { path = "../be-block-session" }
 beui = { path = "../beui" }
 be-host-base = { path = "../be-host-base" }
 be-host-desktop = { path = "../be-host-desktop" }
+be-host-audio = { path = "../be-host-audio" }
 be-host-runtime = { path = "../be-host-runtime" }
 be-host-stack = { path = "../be-host-stack" }
 be-root-accounts-ui = { path = "../be-root-accounts-ui" }
