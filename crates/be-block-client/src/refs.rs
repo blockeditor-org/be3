@@ -821,9 +821,11 @@ impl State {
             Table::ListingEntry => {
                 let split = row.key.len().checked_sub(16).ok_or(StoreError::Corrupt)?;
                 let (listing, block) = row.key.split_at(split);
+                // A listing's own row comes first (`SqliteRefs::load` reads in table order):
+                // a block's row without it is of no listing this device knows.
                 self.listings
-                    .entry(decode_raw(listing)?)
-                    .or_default()
+                    .get_mut(&decode_raw(listing)?)
+                    .ok_or(StoreError::Corrupt)?
                     .insert(uuid_key(block)?);
             }
             Table::Summary => {

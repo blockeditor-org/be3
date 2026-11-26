@@ -60,7 +60,8 @@ impl SqliteRefs {
         let mut statement = connection
             .prepare_cached(
                 "SELECT kind, key, value FROM refs
-                 WHERE server = ?1 AND account = ?2 AND organization = ?3",
+                 WHERE server = ?1 AND account = ?2 AND organization = ?3
+                 ORDER BY kind, key",
             )
             .map_err(failed)?;
         let rows = statement

@@ -144,7 +144,8 @@ one did, with nothing reserved, so a real uploader is never held to a length no
 one gave and the answer leaks nothing. `query.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
 for the rest; with a `holder`, only for those that block holds, so a client that
-wants a part only as one block's fetches nothing of another's. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
+wants a part only as one block's fetches nothing of another's. Each names at
+most `be_block_protocol::MAX_OBJECT_URLS` objects.
 Only `publish`'s carried objects and a `blocks` read's objects travel inside
 frames. The URLs are signed by `Services::transfers`, an `objects::Bucket`:
 the configured bucket, so bytes go between clients and the bucket and never
