@@ -41,16 +41,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **An admit a recheck ran beside, without a test.** An admit a recheck ran
-  beside asks for another check (`Member::Answering`'s `admit`,
-  `Hosting::snapshots`, be-host-stack's hosting.rs), which no test forces: every
-  revocation a test can make there (a lowered grant, a ban) also has the server
-  take the member out of the session, and the host drops it on hearing that
-  whether or not it checks again. Done: a test held at `hosting::ANSWER_PAUSE`
-  with a change the signed logs refuse and the server does not act on (a new
-  identity key for the account), or with the server's word of the leave held
-  back.
-
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
   (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
