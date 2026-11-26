@@ -870,7 +870,8 @@ impl Embedding {
     /// first time it is sent. The trees are the root's own surfaces', `own`, every surface it
     /// has now with what its frames changed (`BeuiSurface::take_description`), each kept
     /// whether its layer shows or not, and those of the screens its apps described. Its focus
-    /// is the focused layer's. What the root hands its host (`frame-done.accessibility`) for
+    /// is the node an app's screen with the keyboard says is focused (one in a view it anchored
+    /// over the focused layer's), else the focused layer's. What the root hands its host (`frame-done.accessibility`) for
     /// drive and screen readers. None while the host asks for none, when every graft is let
     /// go, so the next tree asked for is whole.
     pub fn describe(
@@ -883,6 +884,9 @@ impl Embedding {
             Node, NodeId, Rect as AccessRect, Role, Tree, TreeId, TreeUpdate,
         };
         use be_sdk_app_host::accessibility::{Graft, Placing};
+        for app in &self.apps {
+            app.read_trees();
+        }
         if !describing() {
             self.own_trees.clear();
             return None;
@@ -907,6 +911,10 @@ impl Embedding {
         let mut nodes = Vec::new();
         let mut children = Vec::new();
         let mut focus = None;
+        // The node an app's screen says has its focus, while that screen has the keyboard: one
+        // in a view it anchored when the focused layer is the view it hangs from (a dialog
+        // over a workspace).
+        let mut inner = None;
         for layer in layers.iter().filter(|layer| layer.shown) {
             // A surface's pixel (0, 0) is drawn at its layer's origin: each screen and each of
             // the root's own surfaces is a surface of its own.
@@ -941,6 +949,7 @@ impl Embedding {
             if focused == Some(layer.id) {
                 focus = grafted.focus.or(Some(grafted.root));
             }
+            inner = grafted.focus.or(inner);
         }
         let root = NodeId(0);
         let mut node = Node::new(Role::Window);
@@ -951,7 +960,7 @@ impl Embedding {
             nodes,
             tree: Some(Tree::new(root)),
             tree_id: TreeId::ROOT,
-            focus: focus.unwrap_or(root),
+            focus: inner.or(focus).unwrap_or(root),
         })
     }
 
