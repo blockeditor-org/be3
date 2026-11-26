@@ -3,6 +3,7 @@ use crate::noise::{Initiator, Responder, hosted_prologue};
 
 mod a_ban_checks_only_from_an_editor_and_only_a_grant_lifts_it;
 mod a_block_is_above_another_only_as_signed_parent_records_place_it;
+mod a_block_path_hides_another_readers_retirement;
 mod a_cache_holds_no_more_than_its_weight_and_lets_go_of_the_oldest;
 mod a_contact_card_opens_only_with_its_code_in_its_role;
 mod a_contact_verifies_what_another_signed_with_the_key_on_its_card;

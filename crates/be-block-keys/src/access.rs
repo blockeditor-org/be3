@@ -362,10 +362,12 @@ pub struct Named {
 /// the new one: the server cannot retire an account to keys of its own, and the old key signs
 /// nothing in the log after it.
 ///
-/// `administrator` says whether the account administers the organization as of the entry
-/// before it (always false in a block's log), as `check_log` finds it must. A reduced entry
-/// carries it (`Reduced::retires_administrator`), so a reader of a partial organization path
-/// knows whether a retirement it cannot see retired a key that signs on the organization's
+/// `administrator` says whether the account may administer the organization as of the entry
+/// before it: `check_log` refuses false from an administrator and takes true from anyone, so a
+/// device that cannot prove from the organization's log that it does not administer signs true
+/// (`contacts::not_administered`), whatever the server labels the log. A reduced entry carries it
+/// (`Reduced::retires_administrator`), so a reader of a partial organization path knows whether
+/// a retirement it cannot see may have retired a key that signs on the organization's
 /// authority.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Retirement {
@@ -488,8 +490,8 @@ impl Entry {
 
     /// The entry after `previous` in the log of `log` that retires `account`'s `old` keys for
     /// `new`'s: endorsed by the old key, signed by the new one. `administrator` is whether the
-    /// account administers the organization whose log this is as of `previous`
-    /// (`Retirement::administrator`): false in a block's log.
+    /// account may administer the organization whose log this is as of `previous`
+    /// (`Retirement::administrator`).
     pub fn retirement(
         old: &RecoverySecret,
         new: &RecoverySecret,
@@ -716,10 +718,10 @@ pub struct Reduced {
     /// proves, which then signs nothing after it, so no authority is taken from a block's path
     /// that hides one (`Checked::hides_retirement`, `answer`).
     pub retires: bool,
-    /// Whether it is a retirement of an organization's administrator
+    /// Whether it is a retirement that says it may retire an organization's administrator
     /// (`Retirement::administrator`): no authority is taken from an organization's path that
-    /// hides one. A path may hide a member's, whose old key signs nothing on the organization's
-    /// authority.
+    /// hides one, and an honest path keeps one whole. A path may hide a member's, whose old key
+    /// signs nothing on the organization's authority.
     pub retires_administrator: bool,
     pub digest: EntryHash,
 }
@@ -842,11 +844,15 @@ impl StepRef<'_> {
 /// kind to anyone inside, which names no one; every parent record, so the reader walks where the
 /// block lies (and the signers' own right there); every owner record, so the reader knows who
 /// owns the block and that its former owners grant no more; and in an organization's log every
-/// administrator record and every record about someone who ever administered it, so no demotion is
-/// hidden there: an honest organization path reduces no entry that lowered anyone; and the
-/// invitation records of each invitation that signed in a member the path proves, so that member
-/// checks. Every other invitation record is reduced, opened or ended alike, so a path grows with
-/// the invitations its members came by, not every one the organization made.
+/// administrator record, every record about someone who ever administered it and every retirement
+/// that says it may retire an administrator, so the path hides no retirement that may retire an
+/// administrator (`hides_retirement`) and an honest organization path reduces no entry that
+/// lowered anyone. In a block's log that bit means nothing (`check_log` takes any reduced
+/// retirement there as hiding one), so a block's path keeps a retirement whole only for the
+/// accounts it names; and the invitation records of each invitation that signed in a member the
+/// path proves, so that member checks. Every other invitation record is reduced, opened or ended
+/// alike, so a path grows with the invitations its members came by, not every one the
+/// organization made.
 ///
 /// With `lowerings`, for a block's log that records below rest their authority on, every entry
 /// that lowered anyone and every retirement is whole too (and so the accounts they name): an
@@ -888,7 +894,10 @@ pub fn proof_path(
         | Record::Owner(_)
         | Record::ShareLink(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
-        Record::Retirement(retirement) => administrators.contains(&retirement.account),
+        Record::Retirement(retirement) => {
+            kind == LogKind::Organization && retirement.administrator
+                || administrators.contains(&retirement.account)
+        }
         Record::Grant(_) | Record::Opened(_) | Record::Ban(_) | Record::Invitation(_) => false,
     };
     let mut accounts: HashSet<[u8; 16]> = sealers.into_iter().collect();
@@ -1482,12 +1491,13 @@ impl Checked {
                 Record::Root(_) => return Err(KeyError::Record),
                 Record::Retirement(retirement) => {
                     let current = own.ok_or(KeyError::Record)?;
-                    // After a reduced demotion `administrators` is stale, so an honest bit of
-                    // false is refused: fine, since `answer` takes no authority from a path that
-                    // hides a lowering.
+                    // The bit says the account may administer: false is refused from an
+                    // administrator, true taken from anyone. After a reduced demotion
+                    // `administrators` is stale, so an honest bit of false is refused: fine,
+                    // since `answer` takes no authority from a path that hides a lowering.
                     let administers = kind == LogKind::Organization
                         && state.administrators.contains_key(&entry.signer);
-                    if retirement.administrator != administers {
+                    if administers && !retirement.administrator {
                         return Err(KeyError::Record);
                     }
                     let endorsed_by_current = retirement.account == entry.signer

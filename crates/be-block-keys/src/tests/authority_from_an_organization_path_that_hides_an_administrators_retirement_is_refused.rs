@@ -1,7 +1,7 @@
 use super::*;
 
-/// A retirement in an organization's log says whether it retired an administrator
-/// (`Retirement::administrator`), which whole-log checkers hold it to, and its reduced form
+/// A retirement in an organization's log says whether it may have retired an administrator
+/// (`Retirement::administrator`), which whole-log checkers hold an administrator's to, and its reduced form
 /// carries that (`Reduced::retires_administrator`). A server that reduces an administrator's
 /// retirement on the organization's path it serves a reader below would leave the stolen old key
 /// looking current, so `answer` takes no authority from a path that hides one. A path may still
@@ -80,6 +80,42 @@ fn authority_from_an_organization_path_that_hides_an_administrators_retirement_i
     );
     let organization_log = [before, vec![bob_retired.clone(), dana_retired.clone()]].concat();
     assert!(check(&organization_log).is_ok());
+    // The bit says the account may administer: true is taken from a member, as a device that
+    // cannot prove it does not administer signs it, and from anyone in a block's log.
+    let dana_may_administer = Entry::retirement(
+        &dana,
+        &dana_new,
+        dana_id,
+        organization,
+        bob_retired.hash(),
+        true,
+    );
+    let may_administer_log = [&organization_log[..5], &[dana_may_administer]].concat();
+    assert!(
+        check(&may_administer_log).is_ok(),
+        "a member's retirement that says it may administer is taken"
+    );
+    assert!(
+        matches!(
+            proof_path(LogKind::Organization, &may_administer_log, [7; 16], [], false).last(),
+            Some(Step::Entry(_))
+        ),
+        "an honest path keeps whole a retirement that says it may administer"
+    );
+    let block_root = Entry::root(&alice, alice_id, LogKind::Block, note);
+    let alice_may_administer =
+        Entry::retirement(&alice, &bob_new, alice_id, note, block_root.hash(), true);
+    assert!(
+        check_log(
+            LogKind::Block,
+            note,
+            block_root.hash(),
+            &[block_root.clone(), alice_may_administer],
+            &|_| None,
+        )
+        .is_ok(),
+        "a retirement in a block's log that says it may administer is taken"
+    );
     // A path cannot pass Bob's retirement off, reduced, as a member's: its hash commits to the bit.
     let passed_off: Vec<Step> = organization_log
         .iter()
