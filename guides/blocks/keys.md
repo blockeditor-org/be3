@@ -416,7 +416,8 @@ keys the block's own log names. Readers below Edit never seal and are served pro
 (decisions/editors_are_served_whole_access_logs.md). An account that left the
 organization is still served its proof path up to the current head when it
 takes a new phrase (`recovery-key`), which shows it the administrator history
-since it left and the count and timing of the other entries. No log goes to
+since it left, every retirement that may retire an administrator, and the
+count, timing and kind flags of the other entries. No log goes to
 `KnowExists`, which anyone gets by naming an id in their own block's
 references: the log names every grantee. A `Join` member is served a proof
 path of its own right and of the session's lease holder's ("Hosted channels").
@@ -453,16 +454,19 @@ accepted: a reader learns every revocation, downgrade and retirement on such a
 block, and the level history of whom they name. A retirement says whether its
 account may administer the organization as of the entry before it
 (`Retirement::administrator`): `check_log` refuses false from an administrator
-of the organization whose log it is and takes true from anyone, in a block's
-log too. Its reduced step carries the bit (`Reduced::retires_administrator`),
-an honest organization path keeps one saying true whole, and `answer` takes no
+of the organization whose log it is and takes true from anyone. In a block's
+log the bit means nothing: `check_log` takes any reduced retirement there as
+hiding one (`hides_retirement`), so no path keeps a block's retirement whole
+because of it, only for the accounts it names. Its reduced step carries the bit
+(`Reduced::retires_administrator`), an honest organization path keeps one
+saying true whole, and `answer` takes no
 authority from an organization path that reduces one, while a path may still
 reduce a member's, whose old key signs nothing on the organization's
 authority. The device taking a new phrase signs false only in a log whose
 `recovery-key` answer proves, at the head its retirement follows, that the
 account does not administer it (`contacts::not_administered`): an
-organization's log, listed as the organization's own id, with its proof path
-from its root (served to an account that left the organization too). It signs
+organization's log, listed as the organization's own id (one listed under
+any other id is forged), with its proof path from its root (served to an account that left the organization too). It signs
 true in every other log, so a server that labels an organization's log a
 block's (`SignedLog::kind`) gains nothing; an organization's log listed
 without a path that proves what it says is forged. A log that reaches that

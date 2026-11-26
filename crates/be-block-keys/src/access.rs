@@ -720,8 +720,8 @@ pub struct Reduced {
     pub retires: bool,
     /// Whether it is a retirement that says it may retire an organization's administrator
     /// (`Retirement::administrator`): no authority is taken from an organization's path that
-    /// hides one, and an honest path keeps one whole. A path may hide a member's, whose old key signs nothing on the organization's
-    /// authority.
+    /// hides one, and an honest path keeps one whole. A path may hide a member's, whose old key
+    /// signs nothing on the organization's authority.
     pub retires_administrator: bool,
     pub digest: EntryHash,
 }
@@ -845,10 +845,14 @@ impl StepRef<'_> {
 /// block lies (and the signers' own right there); every owner record, so the reader knows who
 /// owns the block and that its former owners grant no more; and in an organization's log every
 /// administrator record, every record about someone who ever administered it and every retirement
-/// that says it may retire an administrator, so no demotion is hidden there: an honest organization path reduces no entry that lowered anyone; and the
-/// invitation records of each invitation that signed in a member the path proves, so that member
-/// checks. Every other invitation record is reduced, opened or ended alike, so a path grows with
-/// the invitations its members came by, not every one the organization made.
+/// that says it may retire an administrator, so the path hides no retirement that may retire an
+/// administrator (`hides_retirement`) and an honest organization path reduces no entry that
+/// lowered anyone. In a block's log that bit means nothing (`check_log` takes any reduced
+/// retirement there as hiding one), so a block's path keeps a retirement whole only for the
+/// accounts it names; and the invitation records of each invitation that signed in a member the
+/// path proves, so that member checks. Every other invitation record is reduced, opened or ended
+/// alike, so a path grows with the invitations its members came by, not every one the
+/// organization made.
 ///
 /// With `lowerings`, for a block's log that records below rest their authority on, every entry
 /// that lowered anyone and every retirement is whole too (and so the accounts they name): an
@@ -891,7 +895,8 @@ pub fn proof_path(
         | Record::ShareLink(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
         Record::Retirement(retirement) => {
-            retirement.administrator || administrators.contains(&retirement.account)
+            kind == LogKind::Organization && retirement.administrator
+                || administrators.contains(&retirement.account)
         }
         Record::Grant(_) | Record::Opened(_) | Record::Ban(_) | Record::Invitation(_) => false,
     };
