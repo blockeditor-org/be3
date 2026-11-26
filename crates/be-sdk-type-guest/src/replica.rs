@@ -920,6 +920,18 @@ where
     H: Recorder<C>,
 {
     fn start(&mut self, out: &mut Vec<Effect>) {
+        // The clients already in the session it opens in never join it as this replica sees
+        // it (`adopt`): each is told what this one shows as of now, `Shown` after it, as a
+        // joiner is.
+        let present: Vec<ClientId> = self
+            .state
+            .clients()
+            .into_iter()
+            .filter(|client| *client != self.client)
+            .collect();
+        for client in present {
+            self.show_presence_to(client);
+        }
         match (self.base, self.server_head) {
             // What the commits kept add over the server's head is read with them.
             (Some(head), Some(server)) => self.read(vec![Some(head), server], Then::Load),

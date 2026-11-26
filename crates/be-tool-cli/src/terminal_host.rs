@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use be_block_client::Peer;
+use be_block_client::{Clock, Peer};
 use be_block_content::ObjectId;
 use be_block_content::presence::{ChannelKind, PresenceKind};
 use be_block_protocol::ClientId;
@@ -13,8 +13,7 @@ use be_type_terminal::{
 };
 use beui_components_unstyled::datetime::DateTime;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
-use tokio::sync::mpsc;
-use tokio::time::Instant;
+use tokio::sync::{mpsc, watch};
 use uuid::Uuid;
 
 use crate::replica::Session;
@@ -30,7 +29,7 @@ const LONGEST_RETRY: Duration = Duration::from_secs(30);
 /// How often a host that isn't writing claims the session's lease: holding the lease is the
 /// lock between hosts, and a claim takes it at once, so a host first waits on a new holder's
 /// presence to say whether it is another host before taking the lease from it.
-const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
+pub(crate) const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
 /// How long a host waits on a new holder whose presence has not arrived before claiming
 /// anyway: every replica sends its presence to each client it sees join, so this is only for
 /// one that never does.
@@ -74,6 +73,19 @@ impl HostOptions {
     }
 }
 
+/// Where a host stands with the session's lease (`Host::standing`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Standing {
+    /// Not in the session yet.
+    Starting,
+    /// Another holds the lease, which it claims once it is due (`Claim`).
+    Waiting,
+    /// Another terminal host holds the lease, so it does not claim it.
+    StandingBy,
+    /// It holds the lease and writes the terminal.
+    Writing,
+}
+
 enum Event {
     Output(u64, Vec<u8>),
     Ended(u64),
@@ -96,6 +108,10 @@ pub struct Host {
     dirty: bool,
     sender: mpsc::UnboundedSender<Event>,
     events: mpsc::UnboundedReceiver<Event>,
+    /// What claiming the lease is timed on.
+    clock: Clock,
+    /// Where it stands, sent again on each step it takes.
+    standing: watch::Sender<Standing>,
 }
 
 enum Ended {
@@ -117,7 +133,20 @@ impl Host {
             dirty: false,
             sender,
             events,
+            clock: Clock::real(),
+            standing: watch::Sender::new(Standing::Starting),
         })
+    }
+
+    /// Times claiming the lease on `clock` rather than the system's, for a test to move.
+    pub fn on_clock(mut self, clock: Clock) -> Self {
+        self.clock = clock;
+        self
+    }
+
+    /// Where the host stands with the session's lease, sent again each time it steps.
+    pub fn standing(&self) -> watch::Receiver<Standing> {
+        self.standing.subscribe()
     }
 
     pub async fn run<S: ObjectStore + 'static>(
@@ -219,14 +248,17 @@ impl Host {
         let mut claim = Claim {
             holder: None,
             unheard: None,
-            at: Instant::now(),
+            deferred: None,
+            first: true,
+            at: self.clock.now(),
         };
         let outcome = loop {
             if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
             let claiming = !session.is_holder() && !standing_by(&session);
-            let next = claim.due().max(Instant::now());
+            let next = claim.due().max(self.clock.now());
+            let due = self.clock.sleep_until(next);
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(()),
                 woken = session.next() => {
@@ -243,7 +275,7 @@ impl Host {
                         self.take(event);
                     }
                 }
-                () = tokio::time::sleep_until(next), if claiming => {}
+                () = due, if claiming => {}
             }
         };
         match outcome {
@@ -270,11 +302,30 @@ impl Host {
                 eprintln!("be: another client took over the terminal; standing by");
                 self.writing = false;
             }
-            let now = Instant::now();
+            let now = self.clock.now();
             let holder = session.holder();
             if holder != claim.holder {
                 claim.holder = holder;
                 claim.unheard = holder.map(|_| now + UNHEARD_HOLDER);
+                claim.deferred = None;
+            }
+            // Hosts that all hear a holder that is none of them would claim at once together and
+            // take the lease from each other. A host claims at once only once it has heard every
+            // member of the session, and no other host comes before it by client; otherwise it
+            // waits `CLAIM_INTERVAL`, by when the first holds the lease, unless it is gone.
+            let client = session.client();
+            let all_heard = session
+                .members()
+                .into_iter()
+                .all(|member| Some(member) == client || session.heard(member));
+            let after_another = session.presence().iter().any(|peer| {
+                peer.kind == TerminalHost::ID
+                    && Some(peer.client) != holder
+                    && client.is_some_and(|client| peer.client < client)
+            });
+            claim.first = all_heard && !after_another;
+            if !claim.first && claim.deferred.is_none() {
+                claim.deferred = Some(now + CLAIM_INTERVAL);
             }
             // Once the new holder's presence arrives it says at once whether to stand by.
             if holder.is_some_and(|holder| session.heard(holder)) {
@@ -286,6 +337,10 @@ impl Host {
                 session.settle().await;
             }
             if !session.is_holder() {
+                self.standing.send_replace(match standing_by(session) {
+                    true => Standing::StandingBy,
+                    false => Standing::Waiting,
+                });
                 return Ok(());
             }
         }
@@ -296,6 +351,7 @@ impl Host {
             self.write(session);
         }
         session.settle().await;
+        self.standing.send_replace(Standing::Writing);
         Ok(())
     }
 
@@ -501,14 +557,22 @@ struct Claim {
     holder: Option<ClientId>,
     /// Until when the host waits on the holder's presence, while it has not arrived: once it
     /// does it says at once whether the holder is another host.
-    unheard: Option<Instant>,
+    unheard: Option<Duration>,
+    /// Until when it puts off claiming from this holder while it is not the first to: it has
+    /// not heard every member yet, or another host comes before it by client.
+    deferred: Option<Duration>,
+    first: bool,
     /// When the host may claim again after its last claim.
-    at: Instant,
+    at: Duration,
 }
 
 impl Claim {
-    fn due(&self) -> Instant {
-        self.unheard.map_or(self.at, |unheard| unheard.max(self.at))
+    fn due(&self) -> Duration {
+        let due = self.unheard.map_or(self.at, |unheard| unheard.max(self.at));
+        match (self.first, self.deferred) {
+            (false, Some(deferred)) => due.max(deferred),
+            _ => due,
+        }
     }
 }
 

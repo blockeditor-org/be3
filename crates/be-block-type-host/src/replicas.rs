@@ -45,12 +45,6 @@ const NO_MODULE: &str = "no app here edits this kind of block";
 
 const JOINING_OWNER: ClientId = ClientId::MAX;
 
-/// Where a test holds a replica's join (`rejoin`), keyed by the block, once the server answered
-/// and before the replica takes the answer: what the replica does meanwhile in its made-up
-/// session (a seal on its own, say) races the answer there. Compiled into every build, inert
-/// unless a test holds it (decisions/test_hooks_are_ordinary_code.md).
-pub const JOIN_PAUSE: &str = "be-block-type-host join";
-
 pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// A session the host makes up for a replica outside the server's (offline, or while it joins):
@@ -4991,9 +4985,7 @@ impl<H: Host> Replicas<H> {
                     None => started_from_mirror(&peer, block, tag, client, &session, head).await,
                 };
                 let journal = opened(&peer, block, journal);
-                let joined = (client, session, head, kept_commits(&peer, block), journal);
-                be_lib_test_pause::point(JOIN_PAUSE, block.as_u128()).await;
-                Ok::<_, ClientError>(joined)
+                Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block), journal))
             }
             .await;
             let _ = io.send(Io::Rejoined {

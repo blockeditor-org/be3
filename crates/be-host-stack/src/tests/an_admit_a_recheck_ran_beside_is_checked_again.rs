@@ -94,14 +94,12 @@ fn an_admit_a_recheck_ran_beside_is_checked_again() {
             && crate::hosting::member_state(shared, block, member).is_none()
     });
     be_lib_test_pause::release(crate::hosting::LEAVE_PAUSE, key);
-    wait_until("read what the host component has yet to hear", |shared| {
-        let queued = crate::hosting::queued(shared, block);
-        assert!(
-            !queued.iter().any(
-                |event| matches!(event, MemberEvent::Joined(joined) if joined.member == member)
-            ),
-            "the viewer the logs bar is never admitted: {queued:?}"
-        );
-        true
-    });
+    let queued = crate::with_shared(|shared| crate::hosting::queued(shared, block))
+        .expect("the stack is running");
+    assert!(
+        !queued
+            .iter()
+            .any(|event| matches!(event, MemberEvent::Joined(joined) if joined.member == member)),
+        "the viewer the logs bar is never admitted: {queued:?}"
+    );
 }
