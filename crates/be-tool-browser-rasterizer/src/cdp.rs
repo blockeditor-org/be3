@@ -36,6 +36,7 @@ impl Sender {
         }
         let mut bytes = serde_json::to_vec(&message).map_err(|error| error.to_string())?;
         bytes.push(0);
+        // No deadline: this blocks only if Chromium is alive but has stopped reading fd 3.
         self.pipe
             .write_all(&bytes)
             .map_err(|error| format!("could not send {method} to Chromium: {error}"))?;
