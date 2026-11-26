@@ -19,7 +19,11 @@ const CHECKED_ENTRIES: usize = 1 << 20;
 /// The logs the server checked, at their heads, by kind, organization and log, weighed by their
 /// entries: at most `CHECKED_ENTRIES` in all, the one used longest ago let go first. Kept for the
 /// process, so every server in it shares them; a log another's data holds (a restore, a test's
-/// other server) does not reach a kept head by its hashes, and is checked from its root.
+/// other server) does not reach a kept head by its hashes, and is checked from its root. Its key
+/// names no root, unlike `CheckedAsOf`'s: a kept state names the root it was checked from
+/// (`Checked::root`), which every use compares with the root stored or pinned before taking it,
+/// and a record answered through the organization's authority is checked by
+/// `checked_block_log`, whose answers are kept by `CHECKED_AS_OF` under the organization's root.
 // A process-wide cache whose key, kind, organization and log, the comment above names.
 #[allow(clippy::type_complexity)]
 static CHECKED: std::sync::LazyLock<
@@ -559,7 +563,6 @@ fn log_kind(kind: be_block_protocol::LogKind) -> LogKind {
     }
 }
 
-/// The entries of a log, root first.
 /// The `kind` log of `log`'s entries from `from` on, at most `limit` of them.
 fn entries_from(
     connection: &Connection,
@@ -594,6 +597,7 @@ fn entries_from(
         .collect()
 }
 
+/// The entries of a log, root first.
 fn entries(
     connection: &Connection,
     kind: LogKind,

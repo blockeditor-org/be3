@@ -37,7 +37,8 @@ fn grants(
 
 /// The server checks a stored log from the head it kept checked: once that head is the one
 /// stored, a read loads and hashes only the log's first and last rows, and an append checks
-/// and hashes only the appended entry besides, however long the log. Neither loads the log.
+/// and hashes only the appended entry besides, however long the log. Neither loads the log. A
+/// head stored in another's place is checked from the root.
 #[test]
 fn a_stored_log_is_checked_from_its_stored_head_without_loading_it() {
     const LENGTH: u64 = 1_000;
@@ -106,4 +107,18 @@ fn a_stored_log_is_checked_from_its_stored_head_without_loading_it() {
     assert_eq!(checked.unwrap().head, appended.hash());
     assert_eq!(verified, 0);
     assert!(hashed <= 2, "{hashed}");
+
+    // The head row replaced behind what the server kept: the stored head is not the kept one,
+    // so the log is checked from its root, and refused.
+    let mut forged = grants(&creator, block, entries.last().unwrap().hash(), LENGTH * 2, 1).remove(0);
+    forged.signature[0] ^= 1;
+    connection
+        .execute(
+            "UPDATE access_log SET entry = ?1 WHERE block_id = ?2 AND position = ?3",
+            params![forged.encode(), block.to_string(), LENGTH],
+        )
+        .unwrap();
+    let (checked, verified, _) = check(None);
+    assert!(checked.is_none(), "a head stored behind the kept one is refused");
+    assert!(verified >= LENGTH, "checked from the root: {verified}");
 }
