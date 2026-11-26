@@ -1662,6 +1662,25 @@ enum AskAtCommit {
     Waits,
 }
 
+/// For a child be-host draws itself in its own document rather than in an app's view (a host
+/// panel), which takes the keyboard from no ask: it counts as up for its placer's asks
+/// (`asks::viewed`), so an ask for it leaves the keyboard where it is rather than taking it
+/// out of the placer for a view that never comes, and the ask ends at once.
+pub(crate) fn asks_end_at_drawn_child() {
+    let Some(ChildFocus(Some(asked))) = use_context::<ChildFocus>() else {
+        return;
+    };
+    let AskedFocus { placer, child } = asked;
+    let own = (placer.instance, ViewId(u64::MAX));
+    asks::viewed(placer.app, placer.instance, child, own, true);
+    on_cleanup(move || asks::viewed(placer.app, placer.instance, child, own, false));
+    create_effect(move || {
+        if asks::asks(placer.app, placer.instance, child) {
+            untrack(|| asks::taken(placer.app, placer.instance));
+        }
+    });
+}
+
 /// What an ask does at its commit, with a view that takes the keyboard open (`wanting`), the
 /// child's view up (`up`), and the keyboard within the editor's views and their children or
 /// nowhere (`within`), and in one of the editor's own views (`own`).
