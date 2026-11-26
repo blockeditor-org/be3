@@ -384,7 +384,16 @@ Fixed items are removed as they land.
   places (`Interactive`'s `CarryStatus`) is inside the source, so a `Reorder`
   row carried off its list, collapsed, says nothing more until it lands, when
   only the receiving list's `ReorderStatus` speaks. Done: the places of a carry
-  whose source is collapsed or gone are still announced, on both cores.
+  whose source is collapsed or gone are still announced, on both cores. Found
+  since: a pointer carry says only its lift and its end (places are said only
+  as the keyboard steps), and a keyboard carry off its list keeps its row (drawn
+  at no size), so the gap is the end of a carry whose source goes with the move:
+  Ctrl+Shift and an arrow moving a row into the next list (the `reorder_lists`
+  fixture in beui-host's tests) says nothing at all, since the row that held the
+  live region is gone and the receiving `Reorder` announces only its own rows
+  (`commit` in reorder.rs). Needs a speaker that outlives the source (the
+  board's `said` read by a region outside every source, or the receiving site
+  announcing an arrival), which beui has no place for yet.
 - **The display arrangement refits for a carried display.** The area's view
   fits the arrangement at the lift and clips what it draws, so a display
   carried to a place beyond that fit (below a display beside it) is cut off at
