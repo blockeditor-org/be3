@@ -168,7 +168,7 @@ impl Gpu {
         state.configuration = None;
         state.current = None;
         let surface = state.surface;
-        self.surfaces.remove(&surface);
+        self.detach_surface(surface);
     }
 
     /// The texture of the frame in progress, as a fresh handle each time it is asked for: the
@@ -255,8 +255,10 @@ impl Host for Gpu {
             target.drawn = (target.drawn + 1) % target.textures.len();
             target.ages.present();
         }
-        self.show(surface);
         if let Some(target) = self.surfaces.get(&surface) {
+            if !target.shown.is_empty() && !self.looking.contains(&surface) {
+                self.looking.push(surface);
+            }
             self.last_presented.insert(surface, target.shown().clone());
         }
         self.presented.push(surface);

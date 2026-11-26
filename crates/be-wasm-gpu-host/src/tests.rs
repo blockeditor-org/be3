@@ -78,6 +78,8 @@ impl Caller for Guest {
 }
 
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
+mod a_canvas_answers_its_configuration_with_the_defaults_filled_in;
+mod a_canvas_configured_or_resized_again_is_shown_as_it_is_now;
 mod a_canvas_is_shown_as_its_configuration_asks;
 mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
@@ -286,4 +288,116 @@ mod web {
             },
         )
     }
+}
+
+/// Canvases on a real device (lavapipe), drawn and read back as the host shows them.
+mod looking {
+    use super::Gpu;
+    use super::web::*;
+
+    /// A gpu on a real device, which draws what the host shows.
+    pub(super) fn drawing() -> Gpu {
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+            .expect("the test has lavapipe");
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            .expect("lavapipe gives a device");
+        Gpu::new(device, queue)
+    }
+
+    /// A canvas of `format` on surface 0 of a gpu on a real device, as `configure` changes its
+    /// configuration.
+    pub(super) fn drawn_canvas(
+        format: GpuTextureFormat,
+        configure: impl FnOnce(&mut GpuCanvasConfiguration),
+    ) -> (Gpu, GpuDevice, GpuCanvasContext) {
+        let mut gpu = drawing();
+        let device = device(&mut gpu, Vec::new()).unwrap();
+        let context = be_wasm_gpu_abi::embed::host::Host::surface(&mut gpu, 0);
+        gpu.resize(context, 4, 4);
+        reconfigure(&mut gpu, device, context, format, configure);
+        (gpu, device, context)
+    }
+
+    pub(super) fn reconfigure(
+        gpu: &mut Gpu,
+        device: GpuDevice,
+        context: GpuCanvasContext,
+        format: GpuTextureFormat,
+        configure: impl FnOnce(&mut GpuCanvasConfiguration),
+    ) {
+        let mut configuration = GpuCanvasConfiguration {
+            device,
+            format,
+            usage: None,
+            view_formats: None,
+            color_space: None,
+            tone_mapping: None,
+            alpha_mode: None,
+        };
+        configure(&mut configuration);
+        gpu.gpu_canvas_context_configure(context, configuration);
+    }
+
+    /// What surface 0 shows once its canvas is cleared to `clear` and presented and the host took
+    /// what was presented: its first pixel, and whether it is the canvas's own texture.
+    pub(super) fn shown(gpu: &mut Gpu, context: GpuCanvasContext, clear: wgpu::Color) -> ([u8; 4], bool) {
+        let canvas = current(gpu, context);
+        let mut encoder = gpu.device().create_command_encoder(&Default::default());
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &canvas.create_view(&Default::default()),
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+        gpu.queue().submit([encoder.finish()]);
+        gpu.present(context);
+        assert_eq!(gpu.take_presented(), vec![0]);
+        let (texture, _) = gpu.presented_surface(0).expect("the canvas was presented");
+        let texture = texture.clone();
+        let readable = gpu.device().create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: 256 * u64::from(texture.height()),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = gpu.device().create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            texture.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readable,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(256),
+                    rows_per_image: None,
+                },
+            },
+            texture.size(),
+        );
+        gpu.queue().submit([encoder.finish()]);
+        readable.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+        gpu.device().poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixel: [u8; 4] = readable.slice(..4).get_mapped_range().unwrap()[..4]
+            .try_into()
+            .unwrap();
+        let logged = gpu.take_logged();
+        assert!(logged.is_empty(), "{logged:?}");
+        (pixel, texture == canvas)
+    }
+
+    pub(super) fn near(shown: [u8; 4], wanted: [u8; 4]) -> bool {
+        shown.iter().zip(wanted).all(|(shown, wanted)| shown.abs_diff(wanted) <= 2)
+    }
+
+    pub(super) fn premultiplied(configuration: &mut GpuCanvasConfiguration) {
+        configuration.alpha_mode = Some(GpuCanvasAlphaMode::Premultiplied);
+    }
+
+    pub(super) const GRAY: wgpu::Color = wgpu::Color { r: 0.2, g: 0.2, b: 0.2, a: 0.5 };
 }
