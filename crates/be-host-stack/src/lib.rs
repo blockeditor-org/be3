@@ -2354,7 +2354,10 @@ static REST: Mutex<Rest> = Mutex::new(Rest {
 /// Says what the host can tell of the device now (`Rest`); a device coming to rest wakes the
 /// worker for the work that waited for it.
 pub fn set_rest(rest: Rest) {
-    let was = std::mem::replace(&mut *REST.lock().unwrap_or_else(PoisonError::into_inner), rest);
+    let was = std::mem::replace(
+        &mut *REST.lock().unwrap_or_else(PoisonError::into_inner),
+        rest,
+    );
     if was != rest && rest.away && rest.on_power {
         send(Command::Sync);
     }

@@ -8,11 +8,18 @@ fn a_common_ancestor_is_found_across_a_fork() {
     let ours = commit(&store, "a\nb\nours\n", 3_000, Some(shared));
     let theirs = commit(&store, "a\nb\ntheirs\n", 3_100, Some(shared));
 
-    assert_eq!(store.common_ancestor(ours, theirs).unwrap(),
-        MergeBase::Base(shared));
-    assert_eq!(store.common_ancestor(ours, shared).unwrap(),
-        MergeBase::Behind);
-    assert_eq!(store.common_ancestor(ours, ours).unwrap(), MergeBase::Behind);
+    assert_eq!(
+        store.common_ancestor(ours, theirs).unwrap(),
+        MergeBase::Base(shared)
+    );
+    assert_eq!(
+        store.common_ancestor(ours, shared).unwrap(),
+        MergeBase::Behind
+    );
+    assert_eq!(
+        store.common_ancestor(ours, ours).unwrap(),
+        MergeBase::Behind
+    );
 
     let merged = store
         .put(
@@ -26,6 +33,8 @@ fn a_common_ancestor_is_found_across_a_fork() {
     assert_eq!(store.is_ancestor(root, merged).unwrap(), Descent::Yes);
 
     let unrelated = commit(&store, "elsewhere\n", 5_000, None);
-    assert_eq!(store.common_ancestor(merged, unrelated).unwrap(),
-        MergeBase::Unrelated);
+    assert_eq!(
+        store.common_ancestor(merged, unrelated).unwrap(),
+        MergeBase::Unrelated
+    );
 }

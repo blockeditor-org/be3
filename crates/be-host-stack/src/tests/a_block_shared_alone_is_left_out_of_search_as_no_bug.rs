@@ -49,11 +49,14 @@ fn a_block_shared_alone_is_left_out_of_search_as_no_bug() {
     });
 
     ask_for(vec![Query::Shared]);
-    wait_until("listed the shared chat where this account's view starts", |held| {
-        held.graph
-            .get(chat)
-            .is_some_and(|node| node.access.can_edit() && node.entry == Some(chat))
-    });
+    wait_until(
+        "listed the shared chat where this account's view starts",
+        |held| {
+            held.graph
+                .get(chat)
+                .is_some_and(|node| node.access.can_edit() && node.entry == Some(chat))
+        },
+    );
     // Queued as an edit here queues it.
     with_shared_mut(|shared| shared.search.reread([chat]));
     retry_now();

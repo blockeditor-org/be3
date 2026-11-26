@@ -14,7 +14,10 @@ fn walks_tell_a_thinned_gap_from_a_root() {
     let ours = commit(&store, "a\nb\nours\n", 3_100, Some(shared));
     store.vault().store().remove(thinned.hash()).unwrap();
 
-    assert_eq!(store.is_ancestor(shared, theirs).unwrap(), Descent::Unreached);
+    assert_eq!(
+        store.is_ancestor(shared, theirs).unwrap(),
+        Descent::Unreached
+    );
     assert_eq!(store.is_ancestor(ours, theirs).unwrap(), Descent::Unreached);
     assert_eq!(store.is_ancestor(root, ours).unwrap(), Descent::Yes);
     assert_eq!(

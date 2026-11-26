@@ -1493,9 +1493,7 @@ fn will_want_index(held: &Shared, root: Uuid) -> bool {
             && node.access.can_edit()
             && !node.metadata.contains(&SEARCH_INDEX)
             && !held.search.named.contains_key(&root)
-            && !held
-                .search
-                .excluded(root, held.graph.revision, node.access)
+            && !held.search.excluded(root, held.graph.revision, node.access)
     })
 }
 
