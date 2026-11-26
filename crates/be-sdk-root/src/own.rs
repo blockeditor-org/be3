@@ -1,9 +1,12 @@
 //! A surface of the root's own, which it draws on the host's device as an app draws its screens
-//! (`be3:gpu`'s `surface`), and names in its layer list as `Surface::Root`.
+//! (`be3:gpu/host`'s `surface`), and names in its layer list as `Surface::Root`.
+
+use std::mem::ManuallyDrop;
 
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
-use be_wasm_gpu_abi::{device as abi, guest::device as gpu};
+use be_wasm_gpu_abi::guest::{host, webgpu as gpu};
+use be_wasm_gpu_abi::webgpu::webgpu as web;
 
 /// One of the root's own surfaces: textures on the host's device the root draws into and
 /// presents, which its host draws where the layer naming it (`OwnSurface::layer`) places it.
@@ -15,14 +18,14 @@ use be_wasm_gpu_abi::{device as abi, guest::device as gpu};
 pub struct OwnSurface {
     id: u32,
     size: (u32, u32),
-    surface: gpu::Surface,
+    surface: gpu::GpuCanvasContext,
 }
 
 impl OwnSurface {
     /// The surface `id`, `size` pixels, in RGBA with 8 bits a channel holding sRGB-encoded
     /// values, as an app's screens are. Nothing shows until it is drawn and presented.
     pub fn new(id: u32, size: (u32, u32)) -> Self {
-        let surface = gpu::Surface::new(id);
+        let surface = host::surface(id);
         configure(&surface, size);
         Self { id, size, surface }
     }
@@ -47,56 +50,48 @@ impl OwnSurface {
 
     /// The texture to draw its next frame into, whole, since it may hold an older frame:
     /// `present` shows it.
-    pub fn acquire(&self) -> Result<gpu::Texture, String> {
-        self.surface.acquire().ok_or_else(last_error)
+    pub fn acquire(&self) -> Result<gpu::GpuTexture, String> {
+        let texture = self.surface.get_current_texture();
+        match texture.width() {
+            0 => Err(format!("root surface {} has no texture", self.id)),
+            _ => Ok(texture),
+        }
     }
 
     /// Shows what was drawn into the texture `acquire` gave.
     pub fn present(&self) {
-        self.surface.present();
+        host::present(&self.surface);
     }
 
     /// Fills the whole surface with `rgba`, sRGB-encoded as an app's screens hold their pixels,
     /// and presents it.
     pub fn fill(&self, rgba: [f64; 4]) -> Result<(), String> {
         let texture = self.acquire()?;
-        let view = texture
-            .create_view(&abi::TextureViewDescriptor {
-                label: Some("root surface".to_owned()),
-                format: None,
-                dimension: None,
-                usage: None,
-                aspect: abi::TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            })
-            .ok_or_else(last_error)?;
-        let encoder = gpu::create_command_encoder(&abi::CommandEncoderDescriptor {
+        let device = device();
+        let view = texture.create_view(&None);
+        let encoder = device.create_command_encoder(&Some(web::GpuCommandEncoderDescriptor {
             label: Some("root surface".to_owned()),
-        })
-        .ok_or_else(last_error)?;
+        }));
         let [r, g, b, a] = rgba;
-        let pass = encoder
-            .begin_render_pass(&abi::RenderPassDescriptor {
-                label: None,
-                color_attachments: vec![Some(abi::ColorAttachment {
-                    view: view.handle(),
-                    resolve_target: None,
-                    load: abi::ColorLoadOp::Clear(abi::Color { r, g, b, a }),
-                    store: abi::StoreOp::Store,
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            })
-            .ok_or_else(last_error)?;
+        let pass = encoder.begin_render_pass(&web::GpuRenderPassDescriptor {
+            color_attachments: vec![Some(web::GpuRenderPassColorAttachment {
+                view: view.handle(),
+                depth_slice: None,
+                resolve_target: None,
+                clear_value: Some(web::GpuColor { r, g, b, a }),
+                load_op: web::GpuLoadOp::Clear,
+                store_op: web::GpuStoreOp::Store,
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+            max_draw_count: None,
+            label: None,
+        });
         pass.end();
         drop(pass);
-        let commands = encoder.finish().ok_or_else(last_error)?;
-        gpu::submit(vec![commands]);
+        let commands = encoder.finish(&None);
+        device.queue().submit(&[&commands]);
         self.present();
         Ok(())
     }
@@ -120,16 +115,41 @@ impl OwnSurface {
     }
 }
 
-fn configure(surface: &gpu::Surface, (width, height): (u32, u32)) {
-    surface.configure(&abi::SurfaceConfiguration {
-        width,
-        height,
-        format: abi::TextureFormat::Rgba8Unorm,
-        view_formats: Vec::new(),
+/// The device the root draws its surfaces with: the app device its wgpu draws with, or one it
+/// asks for through these bindings when it draws with none.
+fn device() -> ManuallyDrop<gpu::GpuDevice> {
+    let device = be_wasm_gpu_abi::app_device().unwrap_or_else(|| {
+        let mut adapter = gpu::get_gpu().request_adapter(&None);
+        let adapter = loop {
+            gpu::settle(true);
+            if let Some(adapter) = adapter.take() {
+                break adapter.expect("the host offers an adapter");
+            }
+        };
+        let adapter = gpu::GpuAdapter::from_handle(adapter);
+        let mut device = adapter.request_device(&None);
+        let device = loop {
+            gpu::settle(true);
+            if let Some(device) = device.take() {
+                break device.unwrap_or_else(|error| panic!("{}", error.message));
+            }
+        };
+        be_wasm_gpu_abi::set_app_device(device);
+        device
     });
+    // The device lives as long as the root: dropping this view of it lets nothing go.
+    ManuallyDrop::new(gpu::GpuDevice::from_handle(device))
 }
 
-/// Why the last gpu call failed, as the host kept it.
-fn last_error() -> String {
-    gpu::take_error().unwrap_or_else(|| "the gpu refused the call".to_owned())
+fn configure(surface: &gpu::GpuCanvasContext, (width, height): (u32, u32)) {
+    host::resize(surface, width, height);
+    surface.configure(&web::GpuCanvasConfiguration {
+        device: device().handle(),
+        format: web::GpuTextureFormat::Rgba8unorm,
+        usage: None,
+        view_formats: None,
+        color_space: None,
+        tone_mapping: None,
+        alpha_mode: None,
+    });
 }

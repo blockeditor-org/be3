@@ -18,8 +18,9 @@ steps:
   the guest's `Settling` directly; a wasm guest calling a ticket func, a fallible func and an
   option-of-list func and polling, run by be-wasm-host on V8, needs an interface the host binds
   with tickets, which only wasi:webgpu is: it is a test of step 2
-  (`a_guest_drives_wasi_webgpu_through_its_generated_bindings`). The web leg comes with step
-  3a, when the shim's tests run apps on wasi:webgpu.
+  (`a_guest_drives_wasi_webgpu_through_its_generated_bindings`). The web leg is step 3a's
+  `:standalone-web-test`, whose raw app waits for its adapter and device through `[poll]` in
+  the shim.
 - **One poll per app.** Each ticketed interface has its own `[poll]`; an app's executor would
   rather make one call per wake for all of them. wasi:webgpu is the only ticketed interface,
   so this waits until there is a second, and the shared handle table step 2 gives them.
@@ -87,32 +88,28 @@ fallible call's error through `[returned]`, options of lists) against this host.
 generating and compiling the fetched WIT is the compile check of both. Today's device tests
 move in step 3b.
 
-## 3a. Apps use wasi:webgpu
+## 3a. Apps use wasi:webgpu (landed)
 
-- be-wasm-gpu-guest becomes wgpu's custom backend over the wasi:webgpu bindings. What wgpu
-  has no call for (async pipelines, `set-label`, `max-draw-count`, compilation hints,
-  several devices from one adapter) stays reachable only by calling the bindings; a
-  `be_wasm_gpu_guest` function exposes async pipeline creation until wgpu has it.
-- **sRGB.** A canvas's format is never sRGB, so:
-  - an app configures the linear format (`rgba8unorm` or `bgra8unorm`) with its sRGB twin in
-    `view-formats`, and draws through the sRGB view where it wants the gpu to encode
-    (Vello, which encodes itself, draws through the linear one);
-  - the app protocol's `surface-format` (be-sdk-api `types.wit`) keeps only `rgba8-unorm` and
-    `bgra8-unorm`, the formats a host may ask an app's surfaces to be;
-  - the host's compositor samples an app's texture through its linear view and writes into
-    its own target's linear view, so the sRGB-encoded values pass through unchanged and the
-    colours stay as the app drew them (decisions/beui_draws_with_vello.md: blending is in
-    sRGB everywhere).
-- be-sdk: surfaces through `be3:gpu/host` (`surface`, `resize`, `present`), the format from
-  the host's `surface-format`. be-sdk-root's `OwnSurface` is rewritten onto the same calls,
-  and plans/host_as_platform_adapter.md's mentions of `be3:gpu`'s surfaces are updated to
-  name `be3:gpu/host`.
-- be-wasm-gpu-shim answers the same imports in a browser worker.
-- **Guests whose memory may move** (pure guests and the standalone raw apps, which own a
-  memory that is not shared) get the wasi:webgpu imports made the ordinary way, not as
-  fast-API functions (be-wasm-host's `gpu.rs`). The raw apps (be-wasm-host's
-  `standalone.wat`, be-wasm-root-host's `painter.wat`) import the new names, and they are
-  the tests of that path.
+- be-wasm-gpu-guest is wgpu's custom backend over the wasi:webgpu bindings, and its surfaces
+  are `be3:gpu/host`'s. What wgpu has no call for (`set-label`, `max-draw-count`,
+  compilation hints, several devices from one adapter) stays reachable only by calling the
+  bindings; `be_wasm_gpu_guest::create_render_pipeline_async` and
+  `create_compute_pipeline_async` make a pipeline through the async calls and hand it to
+  the next `create_*_pipeline`, since wgpu cannot wrap a custom pipeline itself. The guest
+  polls only while a ticket waits, since `[poll]` reaches the gpu and an app whose surfaces
+  are not rendered has none.
+- **sRGB.** A canvas is never sRGB. The app protocol's `surface-format` keeps only
+  `rgba8-unorm` and `bgra8-unorm`, beui's renderers write sRGB-encoded values into the
+  canvas, and the host composites them unchanged (decisions/beui_draws_with_vello.md). An
+  app may add the canvas's sRGB twin to `view-formats` to have the gpu encode, but be-sdk
+  asks for none: nothing it draws needs it, and a host on WebGL cannot view a texture in
+  another format at all (wgpu's `VIEW_FORMATS` downlevel flag).
+- be-sdk and be-sdk-root's `OwnSurface` draw through `be3:gpu/host`; the raw apps
+  (`standalone.wat`, `painter.wat`) import the new names, ask for a device through `[poll]`,
+  and are the tests of the ordinary (non-fast) imports guests whose memory may move get.
+
+A canvas configuration the host's device cannot make (an sRGB twin on WebGL) is refused as a
+validation error, and the canvas keeps no textures.
 
 ## 3b. be3:gpu/device goes
 

@@ -545,7 +545,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             HelloAccepted {
                 host_name: "block-ui-test".to_owned(),
                 surface: Some(SurfaceSpec {
-                    format: SurfaceFormat::Rgba8UnormSrgb,
+                    format: SurfaceFormat::Rgba8Unorm,
                     render: true,
                 }),
                 preferences: be_sdk_api::Preferences::default(),

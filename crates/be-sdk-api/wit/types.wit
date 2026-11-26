@@ -146,11 +146,12 @@ interface types {
         texture,
     }
 
+    /// The format a host asks an app's surfaces to be: a canvas format, never sRGB. An app
+    /// writes sRGB-encoded values into it (beui's renderers encode themselves), and the host
+    /// composites them unchanged.
     enum surface-format {
         rgba8-unorm,
-        rgba8-unorm-srgb,
         bgra8-unorm,
-        bgra8-unorm-srgb,
     }
 
     record surface-spec {

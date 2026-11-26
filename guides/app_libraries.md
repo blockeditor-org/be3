@@ -163,8 +163,10 @@ each only if used:
 
 - `be3_host`: `host_send` and `host_receive` (the frames of its world,
   postcard, guides/type_modules.md), `host_wake` and `host_panic`;
-- the `be3:gpu/device@0.1.0` imports (`gpu_local_imports!` in
-  be-wasm-gpu-abi lists them);
+- wasi:webgpu's and `be3:gpu/host`'s imports (`gpu_local_imports!` in
+  be-wasm-gpu-abi lists them; `standalone.wat` shows how a module without the
+  generated bindings asks for a device through `[poll]` and passes descriptors
+  as postcard);
 - one memory, not shared (a guest is single-threaded,
   decisions/guests_are_single_threaded.md), and `wasi_snapshot_preview1`.
 
@@ -245,20 +247,23 @@ editor with libraries, WASI, threads and the gpu.
 
 ## The gpu
 
-An editor's wgpu calls are the `be3:gpu` world (`crates/be-wasm-gpu-abi/wit`,
-shaped after wasi:webgpu), generated as a `local` interface
+An editor's wgpu calls are wasi:webgpu, with `be3:gpu/host` (`wit/host.wit`:
+surfaces as canvas contexts and shared images) beside it in the `be3:gpu` world
+(`crates/be-wasm-gpu-abi/wit`; decisions/be3_gpu_is_wasi_webgpu.md), generated
+as `local` interfaces
 (guides/type_modules.md, Local interfaces): its imports are answered on the
 app's own thread and a per-draw call takes only wasm values.
 
-- `be-wasm-gpu-guest` is wgpu's custom backend over the guest bindings.
+- `be-wasm-gpu-guest` is wgpu's custom backend over the guest bindings. What
+  wgpu has no call for is reached through the bindings, or through
+  `be_wasm_gpu_guest` functions such as `create_render_pipeline_async`.
 - `be-wasm-gpu-host`'s `Gpu` implements it over a real wgpu device.
 - be-wasm-host links the glue natively; `be-wasm-gpu-shim` is the same in a
   browser worker.
 
-The world holds `be3:gpu/device`, which apps use today, and beside it
-wasi:webgpu (`webgpu`) and `be3:gpu/host` (`wit/host.wit`: surfaces as canvas
-contexts and shared images), which `Gpu` answers too (`src/webgpu.rs`) and
-apps move to in plans/be3_gpu_is_wasi_webgpu.md. wasi:webgpu's WIT is not in
+`Gpu` answers both in `src/webgpu.rs`. The world still holds the old
+`be3:gpu/device`, which nothing uses and plans/be3_gpu_is_wasi_webgpu.md (3b)
+deletes. wasi:webgpu's WIT is not in
 the repository: buck2 fetches it pinned by its hash (`:webgpu.wit` in
 `crates/be-wasm-gpu-abi/BUCK`) and maps it to `wit/deps/webgpu/webgpu.wit`
 for the generator, in be-wasm-gpu-abi and in every crate whose WIT uses
@@ -275,6 +280,14 @@ limits, so the host refuses an object of another app device (`Gpu::held`,
 every handle looked up inside a call) and checks the app device's lower limits
 itself (`webgpu/limits.rs`).
 
+An app's surfaces are canvases: `be3:gpu/host`'s `surface` gives the context
+of a surface the host shows, `resize` sizes it, and `present` ends its frame.
+A canvas is `rgba8unorm`, `bgra8unorm` or `rgba16float`, never sRGB; beui's
+renderers write sRGB-encoded values into it and the host composites them as
+they are. Its sRGB twin is the only other view format a canvas takes, and a
+host on WebGL cannot view a texture in another format at all, so be-sdk asks
+for none.
+
 The app GPU API is meant to be everything JS WebGPU gives a page, with the
 host device's optional features and limits, since the same app runs in a
 browser (decisions/be3_gpu_matches_webgpu.md); plans/be3_gpu_is_wasi_webgpu.md
@@ -286,14 +299,16 @@ would be added only behind a feature the app checks.
 
 Traps when changing it:
 
-- An app's device has only the features and limits it requested, which only
-  the guest (`features.rs`) validates against: `request-device` does not tell
-  the host what was requested, so the host validates against its own device.
-- Buffer mapping, `on_submitted_work_done` and compilation info are
-  asynchronous on both hosts: `map-async` and `on-submitted-work-done` answer
-  tickets, the host wakes the app when one settles or the device is lost, and
-  the guest's one `poll` takes everything that settled and answers callbacks
-  (`be_wasm_gpu_guest::poll`, which be-sdk calls each step).
+- An app's device has only the features and limits it requested: the guest
+  (`features.rs`) refuses one its adapter lacks before asking, and the host
+  checks the app's calls against the device it gave.
+- Async calls (adapters, devices, maps, `on-submitted-work-done`, pops,
+  compilation info, async pipelines) answer tickets; the host wakes the app
+  when one settles or the device is lost, and the guest's `[poll]` takes
+  everything that settled and answers callbacks (`be_wasm_gpu_guest::poll`,
+  which be-sdk calls each step). The guest polls only while a ticket waits:
+  `[poll]` reaches the gpu, and a host with none stops a guest that does, so
+  an app whose surfaces are not rendered must never poll.
 - Device loss is per app: `Device::destroy` drops only the app's view of the
   host's shared device until it requests a device again. Natively be-host
   restarts every app on a replaced device (`replace_gpu`).
