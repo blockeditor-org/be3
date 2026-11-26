@@ -760,6 +760,30 @@ pub(crate) fn AppView(
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
+            let had_keyboard = try_with_document(|document| document.focused_node() == Some(node))
+                .unwrap_or(false);
+            // The catcher goes with the keyboard: its app hears that this view lost it, as it
+            // would from the catcher, so it does not hold on to it for a view shown nowhere (a
+            // joined editor's main view, its content moved to a dock tab view). A catcher built
+            // for the view again gives it back.
+            if had_keyboard {
+                let lost = beui::ForwardedInput {
+                    events: vec![beui::Forwarded::Focus(false)],
+                    rect: Rect::ZERO,
+                    hovered: false,
+                    focused: false,
+                    pointer: None,
+                    modifiers: beui::Modifiers::default(),
+                };
+                be_host_runtime::forward_view(
+                    &gone.0,
+                    gone.1,
+                    gone.2,
+                    &lost,
+                    &|_, _| beui::Aim::Own,
+                    &|_| None,
+                );
+            }
             try_with_document(|document| {
                 if document.focused_node() != Some(node) {
                     return;

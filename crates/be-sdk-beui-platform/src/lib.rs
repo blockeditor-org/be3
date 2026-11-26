@@ -954,6 +954,14 @@ impl Regions for ModuleRunner {
                 (true, Some(window)) => {
                     self.focus_told.insert(id, window);
                 }
+                (false, None) => {
+                    if let Some(told) = self.focus_told.remove(&id) {
+                        self.send(Incoming::Window(WindowReport::Focused {
+                            window: told,
+                            focused: false,
+                        }));
+                    }
+                }
                 _ => {
                     self.focus_told.remove(&id);
                 }

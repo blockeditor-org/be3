@@ -319,7 +319,10 @@ A joined editor's content moves from its main view, which stays placed but is
 shown nowhere, into its dock tab view, built after the main view goes. That
 view takes over the keyboard the main view had (`keyboard_follows_content` in
 be-host's `app_view.rs`; the runtime's `content_moved` finds where the content
-moved).
+moved). A catcher taken down with the keyboard tells its app that view lost it
+(`Input::Focus(false)`), as the catcher would, so the app does not count the
+main view, shown nowhere, as holding the keyboard; one built for the view again
+gives it back.
 
 An empty text block given the keyboard puts its caret in its text. It reads its
 own views' keyboard (`Editor::has_keyboard`), not the document's
