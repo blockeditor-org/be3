@@ -8,7 +8,10 @@ fn presents_taken_in_late_are_heard_in_order_at_the_poll() {
     let mut runtime = Runtime::new(&manifest(), 0);
     runtime.take_in(vec![presented(1, 1)], false);
     runtime.show_presented(|_| Some(frame(1)));
-    assert_eq!(runtime.frames, 1, "taken in at once, a frame is shown at once");
+    assert_eq!(
+        runtime.frames, 1,
+        "taken in at once, a frame is shown at once"
+    );
 
     runtime.take_in(vec![presented(2, 2)], true);
     runtime.take_in(vec![placing(3, &[1])], true);

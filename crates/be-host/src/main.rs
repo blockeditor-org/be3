@@ -5089,6 +5089,5 @@ const STORAGE_NOT_KEPT: &str = "This browser did not agree to keep this site's d
     delete your local account and everything in it when it runs short of space.";
 
 /// What a local account says when asked for contacts or a share link, which need a server.
-pub(crate) const NO_SERVER: &str =
-    "This account is kept on this device only, with no server, so it has no contacts and opens \
+pub(crate) const NO_SERVER: &str = "This account is kept on this device only, with no server, so it has no contacts and opens \
      no share links.";

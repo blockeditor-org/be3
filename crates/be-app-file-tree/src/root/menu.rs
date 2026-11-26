@@ -371,7 +371,12 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 on_click={paste}
             />
             <Show value={move || offers_share}>
-                <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
+                <MenuItem
+                    label="Share"
+                    glyph=ICON_SHARE_2
+                    disabled={unshareable}
+                    on_click={share}
+                />
             </Show>
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
             <DeleteBlock editor block />

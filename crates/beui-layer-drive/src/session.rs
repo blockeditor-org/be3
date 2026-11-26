@@ -1068,8 +1068,7 @@ impl Session {
                         }
                     }))
                 }
-                Phase::Closing { before } if quiet || (immediate && before.is_some()) =>
-                {
+                Phase::Closing { before } if quiet || (immediate && before.is_some()) => {
                     Some(Reply::Text(match (before.as_deref(), limit) {
                         (None, _) | (Some(_), Some(0)) => String::new(),
                         (Some(before), limit) => {

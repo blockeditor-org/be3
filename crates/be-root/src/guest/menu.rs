@@ -191,8 +191,6 @@ pub(super) fn HostMenu(
                 on_click={move || command(CoreCommand::StopHosting(kept.with_untracked(|kept| kept.block)))}
             />
         </ForEach>
-        // A local account has no server: no contacts, and no share links to open. The group's
-        // separator then goes on the first item shown after them.
         <Show value={served}>
             <MenuItem
                 label="Contacts"

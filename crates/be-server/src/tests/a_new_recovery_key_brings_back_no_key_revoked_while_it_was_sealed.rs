@@ -93,7 +93,9 @@ async fn a_new_recovery_key_brings_back_no_key_revoked_while_it_was_sealed() {
     remember_secret(account, new);
 
     let rows: Vec<(String, String, Vec<u8>)> = database
-        .prepare("SELECT key_id, sender, sealed FROM wrapped_keys WHERE wrapped_by = ?1 ORDER BY key_id")
+        .prepare(
+            "SELECT key_id, sender, sealed FROM wrapped_keys WHERE wrapped_by = ?1 ORDER BY key_id",
+        )
         .unwrap()
         .query_map([&by], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .unwrap()
@@ -107,7 +109,10 @@ async fn a_new_recovery_key_brings_back_no_key_revoked_while_it_was_sealed() {
     );
     assert_eq!(
         held(own.scope).map(|row| (row.1.clone(), row.2.clone())),
-        Some((account.to_string(), format!("{} resealed", own.scope).into_bytes())),
+        Some((
+            account.to_string(),
+            format!("{} resealed", own.scope).into_bytes()
+        )),
         "the account's own row was not updated in place"
     );
     assert_eq!(

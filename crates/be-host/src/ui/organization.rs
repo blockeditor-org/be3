@@ -164,8 +164,6 @@ fn HostMenu(
                 on_click={move || pick(UiCommand::StopHosting(kept.block))}
             />
         </ForEach>
-        // A local account has no server: no contacts, and no share links to open. The group's
-        // separator then goes on the first item shown after them.
         <Show value={served}>
             <MenuItem
                 @test_id={"host.menu.contacts".to_owned()}

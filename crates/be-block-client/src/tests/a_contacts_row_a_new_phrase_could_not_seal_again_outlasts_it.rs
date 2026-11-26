@@ -6,9 +6,13 @@ use be_type_workspace::FolderContent;
 fn sealed_from(harness: &Harness, to: Uuid, from: Uuid) -> Vec<Vec<u8>> {
     harness
         .database()
-        .prepare("SELECT sealed FROM wrapped_keys WHERE wrapped_by = ?1 AND sender = ?2 ORDER BY key_id")
+        .prepare(
+            "SELECT sealed FROM wrapped_keys WHERE wrapped_by = ?1 AND sender = ?2 ORDER BY key_id",
+        )
         .unwrap()
-        .query_map([format!("account:{to}"), from.to_string()], |row| row.get(0))
+        .query_map([format!("account:{to}"), from.to_string()], |row| {
+            row.get(0)
+        })
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap()
