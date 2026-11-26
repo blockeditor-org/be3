@@ -771,7 +771,8 @@ impl Docks {
     fn forget_restores(&mut self, instance: EditorInstanceId) {
         self.restored.remove(&instance);
         self.forwarded.retain(|(root, _), _| *root != instance);
-        self.restoring.retain(|restoring| restoring.asker != instance);
+        self.restoring
+            .retain(|restoring| restoring.asker != instance);
         let children: Vec<ChildId> = self
             .restoring
             .iter()

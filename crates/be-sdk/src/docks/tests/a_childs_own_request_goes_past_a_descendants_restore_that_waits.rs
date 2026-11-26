@@ -60,10 +60,7 @@ fn a_childs_own_request_goes_past_a_descendants_restore_that_waits() {
     });
     assert_eq!(
         taken,
-        vec![
-            (Vec::new(), show(1)),
-            (vec![DEEPER], show(4)),
-        ],
+        vec![(Vec::new(), show(1)), (vec![DEEPER], show(4)),],
         "only the waiting owner and its descendants are held back"
     );
     assert_eq!(host.docks.borrow().child_restored.get(&CHILD), None);

@@ -1,5 +1,5 @@
-use super::*;
 use super::restores::*;
+use super::*;
 use be_sdk_api::{DockAlign, DockBarEdge, DockBarPlacement, DockEdge, DockUpdate};
 
 #[test]

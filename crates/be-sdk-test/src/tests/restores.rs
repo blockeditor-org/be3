@@ -101,7 +101,13 @@ pub(super) fn pane(key: &str) -> DockItem {
 /// The root's dock with the stage and its bar at `placement`, and with a side pane before it
 /// when `side`: a pane the editor declared before, as the canvas declares its inspector until
 /// its content says its profile has none. `restored` counts the restores the root has taken.
-pub(super) fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool, restored: u64) -> DockUpdate {
+pub(super) fn hosted(
+    stage: u64,
+    bar: u64,
+    placement: DockBarPlacement,
+    side: bool,
+    restored: u64,
+) -> DockUpdate {
     let mut items = Vec::new();
     if side {
         items.push(pane("side"));

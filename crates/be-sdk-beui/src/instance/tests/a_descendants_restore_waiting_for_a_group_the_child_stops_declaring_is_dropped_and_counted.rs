@@ -1,5 +1,5 @@
-use super::*;
 use super::nested_restores::*;
+use super::*;
 use be_sdk_api::{DockDeclaredChild, DockUpdate};
 
 /// A descendant's restore waits for the root to host its group; once the child stops declaring
@@ -17,5 +17,8 @@ fn a_descendants_restore_waiting_for_a_group_the_child_stops_declaring_is_droppe
         })]);
     let hosted = settled_hold(&mut session);
     assert!(!icons_only(&hosted), "the dropped restore changes nothing");
-    assert_eq!(hosted.restored, 1, "the root counts the dropped restore taken");
+    assert_eq!(
+        hosted.restored, 1,
+        "the root counts the dropped restore taken"
+    );
 }
