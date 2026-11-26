@@ -181,7 +181,7 @@ pub fn DragFixture() -> NodeId {
     let dropped = create_signal(String::from("nothing"));
     let report = create_memo(move || format!("Dropped {}", dropped.get()));
     let (basket, bin) = (NodeRef::new(), NodeRef::new());
-    use_drop_site(
+    let site = use_drop_site(
         Func::new(|_: String| true),
         Func::new(move |_: String| {
             beui::drag::closest(
@@ -192,6 +192,8 @@ pub fn DragFixture() -> NodeId {
         }),
         Callback::new(move |(fruit, ()): (String, ())| dropped.set(fruit)),
     );
+    // What a carried fruit shows changes while it is carried: its face follows.
+    let over = create_memo(move || site.over.get().is_some());
     let carried = |fruit: &'static str| {
         Func::new(move |_: PointerPress| Some(beui::drag::Carry::new(fruit.to_owned())))
     };
@@ -219,7 +221,12 @@ pub fn DragFixture() -> NodeId {
                             fill=ColorRole::Surface
                             @test_id="drag.pear"
                         >
-                            <Text>"Pear"</Text>
+                            <List spacing=Space::Xs>
+                                <Text>"Pear"</Text>
+                                <Show value={over}>
+                                    <Text>"Over a place"</Text>
+                                </Show>
+                            </List>
                         </Frame>
                     </Interactive>
                     <Frame height=Size::Custom(40.0) />

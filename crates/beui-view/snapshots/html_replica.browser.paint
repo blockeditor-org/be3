@@ -30,7 +30,7 @@ BE3BROWSER 1
     "</div>",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100px; height: 60px; justify-items: stretch; align-items: stretch; flex: 0 0 auto;\">",
     "<div class=\"beui-replica\" inert=\"\" aria-hidden=\"true\">",
-    "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100px; height: 60px; justify-items: stretch; align-items: stretch; background-color: #3caa6e; flex: 0 0 auto;\">",
+    "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100px; height: 60px; justify-items: stretch; align-items: stretch; background-color: #3caa6e; flex: 0 0 auto; grid-area: 1 / 1 / 2 / 2; margin: 0;\">",
     "</div>",
     "</div>",
     "</div>",
