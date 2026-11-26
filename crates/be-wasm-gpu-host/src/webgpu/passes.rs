@@ -10,19 +10,12 @@ use crate::tables::Table;
 
 type Recorded = Box<dyn FnOnce(&mut wgpu::CommandEncoder)>;
 
-/// A pass being recorded, with the app device it records for, borrowed in place by each call.
+/// A pass being recorded, with the app device it records for, borrowed in place by each call:
+/// none when the pass could not begin, which WebGPU makes an invalid pass whose calls do
+/// nothing.
 pub(crate) struct Recording<P> {
-    pass: std::cell::RefCell<P>,
+    pass: std::cell::RefCell<Option<P>>,
     device: Option<u32>,
-}
-
-impl<P> Recording<P> {
-    fn new(pass: P, device: Option<u32>) -> Self {
-        Self {
-            pass: std::cell::RefCell::new(pass),
-            device,
-        }
-    }
 }
 
 impl Gpu {
@@ -73,6 +66,27 @@ impl Gpu {
         );
     }
 
+    /// The pass `begin` begins on `encoder`, or, if it cannot, an invalid one, which leaves
+    /// `encoder` raising why at its `finish`, as WebGPU does.
+    fn begun<P>(
+        &mut self,
+        encoder: u32,
+        device: Option<u32>,
+        begin: impl FnOnce(&mut Self) -> Result<P, Failure>,
+    ) -> Recording<P> {
+        let pass = match begin(self) {
+            Ok(pass) => Some(pass),
+            Err(failure) => {
+                self.web.broken.entry(encoder).or_insert(failure);
+                None
+            }
+        };
+        Recording {
+            pass: std::cell::RefCell::new(pass),
+            device,
+        }
+    }
+
     fn recorded<P>(
         &mut self,
         table: fn(&Self) -> &Table<Recording<P>>,
@@ -81,26 +95,29 @@ impl Gpu {
         name: &str,
         act: impl FnOnce(&Self, &mut P) -> Result<(), Failure>,
     ) {
-        let device = match table(self).get(pass, name) {
-            Ok(recording) => recording.device,
+        let (device, result) = match table(self).get(pass, name) {
+            Ok(recording) => {
+                let device = recording.device;
+                if device.is_some_and(|device| self.device_lost(device)) {
+                    return;
+                }
+                let outer = self.web.acting.replace(device);
+                let result = match &mut *recording.pass.borrow_mut() {
+                    Some(recorded) => act(self, recorded),
+                    None => Ok(()),
+                };
+                self.web.acting.set(outer);
+                (device, result)
+            }
             // A pass ended is still its device's until it is dropped, whose scopes hear why.
             Err(message) => {
                 let device = self.owner(kind, pass);
-                if !device.is_some_and(|device| self.device_lost(device)) {
-                    self.raise(device, Failure::validation(message));
+                if device.is_some_and(|device| self.device_lost(device)) {
+                    return;
                 }
-                return;
+                (device, Err(Failure::validation(message)))
             }
         };
-        if device.is_some_and(|device| self.device_lost(device)) {
-            return;
-        }
-        let outer = std::mem::replace(&mut self.web.acting, device);
-        let result = match table(self).get(pass, name) {
-            Ok(recording) => act(self, &mut recording.pass.borrow_mut()),
-            Err(message) => Err(Failure::validation(message)),
-        };
-        self.web.acting = outer;
         if let Err(failure) = result {
             self.raise(device, failure);
         }
@@ -171,7 +188,7 @@ impl Gpu {
             Kind::RenderPass,
             label.as_deref(),
             |gpu| &mut gpu.passes,
-            |gpu| {
+            |gpu| Ok(gpu.begun(encoder, device, |gpu| {
                 let mut colors = Vec::new();
                 for attachment in &descriptor.color_attachments {
                     let Some(attachment) = attachment else {
@@ -300,8 +317,7 @@ impl Gpu {
                         multiview_mask: None,
                     })
                     .forget_lifetime())
-                .map(|pass| Recording::new(pass, device))
-            },
+            })),
         )
     }
 
@@ -319,7 +335,7 @@ impl Gpu {
             Kind::ComputePass,
             label.as_deref(),
             |gpu| &mut gpu.compute_passes,
-            |gpu| {
+            |gpu| Ok(gpu.begun(encoder, device, |gpu| {
                 let timestamps = descriptor
                     .as_ref()
                     .and_then(|descriptor| descriptor.timestamp_writes)
@@ -346,8 +362,7 @@ impl Gpu {
                         }),
                     })
                     .forget_lifetime())
-                .map(|pass| Recording::new(pass, device))
-            },
+            })),
         )
     }
 

@@ -13,9 +13,9 @@
 mod limits;
 mod objects;
 mod passes;
+mod surfaces;
 
 pub(crate) use passes::Recording;
-mod surfaces;
 
 use std::collections::BTreeMap;
 
@@ -234,7 +234,9 @@ pub(crate) struct Web {
     /// Textures the app destroyed, whose views are still made (`create-view`).
     destroyed: HashSet<u32>,
     /// The app device the call being answered is made on, whose objects alone it may use.
-    acting: Option<u32>,
+    acting: std::cell::Cell<Option<u32>>,
+    /// Encoders a pass could not begin on, with why, which their `finish` raises.
+    broken: HashMap<u32, Failure>,
 }
 
 /// How many unheard errors a host keeps between reads of its log: an app that raises one a
@@ -430,9 +432,9 @@ impl Gpu {
             .iter()
             .map(|kind| (*kind, self.device.push_error_scope(kind.filter())))
             .collect();
-        let outer = std::mem::replace(&mut self.web.acting, device);
+        let outer = self.web.acting.replace(device);
         let result = act(self);
-        self.web.acting = outer;
+        self.web.acting.set(outer);
         let mut pops = Vec::new();
         for (kind, guard) in guards.into_iter().rev() {
             let target = device.and_then(|device| self.target(device, kind));

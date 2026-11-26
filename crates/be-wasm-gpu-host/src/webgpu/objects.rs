@@ -58,9 +58,9 @@ impl Gpu {
         if device.is_some_and(|device| self.device_lost(device)) {
             return;
         }
-        let outer = std::mem::replace(&mut self.web.acting, device);
+        let outer = self.web.acting.replace(device);
         let result = act(self);
-        self.web.acting = outer;
+        self.web.acting.set(outer);
         if let Err(failure) = result {
             self.raise(device, failure);
         }
@@ -69,7 +69,7 @@ impl Gpu {
     /// Refuses an object made on another app device than the one the call is made on: every
     /// app device is a view of one wgpu device, which would take it.
     pub(super) fn belongs(&self, kind: Kind, handle: u32) -> Result<(), Failure> {
-        match (self.web.acting, self.owner(kind, handle)) {
+        match (self.web.acting.get(), self.owner(kind, handle)) {
             (Some(device), Some(owner)) if owner != device => Err(Failure::validation(format!(
                 "{} is of another device than the one it is used with",
                 kind.name()
@@ -170,7 +170,7 @@ impl Gpu {
 
     /// The limits of the app device the call is made on.
     pub(super) fn acting_limits(&self) -> Option<&wgpu::Limits> {
-        let device = self.web.acting?;
+        let device = self.web.acting.get()?;
         self.web
             .devices
             .get(device, "device")
@@ -1986,8 +1986,13 @@ impl Host for Gpu {
             label.as_deref(),
             |gpu| &mut gpu.command_buffers,
             |gpu| {
-                found(gpu.encoders.take(this.0, "command encoder"))
-                    .map(wgpu::CommandEncoder::finish)
+                let finished = found(gpu.encoders.take(this.0, "command encoder"))
+                    .map(wgpu::CommandEncoder::finish);
+                // A pass that could not begin made its encoder invalid.
+                match gpu.web.broken.remove(&this.0) {
+                    Some(failure) => Err(failure),
+                    None => finished,
+                }
             },
         );
         web::GpuCommandBuffer(handle)
@@ -2899,6 +2904,7 @@ impl Host for Gpu {
     }
 
     fn gpu_command_encoder_drop(&mut self, this: web::GpuCommandEncoder) {
+        self.web.broken.remove(&this.0);
         self.drop_object(Kind::Encoder, this.0, |gpu| &mut gpu.encoders);
     }
 

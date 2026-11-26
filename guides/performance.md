@@ -80,7 +80,7 @@ while working on it.
 - `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw wasi:webgpu calls through
   V8 into wgpu's noop device: about 50 ns a call in release in November 2026. Each call looks
   up its pass, which keeps its device, and records into it in place (`Gpu::recorded`); moving
-  a pass out of its table and back each call, or a lock, more than doubles that.
+  a pass out of its table and back each call, with a lock and an owner lookup, cost about 125.
 - `//crates/be-block-model:example-text-snapshot-bench` (the suite's `text-snapshot`) times an
   editor decoding a 1 MB text's snapshot and adopting its session state. The target is under
   1 ms in release.
