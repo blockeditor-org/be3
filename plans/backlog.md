@@ -125,7 +125,10 @@ Fixed items are removed as they land.
   (128 MiB), as a merge reads its segments whole into memory. Done: a merge
   streams its segments, and the idle pass at rest merges tiers past that cap,
   shown by a be-block-search-index test merging segments larger than the memory
-  it may hold.
+  it may hold. Left: streaming needs both sides to stream, a k-way read over
+  dictionary blocks, postings and documents, and a write path that writes parts as
+  it goes, which be-block-store, the vault (`Vault::write`, `chunker::split`),
+  `Peer::put_part` and the type protocol do not have; it wants its own plan.
 
 ## 12. Large folders
 
@@ -447,6 +450,18 @@ Fixed items are removed as they land.
   (`window_focused` gives back the window's kept focus, else `focus_into` its root only when the
   focus is not already inside it) and be-app-text's `caret_when_given_the_keyboard`, which
   focuses the field only for an empty text.
+
+## 21. Component macro
+
+- **Internal trait names left in a slot's error notes.** A children slot asks its
+  type for the shape's trait directly, so `ChildShape` and `TakesChildren` no longer
+  show in rustc's "required for ..." notes. Two hops still do: an `Option` slot's
+  `TakesOptionalBlock` (`a_frame_takes_one_child`), and the `Exact<P>` or
+  `ExactWithin<P>` wrapper of a slot whose type comes from what is passed
+  (`a_loading_hands_its_content_no_value`), both in compile_fail/beui and pinned
+  there with `//~ NOTE`. Done: those notes name only the declared prop type and the
+  slot's own trait, or are suppressed, shown by the pins; left until rustc can hide
+  a blanket impl's note while keeping the leaf trait's `on_unimplemented` headline.
 
 ## 22. Headless runtime
 

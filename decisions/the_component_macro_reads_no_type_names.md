@@ -5,8 +5,8 @@ setter is generic over what it is passed and asks for `IntoPropValue<P, M>` of t
 declared type `P`; each prop type says in `beui-tree` (`prop_value.rs`) what it takes, with one
 impl keyed on the type. Children written between a tag's tags go to a hidden setter for the
 syntax they are written in, wrapped by it, and the slot type says which shapes it takes
-(`TakesBlock`, `TakesClosure`, `TakesUnitClosure`, `TakesWith`), asked of it by that setter. A prop is
-required unless its type has an `AbsentProp` value or it has a `#[prop(default = ..)]`;
+(`TakesBlock`, `TakesClosure`, `TakesUnitClosure`, `TakesWith`), asked of it by that setter. A
+prop is required unless its type has an `AbsentProp` value or it has a `#[prop(default = ..)]`;
 `#[prop(required)]` is the one manual tag.
 
 The macro reads a type in three places, all structural or syntactic:

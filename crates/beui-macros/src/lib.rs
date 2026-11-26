@@ -117,7 +117,8 @@ fn prop_setter(prop: &Prop, method: Ident) -> Setter {
 /// the wrapper it hands that setter (`ChildBlock` for tags, `ChildClosure` for `|value| { .. }`,
 /// `ChildUnitClosure` for `|| { .. }`, `ChildWith` for `|value| <Tag />`), and the slot type's
 /// trait for it and that trait's method. The setter asks the slot type (`prop_target`) for that
-/// trait itself, so a failure's notes name only the slot type and its trait.
+/// trait itself, so a failure's notes name the slot type and its trait, and no hop between: but
+/// an `Option` slot's `TakesOptionalBlock` and an exact slot's `Exact` wrapper (backlog §21).
 const CHILD_SHAPES: [(&str, &str, &str, &str); 4] = [
     ("__children_block", "ChildBlock", "TakesBlock", "take_block"),
     ("__children_closure", "ChildClosure", "TakesClosure", "take_closure"),
@@ -1060,8 +1061,8 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
     });
 
     // Children written between the tags of a tag that set the children slot as a prop too:
-    // the children setters on the state where the slot is set ask for a trait nothing implements, so
-    // they are reported with this message rather than as a missing method.
+    // the children setters on the state where the slot is set ask for a trait nothing
+    // implements, so they are reported with this message rather than as a missing method.
     let children_twice = children_slot.map(|slot| {
         let prop = props[slot].ident.to_string();
         let trait_ident = format_ident!("__{}_children_set_twice", base);
