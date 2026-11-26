@@ -10,7 +10,6 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockParent, Editor, LayeredSettings};
-use std::rc::Rc;
 use uuid::Uuid;
 
 use super::block::name_of;
@@ -171,109 +170,93 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
     let block = editor.block_id();
     let settings = create_memo(move || Some(block));
     let locked = create_memo(move || !editor.blocks().access(block).can_manage());
-    let sharing = vec![
-        policy_row(editor, settings, &SHARING),
-        policy_row(editor, settings, &SHARE_LINKS),
-        policy_row(editor, settings, &WORKSPACES),
-    ];
-    let storage = vec![
-        policy_row(editor, settings, &HISTORY),
-        policy_row(editor, settings, &QUOTA),
-    ];
-    let devices = vec![
-        policy_row(editor, settings, &OFFLINE),
-        policy_row(editor, settings, &LOST_ACCESS),
-        policy_row(editor, settings, &GRACE),
-    ];
     view! {
         <SettingsPage>
             <SettingsSection title="Sharing and workspaces" description={ABOUT}>
-                <PolicyRows rows={sharing} locked={locked} />
+                <List spacing=Space::None>
+                    {policy_row(editor, settings, &SHARING, locked, false)}
+                    {policy_row(editor, settings, &SHARE_LINKS, locked, true)}
+                    {policy_row(editor, settings, &WORKSPACES, locked, true)}
+                </List>
             </SettingsSection>
             <SettingsSection title="History and storage">
-                <PolicyRows rows={storage} locked={locked} />
+                <List spacing=Space::None>
+                    {policy_row(editor, settings, &HISTORY, locked, false)}
+                    {policy_row(editor, settings, &QUOTA, locked, true)}
+                </List>
             </SettingsSection>
             <SettingsSection title="Devices">
-                <PolicyRows rows={devices} locked={locked} />
+                <List spacing=Space::None>
+                    {policy_row(editor, settings, &OFFLINE, locked, false)}
+                    {policy_row(editor, settings, &LOST_ACCESS, locked, true)}
+                    {policy_row(editor, settings, &GRACE, locked, true)}
+                </List>
             </SettingsSection>
         </SettingsPage>
     }
 }
 
-/// Draws one policy's row, given whether the page is locked and whether a row is above it.
-type Row = Rc<dyn Fn(Memo<bool>, bool) -> NodeId>;
-
-#[component]
-fn PolicyRows(rows: Vec<Row>, locked: Memo<bool>) -> NodeId {
-    let rows = Rc::new(rows);
-    let keys: Vec<usize> = (0..rows.len()).collect();
-    view! {
-        <List spacing=Space::None>
-            <ForEach value={keys}>|index: usize| { rows[index](locked, index > 0) }</ForEach>
-        </List>
-    }
-}
-
+/// One policy's row, given whether the page is locked and whether a row is above it.
 fn policy_row<R, V>(
     editor: Editor,
     settings: Memo<Option<Uuid>>,
     policy: &'static Policy<R, V>,
-) -> Row
+    locked: Memo<bool>,
+    separated: bool,
+) -> NodeId
 where
     R: Root + Default + Clone + 'static,
     Document<R>: BlockContent + LiveEdit<Op = Edit> + Clone + Default,
     V: Copy + PartialEq + 'static,
 {
-    Rc::new(move |locked, separated| {
-        let selected = create_memo(move || {
-            let settings = settings.get()?;
-            let held = policy_block(editor, settings, R::CONTENT_TYPE)
-                .and_then(|block| {
-                    editor
-                        .content_of::<Document<R>>(block)
-                        .read(|content| content.root())
-                        .ok()
-                })
-                .unwrap_or_default();
-            let value = (policy.get)(&held);
-            // A value none of the options is shows as no choice.
-            policy
-                .options
-                .iter()
-                .any(|(option, _)| *option == value)
-                .then_some(value)
-        });
-        let choose = move |chosen: Option<V>| {
-            if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
-                write_policy::<R>(editor, settings, (policy.set)(chosen));
-            }
-        };
-        let options: Vec<usize> = (0..policy.options.len()).collect();
-        view! {
-            <SettingsRow
-                label={policy.label.to_owned()}
-                description={policy.description.to_owned()}
-                separated={separated}
-                locked={locked}
-            >
-                <ListItem grow=1.0>
-                    <Select
-                        width={Extent::fraction(1.0)}
-                        options={view! {
-                            <ForEach value={options}>|option: usize| {
-                                let (value, label) = policy.options[option];
-                                view! { <ChoiceOption value=value label={label.to_owned()} /> }
-                            }</ForEach>
-                        }}
-                        selected={Binding::new(selected, choose)}
-                        label={policy.label.to_owned()}
-                        disabled={locked}
-                        @test_id={format!("settings.organization.{}", policy.key)}
-                    />
-                </ListItem>
-            </SettingsRow>
+    let selected = create_memo(move || {
+        let settings = settings.get()?;
+        let held = policy_block(editor, settings, R::CONTENT_TYPE)
+            .and_then(|block| {
+                editor
+                    .content_of::<Document<R>>(block)
+                    .read(|content| content.root())
+                    .ok()
+            })
+            .unwrap_or_default();
+        let value = (policy.get)(&held);
+        // A value none of the options is shows as no choice.
+        policy
+            .options
+            .iter()
+            .any(|(option, _)| *option == value)
+            .then_some(value)
+    });
+    let choose = move |chosen: Option<V>| {
+        if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
+            write_policy::<R>(editor, settings, (policy.set)(chosen));
         }
-    })
+    };
+    let options: Vec<usize> = (0..policy.options.len()).collect();
+    view! {
+        <SettingsRow
+            label={policy.label.to_owned()}
+            description={policy.description.to_owned()}
+            separated={separated}
+            locked={locked}
+        >
+            <ListItem grow=1.0>
+                <Select
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ForEach value={options}>|option: usize| {
+                            let (value, label) = policy.options[option];
+                            view! { <ChoiceOption value=value label={label.to_owned()} /> }
+                        }</ForEach>
+                    }}
+                    selected={Binding::new(selected, choose)}
+                    label={policy.label.to_owned()}
+                    disabled={locked}
+                    @test_id={format!("settings.organization.{}", policy.key)}
+                />
+            </ListItem>
+        </SettingsRow>
+    }
 }
 
 fn keep_setting(workspace: Uuid) -> Setting<OfflineSettings, bool> {

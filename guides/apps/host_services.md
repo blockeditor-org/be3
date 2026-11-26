@@ -301,6 +301,18 @@ function, a `publish` or `take_calls` on the host, and `watch` or `act` in the
 editor; nothing else lists them. Tests use `BeuiTest::set_watched::<W>`,
 `host_calls` and `take_host_calls`.
 
+## Offered and permitted
+
+Whether an editor shows a way to share is two questions. Whether sharing is
+offered at all is the host's (`opening.offers-share`,
+`EditorHost::offers_share`): false for a local account, which has no server,
+so the frame registers no `editor.share` and menus leave out Share and the
+access a block is viewed at rather than disable them. Whether this account may
+share a given block is its access (it manages the block: the frame's
+`can_share`, be-sdk-shell's `Permissions::share`), which only enables or
+disables a Share that is offered. `offers-share` holds for the instance's
+life, as the account it opens for does.
+
 ## Naming a block's members
 
 An app learns who may view its own block, and what to call them, from a

@@ -277,7 +277,7 @@ impl Rig {
             account_id: [3; 16],
             organization_id: [4; 16],
             client_id: [5; 16],
-            local_account: false,
+            offers_share: true,
             kind: OpeningKind::Block(OpenBlock {
                 block_id: [1; 16],
                 block_type: [2; 16],

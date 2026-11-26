@@ -1,7 +1,7 @@
 use super::*;
 
-/// A local account has no server to share through, so neither the files' section menu nor a
-/// block's menu offers Share.
+/// A local account has no server to share through, so neither the files' section menu, a
+/// block's menu nor its tab's menu offers Share or the access it is viewed at.
 #[test]
 fn a_local_accounts_block_menus_offer_no_share() {
     let mut host = HostTest::start(Options::default());
@@ -29,5 +29,17 @@ fn a_local_accounts_block_menus_offer_no_share() {
         "a local account's block menu offers Share:\n{tree}"
     );
     host.snapshot("a_local_accounts_block_menus_offer_no_share");
+    host.key("Escape");
+    host.gone("#file-tree.appearance");
+
+    // The document's own tab menu offers neither Share nor the access it is viewed at.
+    host.click(MORE);
+    host.wait("MenuItem \"File details\"");
+    let tree = host.tree();
+    assert!(
+        !tree.contains("\"Share\"") && !tree.contains("Access:"),
+        "a local account's tab menu offers Share or Access:\n{tree}"
+    );
+    host.key("Escape");
     host.close();
 }

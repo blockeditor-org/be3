@@ -26,10 +26,9 @@ pub enum BlockAction {
 pub struct Permissions {
     pub add: bool,
     pub edit: bool,
+    /// Whether the account may share the block (it manages it). Whether Share is offered at
+    /// all is the host's (`EditorHost::offers_share`).
     pub share: bool,
-    /// False for a local account, which has no server to share through, so its menus offer no
-    /// Share.
-    pub offers_share: bool,
     pub settings: bool,
     pub delete: bool,
     pub offers_delete: bool,
@@ -86,7 +85,6 @@ pub fn permissions(
         add: types.child_operations(reference.block_type).add && can_edit,
         edit: can_edit,
         share: workspace.can_manage(reference.id),
-        offers_share: !host.local_account(),
         settings: workspace.can_manage(reference.id)
             || workspace.editor().settings_block(reference.id).is_some(),
         delete: offers_delete
@@ -193,11 +191,11 @@ pub(crate) fn ReferenceMenuItem(
                     !permissions.share,
                     !permissions.settings,
                     permissions.offers_delete,
-                    permissions.offers_share,
                 )
             })
         })
     });
+    let offers_share = workspace.host().offers_share();
     let edit = create_memo(move || rights.get().is_none_or(|rights| rights.1));
     let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
     let files = create_memo(move || workspace.my_files());
@@ -248,7 +246,7 @@ pub(crate) fn ReferenceMenuItem(
                 />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} on_click={move || act(BlockAction::Rename)} />
-            <Show value={move || rights.get().is_none_or(|rights| rights.9)}>
+            <Show value={move || offers_share}>
                 <MenuItem
                     label="Share"
                     disabled={move || rights.get().is_none_or(|rights| rights.6)}

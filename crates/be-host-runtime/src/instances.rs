@@ -2535,7 +2535,7 @@ impl Instances {
                     account_id,
                     organization_id,
                     client_id,
-                    local_account: be_host_stack::is_local(),
+                    offers_share: !be_host_stack::is_local(),
                     kind,
                 })));
                 let mut statuses: Vec<_> = entry
