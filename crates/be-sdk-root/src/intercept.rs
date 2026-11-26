@@ -8,8 +8,8 @@
 //! root's own (its palette, a dialog), to the focus, as if no one had intercepted them.
 
 use be_lib_layers::{LayerId, Surface};
-use be_lib_ui_types::input::{Input, Key, KeyPress, Modifiers};
 use be_lib_ui_types::KeyChord;
+use be_lib_ui_types::input::{Input, Key, KeyPress, Modifiers};
 use be_sdk_api::ScreenId;
 
 use crate::{Delivery, Embedding, app_surface};
@@ -131,7 +131,9 @@ impl Embedding {
             return to_focus();
         };
         match focused {
-            Some(focused) if focused.id == target || matches!(focused.surface, Surface::Root(_)) => {
+            Some(focused)
+                if focused.id == target || matches!(focused.surface, Surface::Root(_)) =>
+            {
                 to_focus()
             }
             _ => Some(Handed::Screen(target, surface)),
@@ -237,8 +239,7 @@ impl Intercepting {
                 shift: was.shift && now.shift,
                 logo: was.logo && now.logo,
             };
-            self.held =
-                (still != Modifiers::NONE).then_some((at, target, surface, still));
+            self.held = (still != Modifiers::NONE).then_some((at, target, surface, still));
             if still != was {
                 out.push(Delivery {
                     target,

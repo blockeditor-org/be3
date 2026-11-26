@@ -510,11 +510,7 @@ impl Embedded {
         fonts: Rc<Fonts>,
         now: Duration,
     ) -> Self {
-        let mut run = Run::new(
-            Session::new(HOST_NAME, Some(surface)),
-            false,
-            preferences(),
-        );
+        let mut run = Run::new(Session::new(HOST_NAME, Some(surface)), false, preferences());
         run.session.start(millis(now));
         run.screens.clone_from(&screens);
         let hosted = matches!(opened, Opened::Host);
