@@ -110,6 +110,7 @@ mod a_typed_edit_during_a_held_drag_reaches_peers_at_once;
 mod an_append_under_a_replica_opened_after_a_release_is_answered_once_and_the_released_ones_to_no_one;
 mod an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash;
 mod an_edit_by_its_part_given_again_with_the_submission_that_held_it_lands_once;
+mod an_edit_carried_over_a_restart_given_again_as_typed_goes_under_its_kept_id;
 mod an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_reach_the_server;
 mod an_edit_held_behind_one_whose_order_came_during_a_seal_goes_once_the_seal_lands;
 mod an_edit_is_lacking_until_the_server_holds_it;
@@ -585,6 +586,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     resumed: Vec<usize>,
     /// Submissions wait until `unstall`.
     stalled_submits: bool,
+    /// Holds the submissions of this device alone, as `stalled_submits` holds every device's.
+    stalled_from: Option<usize>,
     /// Appends to the log wait until `unstall`.
     stalled_appends: bool,
     /// A released replica leaves its module running, as a host's does, for the block to open
@@ -599,7 +602,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     /// The parts the journal's base names (`journal-base.parts`), as the last seal or rebase
     /// that started it said.
     base_parts: Vec<be_sdk_type_api::PartRef>,
-    /// What the next `open` is told the host kept across a stop: the last restart its replica
+    /// What the next `open` or `reopen` is told the host kept across a stop: the last restart its replica
     /// had applied and the number of the last kept edit (`opening.kept-restart`,
     /// `opening.kept-through`).
     kept_opening: Option<(u64, u64)>,
@@ -609,6 +612,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     /// What the next `reopen` is told earlier openings submitted of the edits given again
     /// (`opening.kept-submissions`).
     kept_submissions: Vec<be_sdk_type_api::KeptSubmission>,
+    /// What the next `reopen` gives each editor's replica again of what it sent before, as the
+    /// host does between attaching the editor and `resent`.
+    given_again: Vec<(EditorId, FromEditor)>,
     /// Submissions are numbered as a device offline numbers them: in its own order, which the
     /// server lacks, answered as kept and heard by the device alone.
     offline_submits: bool,
@@ -697,6 +703,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             read_stalled: false,
             resumed: vec![0; devices],
             stalled_submits: false,
+            stalled_from: None,
             stalled_appends: false,
             keeps_modules: false,
             largest_submission: usize::MAX,
@@ -705,6 +712,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             kept_opening: None,
             kept_submitted: 0,
             kept_submissions: Vec::new(),
+            given_again: Vec::new(),
             offline_submits: false,
             order: Sequencer::starting(0),
             offline_order: None,
@@ -944,6 +952,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             taken_before: self.devices[device].taken_before,
             kept_submitted: std::mem::take(&mut self.kept_submitted),
             kept_submissions: std::mem::take(&mut self.kept_submissions),
+            kept_restart: self.kept_opening.map_or(0, |(restart, _)| restart),
+            kept_through: self.kept_opening.take().map_or(0, |(_, through)| through),
             journal,
             sealed_head,
             epoch: self.devices[device].status.epoch + 1,
@@ -956,11 +966,20 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             .filter(|(on, _)| *on == device)
             .map(|(_, editor)| *editor)
             .collect();
+        let mut given_again = std::mem::take(&mut self.given_again);
+        let now = self.now;
         for editor in editors {
             // The journal holds what each editor was told landed, as the host would count it.
             let acknowledged = self.editors[&(device, editor)].acknowledged();
+            let again: Vec<FromEditor> = given_again
+                .extract_if(.., |(to, _)| *to == editor)
+                .map(|(_, message)| message)
+                .collect();
             self.with_replica(device, |replica, host| {
                 replica.attach(host, editor, true, acknowledged);
+                for message in again {
+                    replica.message(host, Endpoint::Editor(editor), message.encode(), now);
+                }
                 replica.resent(host, editor)
             });
         }
@@ -1694,7 +1713,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .write(self.order.sequence, client, MembershipChange::Claimed);
                 self.lease_changed(None);
             }
-            call @ Call::Submit { .. } if self.stalled_submits => self.held.push((device, call)),
+            call @ Call::Submit { .. }
+                if self.stalled_submits || self.stalled_from == Some(device) =>
+            {
+                self.held.push((device, call))
+            }
             Call::Submit {
                 reply, submission, ..
             } => {

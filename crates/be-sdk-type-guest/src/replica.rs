@@ -451,6 +451,8 @@ struct Sent<C: LiveEdit> {
     id: OpId,
     /// The operation it submitted, none for a reload or a stash to keep.
     operation: Option<C::Op>,
+    /// The last local edit it holds (`Submitted::through`).
+    through: u64,
     payload: Payload,
     entry: Entry,
     /// A replacement's request, answered once it lands.
@@ -4114,6 +4116,19 @@ where
             return;
         }
         let kept = kept.clone().filter(|kept| *through == kept.through);
+        // One carried over a restart of the order holds the edits it was carried from, rewritten
+        // (`carry_pending`): given again as typed, they do not make it again, so they go as
+        // what it holds, under its id, as the first copy may reach the server yet.
+        if let Some((kept, operation)) = kept.as_ref().and_then(|kept| {
+            let operation = carried_operation::<C>(&kept.payload, kept.through)?;
+            Some((kept.clone(), operation))
+        }) {
+            let Some((_, _, weight, through, _)) = self.unsent.pop_front() else {
+                return;
+            };
+            self.send_kept(kept, operation, weight, through);
+            return;
+        }
         let payload = match self.payload_of(C::encode_operation(operation)) {
             Some(payload) => payload,
             None => return,
@@ -4164,6 +4179,7 @@ where
         self.pending.push_back(Sent {
             id: submission.id,
             operation: Some(operation),
+            through,
             payload,
             entry,
             reply: None,
@@ -4171,6 +4187,50 @@ where
         self.out.push(Effect::Submit {
             replica: self.id,
             submission,
+        });
+    }
+
+    /// Submits again, as it was and under its id, an earlier opening's submission of the local
+    /// edits through `through`, shown as what it holds (`operation`) from now on.
+    fn send_kept(&mut self, kept: KeptSubmission, operation: C::Op, weight: u64, through: u64) {
+        if self
+            .reported
+            .status
+            .as_ref()
+            .is_some_and(|status| status.restarts != self.restarts)
+        {
+            self.report();
+        }
+        let Some(Submitted { entry, .. }) = Submitted::decode(&kept.payload) else {
+            return;
+        };
+        let Entry::Operation(payload) = entry.clone() else {
+            return;
+        };
+        self.in_flight = weight;
+        let id = OpId {
+            origin: self.origin,
+            counter: kept.counter,
+        };
+        self.lacking.submitted(id.counter, weight);
+        self.pending.push_back(Sent {
+            id,
+            operation: Some(operation),
+            through,
+            payload,
+            entry,
+            reply: None,
+        });
+        // What it shows was made of the edits as typed.
+        self.rebuild_visible();
+        self.out.push(Effect::Submit {
+            replica: self.id,
+            submission: Submission {
+                id,
+                base: self.applied,
+                barrier: false,
+                payload: kept.payload,
+            },
         });
     }
 
@@ -4212,6 +4272,7 @@ where
         self.pending.push_back(Sent {
             id,
             operation: None,
+            through,
             payload: Payload::Inline(Vec::new()),
             entry,
             reply,
@@ -4318,6 +4379,7 @@ where
         self.pending.push_back(Sent {
             id,
             operation: None,
+            through: local,
             // The part its state went by, kept until it lands (`prune_payloads`).
             payload: state,
             entry,
@@ -5500,20 +5562,17 @@ where
         let mut before = before;
         let mut after = self.confirmed.clone();
         let mut carried = VecDeque::new();
-        let pending: Vec<C::Op> = std::mem::take(&mut self.pending)
+        // Each goes again holding the local edits it held, so one kept across a crash is
+        // matched by them (`flush`).
+        let pending: Vec<(C::Op, u64)> = std::mem::take(&mut self.pending)
             .into_iter()
-            .filter_map(|sent| sent.operation)
+            .filter_map(|sent| sent.operation.map(|operation| (operation, sent.through)))
             .collect();
         let unsent: Vec<(C::Op, u64)> = std::mem::take(&mut self.unsent)
             .into_iter()
             .map(|(operation, _, _, through, _)| (operation, through))
             .collect();
-        let through = self.edit_number();
-        for (operation, through) in pending
-            .into_iter()
-            .map(|operation| (operation, through))
-            .chain(unsent)
-        {
+        for (operation, through) in pending.into_iter().chain(unsent) {
             let moved = C::carry_over(&operation, &before, &after, self.client);
             before.apply(&operation);
             if let Some(moved) = moved {
@@ -5548,6 +5607,19 @@ where
         self.kept_submissions.clear();
         // They go again as new submissions: the ones on their way are passed over.
         self.lacking.unsubmitted();
+    }
+}
+
+/// The operation a kept submission of the local edits through `through` holds inline: none for
+/// one that holds them otherwise, or by a part, which goes again only when the edits make it
+/// again exactly (`flush`).
+fn carried_operation<C: LiveEdit>(payload: &[u8], through: u64) -> Option<C::Op> {
+    match Submitted::decode(payload)? {
+        Submitted {
+            through: held,
+            entry: Entry::Operation(Payload::Inline(bytes)),
+        } if held == through => C::decode_operation(&bytes).ok(),
+        _ => None,
     }
 }
 
