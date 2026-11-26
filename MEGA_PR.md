@@ -140,6 +140,7 @@ Landed on 2026-11-24:
 - `gpu-wasi-webgpu-4`: a canvas is shown as its alpha mode, colour space and tone mapping ask; an unset alpha mode shows opaque.
 - `gpu-wasi-webgpu-5`: a per-draw gpu call records into its pass in place, ~50 ns instead of ~125; the lost-device check takes no lock.
 - `gpu-wasi-webgpu-5b`: review follow-ups: getConfiguration returns what was configured, looks are batched in one submit, and a pass that cannot begin raises once at its encoder's finish.
+- `backlog-10-2`: a host panel tab takes the keyboard under the root; an image read by range after its header grew reads its whole payload.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
