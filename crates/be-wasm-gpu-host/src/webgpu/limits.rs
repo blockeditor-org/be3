@@ -13,15 +13,28 @@ pub(super) fn within(what: &str, value: u64, limit: u32) -> Result<(), Failure> 
     }
 }
 
-pub(super) fn texture(limits: &wgpu::Limits, descriptor: &wgpu::TextureDescriptor<'_>) -> Result<(), Failure> {
+pub(super) fn texture(
+    limits: &wgpu::Limits,
+    descriptor: &wgpu::TextureDescriptor<'_>,
+) -> Result<(), Failure> {
     let size = descriptor.size;
     match descriptor.dimension {
-        wgpu::TextureDimension::D1 => {
-            within("a 1D texture's width", size.width.into(), limits.max_texture_dimension_1d)
-        }
+        wgpu::TextureDimension::D1 => within(
+            "a 1D texture's width",
+            size.width.into(),
+            limits.max_texture_dimension_1d,
+        ),
         wgpu::TextureDimension::D2 => {
-            within("a 2D texture's width", size.width.into(), limits.max_texture_dimension_2d)?;
-            within("a 2D texture's height", size.height.into(), limits.max_texture_dimension_2d)?;
+            within(
+                "a 2D texture's width",
+                size.width.into(),
+                limits.max_texture_dimension_2d,
+            )?;
+            within(
+                "a 2D texture's height",
+                size.height.into(),
+                limits.max_texture_dimension_2d,
+            )?;
             within(
                 "a 2D texture's array layers",
                 size.depth_or_array_layers.into(),
@@ -29,8 +42,16 @@ pub(super) fn texture(limits: &wgpu::Limits, descriptor: &wgpu::TextureDescripto
             )
         }
         wgpu::TextureDimension::D3 => {
-            within("a 3D texture's width", size.width.into(), limits.max_texture_dimension_3d)?;
-            within("a 3D texture's height", size.height.into(), limits.max_texture_dimension_3d)?;
+            within(
+                "a 3D texture's width",
+                size.width.into(),
+                limits.max_texture_dimension_3d,
+            )?;
+            within(
+                "a 3D texture's height",
+                size.height.into(),
+                limits.max_texture_dimension_3d,
+            )?;
             within(
                 "a 3D texture's depth",
                 size.depth_or_array_layers.into(),
@@ -41,7 +62,10 @@ pub(super) fn texture(limits: &wgpu::Limits, descriptor: &wgpu::TextureDescripto
 }
 
 /// A bind group layout's bindings, counted per shader stage as WebGPU counts them.
-pub(super) fn group_layout(limits: &wgpu::Limits, entries: &[wgpu::BindGroupLayoutEntry]) -> Result<(), Failure> {
+pub(super) fn group_layout(
+    limits: &wgpu::Limits,
+    entries: &[wgpu::BindGroupLayoutEntry],
+) -> Result<(), Failure> {
     for entry in entries {
         if entry.binding >= limits.max_bindings_per_bind_group {
             return Err(Failure::validation(format!(
@@ -102,14 +126,26 @@ pub(super) fn group_layout(limits: &wgpu::Limits, entries: &[wgpu::BindGroupLayo
         within(
             "a stage's uniform buffers",
             count(|ty| {
-                matches!(ty, wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, .. })
+                matches!(
+                    ty,
+                    wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        ..
+                    }
+                )
             }),
             limits.max_uniform_buffers_per_shader_stage,
         )?;
         within(
             "a stage's storage buffers",
             count(|ty| {
-                matches!(ty, wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { .. }, .. })
+                matches!(
+                    ty,
+                    wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { .. },
+                        ..
+                    }
+                )
             }),
             limits.max_storage_buffers_per_shader_stage,
         )?;
@@ -123,13 +159,21 @@ pub(super) fn render_pipeline(
     buffers: &[Option<wgpu::VertexBufferLayout<'_>>],
     targets: usize,
 ) -> Result<(), Failure> {
-    within("a pipeline's vertex buffers", buffers.len() as u64, limits.max_vertex_buffers)?;
+    within(
+        "a pipeline's vertex buffers",
+        buffers.len() as u64,
+        limits.max_vertex_buffers,
+    )?;
     let attributes = buffers
         .iter()
         .flatten()
         .map(|buffer| buffer.attributes.len())
         .sum::<usize>();
-    within("a pipeline's vertex attributes", attributes as u64, limits.max_vertex_attributes)?;
+    within(
+        "a pipeline's vertex attributes",
+        attributes as u64,
+        limits.max_vertex_attributes,
+    )?;
     for buffer in buffers.iter().flatten() {
         within(
             "a vertex buffer's stride",
@@ -137,5 +181,9 @@ pub(super) fn render_pipeline(
             limits.max_vertex_buffer_array_stride,
         )?;
     }
-    within("a pipeline's color targets", targets as u64, limits.max_color_attachments)
+    within(
+        "a pipeline's color targets",
+        targets as u64,
+        limits.max_color_attachments,
+    )
 }

@@ -28,11 +28,17 @@ fn a_webgpu_limit_asked_worse_than_the_default_keeps_the_default() {
     let defaults = wgpu::Limits::default();
     let device = asking(
         &mut gpu,
-        &[("maxBindGroups", 1), ("minUniformBufferOffsetAlignment", 4096)],
+        &[
+            ("maxBindGroups", 1),
+            ("minUniformBufferOffsetAlignment", 4096),
+        ],
     )
     .expect("a worse limit is no reason to refuse a device");
     let limits = gpu.gpu_device_limits(device);
-    assert_eq!(gpu.gpu_supported_limits_max_bind_groups(limits), defaults.max_bind_groups);
+    assert_eq!(
+        gpu.gpu_supported_limits_max_bind_groups(limits),
+        defaults.max_bind_groups
+    );
     assert_eq!(
         gpu.gpu_supported_limits_min_uniform_buffer_offset_alignment(limits),
         defaults.min_uniform_buffer_offset_alignment
@@ -68,5 +74,8 @@ fn a_webgpu_limit_asked_worse_than_the_default_keeps_the_default() {
         .expect("the scope pops")
         .expect("a texture with more layers than the device allows is refused");
     let message = gpu.gpu_error_message(caught);
-    assert!(message.contains("array layers"), "it was refused as {message}");
+    assert!(
+        message.contains("array layers"),
+        "it was refused as {message}"
+    );
 }

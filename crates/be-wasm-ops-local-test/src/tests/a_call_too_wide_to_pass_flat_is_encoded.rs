@@ -7,14 +7,10 @@ fn a_call_too_wide_to_pass_flat_is_encoded() {
     let bytes = be_wasm_ops::encode(&first);
     let end = caller.put(0, &bytes);
     // The ten-word tuple is encoded (a pointer and a length), the eight-word one stays flat.
-    let answered = embed::frames::glue::wide(
-        &mut caller, 0, end, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    );
+    let answered =
+        embed::frames::glue::wide(&mut caller, 0, end, 11, 12, 13, 14, 15, 16, 17, 18, 19);
     assert_eq!(answered, 19);
-    assert_eq!(
-        caller.host.wide,
-        [((1..=18).collect::<Vec<u32>>(), 19)]
-    );
+    assert_eq!(caller.host.wide, [((1..=18).collect::<Vec<u32>>(), 19)]);
     assert!(caller.refused.is_empty(), "{:?}", caller.refused);
 
     // The record holding a handle is the widest, so it is the one encoded, handle and all.
@@ -28,6 +24,10 @@ fn a_call_too_wide_to_pass_flat_is_encoded() {
     let answered =
         embed::frames::glue::framed(&mut caller, 512, end - 512, 0, 0, 0, 0, 0, 0, 0, 10);
     assert_eq!(answered, 19);
-    assert_eq!(caller.host.shown, [6], "the handle crossed inside the record");
+    assert_eq!(
+        caller.host.shown,
+        [6],
+        "the handle crossed inside the record"
+    );
     assert!(caller.refused.is_empty(), "{:?}", caller.refused);
 }

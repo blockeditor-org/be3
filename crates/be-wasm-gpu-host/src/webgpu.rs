@@ -259,12 +259,23 @@ impl Web {
 
     /// Whether a promise or sender the host holds has `ticket`.
     fn waiting(&self, ticket: u32) -> bool {
-        self.maps.values().any(|(_, promise)| promise.ticket() == ticket)
+        self.maps
+            .values()
+            .any(|(_, promise)| promise.ticket() == ticket)
             || self.work.values().any(|promise| promise.ticket() == ticket)
-            || self.compiling.iter().any(|(_, promise)| promise.ticket() == ticket)
+            || self
+                .compiling
+                .iter()
+                .any(|(_, promise)| promise.ticket() == ticket)
             || self.devices.values().any(|device| {
-                device.losing.iter().any(|promise| promise.ticket() == ticket)
-                    || device.uncaptured.iter().any(|sender| sender.ticket() == ticket)
+                device
+                    .losing
+                    .iter()
+                    .any(|promise| promise.ticket() == ticket)
+                    || device
+                        .uncaptured
+                        .iter()
+                        .any(|sender| sender.ticket() == ticket)
                     || device
                         .popped
                         .iter()
@@ -300,7 +311,13 @@ impl Gpu {
         self.web.owners.get(&(kind, handle)).copied()
     }
 
-    pub(crate) fn own(&mut self, kind: Kind, handle: u32, device: Option<u32>, label: Option<&str>) {
+    pub(crate) fn own(
+        &mut self,
+        kind: Kind,
+        handle: u32,
+        device: Option<u32>,
+        label: Option<&str>,
+    ) {
         if let Some(device) = device {
             self.web.owners.insert((kind, handle), device);
         }
@@ -559,10 +576,13 @@ impl Gpu {
                 state.popped.push(scope);
                 self.settle_pops(device);
             }
-            None => self.web.settled.push(promise.settle(&Err(web::PopErrorScopeError {
-                kind: web::PopErrorScopeErrorKind::OperationError,
-                message: "there is no error scope to pop".to_owned(),
-            }))),
+            None => self
+                .web
+                .settled
+                .push(promise.settle(&Err(web::PopErrorScopeError {
+                    kind: web::PopErrorScopeErrorKind::OperationError,
+                    message: "there is no error scope to pop".to_owned(),
+                }))),
         }
     }
 
@@ -584,7 +604,11 @@ impl Gpu {
             };
             let losing = std::mem::take(&mut state.losing);
             let senders = std::mem::take(&mut state.uncaptured);
-            let scopes: Vec<Scope> = state.scopes.drain(..).chain(state.popped.drain(..)).collect();
+            let scopes: Vec<Scope> = state
+                .scopes
+                .drain(..)
+                .chain(state.popped.drain(..))
+                .collect();
             for promise in losing {
                 let info = web::GpuDeviceLostInfo(self.web.lost_infos.insert(lost.clone()));
                 self.web.settled.push(promise.settle(&info));
@@ -604,7 +628,8 @@ impl Gpu {
         // Something settled already answers a waiting poll.
         let wait = wait && self.web.settled.is_empty();
         if let Err(error) = self.settling.poll(&self.device, wait) {
-            self.web.log(format!("the gpu could not be polled: {error}"));
+            self.web
+                .log(format!("the gpu could not be polled: {error}"));
         }
         let (maps, work_done) = self.settling.take_settled();
         let mut device_maps = Vec::new();
@@ -615,7 +640,9 @@ impl Gpu {
                         true => Ok(()),
                         false => Err(web::MapAsyncError {
                             kind: web::MapAsyncErrorKind::AbortError,
-                            message: format!("buffer {buffer} was unmapped or destroyed before it mapped, or its map failed"),
+                            message: format!(
+                                "buffer {buffer} was unmapped or destroyed before it mapped, or its map failed"
+                            ),
                         }),
                     };
                     self.web.settled.push(promise.settle(&answer));
@@ -707,15 +734,19 @@ impl Gpu {
         let host = self.device.limits();
         let mut limits = floor(&host);
         if let Some(record) = descriptor.required_limits {
-            let asked = self.web.sizes.get(record.0, "record").cloned().map_err(|message| {
-                refuse(web::RequestDeviceErrorKind::TypeError, message)
-            })?;
+            let asked = self
+                .web
+                .sizes
+                .get(record.0, "record")
+                .cloned()
+                .map_err(|message| refuse(web::RequestDeviceErrorKind::TypeError, message))?;
             for (name, value) in asked {
                 let Some(value) = value else {
                     continue;
                 };
-                limit(&mut limits, &host, &name, value)
-                    .map_err(|message| refuse(web::RequestDeviceErrorKind::OperationError, message))?;
+                limit(&mut limits, &host, &name, value).map_err(|message| {
+                    refuse(web::RequestDeviceErrorKind::OperationError, message)
+                })?;
             }
         }
         let queue = self.web.queues.insert(0);
@@ -733,10 +764,13 @@ impl Gpu {
         if let Ok(owner) = self.web.queues.get_mut(queue, "queue") {
             *owner = device;
         }
-        self.own(Kind::Device, device, Some(device), descriptor.label.as_deref());
-        let queue_label = descriptor
-            .default_queue
-            .and_then(|queue| queue.label);
+        self.own(
+            Kind::Device,
+            device,
+            Some(device),
+            descriptor.label.as_deref(),
+        );
+        let queue_label = descriptor.default_queue.and_then(|queue| queue.label);
         self.own(Kind::Queue, queue, Some(device), queue_label.as_deref());
         Ok(web::GpuDevice(device))
     }
@@ -802,7 +836,12 @@ fn floor(host: &wgpu::Limits) -> wgpu::Limits {
 /// Raises one limit of `limits` to `value`, as `requiredLimits` asks: no further than the
 /// adapter's, and a value worse than the default keeps the default. An alignment is better
 /// the smaller it is, and is a power of two.
-fn limit(limits: &mut wgpu::Limits, host: &wgpu::Limits, name: &str, value: u64) -> Result<(), String> {
+fn limit(
+    limits: &mut wgpu::Limits,
+    host: &wgpu::Limits,
+    name: &str,
+    value: u64,
+) -> Result<(), String> {
     macro_rules! raised {
         ($($name:literal => $field:ident),* $(,)?) => {
             match name {

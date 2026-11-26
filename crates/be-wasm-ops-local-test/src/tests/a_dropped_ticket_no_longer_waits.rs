@@ -11,5 +11,8 @@ fn a_dropped_ticket_no_longer_waits() {
     drop(items);
     assert!(!settling.waiting(), "nothing waits once both are dropped");
     // What settles for them later is ignored.
-    settling.settle(vec![Promise::<u32>::new(1).settle(&3), Sender::<u32>::new(2).end()]);
+    settling.settle(vec![
+        Promise::<u32>::new(1).settle(&3),
+        Sender::<u32>::new(2).end(),
+    ]);
 }

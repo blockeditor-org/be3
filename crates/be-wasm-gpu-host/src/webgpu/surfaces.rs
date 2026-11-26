@@ -25,17 +25,17 @@ impl Gpu {
             return;
         };
         state.current = None;
-        let (surface, size, configuration) = (state.surface, state.size, state.configuration.clone());
+        let (surface, size, configuration) =
+            (state.surface, state.size, state.configuration.clone());
         let (Some((width, height)), Some(configuration)) = (size, configuration) else {
             return;
         };
         let device = configuration.device.0;
         let format: wgpu::TextureFormat = configuration.format.convert();
-        let limit = self
-            .device_has(device)
-            .map_or(self.device.limits().max_texture_dimension_2d, |(_, limits)| {
-                limits.max_texture_dimension_2d
-            });
+        let limit = self.device_has(device).map_or(
+            self.device.limits().max_texture_dimension_2d,
+            |(_, limits)| limits.max_texture_dimension_2d,
+        );
         if width == 0 || height == 0 || width > limit || height > limit {
             self.detach_surface(surface);
             self.raise(
@@ -104,7 +104,11 @@ impl Gpu {
         }
     }
 
-    pub(super) fn configure_context(&mut self, context: u32, configuration: web::GpuCanvasConfiguration) {
+    pub(super) fn configure_context(
+        &mut self,
+        context: u32,
+        configuration: web::GpuCanvasConfiguration,
+    ) {
         let device = Some(configuration.device.0);
         let format: wgpu::TextureFormat = configuration.format.convert();
         let canvas = [
@@ -166,11 +170,17 @@ impl Gpu {
         let Ok(state) = self.web.contexts.get(context, "canvas context") else {
             return self.textures.skip();
         };
-        let device = state.configuration.as_ref().map(|configuration| configuration.device.0);
+        let device = state
+            .configuration
+            .as_ref()
+            .map(|configuration| configuration.device.0);
         let surface = state.surface;
         let current = state.current.clone();
         let Some(device) = device else {
-            self.raise(None, Failure::validation("an unconfigured canvas has no texture"));
+            self.raise(
+                None,
+                Failure::validation("an unconfigured canvas has no texture"),
+            );
             return self.textures.skip();
         };
         if self.device_lost(device) {

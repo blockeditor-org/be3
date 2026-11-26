@@ -25,7 +25,8 @@ fn run() {
     // What settles is a handle's value, which its owner takes over.
     let adapter = settled(instance.request_adapter(&None)).expect("the host has an adapter");
     let adapter = gpu::GpuAdapter::from_handle(adapter);
-    let device = settled(adapter.request_device(&None)).expect("a device with nothing asked for is given");
+    let device =
+        settled(adapter.request_device(&None)).expect("a device with nothing asked for is given");
     let device = gpu::GpuDevice::from_handle(device);
     let queue = device.queue();
     let buffer = device.create_buffer(&web::GpuBufferDescriptor {
@@ -77,7 +78,12 @@ impl Guest for Probe {
         Ok(Self)
     }
 
-    fn step(&mut self, _inbound: Vec<Vec<u8>>, _woken: bool, outbound: &mut Vec<Vec<u8>>) -> Result<Flow, String> {
+    fn step(
+        &mut self,
+        _inbound: Vec<Vec<u8>>,
+        _woken: bool,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<Flow, String> {
         run();
         outbound.push(DONE.to_vec());
         Ok(Flow::Finished)

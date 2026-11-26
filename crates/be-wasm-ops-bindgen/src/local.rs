@@ -38,7 +38,10 @@ enum Param {
     Bytes,
     Text,
     Words(Flat, usize),
-    Handles { own: bool, resource: TypeId },
+    Handles {
+        own: bool,
+        resource: TypeId,
+    },
     /// An option of bytes, text or words: a tag, then the pointer and length.
     Optional(Box<Param>),
     Encoded,
@@ -47,13 +50,18 @@ enum Param {
 enum Returns {
     Nothing,
     Scalar,
-    Niche { own: bool },
+    Niche {
+        own: bool,
+    },
     Bytes,
     Encoded,
     /// A `result` with nothing on success: 0, or its error's encoded length plus one.
     Fallible,
     /// An async func's result, a `future` or a `stream`: a ticket the interface's poll settles.
-    Ticket { item: Option<Type>, stream: bool },
+    Ticket {
+        item: Option<Type>,
+        stream: bool,
+    },
 }
 
 struct Call {
@@ -634,10 +642,7 @@ impl Generator {
                     .and_then(|ty| self.flat(ty))
                     .and_then(|flat| flat.first().copied()),
                 (
-                    Returns::Niche { .. }
-                    | Returns::Encoded
-                    | Returns::Bytes
-                    | Returns::Fallible,
+                    Returns::Niche { .. } | Returns::Encoded | Returns::Bytes | Returns::Fallible,
                     _,
                 ) => Some(Flat::U32),
                 (Returns::Ticket { .. }, _) => Some(Flat::U32),
@@ -781,7 +786,10 @@ impl Generator {
                         Some((true, resource)) => {
                             let owner = self.owner(resource);
                             let value = self.handle_value(resource);
-                            (quote!(-> #owner), quote!(#owner::from_handle(#value(#invoke))))
+                            (
+                                quote!(-> #owner),
+                                quote!(#owner::from_handle(#value(#invoke))),
+                            )
                         }
                         _ => {
                             let rust = self.ty(&ty)?;
@@ -1142,10 +1150,13 @@ impl Generator {
                         }},
                     )
                 }
-                (Returns::Ticket { .. }, _) => (TokenStream::new(), quote! {{
-                    let () = result;
-                    ticket
-                }}),
+                (Returns::Ticket { .. }, _) => (
+                    TokenStream::new(),
+                    quote! {{
+                        let () = result;
+                        ticket
+                    }},
+                ),
             };
             if let Returns::Ticket { item, stream } = &returns {
                 let rust = self.optional(item.as_ref())?;

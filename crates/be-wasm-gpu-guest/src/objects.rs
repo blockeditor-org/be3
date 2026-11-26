@@ -19,7 +19,11 @@ use crate::passes::{CommandEncoder, RenderBundleEncoder};
 /// wasi:webgpu's calls answer, so the futures wgpu is handed hold only numbers.
 #[derive(Default)]
 struct Waiting {
-    maps: Vec<(Ticket<Result<(), web::MapAsyncError>>, web::GpuBuffer, BufferMapCallback)>,
+    maps: Vec<(
+        Ticket<Result<(), web::MapAsyncError>>,
+        web::GpuBuffer,
+        BufferMapCallback,
+    )>,
     work: Vec<(Ticket<()>, BoxSubmittedWorkDoneCallback)>,
     pops: HashMap<u32, Ticket<Result<Option<web::GpuError>, web::PopErrorScopeError>>>,
     popped: HashMap<u32, Option<wgpu::Error>>,
@@ -64,7 +68,9 @@ struct Described<D> {
     _constants: [Option<gpu::RecordGpuPipelineConstantValue>; 2],
 }
 
-fn render_descriptor(desc: &wgpu::RenderPipelineDescriptor<'_>) -> Described<web::GpuRenderPipelineDescriptor> {
+fn render_descriptor(
+    desc: &wgpu::RenderPipelineDescriptor<'_>,
+) -> Described<web::GpuRenderPipelineDescriptor> {
     let vertex_constants = convert::constants(&desc.vertex.compilation_options);
     let fragment_constants = desc
         .fragment
@@ -133,32 +139,38 @@ fn render_descriptor(desc: &wgpu::RenderPipelineDescriptor<'_>) -> Described<web
             mask: Some(desc.multisample.mask as u32),
             alpha_to_coverage_enabled: Some(desc.multisample.alpha_to_coverage_enabled),
         }),
-        fragment: desc.fragment.as_ref().map(|fragment| web::GpuFragmentState {
-            targets: fragment
-                .targets
-                .iter()
-                .map(|target| {
-                    target.as_ref().map(|target| {
-                        let component = |component: wgpu::BlendComponent| web::GpuBlendComponent {
-                            operation: Some(to_web(component.operation)),
-                            src_factor: Some(to_web(component.src_factor)),
-                            dst_factor: Some(to_web(component.dst_factor)),
-                        };
-                        web::GpuColorTargetState {
-                            format: to_web(target.format),
-                            blend: target.blend.map(|blend| web::GpuBlendState {
-                                color: component(blend.color),
-                                alpha: component(blend.alpha),
-                            }),
-                            write_mask: Some(web::GpuColorWrite::from_bits(target.write_mask.bits())),
-                        }
+        fragment: desc
+            .fragment
+            .as_ref()
+            .map(|fragment| web::GpuFragmentState {
+                targets: fragment
+                    .targets
+                    .iter()
+                    .map(|target| {
+                        target.as_ref().map(|target| {
+                            let component =
+                                |component: wgpu::BlendComponent| web::GpuBlendComponent {
+                                    operation: Some(to_web(component.operation)),
+                                    src_factor: Some(to_web(component.src_factor)),
+                                    dst_factor: Some(to_web(component.dst_factor)),
+                                };
+                            web::GpuColorTargetState {
+                                format: to_web(target.format),
+                                blend: target.blend.map(|blend| web::GpuBlendState {
+                                    color: component(blend.color),
+                                    alpha: component(blend.alpha),
+                                }),
+                                write_mask: Some(web::GpuColorWrite::from_bits(
+                                    target.write_mask.bits(),
+                                )),
+                            }
+                        })
                     })
-                })
-                .collect(),
-            module: convert::module_handle(fragment.module),
-            entry_point: fragment.entry_point.map(str::to_owned),
-            constants: fragment_constants.as_ref().map(|record| record.handle()),
-        }),
+                    .collect(),
+                module: convert::module_handle(fragment.module),
+                entry_point: fragment.entry_point.map(str::to_owned),
+                constants: fragment_constants.as_ref().map(|record| record.handle()),
+            }),
         layout: convert::layout(desc.layout),
         label: convert::label(desc.label),
     };
@@ -168,7 +180,9 @@ fn render_descriptor(desc: &wgpu::RenderPipelineDescriptor<'_>) -> Described<web
     }
 }
 
-fn compute_descriptor(desc: &wgpu::ComputePipelineDescriptor<'_>) -> Described<web::GpuComputePipelineDescriptor> {
+fn compute_descriptor(
+    desc: &wgpu::ComputePipelineDescriptor<'_>,
+) -> Described<web::GpuComputePipelineDescriptor> {
     let constants = convert::constants(&desc.compilation_options);
     let descriptor = web::GpuComputePipelineDescriptor {
         compute: web::GpuProgrammableStage {
@@ -206,7 +220,9 @@ pub(crate) async fn render_pipeline_async(
     let described = render_descriptor(desc);
     let ticket = device_of(device).create_render_pipeline_async(&described.descriptor);
     let made = answered(ticket).await.map_err(|error| error.message)?;
-    PREPARED.with(|prepared| prepared.borrow_mut().render = Some(gpu::GpuRenderPipeline::from_handle(made)));
+    PREPARED.with(|prepared| {
+        prepared.borrow_mut().render = Some(gpu::GpuRenderPipeline::from_handle(made))
+    });
     Ok(())
 }
 
@@ -217,7 +233,9 @@ pub(crate) async fn compute_pipeline_async(
     let described = compute_descriptor(desc);
     let ticket = device_of(device).create_compute_pipeline_async(&described.descriptor);
     let made = answered(ticket).await.map_err(|error| error.message)?;
-    PREPARED.with(|prepared| prepared.borrow_mut().compute = Some(gpu::GpuComputePipeline::from_handle(made)));
+    PREPARED.with(|prepared| {
+        prepared.borrow_mut().compute = Some(gpu::GpuComputePipeline::from_handle(made))
+    });
     Ok(())
 }
 
@@ -370,7 +388,9 @@ fn compilation_info(info: web::GpuCompilationInfo) -> wgpu::CompilationInfo {
                 message: message.message(),
                 message_type: match message.r#type() {
                     web::GpuCompilationMessageType::Error => wgpu::CompilationMessageType::Error,
-                    web::GpuCompilationMessageType::Warning => wgpu::CompilationMessageType::Warning,
+                    web::GpuCompilationMessageType::Warning => {
+                        wgpu::CompilationMessageType::Warning
+                    }
                     web::GpuCompilationMessageType::Info => wgpu::CompilationMessageType::Info,
                 },
                 location: (message.line_num() > 0).then(|| wgpu::SourceLocation {
@@ -391,7 +411,10 @@ fn abort_maps(buffer: web::GpuBuffer) {
             .into_iter()
             .partition(|(_, mapped, _)| *mapped == buffer);
         waiting.maps = kept;
-        aborted.into_iter().map(|(_, _, callback)| callback).collect()
+        aborted
+            .into_iter()
+            .map(|(_, _, callback)| callback)
+            .collect()
     });
     for callback in aborted {
         callback(Err(wgpu::BufferAsyncError));
@@ -495,7 +518,10 @@ pub(crate) struct Device {
 
 impl fmt::Debug for Device {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_struct("Device").field("device", &self.device).finish()
+        formatter
+            .debug_struct("Device")
+            .field("device", &self.device)
+            .finish()
     }
 }
 
@@ -505,7 +531,11 @@ pub(crate) struct Queue(pub(crate) gpu::GpuQueue);
 impl Device {
     /// A new device starts with none of an earlier one's error scopes or callbacks: what waits
     /// on the gpu is kept per app, and an app has one device at a time.
-    pub(crate) fn new(device: gpu::GpuDevice, features: wgpu::Features, limits: wgpu::Limits) -> Self {
+    pub(crate) fn new(
+        device: gpu::GpuDevice,
+        features: wgpu::Features,
+        limits: wgpu::Limits,
+    ) -> Self {
         waiting(|waiting| {
             waiting.scopes.clear();
             waiting.lost = None;
@@ -561,11 +591,13 @@ impl DeviceInterface for Device {
             wgpu::ShaderSource::Wgsl(source) => source.into_owned(),
             _ => panic!("wasi:webgpu only takes WGSL shaders, as browser WebGPU does"),
         };
-        DispatchShaderModule::custom(ShaderModule(self.device.create_shader_module(&web::GpuShaderModuleDescriptor {
+        DispatchShaderModule::custom(ShaderModule(self.device.create_shader_module(
+            &web::GpuShaderModuleDescriptor {
                 code,
                 compilation_hints: None,
                 label: convert::label(desc.label),
-            })))
+            },
+        )))
     }
 
     unsafe fn create_shader_module_passthrough(
@@ -585,7 +617,9 @@ impl DeviceInterface for Device {
             entries: desc.entries.iter().map(convert::layout_entry).collect(),
             label: convert::label(desc.label),
         };
-        DispatchBindGroupLayout::custom(BindGroupLayout(self.device.create_bind_group_layout(&descriptor)))
+        DispatchBindGroupLayout::custom(BindGroupLayout(
+            self.device.create_bind_group_layout(&descriptor),
+        ))
     }
 
     fn create_bind_group(&self, desc: &wgpu::BindGroupDescriptor<'_>) -> DispatchBindGroup {
@@ -617,7 +651,9 @@ impl DeviceInterface for Device {
             immediate_size: (desc.immediate_size > 0).then_some(desc.immediate_size),
             label: convert::label(desc.label),
         };
-        DispatchPipelineLayout::custom(PipelineLayout(self.device.create_pipeline_layout(&descriptor)))
+        DispatchPipelineLayout::custom(PipelineLayout(
+            self.device.create_pipeline_layout(&descriptor),
+        ))
     }
 
     fn create_render_pipeline(
@@ -682,7 +718,12 @@ impl DeviceInterface for Device {
             dimension: Some(to_web(desc.dimension)),
             format: to_web(desc.format),
             usage: web::GpuTextureUsage::from_bits(desc.usage.bits() & 0x3f),
-            view_formats: Some(desc.view_formats.iter().map(|format| to_web(*format)).collect()),
+            view_formats: Some(
+                desc.view_formats
+                    .iter()
+                    .map(|format| to_web(*format))
+                    .collect(),
+            ),
             texture_binding_view_dimension: None,
             label: convert::label(desc.label),
         };
@@ -761,7 +802,9 @@ impl DeviceInterface for Device {
         let descriptor = web::GpuCommandEncoderDescriptor {
             label: convert::label(desc.label),
         };
-        DispatchCommandEncoder::custom(CommandEncoder(self.device.create_command_encoder(&Some(descriptor))))
+        DispatchCommandEncoder::custom(CommandEncoder(
+            self.device.create_command_encoder(&Some(descriptor)),
+        ))
     }
 
     fn create_render_bundle_encoder(
@@ -783,7 +826,9 @@ impl DeviceInterface for Device {
             sample_count: Some(desc.sample_count),
             label: convert::label(desc.label),
         };
-        DispatchRenderBundleEncoder::custom(RenderBundleEncoder(self.device.create_render_bundle_encoder(&descriptor)))
+        DispatchRenderBundleEncoder::custom(RenderBundleEncoder(
+            self.device.create_render_bundle_encoder(&descriptor),
+        ))
     }
 
     fn set_device_lost_callback(&self, device_lost_callback: BoxDeviceLostCallback) {
@@ -865,7 +910,13 @@ impl QueueInterface for Queue {
     fn write_buffer(&self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress, data: &[u8]) {
         // The data is whole, so only the host's own checks can refuse it, into the device's
         // error scopes.
-        let _ = self.0.write_buffer_with_copy(&custom::<Buffer>(buffer.as_custom()).0, offset, data, None, None);
+        let _ = self.0.write_buffer_with_copy(
+            &custom::<Buffer>(buffer.as_custom()).0,
+            offset,
+            data,
+            None,
+            None,
+        );
     }
 
     fn create_staging_buffer(&self, size: wgpu::BufferSize) -> Option<DispatchQueueWriteBuffer> {

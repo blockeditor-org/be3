@@ -10,7 +10,11 @@ fn an_imported_texture_is_only_read() {
     let device = device(&mut gpu, Vec::new()).unwrap();
     let shared = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("shared"),
-        size: wgpu::Extent3d { width: 4, height: 4, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: 4,
+            height: 4,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -22,8 +26,12 @@ fn an_imported_texture_is_only_read() {
         view_formats: &[],
     });
     gpu.imports().lock().unwrap().insert(9, shared);
-    let texture = be_wasm_gpu_abi::embed::host::Host::import_texture(&mut gpu, 9).expect("the image is shared");
-    assert_eq!(gpu.gpu_texture_usage(GpuTexture(texture.0)), GpuTextureUsage::TEXTURE_BINDING);
+    let texture = be_wasm_gpu_abi::embed::host::Host::import_texture(&mut gpu, 9)
+        .expect("the image is shared");
+    assert_eq!(
+        gpu.gpu_texture_usage(GpuTexture(texture.0)),
+        GpuTextureUsage::TEXTURE_BINDING
+    );
 
     let refused = |gpu: &mut Gpu, ticket: u32, what: &str| {
         let caught = pop(gpu, device, ticket)
@@ -56,14 +64,22 @@ fn an_imported_texture_is_only_read() {
         origin: None,
         aspect: None,
     };
-    let extent = || GpuExtent3D { width: 4, height: Some(4), depth_or_array_layers: None };
+    let extent = || GpuExtent3D {
+        width: 4,
+        height: Some(4),
+        depth_or_array_layers: None,
+    };
     let queue = gpu.gpu_device_queue(device);
     gpu.gpu_device_push_error_scope(device, GpuErrorFilter::Validation);
     gpu.gpu_queue_write_texture_with_copy(
         queue,
         destination(),
         &[0; 64],
-        GpuTexelCopyBufferLayout { offset: None, bytes_per_row: Some(16), rows_per_image: None },
+        GpuTexelCopyBufferLayout {
+            offset: None,
+            bytes_per_row: Some(16),
+            rows_per_image: None,
+        },
         extent(),
     );
     assert!(refused(&mut gpu, 2, "a write").contains("only read"));

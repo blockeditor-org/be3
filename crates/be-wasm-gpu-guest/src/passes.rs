@@ -5,7 +5,9 @@ use be_wasm_gpu_abi::webgpu::webgpu as web;
 use wgpu::custom::*;
 
 use crate::convert::{self, custom, to_web};
-use crate::objects::{BindGroup, Buffer, CommandBuffer, ComputePipeline, RenderBundle, RenderPipeline, resource};
+use crate::objects::{
+    BindGroup, Buffer, CommandBuffer, ComputePipeline, RenderBundle, RenderPipeline, resource,
+};
 
 resource!(CommandEncoder, GpuCommandEncoder);
 resource!(RenderPass, GpuRenderPassEncoder);
@@ -127,17 +129,19 @@ impl CommandEncoderInterface for CommandEncoder {
                 .color_attachments
                 .iter()
                 .map(|attachment| {
-                    attachment.as_ref().map(|attachment| web::GpuRenderPassColorAttachment {
-                        view: convert::view_handle(attachment.view),
-                        depth_slice: attachment.depth_slice,
-                        resolve_target: attachment.resolve_target.map(convert::view_handle),
-                        clear_value: match attachment.ops.load {
-                            wgpu::LoadOp::Clear(value) => Some(convert::color(value)),
-                            _ => None,
-                        },
-                        load_op: load(&attachment.ops.load),
-                        store_op: to_web(attachment.ops.store),
-                    })
+                    attachment
+                        .as_ref()
+                        .map(|attachment| web::GpuRenderPassColorAttachment {
+                            view: convert::view_handle(attachment.view),
+                            depth_slice: attachment.depth_slice,
+                            resolve_target: attachment.resolve_target.map(convert::view_handle),
+                            clear_value: match attachment.ops.load {
+                                wgpu::LoadOp::Clear(value) => Some(convert::color(value)),
+                                _ => None,
+                            },
+                            load_op: load(&attachment.ops.load),
+                            store_op: to_web(attachment.ops.store),
+                        })
                 })
                 .collect(),
             depth_stencil_attachment: desc.depth_stencil_attachment.as_ref().map(|attachment| {
@@ -264,7 +268,10 @@ impl RenderPassInterface for RenderPass {
         bind_group: Option<&DispatchBindGroup>,
         offsets: &[wgpu::DynamicOffset],
     ) {
-        bound(self.0.set_bind_group(index, group(bind_group), self::offsets(offsets), None, None));
+        bound(
+            self.0
+                .set_bind_group(index, group(bind_group), self::offsets(offsets), None, None),
+        );
     }
 
     fn set_index_buffer(
@@ -274,8 +281,12 @@ impl RenderPassInterface for RenderPass {
         offset: wgpu::BufferAddress,
         size: Option<wgpu::BufferSize>,
     ) {
-        self.0
-            .set_index_buffer(buffer(target), to_web(index_format), Some(offset), convert::size(size));
+        self.0.set_index_buffer(
+            buffer(target),
+            to_web(index_format),
+            Some(offset),
+            convert::size(size),
+        );
     }
 
     fn set_vertex_buffer(
@@ -471,7 +482,10 @@ impl ComputePassInterface for ComputePass {
         bind_group: Option<&DispatchBindGroup>,
         offsets: &[wgpu::DynamicOffset],
     ) {
-        bound(self.0.set_bind_group(index, group(bind_group), self::offsets(offsets), None, None));
+        bound(
+            self.0
+                .set_bind_group(index, group(bind_group), self::offsets(offsets), None, None),
+        );
     }
 
     fn set_immediates(&mut self, offset: u32, data: &[u8]) {
@@ -544,7 +558,10 @@ impl RenderBundleEncoderInterface for RenderBundleEncoder {
         bind_group: Option<&DispatchBindGroup>,
         offsets: &[wgpu::DynamicOffset],
     ) {
-        bound(self.0.set_bind_group(index, group(bind_group), self::offsets(offsets), None, None));
+        bound(
+            self.0
+                .set_bind_group(index, group(bind_group), self::offsets(offsets), None, None),
+        );
     }
 
     fn set_index_buffer(
@@ -554,8 +571,12 @@ impl RenderBundleEncoderInterface for RenderBundleEncoder {
         offset: wgpu::BufferAddress,
         size: Option<wgpu::BufferSize>,
     ) {
-        self.0
-            .set_index_buffer(buffer(target), to_web(index_format), Some(offset), convert::size(size));
+        self.0.set_index_buffer(
+            buffer(target),
+            to_web(index_format),
+            Some(offset),
+            convert::size(size),
+        );
     }
 
     fn set_vertex_buffer(

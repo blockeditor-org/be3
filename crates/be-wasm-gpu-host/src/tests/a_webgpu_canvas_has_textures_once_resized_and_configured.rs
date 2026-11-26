@@ -21,10 +21,19 @@ fn a_webgpu_canvas_has_textures_once_resized_and_configured() {
     let device = device(&mut gpu, Vec::new()).unwrap();
     gpu.gpu_device_push_error_scope(device, GpuErrorFilter::Validation);
     let context = be_wasm_gpu_abi::embed::host::Host::surface(&mut gpu, 7);
-    gpu.gpu_canvas_context_configure(context, configured(device, vec![GpuTextureFormat::Rgba8unormSrgb]));
+    gpu.gpu_canvas_context_configure(
+        context,
+        configured(device, vec![GpuTextureFormat::Rgba8unormSrgb]),
+    );
     let early = gpu.gpu_canvas_context_get_current_texture(context);
-    assert!(gpu.textures.get(early.0, "texture").is_err(), "no size, no texture");
-    assert!(pop(&mut gpu, device, 1).unwrap().is_some(), "and an error says why");
+    assert!(
+        gpu.textures.get(early.0, "texture").is_err(),
+        "no size, no texture"
+    );
+    assert!(
+        pop(&mut gpu, device, 1).unwrap().is_some(),
+        "and an error says why"
+    );
 
     gpu.resize(context, 64, 48);
     let first = gpu.gpu_canvas_context_get_current_texture(context);
@@ -48,7 +57,10 @@ fn a_webgpu_canvas_has_textures_once_resized_and_configured() {
     );
 
     gpu.gpu_device_push_error_scope(device, GpuErrorFilter::Validation);
-    gpu.gpu_canvas_context_configure(context, configured(device, vec![GpuTextureFormat::Bgra8unorm]));
+    gpu.gpu_canvas_context_configure(
+        context,
+        configured(device, vec![GpuTextureFormat::Bgra8unorm]),
+    );
     assert!(
         pop(&mut gpu, device, 2).unwrap().is_some(),
         "a view format other than its sRGB twin is refused"

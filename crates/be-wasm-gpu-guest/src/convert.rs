@@ -54,7 +54,9 @@ pub(crate) fn color(value: wgpu::Color) -> web::GpuColor {
     }
 }
 
-pub(crate) fn texel_copy_texture(value: wgpu::TexelCopyTextureInfo<'_>) -> web::GpuTexelCopyTextureInfo {
+pub(crate) fn texel_copy_texture(
+    value: wgpu::TexelCopyTextureInfo<'_>,
+) -> web::GpuTexelCopyTextureInfo {
     web::GpuTexelCopyTextureInfo {
         texture: texture_handle(value.texture),
         mip_level: Some(value.mip_level),
@@ -67,7 +69,9 @@ pub(crate) fn texel_copy_texture(value: wgpu::TexelCopyTextureInfo<'_>) -> web::
     }
 }
 
-pub(crate) fn texel_copy_buffer(value: wgpu::TexelCopyBufferInfo<'_>) -> web::GpuTexelCopyBufferInfo {
+pub(crate) fn texel_copy_buffer(
+    value: wgpu::TexelCopyBufferInfo<'_>,
+) -> web::GpuTexelCopyBufferInfo {
     web::GpuTexelCopyBufferInfo {
         buffer: custom::<Buffer>(value.buffer.as_custom()).0.handle(),
         offset: Some(value.layout.offset),
@@ -76,7 +80,9 @@ pub(crate) fn texel_copy_buffer(value: wgpu::TexelCopyBufferInfo<'_>) -> web::Gp
     }
 }
 
-pub(crate) fn texel_copy_buffer_layout(value: wgpu::TexelCopyBufferLayout) -> web::GpuTexelCopyBufferLayout {
+pub(crate) fn texel_copy_buffer_layout(
+    value: wgpu::TexelCopyBufferLayout,
+) -> web::GpuTexelCopyBufferLayout {
     web::GpuTexelCopyBufferLayout {
         offset: Some(value.offset),
         bytes_per_row: value.bytes_per_row,

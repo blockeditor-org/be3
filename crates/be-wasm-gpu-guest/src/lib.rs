@@ -42,8 +42,8 @@ fn with_adapter<R>(act: impl FnOnce(&gpu::GpuAdapter) -> R) -> R {
     ADAPTER.with(|adapter| {
         let mut adapter = adapter.borrow_mut();
         let adapter = adapter.get_or_insert_with(|| {
-            let found = settled(gpu::get_gpu().request_adapter(&None))
-                .expect("the host offers an adapter");
+            let found =
+                settled(gpu::get_gpu().request_adapter(&None)).expect("the host offers an adapter");
             gpu::GpuAdapter::from_handle(found)
         });
         act(adapter)
@@ -76,7 +76,11 @@ pub fn request_device(
     be_wasm_gpu_abi::set_app_device(device);
     let device = gpu::GpuDevice::from_handle(device);
     let queue = device.queue();
-    let device = objects::Device::new(device, descriptor.required_features, descriptor.required_limits.clone());
+    let device = objects::Device::new(
+        device,
+        descriptor.required_features,
+        descriptor.required_limits.clone(),
+    );
     Ok((
         wgpu::Device::from_custom(device),
         wgpu::Queue::from_custom(objects::Queue(queue)),
@@ -139,7 +143,12 @@ pub fn configure_surface(
             device,
             format: convert::to_web(format),
             usage: None,
-            view_formats: Some(view_formats.iter().map(|view| convert::to_web(*view)).collect()),
+            view_formats: Some(
+                view_formats
+                    .iter()
+                    .map(|view| convert::to_web(*view))
+                    .collect(),
+            ),
             color_space: None,
             tone_mapping: None,
             alpha_mode: None,
@@ -183,7 +192,10 @@ fn described(texture: gpu::GpuTexture) -> Result<wgpu::Texture, String> {
         usage: texture.usage().convert(),
         view_formats: &[],
     };
-    Ok(wgpu::Texture::from_custom(objects::Texture(texture), &descriptor))
+    Ok(wgpu::Texture::from_custom(
+        objects::Texture(texture),
+        &descriptor,
+    ))
 }
 
 pub fn surface_age(surface: u32) -> u32 {

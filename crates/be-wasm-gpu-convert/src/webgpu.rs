@@ -4,7 +4,6 @@ use be_wasm_gpu_abi::webgpu::webgpu as web;
 
 use super::{Convert, TryConvert, astc};
 
-
 plain_map!(web::GpuTextureFormat, wgpu::TextureFormat, {
     Stencil8,
     Bc1RgbaUnorm, Bc1RgbaUnormSrgb, Bc2RgbaUnorm, Bc2RgbaUnormSrgb, Bc3RgbaUnorm, Bc3RgbaUnormSrgb,

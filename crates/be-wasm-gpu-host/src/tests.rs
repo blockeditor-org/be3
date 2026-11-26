@@ -81,12 +81,6 @@ impl Caller for Guest {
     }
 }
 
-mod a_webgpu_canvas_has_textures_once_resized_and_configured;
-mod a_webgpu_device_has_only_what_it_asked_for;
-mod a_webgpu_error_goes_to_the_innermost_scope_of_its_kind;
-mod an_uncaptured_webgpu_error_reaches_the_listener_or_the_log;
-mod several_webgpu_devices_are_lost_apart;
-mod webgpu_maps_and_work_settle_through_the_poll;
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
 mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
@@ -109,18 +103,24 @@ mod a_surface_of_no_size_is_reported;
 mod a_surface_reports_how_many_presents_ago_its_texture_was_drawn;
 mod a_surface_shows_what_was_presented_until_it_is_presented_again;
 mod a_texture_copy_is_recorded_on_its_encoder;
+mod a_webgpu_canvas_has_textures_once_resized_and_configured;
+mod a_webgpu_canvas_its_device_cannot_make_is_refused;
+mod a_webgpu_device_has_only_what_it_asked_for;
+mod a_webgpu_error_goes_to_the_innermost_scope_of_its_kind;
+mod a_webgpu_limit_asked_worse_than_the_default_keeps_the_default;
+mod a_wrapped_webgpu_ticket_skips_one_still_held;
+mod an_imported_texture_is_only_read;
+mod an_object_of_one_webgpu_device_is_refused_on_another;
+mod an_uncaptured_webgpu_error_reaches_the_listener_or_the_log;
 mod an_unknown_pass_handle_is_reported;
 mod destroying_the_apps_device_leaves_the_hosts_device_working;
 mod every_webgpu_limit_of_the_device_is_forwarded;
 mod only_a_texture_the_app_created_is_destroyed;
 mod only_the_calls_that_record_into_a_pass_go_untimed;
+mod several_webgpu_devices_are_lost_apart;
 mod submitted_work_wakes_the_app_once_the_gpu_has_done_it;
 mod unbinding_a_vertex_buffer_takes_no_offset_or_size;
-mod an_object_of_one_webgpu_device_is_refused_on_another;
-mod a_webgpu_limit_asked_worse_than_the_default_keeps_the_default;
-mod a_webgpu_canvas_its_device_cannot_make_is_refused;
-mod an_imported_texture_is_only_read;
-mod a_wrapped_webgpu_ticket_skips_one_still_held;
+mod webgpu_maps_and_work_settle_through_the_poll;
 
 /// wasi:webgpu's side of the host: a device requested as an app would, and what its promises
 /// settle to.
@@ -145,7 +145,10 @@ mod web {
         be_wasm_ops::decode(&value).expect("what settled decodes")
     }
 
-    pub(super) fn device(gpu: &mut Gpu, features: Vec<GpuFeatureName>) -> Result<GpuDevice, RequestDeviceError> {
+    pub(super) fn device(
+        gpu: &mut Gpu,
+        features: Vec<GpuFeatureName>,
+    ) -> Result<GpuDevice, RequestDeviceError> {
         let instance = gpu.get_gpu();
         gpu.gpu_request_adapter(instance, None, Promise::new(TICKET));
         let adapter: Option<GpuAdapter> = settled(gpu, TICKET);
@@ -155,7 +158,11 @@ mod web {
             default_queue: None,
             label: Some("app".into()),
         };
-        gpu.gpu_adapter_request_device(adapter.expect("the host has an adapter"), Some(descriptor), Promise::new(TICKET + 1));
+        gpu.gpu_adapter_request_device(
+            adapter.expect("the host has an adapter"),
+            Some(descriptor),
+            Promise::new(TICKET + 1),
+        );
         settled(gpu, TICKET + 1)
     }
 
@@ -169,7 +176,11 @@ mod web {
     }
 
     /// Pops the innermost error scope and answers the error it caught.
-    pub(super) fn pop(gpu: &mut Gpu, device: GpuDevice, ticket: u32) -> Result<Option<GpuError>, PopErrorScopeError> {
+    pub(super) fn pop(
+        gpu: &mut Gpu,
+        device: GpuDevice,
+        ticket: u32,
+    ) -> Result<Option<GpuError>, PopErrorScopeError> {
         gpu.gpu_device_pop_error_scope(device, Promise::new(ticket));
         settled(gpu, ticket)
     }

@@ -13,7 +13,11 @@ fn an_object_of_one_webgpu_device_is_refused_on_another() {
     gpu.gpu_device_push_error_scope(second, GpuErrorFilter::Validation);
     gpu.gpu_queue_write_buffer_with_copy(queue, GpuBuffer(own.0), 0, &[0; 4], None, None)
         .unwrap();
-    assert_eq!(pop(&mut gpu, second, 7), Ok(None), "its own buffer is written");
+    assert_eq!(
+        pop(&mut gpu, second, 7),
+        Ok(None),
+        "its own buffer is written"
+    );
 
     gpu.gpu_device_push_error_scope(second, GpuErrorFilter::Validation);
     gpu.gpu_queue_write_buffer_with_copy(queue, GpuBuffer(theirs.0), 0, &[0; 4], None, None)
@@ -24,5 +28,8 @@ fn an_object_of_one_webgpu_device_is_refused_on_another() {
         .expect("the scope pops")
         .expect("another device's buffer is refused");
     let message = gpu.gpu_error_message(caught);
-    assert!(message.contains("another device"), "it was refused as {message}");
+    assert!(
+        message.contains("another device"),
+        "it was refused as {message}"
+    );
 }

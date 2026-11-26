@@ -13,7 +13,11 @@ type Recorded = Box<dyn FnOnce(&mut wgpu::CommandEncoder)>;
 impl Gpu {
     /// Records into an encoder. wgpu keeps what a command got wrong in the encoder and raises
     /// it at `finish`, so only a missing object is raised here.
-    pub(super) fn record(&mut self, encoder: u32, act: impl FnOnce(&mut Self) -> Result<Recorded, Failure>) {
+    pub(super) fn record(
+        &mut self,
+        encoder: u32,
+        act: impl FnOnce(&mut Self) -> Result<Recorded, Failure>,
+    ) {
         let device = self.owner(Kind::Encoder, encoder);
         self.checked(device, |gpu| {
             let record = act(gpu)?;
@@ -54,181 +58,274 @@ impl Gpu {
     }
 
     /// Records a command into a render bundle encoder, which replays them all at `finish`.
-    pub(super) fn bundled(&mut self, encoder: u32, command: impl FnOnce(&Self) -> Result<Command, Failure>) {
+    pub(super) fn bundled(
+        &mut self,
+        encoder: u32,
+        command: impl FnOnce(&Self) -> Result<Command, Failure>,
+    ) {
         let device = self.owner(Kind::BundleEncoder, encoder);
         self.checked(device, |gpu| {
             let command = command(gpu)?;
-            found(found(gpu.bundle_encoders.get_mut(encoder, "render bundle encoder"))?.push(command))
+            found(
+                found(
+                    gpu.bundle_encoders
+                        .get_mut(encoder, "render bundle encoder"),
+                )?
+                .push(command),
+            )
         });
     }
 
-    pub(super) fn bundle_encoder(&mut self, device: u32, descriptor: web::GpuRenderBundleEncoderDescriptor) -> u32 {
+    pub(super) fn bundle_encoder(
+        &mut self,
+        device: u32,
+        descriptor: web::GpuRenderBundleEncoderDescriptor,
+    ) -> u32 {
         let label = descriptor.label.clone();
-        self.make(Some(device), Kind::BundleEncoder, label.as_deref(), |gpu| &mut gpu.bundle_encoders, |_| {
-            let depth_stencil = descriptor
-                .depth_stencil_format
-                .map(|format| wgpu::RenderBundleDepthStencil {
-                    format: format.convert(),
-                    depth_read_only: descriptor.depth_read_only.unwrap_or(false),
-                    stencil_read_only: descriptor.stencil_read_only.unwrap_or(false),
-                });
-            found(BundleEncoder::with(
-                descriptor.label.clone(),
-                descriptor
-                    .color_formats
-                    .iter()
-                    .map(|format| format.map(Convert::convert))
-                    .collect(),
-                depth_stencil,
-                descriptor.sample_count.unwrap_or(1),
-            ))
-        })
+        self.make(
+            Some(device),
+            Kind::BundleEncoder,
+            label.as_deref(),
+            |gpu| &mut gpu.bundle_encoders,
+            |_| {
+                let depth_stencil =
+                    descriptor
+                        .depth_stencil_format
+                        .map(|format| wgpu::RenderBundleDepthStencil {
+                            format: format.convert(),
+                            depth_read_only: descriptor.depth_read_only.unwrap_or(false),
+                            stencil_read_only: descriptor.stencil_read_only.unwrap_or(false),
+                        });
+                found(BundleEncoder::with(
+                    descriptor.label.clone(),
+                    descriptor
+                        .color_formats
+                        .iter()
+                        .map(|format| format.map(Convert::convert))
+                        .collect(),
+                    depth_stencil,
+                    descriptor.sample_count.unwrap_or(1),
+                ))
+            },
+        )
     }
 
-    pub(super) fn begin_render_pass(&mut self, encoder: u32, descriptor: web::GpuRenderPassDescriptor) -> u32 {
+    pub(super) fn begin_render_pass(
+        &mut self,
+        encoder: u32,
+        descriptor: web::GpuRenderPassDescriptor,
+    ) -> u32 {
         let device = self.owner(Kind::Encoder, encoder);
         let label = descriptor.label.clone();
-        self.make(device, Kind::RenderPass, label.as_deref(), |gpu| &mut gpu.passes, |gpu| {
-            let mut colors = Vec::new();
-            for attachment in &descriptor.color_attachments {
-                let Some(attachment) = attachment else {
-                    colors.push(None);
-                    continue;
-                };
-                let view = gpu.held(&gpu.views, Kind::View, attachment.view.0, "texture view")?.clone();
-                let resolve = attachment
-                    .resolve_target
-                    .map(|view| gpu.held(&gpu.views, Kind::View, view.0, "texture view").cloned())
-                    .transpose()?;
-                colors.push(Some((attachment, view, resolve)));
-            }
-            let depth = descriptor
-                .depth_stencil_attachment
-                .as_ref()
-                .map(|attachment| {
-                    gpu.held(&gpu.views, Kind::View, attachment.view.0, "texture view").map(|view| (attachment, view.clone()))
-                })
-                .transpose()?;
-            let occlusion = descriptor
-                .occlusion_query_set
-                .map(|set| gpu.held(&gpu.query_sets, Kind::QuerySet, set.0, "query set").map(|set| set.set.clone()))
-                .transpose()?;
-            let timestamps = descriptor
-                .timestamp_writes
-                .map(|writes| {
-                    gpu.held(&gpu.query_sets, Kind::QuerySet, writes.query_set.0, "query set").map(|set| (set.set.clone(), writes))
-                })
-                .transpose()?;
-            let color_attachments: Vec<_> = colors
-                .iter()
-                .map(|attachment| {
-                    attachment.as_ref().map(|(attachment, view, resolve)| wgpu::RenderPassColorAttachment {
-                        view,
-                        depth_slice: attachment.depth_slice,
-                        resolve_target: resolve.as_ref(),
-                        ops: wgpu::Operations {
-                            load: match attachment.load_op {
-                                web::GpuLoadOp::Clear => wgpu::LoadOp::Clear(
-                                    attachment
-                                        .clear_value
-                                        .map_or(wgpu::Color::TRANSPARENT, Convert::convert),
-                                ),
-                                web::GpuLoadOp::Load => wgpu::LoadOp::Load,
-                            },
-                            store: attachment.store_op.convert(),
-                        },
-                    })
-                })
-                .collect();
-            let depth_stencil_attachment = depth.as_ref().map(|(attachment, view)| {
-                let ops = |load: Option<web::GpuLoadOp>, store: Option<web::GpuStoreOp>, read_only: Option<bool>, clear| {
-                    match (read_only.unwrap_or(false), load) {
-                        (true, _) | (false, None) => None,
-                        (false, Some(load)) => Some(wgpu::Operations {
-                            load: match load {
-                                web::GpuLoadOp::Clear => wgpu::LoadOp::Clear(clear),
-                                web::GpuLoadOp::Load => wgpu::LoadOp::Load,
-                            },
-                            store: store.map_or(wgpu::StoreOp::Store, Convert::convert),
-                        }),
-                    }
-                };
-                wgpu::RenderPassDepthStencilAttachment {
-                    view,
-                    depth_ops: ops(
-                        attachment.depth_load_op,
-                        attachment.depth_store_op,
-                        attachment.depth_read_only,
-                        attachment.depth_clear_value.unwrap_or(0.0),
-                    ),
-                    stencil_ops: match (attachment.stencil_read_only.unwrap_or(false), attachment.stencil_load_op) {
-                        (true, _) | (false, None) => None,
-                        (false, Some(load)) => Some(wgpu::Operations {
-                            load: match load {
-                                web::GpuLoadOp::Clear => wgpu::LoadOp::Clear(attachment.stencil_clear_value.unwrap_or(0)),
-                                web::GpuLoadOp::Load => wgpu::LoadOp::Load,
-                            },
-                            store: attachment
-                                .stencil_store_op
-                                .map_or(wgpu::StoreOp::Store, Convert::convert),
-                        }),
-                    },
+        self.make(
+            device,
+            Kind::RenderPass,
+            label.as_deref(),
+            |gpu| &mut gpu.passes,
+            |gpu| {
+                let mut colors = Vec::new();
+                for attachment in &descriptor.color_attachments {
+                    let Some(attachment) = attachment else {
+                        colors.push(None);
+                        continue;
+                    };
+                    let view = gpu
+                        .held(&gpu.views, Kind::View, attachment.view.0, "texture view")?
+                        .clone();
+                    let resolve = attachment
+                        .resolve_target
+                        .map(|view| {
+                            gpu.held(&gpu.views, Kind::View, view.0, "texture view")
+                                .cloned()
+                        })
+                        .transpose()?;
+                    colors.push(Some((attachment, view, resolve)));
                 }
-            });
-            let encoder = found(gpu.encoders.get_mut(encoder, "command encoder"))?;
-            Ok(encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: descriptor.label.as_deref(),
-                    color_attachments: &color_attachments,
-                    depth_stencil_attachment,
-                    timestamp_writes: timestamps.as_ref().map(|(set, writes)| wgpu::RenderPassTimestampWrites {
-                        query_set: set,
-                        beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
-                        end_of_pass_write_index: writes.end_of_pass_write_index,
-                    }),
-                    occlusion_query_set: occlusion.as_ref(),
-                    multiview_mask: None,
-                })
-                .forget_lifetime())
-        })
+                let depth = descriptor
+                    .depth_stencil_attachment
+                    .as_ref()
+                    .map(|attachment| {
+                        gpu.held(&gpu.views, Kind::View, attachment.view.0, "texture view")
+                            .map(|view| (attachment, view.clone()))
+                    })
+                    .transpose()?;
+                let occlusion = descriptor
+                    .occlusion_query_set
+                    .map(|set| {
+                        gpu.held(&gpu.query_sets, Kind::QuerySet, set.0, "query set")
+                            .map(|set| set.set.clone())
+                    })
+                    .transpose()?;
+                let timestamps = descriptor
+                    .timestamp_writes
+                    .map(|writes| {
+                        gpu.held(
+                            &gpu.query_sets,
+                            Kind::QuerySet,
+                            writes.query_set.0,
+                            "query set",
+                        )
+                        .map(|set| (set.set.clone(), writes))
+                    })
+                    .transpose()?;
+                let color_attachments: Vec<_> = colors
+                    .iter()
+                    .map(|attachment| {
+                        attachment.as_ref().map(|(attachment, view, resolve)| {
+                            wgpu::RenderPassColorAttachment {
+                                view,
+                                depth_slice: attachment.depth_slice,
+                                resolve_target: resolve.as_ref(),
+                                ops: wgpu::Operations {
+                                    load: match attachment.load_op {
+                                        web::GpuLoadOp::Clear => wgpu::LoadOp::Clear(
+                                            attachment
+                                                .clear_value
+                                                .map_or(wgpu::Color::TRANSPARENT, Convert::convert),
+                                        ),
+                                        web::GpuLoadOp::Load => wgpu::LoadOp::Load,
+                                    },
+                                    store: attachment.store_op.convert(),
+                                },
+                            }
+                        })
+                    })
+                    .collect();
+                let depth_stencil_attachment = depth.as_ref().map(|(attachment, view)| {
+                    let ops = |load: Option<web::GpuLoadOp>,
+                               store: Option<web::GpuStoreOp>,
+                               read_only: Option<bool>,
+                               clear| {
+                        match (read_only.unwrap_or(false), load) {
+                            (true, _) | (false, None) => None,
+                            (false, Some(load)) => Some(wgpu::Operations {
+                                load: match load {
+                                    web::GpuLoadOp::Clear => wgpu::LoadOp::Clear(clear),
+                                    web::GpuLoadOp::Load => wgpu::LoadOp::Load,
+                                },
+                                store: store.map_or(wgpu::StoreOp::Store, Convert::convert),
+                            }),
+                        }
+                    };
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view,
+                        depth_ops: ops(
+                            attachment.depth_load_op,
+                            attachment.depth_store_op,
+                            attachment.depth_read_only,
+                            attachment.depth_clear_value.unwrap_or(0.0),
+                        ),
+                        stencil_ops: match (
+                            attachment.stencil_read_only.unwrap_or(false),
+                            attachment.stencil_load_op,
+                        ) {
+                            (true, _) | (false, None) => None,
+                            (false, Some(load)) => Some(wgpu::Operations {
+                                load: match load {
+                                    web::GpuLoadOp::Clear => wgpu::LoadOp::Clear(
+                                        attachment.stencil_clear_value.unwrap_or(0),
+                                    ),
+                                    web::GpuLoadOp::Load => wgpu::LoadOp::Load,
+                                },
+                                store: attachment
+                                    .stencil_store_op
+                                    .map_or(wgpu::StoreOp::Store, Convert::convert),
+                            }),
+                        },
+                    }
+                });
+                let encoder = found(gpu.encoders.get_mut(encoder, "command encoder"))?;
+                Ok(encoder
+                    .begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: descriptor.label.as_deref(),
+                        color_attachments: &color_attachments,
+                        depth_stencil_attachment,
+                        timestamp_writes: timestamps.as_ref().map(|(set, writes)| {
+                            wgpu::RenderPassTimestampWrites {
+                                query_set: set,
+                                beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
+                                end_of_pass_write_index: writes.end_of_pass_write_index,
+                            }
+                        }),
+                        occlusion_query_set: occlusion.as_ref(),
+                        multiview_mask: None,
+                    })
+                    .forget_lifetime())
+            },
+        )
     }
 
-    pub(super) fn begin_compute_pass(&mut self, encoder: u32, descriptor: Option<web::GpuComputePassDescriptor>) -> u32 {
+    pub(super) fn begin_compute_pass(
+        &mut self,
+        encoder: u32,
+        descriptor: Option<web::GpuComputePassDescriptor>,
+    ) -> u32 {
         let device = self.owner(Kind::Encoder, encoder);
-        let label = descriptor.as_ref().and_then(|descriptor| descriptor.label.clone());
-        self.make(device, Kind::ComputePass, label.as_deref(), |gpu| &mut gpu.compute_passes, |gpu| {
-            let timestamps = descriptor
-                .as_ref()
-                .and_then(|descriptor| descriptor.timestamp_writes)
-                .map(|writes| {
-                    gpu.held(&gpu.query_sets, Kind::QuerySet, writes.query_set.0, "query set").map(|set| (set.set.clone(), writes))
-                })
-                .transpose()?;
-            let encoder = found(gpu.encoders.get_mut(encoder, "command encoder"))?;
-            Ok(encoder
-                .begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: label.as_deref(),
-                    timestamp_writes: timestamps.as_ref().map(|(set, writes)| wgpu::ComputePassTimestampWrites {
-                        query_set: set,
-                        beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
-                        end_of_pass_write_index: writes.end_of_pass_write_index,
-                    }),
-                })
-                .forget_lifetime())
-        })
+        let label = descriptor
+            .as_ref()
+            .and_then(|descriptor| descriptor.label.clone());
+        self.make(
+            device,
+            Kind::ComputePass,
+            label.as_deref(),
+            |gpu| &mut gpu.compute_passes,
+            |gpu| {
+                let timestamps = descriptor
+                    .as_ref()
+                    .and_then(|descriptor| descriptor.timestamp_writes)
+                    .map(|writes| {
+                        gpu.held(
+                            &gpu.query_sets,
+                            Kind::QuerySet,
+                            writes.query_set.0,
+                            "query set",
+                        )
+                        .map(|set| (set.set.clone(), writes))
+                    })
+                    .transpose()?;
+                let encoder = found(gpu.encoders.get_mut(encoder, "command encoder"))?;
+                Ok(encoder
+                    .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: label.as_deref(),
+                        timestamp_writes: timestamps.as_ref().map(|(set, writes)| {
+                            wgpu::ComputePassTimestampWrites {
+                                query_set: set,
+                                beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
+                                end_of_pass_write_index: writes.end_of_pass_write_index,
+                            }
+                        }),
+                    })
+                    .forget_lifetime())
+            },
+        )
     }
 
     /// Resolves queries into a buffer, timestamps converted to nanoseconds and coarsened as
     /// `be3:gpu/device`'s are (queries.rs).
-    pub(super) fn resolve(&mut self, encoder: u32, set: u32, first: u32, count: u32, destination: u32, offset: u64) {
+    pub(super) fn resolve(
+        &mut self,
+        encoder: u32,
+        set: u32,
+        first: u32,
+        count: u32,
+        destination: u32,
+        offset: u64,
+    ) {
         self.record(encoder, |gpu| {
             let found_set = gpu.held(&gpu.query_sets, Kind::QuerySet, set, "query set")?;
             let (queries, timestamps) = (found_set.set.clone(), found_set.timestamps);
-            let to = gpu.held(&gpu.buffers, Kind::Buffer, destination, "buffer")?.clone();
+            let to = gpu
+                .held(&gpu.buffers, Kind::Buffer, destination, "buffer")?
+                .clone();
             let coarsen = timestamps && Coarsening::fits(&to, offset, count);
             let coarsening = coarsen.then(|| (gpu.coarsening().clone(), gpu.device.clone()));
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| {
-                encoder.resolve_query_set(&queries, first..first.saturating_add(count), &to, offset);
+                encoder.resolve_query_set(
+                    &queries,
+                    first..first.saturating_add(count),
+                    &to,
+                    offset,
+                );
                 if let Some((coarsening, device)) = coarsening {
                     coarsening.record(&device, encoder, &to, offset, count);
                 }
@@ -256,10 +353,11 @@ impl Gpu {
                 "the device is lost".to_owned(),
             ));
         }
-        let scopes: Vec<wgpu::ErrorScopeGuard> = [wgpu::ErrorFilter::Validation, wgpu::ErrorFilter::Internal]
-            .into_iter()
-            .map(|filter| self.device.push_error_scope(filter))
-            .collect();
+        let scopes: Vec<wgpu::ErrorScopeGuard> =
+            [wgpu::ErrorFilter::Validation, wgpu::ErrorFilter::Internal]
+                .into_iter()
+                .map(|filter| self.device.push_error_scope(filter))
+                .collect();
         let made = act(self);
         let mut caught = None;
         for scope in scopes.into_iter().rev() {
@@ -274,7 +372,10 @@ impl Gpu {
                 Ok(handle)
             }
             (Ok(_), Some(message)) => Err(refuse(web::GpuPipelineErrorReason::Validation, message)),
-            (Err(failure), _) => Err(refuse(web::GpuPipelineErrorReason::Validation, failure.message)),
+            (Err(failure), _) => Err(refuse(
+                web::GpuPipelineErrorReason::Validation,
+                failure.message,
+            )),
         }
     }
 }

@@ -8,7 +8,9 @@ pub(crate) fn features(supported: &gpu::GpuSupportedFeatures) -> wgpu::Features 
         .into_iter()
         .filter(|name| supported.has(feature_name(*name)))
         .filter_map(feature)
-        .fold(wgpu::Features::empty(), |features, feature| features | feature)
+        .fold(wgpu::Features::empty(), |features, feature| {
+            features | feature
+        })
 }
 
 pub(crate) fn limits(limits: &gpu::GpuSupportedLimits) -> wgpu::Limits {

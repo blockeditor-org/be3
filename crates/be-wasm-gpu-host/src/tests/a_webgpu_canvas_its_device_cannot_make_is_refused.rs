@@ -28,6 +28,9 @@ fn a_webgpu_canvas_its_device_cannot_make_is_refused() {
         .expect("the scope pops")
         .expect("the configuration is refused");
     let message = gpu.gpu_error_message(caught);
-    assert!(message.contains("cannot make"), "it was refused as {message}");
+    assert!(
+        message.contains("cannot make"),
+        "it was refused as {message}"
+    );
     assert!(gpu.surface(7).is_none(), "and the canvas has no textures");
 }

@@ -4,7 +4,10 @@ use super::*;
 fn options_of_lists_and_strings_pass_flat() {
     let mut caller = Caller::new();
     caller.put(0, b"square");
-    let offsets: Vec<u8> = [3u32, 4].iter().flat_map(|word| word.to_le_bytes()).collect();
+    let offsets: Vec<u8> = [3u32, 4]
+        .iter()
+        .flat_map(|word| word.to_le_bytes())
+        .collect();
     caller.put(16, &offsets);
     caller.put(32, &[9, 8, 7]);
     // Each option is its tag, then its pointer and length.
@@ -15,7 +18,11 @@ fn options_of_lists_and_strings_pass_flat() {
     assert_eq!(
         caller.host.named,
         [
-            (Some("square".to_owned()), Some(vec![3, 4]), Some(vec![9, 8, 7])),
+            (
+                Some("square".to_owned()),
+                Some(vec![3, 4]),
+                Some(vec![9, 8, 7])
+            ),
             (None, None, None),
         ]
     );

@@ -8,5 +8,8 @@ fn a_guest_drives_wasi_webgpu_through_its_generated_bindings() {
     let mut app = host().load_bytes(WEBGPU).unwrap();
     app.start().unwrap();
     app.step().unwrap();
-    assert_eq!(app.take_outbound(), vec![be_wasm_guest_webgpu::DONE.to_vec()]);
+    assert_eq!(
+        app.take_outbound(),
+        vec![be_wasm_guest_webgpu::DONE.to_vec()]
+    );
 }

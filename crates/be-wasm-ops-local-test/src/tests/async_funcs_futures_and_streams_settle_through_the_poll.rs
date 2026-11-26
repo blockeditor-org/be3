@@ -24,7 +24,11 @@ fn async_funcs_futures_and_streams_settle_through_the_poll() {
     let lost_ticket = embed::shapes::glue::lost(&mut caller);
     let errors_ticket = embed::shapes::glue::errors(&mut caller);
     let tickets = [ready_ticket, grow_ticket, lost_ticket, errors_ticket];
-    assert_eq!(tickets, [1, 2, 3, 4], "each call answers a ticket of its own");
+    assert_eq!(
+        tickets,
+        [1, 2, 3, 4],
+        "each call answers a ticket of its own"
+    );
 
     let mut ready_value = settling.ticket::<(), be_wasm_ops::wire::Plain>("ready", ready_ticket);
     let mut grown = settling.ticket::<u32, be_wasm_ops::wire::Plain>("grow", grow_ticket);
@@ -56,9 +60,14 @@ fn async_funcs_futures_and_streams_settle_through_the_poll() {
 
     let host = &mut caller.host;
     host.settled.push(sender.end());
-    host.settled.push(host.lost.pop().unwrap().settle(&"gone".to_owned()));
+    host.settled
+        .push(host.lost.pop().unwrap().settle(&"gone".to_owned()));
     settle(&mut caller, &settling);
-    assert_eq!(ready(errors.next()), Some(None), "an ended stream answers none");
+    assert_eq!(
+        ready(errors.next()),
+        Some(None),
+        "an ended stream answers none"
+    );
     assert!(errors.ended());
     assert_eq!(ready(&mut lost), Some("gone".to_owned()));
     assert!(!settling.waiting());

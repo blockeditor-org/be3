@@ -4,10 +4,10 @@ use super::*;
 
 mod a_call_too_wide_to_pass_flat_is_encoded;
 mod a_dropped_ticket_no_longer_waits;
-mod a_refused_ticket_stops_the_guest;
-mod a_settled_value_that_does_not_decode_stops_the_guest;
 mod a_fallible_call_answers_its_error_only_when_it_fails;
+mod a_refused_ticket_stops_the_guest;
 mod a_resource_of_another_package_is_one_handle;
+mod a_settled_value_that_does_not_decode_stops_the_guest;
 mod async_funcs_futures_and_streams_settle_through_the_poll;
 mod options_of_lists_and_strings_pass_flat;
 
@@ -86,12 +86,7 @@ impl embed::shapes::Host for Host {
         shapes::shapes::Shape(sides)
     }
 
-    fn name(
-        &mut self,
-        label: Option<&str>,
-        offsets: Option<&[u32]>,
-        bytes: Option<&[u8]>,
-    ) -> u32 {
+    fn name(&mut self, label: Option<&str>, offsets: Option<&[u32]>, bytes: Option<&[u8]>) -> u32 {
         self.named.push((
             label.map(str::to_owned),
             offsets.map(<[u32]>::to_vec),
@@ -132,16 +127,27 @@ impl embed::frames::Host for Host {
         shape.0
     }
 
-    fn framed(&mut self, framing: frames::Framing, extra: (u32, u32, u32, u32, u32, u32, u32, u32)) -> u32 {
+    fn framed(
+        &mut self,
+        framing: frames::Framing,
+        extra: (u32, u32, u32, u32, u32, u32, u32, u32),
+    ) -> u32 {
         self.shown.push(framing.shape.0);
         framing.sizes.8 + extra.7
     }
 
-    fn wide(&mut self, first: (u32, u32, u32, u32, u32, u32, u32, u32, u32, u32), second: (u32, u32, u32, u32, u32, u32, u32, u32), last: u32) -> u32 {
+    fn wide(
+        &mut self,
+        first: (u32, u32, u32, u32, u32, u32, u32, u32, u32, u32),
+        second: (u32, u32, u32, u32, u32, u32, u32, u32),
+        last: u32,
+    ) -> u32 {
         let (a, b, c, d, e, f, g, h, i, j) = first;
         let (k, l, m, n, o, p, q, r) = second;
-        self.wide
-            .push((vec![a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r], last));
+        self.wide.push((
+            vec![a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r],
+            last,
+        ));
         last
     }
 }
