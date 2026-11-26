@@ -9,10 +9,7 @@ fn a_replica_draws_a_node_its_offset_clips_whole_and_elsewhere() {
                 <List direction={Direction::Horizontal} spacing={12.0} align={Align::Start}>
                     <Frame height={80.0} width={100.0} outline={Some(Outline::new(INK, 1.0))}>
                         <Offset offset={0.0}>
-                            <List spacing={4.0}>
-                                {swatch(BLUE, 100.0, 40.0)}
-                                {lent}
-                            </List>
+                            <List spacing={4.0}>{swatch(BLUE, 100.0, 40.0)}{lent}</List>
                         </Offset>
                     </Frame>
                     <Frame width={100.0} height={60.0}>

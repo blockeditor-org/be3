@@ -22,7 +22,11 @@ fn a_carried_item_in_a_zoomed_canvas_floats_at_the_size_it_shows() {
     let mut harness = Harness::new(document);
     harness.settle();
     let home = harness.rect(harness.find("item"));
-    assert_eq!(home.size(), vec2(100.0, 40.0), "the zoom draws the item twice its size");
+    assert_eq!(
+        home.size(),
+        vec2(100.0, 40.0),
+        "the zoom draws the item twice its size"
+    );
     let grab = home.center();
     let by = vec2(120.0, 100.0);
     harness.down(grab, PointerButton::Primary);

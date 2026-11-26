@@ -114,7 +114,8 @@ impl PaintCache {
         self.entries.remove(&id);
         self.dirt.remove(&id);
         self.deadlines.remove(&id);
-        self.lent.retain(|node, replica| *node != id && *replica != id);
+        self.lent
+            .retain(|node, replica| *node != id && *replica != id);
     }
 
     pub fn clear(&mut self) {
@@ -156,7 +157,12 @@ impl PaintCache {
         self.dirt.get_or_default(id).own = true;
         let mut child = id;
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(node) = self.lent.get(&child).copied().or_else(|| arena.parent(child)) else {
+            let Some(node) = self
+                .lent
+                .get(&child)
+                .copied()
+                .or_else(|| arena.parent(child))
+            else {
                 return;
             };
             let listed = &mut self.dirt.get_or_default(child).listed;

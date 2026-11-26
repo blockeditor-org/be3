@@ -8,8 +8,12 @@ fn a_node_lent_to_a_second_replica_is_drawn_by_that_one_alone() {
     let red = Color32::from_rgb(200, 30, 30);
     let lent_later = create_signal(false);
     let document = build_node(move || {
-        let item = view! { <Frame @test_id="item" width=40.0 height=20.0 fill=red /> };
-        let first = view! { <Replica of={Some(item)} /> };
+        let item = view! {
+            <Frame @test_id="item" width=40.0 height=20.0 fill=red />
+        };
+        let first = view! {
+            <Replica of={Some(item)} />
+        };
         view! {
             <List spacing=10.0>
                 {item}
@@ -40,7 +44,11 @@ fn a_node_lent_to_a_second_replica_is_drawn_by_that_one_alone() {
         Rect::from_min_size(harness.rect(harness.find(id)).min, vec2(40.0, 20.0))
     };
     let (first, second) = (at(&harness, "first"), at(&harness, "second"));
-    assert_eq!(drawn(&mut harness), vec![first], "lent, the item is drawn by its replica");
+    assert_eq!(
+        drawn(&mut harness),
+        vec![first],
+        "lent, the item is drawn by its replica"
+    );
     lent_later.set(true);
     harness.settle();
     assert_eq!(

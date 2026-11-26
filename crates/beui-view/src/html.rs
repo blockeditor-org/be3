@@ -41,8 +41,8 @@ pub(crate) mod painter {
     }
 }
 pub(crate) mod portal;
-pub(crate) mod replica;
 pub(crate) mod reactive;
+pub(crate) mod replica;
 pub(crate) mod root;
 pub(crate) mod selectable;
 pub(crate) mod text;

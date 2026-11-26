@@ -1,8 +1,8 @@
 use super::*;
 use crate::drag::Carry;
 use crate::primitives::{Frame, Interactive, List};
-use crate::unstyled::Scroll;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 const RED: Color32 = Color32::from_rgb(200, 30, 30);
 
@@ -33,7 +33,9 @@ fn a_carried_item_its_scroll_cuts_is_drawn_whole_and_put_down_only_at_home() {
                     <Scroll style={plain_scroll()}>
                         <List spacing=0.0>
                             <Frame width=100.0 height=40.0 />
-                            <Interactive drag={Func::new(|_: PointerPress| Some(Carry::new(1_u32)))}>
+                            <Interactive
+                                drag={Func::new(|_: PointerPress| Some(Carry::new(1_u32)))}
+                            >
                                 <Frame @test_id="item" width=100.0 height=40.0 fill=RED />
                             </Interactive>
                         </List>
@@ -61,7 +63,11 @@ fn a_carried_item_its_scroll_cuts_is_drawn_whole_and_put_down_only_at_home() {
         harness.frame(vec![Input::PointerMoved(grab + by * (step as f32 / 4.0))]);
     }
     harness.settle();
-    assert_eq!(harness.rect(harness.find("item")), home, "carried, it keeps its place");
+    assert_eq!(
+        harness.rect(harness.find("item")),
+        home,
+        "carried, it keeps its place"
+    );
     let [(carried, clip)] = drawn(&mut harness)[..] else {
         panic!("carried, the item is drawn once, by its replica, and not at home");
     };

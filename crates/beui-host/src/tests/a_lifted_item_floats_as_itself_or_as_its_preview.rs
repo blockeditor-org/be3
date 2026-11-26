@@ -22,7 +22,12 @@ fn a_lifted_item_floats_as_itself_or_as_its_preview() {
                         })
                     })}
                 >
-                    <Frame @test_id="item" width=100.0 height=40.0 fill=Color32::from_rgb(200, 30, 30) />
+                    <Frame
+                        @test_id="item"
+                        width=100.0
+                        height=40.0
+                        fill=Color32::from_rgb(200, 30, 30)
+                    />
                 </Interactive>
                 <Frame @test_id="sibling" width=100.0 height=40.0 />
             </List>

@@ -137,16 +137,7 @@ pub fn Interactive(
                     size,
                 } = carry.face.clone();
                 let face = view! {
-                    <CarriedFace
-                        said
-                        anchor
-                        open
-                        floats
-                        preview
-                        replicated
-                        size
-                        children
-                    />
+                    <CarriedFace said anchor open floats preview replicated size children />
                 };
                 let on_key = (carry.finish)(face, on_key);
                 (
@@ -810,16 +801,14 @@ fn CarriedFace(
                 level=LayerLevel::Top
                 traps_focus=false
                 open={replicated}
-            >|| {
-                view! {
-                    <Frame
-                        width={move || crate::types::Extent::px(size.get().x)}
-                        height={move || crate::types::Extent::px(size.get().y)}
-                    >
-                        <Replica of={Some(shown)} />
-                    </Frame>
-                }
-            }</Overlay>
+            >||
+                <Frame
+                    width={move || crate::types::Extent::px(size.get().x)}
+                    height={move || crate::types::Extent::px(size.get().y)}
+                >
+                    <Replica of={Some(shown)} />
+                </Frame>
+            </Overlay>
         }
     };
     view! {
