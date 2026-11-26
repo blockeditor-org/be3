@@ -6238,7 +6238,9 @@ impl<H: Host> Replicas<H> {
                         if let Some(local) = local {
                             peer.fetch_history(local).await?;
                         }
-                        let resumed = be_block_session::resume(peer.commits(), local, remote)?;
+                        let left = local.and_then(|local| peer.left_head(block, local));
+                        let resumed =
+                            be_block_session::resume(peer.commits(), local, remote, left)?;
                         Ok::<_, ClientError>(sealed_here(&peer, local, resumed))
                     }
                     .await

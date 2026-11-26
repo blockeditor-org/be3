@@ -49,7 +49,7 @@ async fn a_session_hands_the_lease_over_without_a_merge() {
     let mut returned = harness.second_connection(&token, organization).await;
     let remote = returned.read_block(block).await.head;
     assert_eq!(
-        resume(&author.commits, Some(first.0), remote).unwrap(),
+        resume(&author.commits, Some(first.0), remote, Some(first.0)).unwrap(),
         Resume::FastForward { to: second.0 },
         "the phone should catch up rather than merge"
     );

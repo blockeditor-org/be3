@@ -748,12 +748,13 @@ struct HostCore {
     tray: Option<tray::Tray>,
     #[cfg(target_os = "linux")]
     wifi: Option<wifi::Wifi>,
-    /// Whether the device runs on mains power, as UPower last said: a login session's, for the
-    /// stack's work that waits for the device to be at rest (`run_rest`).
+    /// UPower's word on mains power, for a login session's `rest` (`run_rest`).
     #[cfg(target_os = "linux")]
     battery: Option<battery::Battery>,
+    /// What a login session last told the stack of the device (`be_host_stack::set_rest`): not
+    /// on power until UPower answers, which it does at once when it is not there.
     #[cfg(target_os = "linux")]
-    on_power: Rc<std::cell::Cell<bool>>,
+    rest: Rc<std::cell::Cell<be_host_stack::Rest>>,
 }
 
 type Account = SavedAccount;
@@ -1140,7 +1141,10 @@ impl HostCore {
             #[cfg(target_os = "linux")]
             battery: None,
             #[cfg(target_os = "linux")]
-            on_power: Rc::new(std::cell::Cell::new(true)),
+            rest: Rc::new(std::cell::Cell::new(be_host_stack::Rest {
+                away: false,
+                on_power: false,
+            })),
         };
         core.resume_organization();
         be_host_base::push_device::publish();
@@ -1336,24 +1340,35 @@ impl HostCore {
     }
 
     /// Tells the stack whether the device is at rest (`be_host_stack::Rest`): a login session's
-    /// person is away while its screen is locked, and its power is UPower's. A windowed host
-    /// tells nothing, so that work waits on the stack's own idleness there.
+    /// person is away while its screen is locked or its screens are off for want of input, and
+    /// its power is UPower's, told as it changes. A windowed host tells nothing, so that work
+    /// waits on the stack's own idleness there.
     #[cfg(target_os = "linux")]
-    fn run_rest(&mut self, away: bool) {
+    fn run_rest(&mut self, locked: bool) {
         if self.login_session.is_none() {
             return;
         }
-        if self.battery.is_none() {
-            let on_power = Rc::clone(&self.on_power);
-            self.battery = Some(battery::Battery::start(move |powered| {
-                on_power.set(powered);
-                host::request_repaint();
+        let first = self.battery.is_none();
+        if first {
+            let rest = Rc::clone(&self.rest);
+            self.battery = Some(battery::Battery::start(move |on_power| {
+                let told = be_host_stack::Rest {
+                    on_power,
+                    ..rest.get()
+                };
+                rest.set(told);
+                be_host_stack::set_rest(told);
             }));
         }
-        be_host_stack::set_rest(be_host_stack::Rest {
-            away,
-            on_power: self.on_power.get(),
-        });
+        let away = locked || Host::idle();
+        if first || self.rest.get().away != away {
+            let told = be_host_stack::Rest {
+                away,
+                ..self.rest.get()
+            };
+            self.rest.set(told);
+            be_host_stack::set_rest(told);
+        }
     }
 
     #[cfg(target_os = "linux")]

@@ -1,6 +1,6 @@
 //! Whether the device runs on mains power, from UPower's `OnBattery` (org.freedesktop.UPower on
 //! the system bus), for work that waits until it costs no battery (`be_host_stack::Rest`). With
-//! no UPower nothing is reported: the device is taken to be on power.
+//! no system bus or no UPower it reports the device on power, at once.
 
 use std::ops::ControlFlow;
 
@@ -34,6 +34,11 @@ impl Battery {
 }
 
 pub async fn serve(bus: &Bus, mut report: impl FnMut(bool) + Send + 'static) {
+    // Not reachable yet: on power meanwhile, rather than holding back for a bus that may never
+    // come.
+    if bus.connection().await.is_none() {
+        report(true);
+    }
     loop {
         let connection = bus.connected().await;
         let serving = watch(&connection, &mut report);
@@ -59,18 +64,20 @@ async fn watch(connection: &Connection, report: &mut impl FnMut(bool)) -> Contro
             .await
     };
     let Ok(proxy) = proxy.await else {
+        report(true);
         return ControlFlow::Continue(());
     };
     let Ok(mut changes) = proxy.receive_properties_changed().await else {
+        report(true);
         return ControlFlow::Continue(());
     };
-    let mut last = None;
-    if let Ok(value) = proxy.get(interface.clone(), PROPERTY).await
-        && let Value::Bool(on_battery) = &*value
-    {
-        last = Some(!on_battery);
-        report(!on_battery);
-    }
+    // No UPower (or no answer from it) counts as on power.
+    let powered = match proxy.get(interface.clone(), PROPERTY).await {
+        Ok(value) => !matches!(&*value, Value::Bool(true)),
+        Err(_) => true,
+    };
+    let mut last = Some(powered);
+    report(powered);
     while let Some(changed) = changes.next().await {
         let Ok(args) = changed.args() else {
             continue;
