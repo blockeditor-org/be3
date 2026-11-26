@@ -19,6 +19,12 @@ use crate::session::explain;
 
 const CLOSING: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// Where a test holds back the presence the replica tells a session, keyed by the session's
+/// account: what the replica says of its peers waits until released, so a test sees what the
+/// session does with a peer whose presence is late.
+#[cfg(test)]
+pub const PRESENCE_PAUSE: &str = "be-tool-cli presence";
+
 pub struct Held<S> {
     frames: Vec<ToEditor>,
     errors: Vec<String>,
@@ -102,6 +108,9 @@ pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
     /// The entry point whose tree holds the block, followed so another device's publish
     /// reaches the replica, and the sequence read to.
     followed: Option<(Uuid, u64)>,
+    /// What the replica said of its peers while a test held it back (`PRESENCE_PAUSE`).
+    #[cfg(test)]
+    withheld: Vec<ToEditor>,
 }
 
 impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
@@ -125,6 +134,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             closed,
             mirror: EditorMirror::default(),
             followed: None,
+            #[cfg(test)]
+            withheld: Vec::new(),
         };
         if !be_block_type_host::is_known(content_type) {
             return Err(format!("no type module has the block type {content_type}"));
@@ -248,6 +259,48 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.mirror.presence()
     }
 
+    /// Whether `client`'s presence has arrived in full, whatever it shows.
+    pub fn heard(&self, client: ClientId) -> bool {
+        self.mirror.heard(client)
+    }
+
+    /// Sets aside what the replica says of its peers while a test holds it back, and gives it
+    /// back once released.
+    #[cfg(test)]
+    fn withhold(&mut self, frames: Vec<ToEditor>) -> Vec<ToEditor> {
+        if be_lib_test_pause::is_held(PRESENCE_PAUSE, self.peer.account().as_u128()) {
+            let (held, frames) = frames
+                .into_iter()
+                .partition(|frame| matches!(frame, ToEditor::Presence { .. }));
+            self.withheld.extend::<Vec<ToEditor>>(held);
+            return frames;
+        }
+        std::mem::take(&mut self.withheld)
+            .into_iter()
+            .chain(frames)
+            .collect()
+    }
+
+    #[cfg(not(test))]
+    fn withhold(&mut self, frames: Vec<ToEditor>) -> Vec<ToEditor> {
+        frames
+    }
+
+    /// Wakes once a test lets go of what `withhold` set aside.
+    fn released(&self) -> impl Future<Output = ()> + use<S, C> {
+        #[cfg(test)]
+        let waiting = (!self.withheld.is_empty()).then(|| self.peer.account().as_u128());
+        #[cfg(not(test))]
+        let waiting: Option<u128> = None;
+        async move {
+            match waiting {
+                #[cfg(test)]
+                Some(key) => be_lib_test_pause::point(PRESENCE_PAUSE, key).await,
+                _ => std::future::pending().await,
+            }
+        }
+    }
+
     pub fn take_messages(&mut self) -> Vec<PeerMessage> {
         self.mirror.take_peer_messages()
     }
@@ -264,7 +317,9 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 None => std::future::pending().await,
             }
         };
+        let released = self.released();
         tokio::select! {
+            () = released => Woken::Module,
             event = self.events.recv() => match event {
                 Ok(event) => Woken::Event(Box::new(Some(event))),
                 Err(broadcast::error::RecvError::Lagged(_)) => Woken::Event(Box::new(None)),
@@ -317,7 +372,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             for error in errors {
                 eprintln!("be: {error}");
             }
-            let answers: Vec<FromEditor> = frames
+            let answers: Vec<FromEditor> = self
+                .withhold(frames)
                 .into_iter()
                 .filter_map(|frame| self.mirror.receive(frame))
                 .collect();

@@ -93,6 +93,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -175,6 +176,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -257,6 +259,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -339,6 +342,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -421,6 +425,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -503,6 +508,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -585,6 +591,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
                 "//crates/be-host-testing:be-host-testing",
+                "//crates/be-lib-test-pause:be-lib-test-pause",
                 "//crates/be-server:be-server",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",

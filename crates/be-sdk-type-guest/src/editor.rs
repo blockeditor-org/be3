@@ -178,7 +178,13 @@ pub struct PeerMessage {
 pub enum ToEditor {
     Snapshot(Snapshot),
     Operations(Vec<EditorOperation>),
-    Presence(Vec<PeerPresence>),
+    /// What each peer shows, and the peers whose presence has arrived in full, whatever it
+    /// holds: one listed in `heard` with nothing in `peers` shows nothing, and one in neither
+    /// may not have been heard from yet.
+    Presence {
+        peers: Vec<PeerPresence>,
+        heard: Vec<ClientId>,
+    },
     PeerMessages(Vec<PeerMessage>),
     Range {
         token: u64,
@@ -449,6 +455,7 @@ pub struct EditorMirror<C: LiveEdit> {
     resyncing: bool,
     touched: Vec<Touched>,
     presence: Vec<PeerPresence>,
+    heard: Vec<ClientId>,
     peer_messages: Vec<PeerMessage>,
     revision: u64,
     projected: Option<Vec<Projected<C::Op>>>,
@@ -503,6 +510,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             resyncing: false,
             touched: Vec::new(),
             presence: Vec::new(),
+            heard: Vec::new(),
             peer_messages: Vec::new(),
             revision: 0,
             projected: None,
@@ -774,6 +782,11 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         &self.presence
     }
 
+    /// Whether `client`'s presence has arrived in full (`ToEditor::Presence::heard`).
+    pub fn heard(&self, client: ClientId) -> bool {
+        self.heard.contains(&client)
+    }
+
     pub fn take_peer_messages(&mut self) -> Vec<PeerMessage> {
         std::mem::take(&mut self.peer_messages)
     }
@@ -861,8 +874,9 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 }
                 None
             }
-            ToEditor::Presence(presence) => {
-                self.presence = presence;
+            ToEditor::Presence { peers, heard } => {
+                self.presence = peers;
+                self.heard = heard;
                 None
             }
             ToEditor::PeerMessages(messages) => {

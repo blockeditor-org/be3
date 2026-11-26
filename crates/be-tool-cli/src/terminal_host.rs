@@ -27,11 +27,14 @@ use be_tool_terminal_emulator::Emulator;
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;
 const LONGEST_RETRY: Duration = Duration::from_secs(30);
-/// How often a host that isn't writing claims the session's lease, and how long
-/// it first waits on a new holder: holding the lease is the lock between hosts,
-/// and a claim takes it at once, so a host waits for the holder's presence to
-/// say whether it is another host before taking the lease from it.
+/// How often a host that isn't writing claims the session's lease: holding the lease is the
+/// lock between hosts, and a claim takes it at once, so a host first waits on a new holder's
+/// presence to say whether it is another host before taking the lease from it.
 const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
+/// How long a host waits on a new holder whose presence has not arrived before claiming
+/// anyway: every replica sends its presence to each client it sees join, so this is only for
+/// one that never does.
+const UNHEARD_HOLDER: Duration = Duration::from_secs(30);
 
 type Hosted<S> = Session<S, TerminalContent>;
 
@@ -215,6 +218,7 @@ impl Host {
         self.writing = false;
         let mut claim = Claim {
             holder: None,
+            unheard: None,
             at: Instant::now(),
         };
         let outcome = loop {
@@ -222,7 +226,7 @@ impl Host {
                 break Err(error);
             }
             let claiming = !session.is_holder() && !standing_by(&session);
-            let next = claim.at.max(Instant::now());
+            let next = claim.due().max(Instant::now());
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(()),
                 woken = session.next() => {
@@ -270,9 +274,13 @@ impl Host {
             let holder = session.holder();
             if holder != claim.holder {
                 claim.holder = holder;
-                claim.at = claim.at.max(now + CLAIM_INTERVAL);
+                claim.unheard = holder.map(|_| now + UNHEARD_HOLDER);
             }
-            if !standing_by(session) && now >= claim.at {
+            // Once the new holder's presence arrives it says at once whether to stand by.
+            if holder.is_some_and(|holder| session.heard(holder)) {
+                claim.unheard = None;
+            }
+            if !standing_by(session) && now >= claim.due() {
                 claim.at = now + CLAIM_INTERVAL;
                 session.claim();
                 session.settle().await;
@@ -491,7 +499,17 @@ impl Host {
 /// last saw: a new holder's presence may not have reached it yet.
 struct Claim {
     holder: Option<ClientId>,
+    /// Until when the host waits on the holder's presence, while it has not arrived: once it
+    /// does it says at once whether the holder is another host.
+    unheard: Option<Instant>,
+    /// When the host may claim again after its last claim.
     at: Instant,
+}
+
+impl Claim {
+    fn due(&self) -> Instant {
+        self.unheard.map_or(self.at, |unheard| unheard.max(self.at))
+    }
 }
 
 /// Another host holds the lease, so this one waits instead of claiming: a

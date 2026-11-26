@@ -46,6 +46,7 @@ ureq = "2"
 [dev-dependencies]
 be-block-fault-relay = { path = "../be-block-fault-relay" }
 be-host-testing = { path = "../be-host-testing" }
+be-lib-test-pause = { path = "../be-lib-test-pause" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-bundle = { path = "../be-type-bundle" }
 be-type-chat = { path = "../be-type-chat" }

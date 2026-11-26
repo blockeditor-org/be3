@@ -38,6 +38,12 @@ pub async fn point(name: &'static str, key: u128) {
     let _ = open.wait_for(|open| *open).await;
 }
 
+/// Whether a test holds `name` for `key` now: for code that sets something aside while held,
+/// rather than waiting there, and waits at `point` only once it has.
+pub fn is_held(name: &'static str, key: u128) -> bool {
+    gates().contains_key(&(name, key))
+}
+
 /// Holds code that comes to `name` for `key` there until `release`.
 pub fn hold(name: &'static str, key: u128) {
     gates().insert(

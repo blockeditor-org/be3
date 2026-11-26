@@ -81,20 +81,6 @@ Fixed items are removed as they land.
   counts exactly what was made through it, or the walk removed with a test that
   shows every seal on the journal's base trims it.
 
-- **A terminal host stands by on a timer.** Since a claim takes the lease at
-  once, a second terminal host waits `CLAIM_INTERVAL` (3 s) after it first sees
-  a new holder before claiming, so the holder's presence can reach it first
-  (crates/be-tool-cli terminal_host.rs). Under real load that presence can take
-  longer, and the second host then steals the lease and the viewer's keys are
-  lost. Replicas already send their presence to each joiner, so stand by until
-  the holder's presence arrives or `CLAIM_INTERVAL` passes: at once in the
-  common case, the timer only for a holder that sends no presence. Done: a
-  test where the holder's presence is held back past the join, and the second
-  host still stands by once it arrives. What it needs first: presence reaches the host only
-  through its replica's `EditorMirror` (be-tool-cli's replica.rs), which lists the peers
-  that show something, not which peers it has heard from at all, so "a holder that sends
-  no presence" cannot be told from one whose presence is late until the replica says when a
-  peer's presence (empty included) has arrived.
 
 ## 12. Large folders
 

@@ -228,7 +228,7 @@ fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: 
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if editor == HOST_EDITOR {
         match ToEditor::decode(&bytes) {
-            Some(ToEditor::Presence(peers)) => {
+            Some(ToEditor::Presence { peers, .. }) => {
                 held.presence_revision += 1;
                 held.progressed += 1;
                 let revision = held.presence_revision;
