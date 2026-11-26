@@ -152,6 +152,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7g2c`: a linked root runs on the web page with its own gpu device, its apps draw into canvases their workers are handed, the root wakes its page between frames, and be-host's root serving moves into root::serving.
 - `backlog-32`: `./scripts/test` runs a crate's named test targets as built; Linux windows are named by the installed applications' entries as a signal, with one way to list Linux programs; a Host change held during a join and older than its answer is dropped.
 - `backlog-12-listing`: a cached listing keeps a row per block, so a change writes only what joined or left, and the server pages a folder's children by range; `download-urls` takes a holder, and a replay fetches only its own block's parts.
+- `backlog-25`: edits under a held tentative layer land beneath it; one projection per block per instance, and a block asked for as another type reads as failed; a detaching editor commits its undo groups; a voided drag holds nothing.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
