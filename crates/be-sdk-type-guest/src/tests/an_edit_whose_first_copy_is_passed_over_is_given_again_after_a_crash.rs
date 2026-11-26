@@ -78,8 +78,8 @@ fn an_edit_whose_first_copy_is_passed_over_is_given_again_after_a_crash() {
     sim.given_again = vec![(1, typed)];
     // The submissions taken on their way are never answered: the replica they went from is
     // opened again.
-    sim.reopen(1);
     sim.errors.clear();
+    sim.reopen(1);
     sim.settle();
     for _ in 0..3 {
         sim.advance(crate::QUIET_INTERVAL);

@@ -922,7 +922,8 @@ where
     fn start(&mut self, out: &mut Vec<Effect>) {
         // The clients already in the session it opens in never join it as this replica sees
         // it (`adopt`): each is told what this one shows as of now, `Shown` after it, as a
-        // joiner is.
+        // joiner is. In a made-up session the host sends nothing to peers, and the replica
+        // opened again once the join answers tells them then.
         let present: Vec<ClientId> = self
             .state
             .clients()
@@ -3340,7 +3341,8 @@ where
         self.ordered_bytes += ordered_bytes(&op);
         match Submitted::decode(&op.payload) {
             Some(Submitted { through, entry }) => {
-                if !below_floor(&op, &entry) {
+                let passed = below_floor(op.base, op.floor, &entry);
+                if !passed {
                     self.note_origin(op.id.origin, through, sequence);
                     if mine {
                         self.own_through = self.own_through.max(through);
@@ -3351,7 +3353,8 @@ where
                     self.own_in_journal = true;
                 }
                 match entry {
-                    Entry::Operation(payload) if op.base >= op.floor => {
+                    _ if passed => {}
+                    Entry::Operation(payload) => {
                         if let Some(operation) = self.operation(&payload) {
                             let bytes = match &payload {
                                 Payload::Inline(bytes) => bytes.clone(),
@@ -3376,7 +3379,6 @@ where
                             self.log_operation(sequence, operation, mine);
                         }
                     }
-                    Entry::Operation(_) => {}
                     Entry::Reload {
                         restart: true,
                         commit,
@@ -3511,7 +3513,7 @@ where
             self.incompatible = true;
             return self.passed(&op, mine);
         };
-        let passed = below_floor(&op, &entry);
+        let passed = below_floor(op.base, op.floor, &entry);
         if !passed {
             self.note_origin(op.id.origin, through, op.sequence);
         }
@@ -3526,7 +3528,7 @@ where
             self.lacking.numbered(op.id.counter, op.sequence);
         }
         match entry {
-            Entry::Operation(payload) => self.apply_operation(op, mine, payload),
+            Entry::Operation(payload) => self.apply_operation(op, mine, payload, passed),
             Entry::Reload {
                 commit,
                 head,
@@ -3534,7 +3536,7 @@ where
                 restart,
                 state,
             } => {
-                if op.base < op.floor && !replace && !restart {
+                if passed {
                     return self.passed(&op, mine);
                 }
                 // Read before the entry was let through (`missing_parts`). One longer than
@@ -3598,18 +3600,18 @@ where
         self.pending.remove(at)
     }
 
-    fn apply_operation(&mut self, op: SessionOp, mine: bool, payload: Payload) {
+    fn apply_operation(&mut self, op: SessionOp, mine: bool, payload: Payload, passed: bool) {
         let id = op.id;
         let sequence = op.sequence;
         let readable = payload
             .part()
             .is_none_or(|part| part.length() <= LARGEST_PART);
-        let operation = match op.base >= op.floor && readable {
+        let operation = match !passed && readable {
             true => self.operation(&payload),
             false => None,
         };
         let Some(operation) = operation else {
-            if op.base >= op.floor && readable {
+            if !passed && readable {
                 // Bytes this build cannot decode: every replica of it passes over them too.
                 self.incompatible = true;
             }
@@ -5634,8 +5636,8 @@ where
 /// Whether every replica passes `op` over for being based before the order's floor (made
 /// before a restart): it puts none of the local edits it holds in the order, which the origin's
 /// replica carries over and sends again, and its next opening must still be given.
-fn below_floor(op: &SessionOp, entry: &Entry) -> bool {
-    op.base < op.floor
+fn below_floor(base: u64, floor: u64, entry: &Entry) -> bool {
+    base < floor
         && match entry {
             Entry::Operation(_) => true,
             Entry::Reload {
@@ -5710,14 +5712,15 @@ fn ordered_bytes(op: &SessionOp) -> usize {
 /// floor (`apply_entry`). None for one longer than `LARGEST_PART`, which every replica passes
 /// over unread alike.
 fn needed_part(base: u64, floor: u64, entry: &Entry) -> Option<PartRef> {
+    if below_floor(base, floor, entry) {
+        return None;
+    }
     let part = match entry {
-        Entry::Operation(Payload::Part(part)) if base >= floor => *part,
-        Entry::Reload {
+        Entry::Operation(Payload::Part(part))
+        | Entry::Reload {
             state: Payload::Part(part),
-            replace,
-            restart,
             ..
-        } if base >= floor || *replace || *restart => *part,
+        } => *part,
         _ => return None,
     };
     (part.length() <= LARGEST_PART).then_some(part)
@@ -5757,13 +5760,8 @@ pub(crate) fn replay<C: LiveEdit + Default>(
             let Some(Submitted { entry: ordered, .. }) = Submitted::decode(&entry.payload) else {
                 return Err("a journal entry this build cannot read".into());
             };
-            let passed_over = entry.base < entry.floor
-                && !matches!(
-                    ordered,
-                    Entry::Reload { replace: true, .. } | Entry::Reload { restart: true, .. }
-                );
             match ordered {
-                _ if passed_over => {}
+                _ if below_floor(entry.base, entry.floor, &ordered) => {}
                 Entry::Operation(payload) => applied.push(payload),
                 // Only a replica reloads a commit.
                 Entry::Reload { .. } => return Err("a journal entry reloads a commit".into()),
