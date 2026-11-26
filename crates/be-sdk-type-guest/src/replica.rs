@@ -119,6 +119,8 @@ pub(crate) struct Opened {
     pub(crate) epoch: u64,
     /// What the device shows in the session as it opens (`opening.shown`).
     pub(crate) shown: BTreeMap<Uuid, Vec<u8>>,
+    /// The session state a test lowered a restart to (`opening.restart-limit`).
+    pub(crate) restart_limit: Option<u64>,
     pub(crate) account: Uuid,
     pub(crate) from_file: Option<FromFileFn>,
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
@@ -919,6 +921,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// The account this device signs in as (`opening.account`): what it added is what a
     /// restart shows as still sending.
     account: Uuid,
+    /// The session state past which a seal restarts the order, when a test lowered it
+    /// (`opening.restart-limit`); `restart_limit()` otherwise.
+    restart_limit: Option<usize>,
     out: Vec<Effect>,
 }
 
@@ -1316,6 +1321,9 @@ where
                 && opened.server_head != opened.head)
                 .then_some(opened.server_head),
             account: opened.account,
+            restart_limit: opened
+                .restart_limit
+                .map(|limit| usize::try_from(limit).unwrap_or(usize::MAX)),
             out: Vec::new(),
         }
     }
@@ -5621,7 +5629,7 @@ where
             return false;
         }
         let state = self.confirmed.session_state().len();
-        let limit = restart_limit();
+        let limit = self.restart_limit.unwrap_or_else(restart_limit);
         state > limit
             && state > self.confirmed.encode().len()
             && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
@@ -5826,6 +5834,8 @@ fn restart_limit() -> usize {
     RESTART_STATE_BYTES
 }
 
+/// This crate's own tests lower a restart's limit here, even while replicas are open; a test
+/// of the host sets it for a block it opens (`opening.restart-limit`).
 #[cfg(test)]
 thread_local! {
     pub(crate) static RESTART_LIMIT: std::cell::Cell<usize> =

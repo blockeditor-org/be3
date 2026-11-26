@@ -1,8 +1,8 @@
 use super::*;
 
-/// A text whose session state grew past `RESTART_STATE_BYTES` (a fragment for each byte left
-/// between deleted ones) is sealed, which restarts its
-/// order, while "a" is on its way and "b", typed after it, waits behind it. The restart reloads
+/// A text whose session state grew past the limit the test lowered its block's to
+/// (`RESTART_LIMIT`, a fragment for each byte left between deleted ones) is sealed, which
+/// restarts its order, while "a" is on its way and "b", typed after it, waits behind it. The restart reloads
 /// the text with new positions, so the replica carries both over: "b" names where "a" was typed,
 /// which the restarted text no longer holds. The process stops as a crash would before either
 /// is numbered after the restart, keeping only what it wrote ahead of a submission. Opened
@@ -20,6 +20,7 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
         peer.save(block, &TextBlock::of(""), None)
             .await
             .expect("the empty text is published");
+        replicas.restart_limits.lower(block, RESTART_LIMIT);
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
             .await
@@ -45,7 +46,7 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
 
         // Session state past what a seal restarts the order at: every other byte of a long run
         // deleted leaves a fragment for each.
-        let typed = 240_000;
+        let typed = 2_000;
         let kept = typed / 2;
         type_at(&mut replicas, &mut mirror, 0, &vec![b'x'; typed]);
         replicas.pump((&peer, &shared)).await;
@@ -54,11 +55,11 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
         let delete = |at: usize| {
             TextBlock::delete(shown, 2 * at + 1..2 * at + 2).expect("there is a byte to delete")
         };
-        // In edits of a size a submission takes.
+        // In edits of a few hundred deletes each.
         let mut deletes = Vec::new();
-        for from in (0..kept).step_by(4000) {
+        for from in (0..kept).step_by(250) {
             let mut deleted = delete(from);
-            for at in from + 1..(from + 4000).min(kept) {
+            for at in from + 1..(from + 250).min(kept) {
                 deleted.0.extend(delete(at).0);
             }
             deletes.push(deleted);
@@ -69,7 +70,7 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
         }
         let state = fragmented.session_state().len();
         assert!(
-            state > be_sdk_type_guest::RESTART_STATE_BYTES,
+            state > RESTART_LIMIT as usize,
             "the deletes leave {state} bytes of session state"
         );
         for deleted in deletes {

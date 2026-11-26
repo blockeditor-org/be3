@@ -1,7 +1,7 @@
 use super::*;
 
 /// An edit is on its way when the order restarts (the holder sealed a session state past
-/// `RESTART_STATE_BYTES`): the server numbers it after the restart, every replica passes it over,
+/// `RESTART_LIMIT`): the server numbers it after the restart, every replica passes it over,
 /// and its replica submits it again carried over. The host keeps that submission's identity,
 /// though the replica's status naming the restart comes in the same pass, so a replica opened
 /// after a crash would give the edit again under it; and the edit lands once.

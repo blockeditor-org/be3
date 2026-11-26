@@ -1275,6 +1275,33 @@ enum Told {
     Head { block: Uuid, head: CommitId },
 }
 
+/// The session state past which a test has a block's replica restart its order, which each of
+/// its openings carries (`opening.restart-limit`). Outside tests it holds nothing, and every
+/// replica restarts at its type's own limit.
+#[derive(Default)]
+pub(crate) struct RestartLimits {
+    #[cfg(test)]
+    limits: HashMap<Uuid, u64>,
+}
+
+impl RestartLimits {
+    /// Has `block`'s replicas, from their next opening, restart past `bytes` of session state.
+    #[cfg(test)]
+    pub(crate) fn lower(&mut self, block: Uuid, bytes: u64) {
+        self.limits.insert(block, bytes);
+    }
+
+    fn of(&self, block: Uuid) -> Option<u64> {
+        #[cfg(test)]
+        return self.limits.get(&block).copied();
+        #[cfg(not(test))]
+        {
+            let _ = block;
+            None
+        }
+    }
+}
+
 pub struct Replicas<H: Host> {
     pub modules: Modules,
     /// Per block and editor, how many operations the editor sent its replicas, kept across
@@ -1355,6 +1382,9 @@ pub struct Replicas<H: Host> {
     /// Each opening of a replica, as `(block, kept_restart, through of each kept submission)`.
     #[cfg(test)]
     pub(crate) openings: Vec<(Uuid, u64, Vec<u64>)>,
+    /// The session state past which tests have each block's replica restart its order
+    /// (`opening.restart-limit`), so a test of a restart builds kilobytes, not megabytes.
+    pub(crate) restart_limits: RestartLimits,
     /// Blocks `open` gives up on with this reason, as one whose join the server refused would.
     #[cfg(test)]
     pub(crate) refuse_opening: HashMap<Uuid, String>,
@@ -1439,6 +1469,7 @@ impl<H: Host> Replicas<H> {
             failing_seals: 0,
             #[cfg(test)]
             openings: Vec::new(),
+            restart_limits: RestartLimits::default(),
             #[cfg(test)]
             refuse_opening: HashMap::new(),
             #[cfg(test)]
@@ -2318,6 +2349,7 @@ impl<H: Host> Replicas<H> {
             sealed_head,
             epoch: 0,
             shown: self.showing.get(&block).cloned().unwrap_or_default(),
+            restart_limit: self.restart_limits.of(block),
         };
         let mut replay = replay;
         let sent = replay.len() as u64;
@@ -2635,6 +2667,7 @@ impl<H: Host> Replicas<H> {
             sealed_head,
             epoch: open.epoch,
             shown: open.shown.clone(),
+            restart_limit: self.restart_limits.of(open.block),
         };
         let editors: Vec<(EditorId, bool, u64)> = open
             .editors
@@ -5386,6 +5419,7 @@ impl<H: Host> Replicas<H> {
                 sealed_head,
                 epoch: open.epoch,
                 shown: open.shown.clone(),
+                restart_limit: self.restart_limits.of(open.block),
             };
             let editors: Vec<(EditorId, bool, u64)> = open
                 .editors

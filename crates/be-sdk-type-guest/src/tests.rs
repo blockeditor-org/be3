@@ -539,6 +539,7 @@ fn opening(
         sealed_head: None,
         epoch: 0,
         shown: Default::default(),
+        restart_limit: None,
     }
 }
 
