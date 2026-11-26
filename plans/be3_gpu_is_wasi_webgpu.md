@@ -38,14 +38,6 @@ poll as now.
   `Sender` until it settles; listing dropped tickets in the next poll would let it let them
   go.
 
-## 4. Per-draw calls as cheap as before
-
-A per-draw call on wasi:webgpu costs about 135 ns in release (be-wasm-host's
-`example-gpu-calls`), about 12% more than `be3:gpu/device`'s did: each looks up the pass it
-records into and the app device that owns it (`Gpu::render`, `checked`, `device_lost`), and
-takes the pass out of its table and puts it back. Keeping each pass's device with the pass, and
-the pass borrowed in place rather than taken, would bring it back.
-
 ## Reading the pinned WIT
 
 The file is not in the repository. To read it, build its target and open the path buck2

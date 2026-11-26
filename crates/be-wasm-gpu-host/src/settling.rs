@@ -37,6 +37,8 @@ struct Held {
 #[derive(Default)]
 pub(crate) struct Shared {
     held: Mutex<Held>,
+    /// Whether `held.lost` is set: read on every per-draw call, which takes no lock for it.
+    lost: std::sync::atomic::AtomicBool,
     changed: Condvar,
 }
 
@@ -107,6 +109,7 @@ impl Settling {
                 (_, true) => "the host's gpu device was lost".to_owned(),
             };
             shared.held().lost.get_or_insert(message);
+            shared.lost.store(true, std::sync::atomic::Ordering::Release);
             if let Some(wake) = &wake {
                 wake();
             }
@@ -115,7 +118,7 @@ impl Settling {
 
     /// Whether the host's device is lost, without reading why.
     pub(crate) fn is_lost(&self) -> bool {
-        self.shared.held().lost.is_some()
+        self.shared.lost.load(std::sync::atomic::Ordering::Acquire)
     }
 
     pub(crate) fn lost(&self) -> Option<String> {

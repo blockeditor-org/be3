@@ -40,11 +40,6 @@ impl<T> Table<T> {
         handle
     }
 
-    /// Puts back a value `take` took, under the handle it had.
-    pub(crate) fn put(&mut self, handle: Handle, value: T) {
-        self.entries.insert(handle, value);
-    }
-
     pub(crate) fn skip(&mut self) -> Handle {
         self.counter.take()
     }
