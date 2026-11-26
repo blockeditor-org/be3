@@ -31,3 +31,14 @@ The aim: a type module can stream a part it puts.
    be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it` pass
    over the writer, and a be-block-type-host test writes a part in several pieces and reads it
    back.
+2. **Unnamed parts.** Independent of step 1. A compaction seals each merged part into the local vault as it writes
+   it (be-host-stack's `Saving`), before any commit names it. When the commit is never made, the
+   parts stay: `compact_past` let go of (the head moved, a read failed), `write_at` failing after
+   its compaction, or a host stopping mid-merge. Nothing removes an object no commit names, and
+   since sealing is convergent (the same bytes under the same key are the same chunks), another
+   part may share a chunk, so deleting a part's chunks needs a count of what names each. The
+   step: a local collection of the vault's objects that no held commit, outbox entry or part
+   writer still open names (or a reference count kept as parts are sealed and let go of), run
+   while idle. Done: a be-host-stack test lets a compaction go after it sealed parts, and the
+   vault holds none of them after the collection, while every part of the index's head reads
+   back.

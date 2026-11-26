@@ -175,15 +175,13 @@ pub trait Parts {
 
 /// Where a compaction writes the parts of the segments it merges, a piece at a time as it goes
 /// (`Written::saved` names them), so no merge holds its output whole. Synchronous, as a writer
-/// that seals each chunk as the bytes end it is. Reads (`Parts::read`) answer the parts it
-/// finished, which a later merge of the same compaction may take as an input.
-pub trait PartsOut: Parts {
+/// that seals each chunk as the bytes end it is. A compaction never reads back what it wrote:
+/// a segment it merged is left for the next compaction to merge again.
+pub trait PartsOut {
     /// Appends `bytes` to `part`, which this sink starts on its first write.
     fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error>;
     /// Ends `part`: what was written to it, nothing when nothing was, is the part.
     fn finish(&self, part: &PartName) -> Result<(), Error>;
-    /// Whether `part` is one this sink finished.
-    fn holds(&self, part: &PartName) -> bool;
 }
 
 /// Parts held in memory, as a test or a type module that loaded them has; a sink
@@ -235,10 +233,6 @@ impl PartsOut for MemoryParts {
         let bytes = self.writing.borrow_mut().remove(part).unwrap_or_default();
         self.parts.borrow_mut().insert(*part, bytes);
         Ok(())
-    }
-
-    fn holds(&self, part: &PartName) -> bool {
-        self.parts.borrow().contains_key(part)
     }
 }
 

@@ -76,11 +76,15 @@ impl Index {
     ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
+        // The segments this pass wrote, which it leaves for the next: a merge taking one would
+        // drop parts already sealed through `out`, and nothing would remove them.
+        let mut merged: HashSet<Id> = HashSet::new();
         let mut n = 0;
         loop {
             let mut index = 0;
             while index < self.segments.len() {
-                if self.segments[index].live() == 0 {
+                let meta = &self.segments[index];
+                if meta.live() == 0 && !merged.contains(&meta.id) {
                     let meta = self.segments.remove(index);
                     written.dropped.extend(meta.parts());
                     self.retired.push(Retired {
@@ -95,7 +99,7 @@ impl Index {
                 break;
             }
             let Some(group) = self
-                .merges()
+                .merges(&merged)
                 .into_iter()
                 .find(|group| self.merge_bytes(group, &length) <= bytes)
             else {
@@ -107,8 +111,7 @@ impl Index {
                 .iter()
                 .map(|&index| self.segments[index].clone())
                 .collect();
-            let source = Overlay { parts, out };
-            let meta = merge_segments(&source, out, &inputs, id, &mut table).await?;
+            let meta = merge_segments(parts, out, &inputs, id, &mut table).await?;
             let mut group = group;
             group.sort_unstable_by(|a, b| b.cmp(a));
             for index in group {
@@ -120,6 +123,7 @@ impl Index {
                 });
             }
             written.saved.extend(meta.parts());
+            merged.insert(id);
             self.segments.push(meta);
         }
         self.table = table.finish(origin, &mut written);
@@ -132,23 +136,27 @@ impl Index {
     /// Whether a merge compaction would make reads more than `bytes` of parts (as `length`
     /// gives a part's): what a capped compaction leaves, for a pass without the cap.
     pub fn merges_over(&self, bytes: u64, length: impl Fn(&crate::PartName) -> u64) -> bool {
-        self.merges()
+        self.merges(&HashSet::new())
             .iter()
             .any(|group| self.merge_bytes(group, &length) > bytes)
     }
 
     /// The merges compaction would make, by the segments' places, in the order it tries them:
-    /// a segment more than half masked first, then a tier of `FACTOR`.
-    fn merges(&self) -> Vec<Vec<usize>> {
-        let mut merges: Vec<Vec<usize>> = self
-            .segments
-            .iter()
-            .enumerate()
+    /// a segment more than half masked first, then a tier of `FACTOR`. None takes a segment
+    /// in `left`.
+    fn merges(&self, left: &HashSet<Id>) -> Vec<Vec<usize>> {
+        let segments = || {
+            self.segments
+                .iter()
+                .enumerate()
+                .filter(|(_, meta)| !left.contains(&meta.id))
+        };
+        let mut merges: Vec<Vec<usize>> = segments()
             .filter(|(_, meta)| u64::from(meta.deleted) * 2 > u64::from(meta.docs))
             .map(|(index, _)| vec![index])
             .collect();
         let mut tiers: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
-        for (index, meta) in self.segments.iter().enumerate() {
+        for (index, meta) in segments() {
             tiers.entry(tier(meta.live())).or_default().push(index);
         }
         merges.extend(
@@ -174,25 +182,6 @@ impl Index {
     }
 }
 
-/// The caller's parts and the segments this compaction wrote so far.
-struct Overlay<'a, P, O> {
-    parts: &'a P,
-    out: &'a O,
-}
-
-impl<P: Parts, O: PartsOut> Parts for Overlay<'_, P, O> {
-    fn read<'a>(
-        &'a self,
-        part: &'a crate::PartName,
-        range: std::ops::Range<u64>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
-        match self.out.holds(part) {
-            true => self.out.read(part, range),
-            false => self.parts.read(part, range),
-        }
-    }
-}
-
 /// A local id `merge_segments` drops.
 const GONE: u32 = u32::MAX;
 
@@ -202,9 +191,11 @@ const GONE: u32 = u32::MAX;
 /// Each input's documents are in local order (newest first, then by document), so a k-way
 /// merge of them gives the new segment's order, and of their dictionaries its terms. The
 /// documents are read twice: once for the new local ids and record offsets, once to write the
-/// records after them. What is held is a `u32` per document of each and one term's postings,
-/// besides each input part's read window (`scan::Window`). It writes what `segment::build`
-/// writes from the same documents and terms.
+/// records after them. What it holds: two `u32` per document (its new local id and its record's
+/// offset), each input's deletion bitmap, one term's whole posting list with its positions, at
+/// most five read windows per input (`scan::Window`, about 1 MiB each), and the table chunks
+/// the moved documents' entries live in (`table::Edit`, which loads each chunk it changes). It
+/// writes what `segment::build` writes from the same documents and terms.
 async fn merge_segments(
     parts: &impl Parts,
     out: &impl PartsOut,
@@ -279,6 +270,7 @@ async fn merge_segments(
         let bytes: Vec<u8> = window.iter().flat_map(|offset| offset.to_le_bytes()).collect();
         out.write(&part, &bytes)?;
     }
+    drop(documents);
     let mut documents = Vec::with_capacity(inputs.len());
     for meta in inputs {
         documents.push(DocumentReader::open(parts, meta).await?);
@@ -304,6 +296,7 @@ async fn merge_segments(
         out.write(&part, &record)?;
     }
     out.finish(&part)?;
+    drop(documents);
 
     // The terms: each input's dictionary merged in order, a term's postings at a time.
     let mut readers: Vec<TermReader> = inputs.iter().map(TermReader::new).collect();

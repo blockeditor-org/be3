@@ -35,8 +35,8 @@ use be_block_client::{ListedBlock, Peer, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
-use be_block_search_index::{AsyncRead, MERGE_BYTES, Saving, SearchIndexContent};
-use be_block_store::{ObjectStore, PartRef};
+use be_block_search_index::{AsyncRead, MERGE_BYTES, SavedParts, SearchIndexContent};
+use be_block_store::{ObjectStore, PartRef, PartWriter, Vault};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -2649,7 +2649,7 @@ pub async fn compact_past<S: ObjectStore>(
     };
     let before = content.index().parts();
     let key = peer.sealing_key(index).await?;
-    let out = Saving::new(peer.commits().vault(), key, &parts);
+    let out = Saving::new(peer.commits().vault(), key);
     content
         .compact(
             &parts,
@@ -2749,7 +2749,7 @@ async fn write_at<S: ObjectStore>(
     // The device that writes a batch compacts a few segments with it, so queries read few.
     if let Some((now, bytes)) = compact_at {
         let key = peer.sealing_key(index).await?;
-        let out = Saving::new(peer.commits().vault(), key, &parts);
+        let out = Saving::new(peer.commits().vault(), key);
         content
             .compact(&parts, &out, Uuid::new_v4().into_bytes(), now, bytes)
             .await
@@ -2757,6 +2757,69 @@ async fn write_at<S: ObjectStore>(
     }
     seal_index(peer, index, head, &content).await?;
     Ok(needs_text)
+}
+
+/// Where a compaction writes its merged segments' parts (`SavedParts`): each sealed a chunk at a
+/// time as it is written (`Vault::part_writer`) under the index block's key.
+///
+/// A part it seals stays in the vault even when the commit that would name it is never made (a
+/// compaction let go of, or a seal that failed): plans/streamed_part_writes.md, "Unnamed parts".
+struct Saving<'a, S> {
+    vault: &'a Vault<S>,
+    key: Uuid,
+    // Neither is borrowed across an await: `PartsOut` is synchronous.
+    writing: std::cell::RefCell<HashMap<be_lib_search::PartName, PartWriter<'a, S>>>,
+    saved: std::cell::RefCell<HashMap<be_lib_search::PartName, Option<PartRef>>>,
+}
+
+impl<'a, S: ObjectStore> Saving<'a, S> {
+    /// A sink sealing under `key`, which `vault` holds.
+    fn new(vault: &'a Vault<S>, key: Uuid) -> Self {
+        Self {
+            vault,
+            key,
+            writing: Default::default(),
+            saved: Default::default(),
+        }
+    }
+}
+
+impl<S: ObjectStore> be_lib_search::PartsOut for Saving<'_, S> {
+    fn write(&self, part: &be_lib_search::PartName, bytes: &[u8]) -> Result<(), be_lib_search::Error> {
+        let mut writing = self.writing.borrow_mut();
+        let writer = match writing.entry(*part) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(self.vault.part_writer(self.key).map_err(unsaved)?)
+            }
+        };
+        writer.write(bytes).map_err(unsaved)
+    }
+
+    fn finish(&self, part: &be_lib_search::PartName) -> Result<(), be_lib_search::Error> {
+        let saved = match self.writing.borrow_mut().remove(part) {
+            Some(writer) => writer
+                .finish()
+                .map_err(unsaved)?,
+            None => None,
+        };
+        self.saved.borrow_mut().insert(*part, saved);
+        Ok(())
+    }
+}
+
+fn unsaved(error: impl std::fmt::Display) -> be_lib_search::Error {
+    be_lib_search::Error::Write(error.to_string())
+}
+
+impl<S: ObjectStore> SavedParts for Saving<'_, S> {
+    fn saved(&self, part: &be_lib_search::PartName) -> Result<Option<PartRef>, be_lib_search::Error> {
+        self.saved
+            .borrow()
+            .get(part)
+            .copied()
+            .ok_or_else(|| be_lib_search::Error::Write(format!("no part {part:?} was saved")))
+    }
 }
 
 /// Reads parts as `PeerParts` does, noting when one is nowhere to be found.

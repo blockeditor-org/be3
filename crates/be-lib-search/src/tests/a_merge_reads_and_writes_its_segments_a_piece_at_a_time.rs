@@ -38,16 +38,6 @@ struct Sink {
     most: Cell<u64>,
 }
 
-impl Parts for Sink {
-    fn read<'a>(
-        &'a self,
-        part: &'a PartName,
-        range: Range<u64>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
-        self.parts.read(part, range)
-    }
-}
-
 impl PartsOut for Sink {
     fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error> {
         self.most.set(self.most.get().max(bytes.len() as u64));
@@ -56,10 +46,6 @@ impl PartsOut for Sink {
 
     fn finish(&self, part: &PartName) -> Result<(), Error> {
         self.parts.finish(part)
-    }
-
-    fn holds(&self, part: &PartName) -> bool {
-        self.parts.holds(part)
     }
 }
 
