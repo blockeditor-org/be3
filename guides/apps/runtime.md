@@ -548,16 +548,26 @@ child is drawn in the frame its placer moved it.
 It waits until the frame's deadline (`FrameClock::deadline`): the display's
 next present less the time the host's own work after settle has been taking.
 While a driven host's clock is stopped (guides/running/drive.md) it waits for
-every answer, up to `STOPPED_CLOCK_FRAME_BUDGET`, so a slow machine never
-changes which frame shows an answer, and an app that ran out of time is drawn
+every answer, up to `STOPPED_CLOCK_FRAME_BUDGET`, so a slow machine does not
+change which frame shows an answer, and an app that ran out of time is drawn
 again only once the clock moves. For the same reason each of its frames starts, with the same
-budget, only once the block store has run every command sent to it and its type modules have
-settled (`be_host_stack::finish_commands`, in `begin_host_frame`), and the poll first waits for
-every app's steps to finish, those it woke itself for included (`finish_steps`, `Worker::idle`): what an
-app or the block store sends between frames (a dock request from a tap, a layout or present the
-host did not ask a frame for, a block's content) lands in the frame after the one that set it
-off, however fast their threads ran. Under `drive step on` no frame runs between commands either
-(guides/running/drive.md, The clock).
+budget, only once the block store has run every command sent to it that it does not hold for
+the server and its type modules have settled (`be_host_stack::finish_commands`, in
+`begin_host_frame`), and the poll first waits for every app's steps to finish, those it woke
+itself for included (`finish_steps`, `Worker::idle`); each logs what it waited on when it gives
+up. So what an app or the block store sends between frames (a dock request from a tap, a layout
+or present the host did not ask a frame for, a block's content) usually lands in the frame
+after the one that set it off, however fast their threads ran; it is not yet the same frame in
+every run (plans/backlog.md, "A stacked dock's old bar over the child that replaced it"). A
+command the block store holds for the server (a version sealed behind the server's order, one
+behind an upload or the lane, one waiting for the outbox to drain) is not waited for, so a
+device offline or with a silent server still steps.
+
+A stopped clock never moves past the frame an app drew in, so an app's `repaint_after` is
+answered by the host frame instead (`Pacing::asked_by`): an app that is not animating and asks
+for a frame at once is asked again in the next host frame. One that asks so after every frame
+keeps the host from settling, so `drive settle` times out; an animation waits for
+the clock to move, so it settles.
 
 ### Layout and present commits
 
