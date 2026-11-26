@@ -150,6 +150,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   shown by a be-block-search-index test merging segments larger than the memory
   it may hold.
 
+## 12. Large folders
+
+- **A listing read again is applied whole in memory.** A listing now writes only the
+  blocks that joined or left it (`Table::ListingEntry`), but each `Refs::listed` call
+  still lays the outbox over every summary and compares the whole id set, so a watcher
+  that reads a folder again as each of N children joins spends O(N²) CPU (be-block-client's
+  `a_watched_folder_gaining_thousands_of_children_writes_in_proportion_to_them` spends
+  seconds on 2000). Done: when measured to hurt, a listing read again applies only what
+  changed since the last (a page of the tree's changes, say), with a test bounding the
+  work per child.
+
 ## 15. Flaky host tests
 
 - **A seal's lost publish and a joined channel, often at 16 at once.**

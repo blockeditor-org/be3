@@ -1268,11 +1268,9 @@ impl ServerStore {
         .await
     }
 
-    /// Which of `hashes` the caller may read, in order: those a block it may view holds. A held
-    /// object was confirmed stored before any block could take it (`holdable`), so this asks
-    /// no object store.
-    /// Whether the caller may read each of `hashes`: a block it can view holds it, or with
-    /// `holder`, that block holds it and the caller can view it.
+    /// Which of `hashes` the caller may read, in order: those a block it may view holds, or with
+    /// `holder`, those that block holds if the caller may view it. A held object was confirmed
+    /// stored before any block could take it (`holdable`), so this asks no object store.
     pub async fn may_read_objects(
         &self,
         identity: Identity,
