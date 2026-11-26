@@ -3106,8 +3106,11 @@ impl HostCore {
             self.root_dialogs.push((id, dialog));
             return;
         }
-        if let Some(handler) = self.handler_for(from, ShellRequest::Dialog) {
-            self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
+        match self.handler_for(from, ShellRequest::Dialog) {
+            Some(handler) => {
+                self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
+            }
+            None => eprintln!("be-host: no shell is open to show {dialog:?} for block {id}"),
         }
     }
 
