@@ -103,7 +103,7 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                         let _ = Self::__SCHEMA_CHECKS;
                         let mut reader = #s::Reader::of(value)?;
                         while !reader.is_empty() {
-                            reader.field()?;
+                            #s::understood(reader.field()?.0)?;
                         }
                         Ok(Self)
                     }
@@ -117,8 +117,8 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                         const WIRE: #s::Wire = <#inner as #s::Encode>::WIRE;
                         fn encode(&self, out: &mut ::std::vec::Vec<u8>) { self.0.encode(out) }
                         fn is_absent(&self) -> bool { self.0.is_absent() }
-                        fn encode_field(&self, id: u32, out: &mut ::std::vec::Vec<u8>) {
-                            self.0.encode_field(id, out)
+                        fn encode_field(&self, key: #s::Key, out: &mut ::std::vec::Vec<u8>) {
+                            self.0.encode_field(key, out)
                         }
                     }
                     impl #decode_generics #s::Decode<#de> for #ty {
@@ -144,14 +144,19 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
             let entry = entry(&type_name);
             let mut encode_arms = Vec::new();
             let mut decode_arms = Vec::new();
-            let mut unknown_arm = quote!(_ => Err(#s::Error::UnknownVariant(id)),);
+            let mut unknown_arm = quote! {
+                _ => {
+                    #s::understood(key)?;
+                    Err(#s::Error::UnknownVariant(key.id))
+                }
+            };
             let mut default = None;
             for variant in &data.variants {
                 let ident = &variant.ident;
                 if has_schema_word(&variant.attrs, "unknown") {
                     encode_arms.push(quote!(Self::#ident(kept) => kept.write(out),));
                     unknown_arm =
-                        quote!(_ => Ok(Self::#ident(#s::UnknownVariant::new(id, value))),);
+                        quote!(_ => Ok(Self::#ident(#s::UnknownVariant::new(key, value)?)),);
                     continue;
                 }
                 if has_schema_word(&variant.attrs, "default") {
@@ -160,17 +165,18 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                 let id = entry
                     .id(&ident.to_string())
                     .expect("every variant is numbered");
+                let key = key(id, &variant.attrs);
                 match &variant.fields {
                     Fields::Unit => {
                         encode_arms.push(quote! {
-                            Self::#ident => #s::write_empty(#id, out),
+                            Self::#ident => #s::write_empty(#key, out),
                         });
                         decode_arms.push(quote!(#id => Ok(Self::#ident),));
                     }
                     Fields::Unnamed(fields) => {
                         let inner = &fields.unnamed[0].ty;
                         encode_arms
-                            .push(quote!(Self::#ident(held) => #s::write_field(#id, held, out),));
+                            .push(quote!(Self::#ident(held) => #s::write_field(#key, held, out),));
                         decode_arms.push(quote! {
                             #id => <#inner as #s::Decode<#de>>::decode(value).map(Self::#ident),
                         });
@@ -184,7 +190,7 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                         let decode = message.decode(&quote!(Self::#ident));
                         encode_arms.push(quote! {
                             Self::#ident { #(#bindings),* } => {
-                                #s::write_key(#id, #s::Wire::Len, out);
+                                #s::write_key(#key, #s::Wire::Len, out);
                                 #s::with_length(out, |out| { #encode });
                             }
                         });
@@ -214,8 +220,8 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                     const OPTIONAL: bool = #optional;
                     fn decode(value: #s::Value<#de>) -> ::std::result::Result<Self, #s::Error> {
                         let _ = Self::__SCHEMA_CHECKS;
-                        let (id, value) = #s::variant(value)?;
-                        match id {
+                        let (key, value) = #s::variant(value)?;
+                        match key.id {
                             #(#decode_arms)*
                             #unknown_arm
                         }
@@ -255,10 +261,20 @@ fn entry_named<'a>(
         .1
 }
 
+/// The key a member is written with: must-understand when it is `#[schema(critical)]`.
+fn key(id: u32, attributes: &[syn::Attribute]) -> TokenStream {
+    if has_schema_word(attributes, "critical") {
+        quote!(::be_wasm_schema::Key::critical(#id))
+    } else {
+        quote!(::be_wasm_schema::Key::new(#id))
+    }
+}
+
 struct Field<'a> {
     ident: &'a Ident,
     ty: &'a syn::Type,
     id: u32,
+    key: TokenStream,
     slot: Ident,
     name: String,
 }
@@ -301,6 +317,7 @@ impl<'a> Message<'a> {
                 ident,
                 ty: &field.ty,
                 id,
+                key: key(id, &field.attrs),
                 slot: format_ident!("__field_{}", id),
                 name: format!("{of}.{ident}"),
             });
@@ -327,8 +344,7 @@ impl<'a> Message<'a> {
     fn encode(&self, access: &TokenStream) -> TokenStream {
         let s = quote!(::be_wasm_schema);
         let writes = self.fields.iter().map(|field| {
-            let ident = field.ident;
-            let id = field.id;
+            let (ident, id, key) = (field.ident, field.id, &field.key);
             let value = if access.is_empty() {
                 quote!(#ident)
             } else {
@@ -337,9 +353,9 @@ impl<'a> Message<'a> {
             match self.unknown {
                 Some(unknown) => quote! {
                     #access #unknown.write_below(#id, &mut __next, out);
-                    #s::Encode::encode_field(#value, #id, out);
+                    #s::Encode::encode_field(#value, #key, out);
                 },
-                None => quote!(#s::Encode::encode_field(#value, #id, out);),
+                None => quote!(#s::Encode::encode_field(#value, #key, out);),
             }
         });
         match self.unknown {
@@ -359,11 +375,11 @@ impl<'a> Message<'a> {
         let slots = self.fields.iter().map(|field| &field.slot);
         let arms = self.fields.iter().map(|field| {
             let (id, slot) = (field.id, &field.slot);
-            quote!(#id => #s::once(&mut #slot, id, value)?,)
+            quote!(#id => #s::once(&mut #slot, #id, value)?,)
         });
         let other = match self.unknown {
-            Some(_) => quote!(_ => __unknown.keep(id, value)?,),
-            None => quote!(_ => {}),
+            Some(_) => quote!(_ => __unknown.keep(key, value)?,),
+            None => quote!(_ => { #s::understood(key)?; }),
         };
         let values = self.fields.iter().map(|field| {
             let (ident, ty, slot, name) = (field.ident, field.ty, &field.slot, &field.name);
@@ -377,8 +393,8 @@ impl<'a> Message<'a> {
             #(let mut #slots: ::std::option::Option<#s::Value<#de>> = None;)*
             #keeper
             while !reader.is_empty() {
-                let (id, value) = reader.field()?;
-                match id {
+                let (key, value) = reader.field()?;
+                match key.id {
                     #(#arms)*
                     #other
                 }

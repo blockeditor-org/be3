@@ -58,6 +58,42 @@ struct Holder {
     shape: ClosedShape,
 }
 
+/// An older build's setting.
+#[derive(Debug, PartialEq, Schema)]
+struct SettingV1 {
+    name: String,
+}
+
+/// A newer build's, with a field older builds must not read past.
+#[derive(Debug, PartialEq, Schema)]
+struct SettingV2 {
+    name: String,
+    #[schema(critical)]
+    unit: u32,
+}
+
+#[derive(Debug, PartialEq, Schema)]
+struct SettingKeeping {
+    name: String,
+    #[schema(unknown)]
+    rest: Unknown,
+}
+
+#[derive(Debug, PartialEq, Schema)]
+enum ModeV1 {
+    Off,
+    #[schema(unknown)]
+    Other(UnknownVariant),
+}
+
+#[derive(Debug, PartialEq, Schema)]
+enum ModeV2 {
+    Off,
+    On,
+    #[schema(critical)]
+    Strict(u8),
+}
+
 #[derive(Debug, PartialEq, Schema)]
 struct Drawing {
     shape: ShapeV2,
@@ -123,6 +159,7 @@ mod a_default_variant_is_left_out_as_a_field;
 mod a_missing_field_decodes_as_its_default;
 mod a_missing_field_with_no_default_is_an_error;
 mod a_reader_keeps_unknown_fields_and_writes_them_back_in_place;
+mod a_reader_refuses_what_it_must_understand_and_does_not;
 mod a_reader_skips_fields_it_does_not_know;
 mod an_open_enum_keeps_variants_it_does_not_know;
 mod borrowed_fields_point_into_the_input;

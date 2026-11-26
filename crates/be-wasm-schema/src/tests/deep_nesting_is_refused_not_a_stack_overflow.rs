@@ -26,7 +26,7 @@ fn deep_nesting_is_refused_not_a_stack_overflow() {
     let mut deeper = Vec::new();
     for _ in 0..1000 {
         let mut tree = Vec::new();
-        write_key(2, Wire::Len, &mut tree);
+        write_key(Key::new(2), Wire::Len, &mut tree);
         with_length(&mut tree, |list| write_value(deeper.as_slice(), list));
         deeper = tree;
     }

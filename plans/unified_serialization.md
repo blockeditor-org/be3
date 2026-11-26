@@ -1,6 +1,6 @@
 # One serialization format, ready to freeze
 
-Depends on: none. Step 5 depends on plans/host_as_platform_adapter.md, step 5 (the block stack
+Depends on: none. Step 6 depends on plans/host_as_platform_adapter.md, step 5 (the block stack
 as an instance the root guest spawns), which redraws the hops ops take.
 
 be3 encodes what it saves and sends in several ways, each defined in its own place: WIT
@@ -29,6 +29,12 @@ Nothing uses them yet.
   stack; `usize` and `isize` are refused, as their width differs between wasm32 and 64-bit.
   A fuzz target (`:fuzz-decode`) and a test drive both decoding arbitrary bytes and reading back
   values built from them.
+- A must-understand bit in every key (`id << 4 | critical << 3 | wire`), set by
+  `#[schema(critical)]` on a field or variant: a reader that does not know such a member refuses
+  the value (`Error::NotUnderstood`) rather than skipping or keeping it, so a breaking change is
+  never read by an older build as a default, nor written back by one beside its own edit. It is a
+  rule every reader follows, so it is built before anything freezes; the first frozen build is
+  the oldest reader the next breaking change meets.
 - The source is the truth for structure and freezing (`be_wasm_schema::frozen!()` freezes a
   file); `schema.lock` holds the ids, so members reorder freely. Every entry updates
   incrementally; an unfrozen one takes any change. A frozen one refuses a retype, a closed
@@ -53,20 +59,30 @@ Nothing uses them yet.
    rules (list ids, `Text`, `#[critical]`, kept data). Retire `Kind::registers_accept_missing_fields`
    and `schema::freeze`/`check_frozen` for the lockfile. Signed bytes keep their own encodings
    (decisions/signed_bytes_keep_their_own_encodings.md).
-3. **Protocols.** The bindgen writes the format in place of postcard; method ids come from the
+3. **Migrations.** A breaking change to a frozen type, made with code: on the member,
+   `#[schema(migrate(from = PersonV1, with = person_from_v1))]`. The lockfile retires the old id,
+   keeping its type, and gives the new type a new id, which is must-understand; a frozen retype is
+   refused unless it migrates. Decoding takes the new id, else decodes the old as `PersonV1` and
+   runs the function; encoding writes only the new. `PersonV1` stays, frozen in a file of its
+   own, which the lockfile already guarantees (a frozen type is never removed) and the attribute
+   names. Ids are the versions, so no version number travels. `be_block_model`'s
+   `#[model(format = N, migrate = path)]` becomes this, migrating the document's root.
+4. **Protocols.** The bindgen writes the format in place of postcard; method ids come from the
    lockfile, not hashes of names; `with` becomes a check against the mapped type's lockfile
    entry, and `encodings`, `lenient`, `inline` and `be_wasm_ops::wire`'s byte encodings go.
    Decide whether every protocol variant is open. Reading in place (aligned views, as rkyv or
    Cap'n Proto do) stays possible later, since the format is ours; compression wins size back
    (plans/deferred/compression.md). Local interfaces (the GPU) stay flattened
    wasm calls; the lockfile checks that a frozen one only gains functions.
-4. **The rest.** bincode (be-lib-remap, tabletop) and remaining postcard. JSON for files people
+5. **The rest.** bincode (be-lib-remap, tabletop) and remaining postcard. JSON for files people
    edit and tools' output stays.
-5. **Transport.** Encode straight into a guest's memory, decode borrowed in the guest, and
+6. **Transport.** Encode straight into a guest's memory, decode borrowed in the guest, and
    forward payloads unopened at hops that only relay; measure first which of these matter.
    The host never decodes in place from memory a guest can write while it reads.
-6. **Freezing, when the user asks.** A handshake that negotiates versions in place of the
-   build-id check, and guides/frozen_formats.md and AGENTS.md's principle updated.
+7. **Freezing, when the user asks.** First decide the outer message every top-level value
+   (a stored document's root, a protocol message) is a field of, so a root can migrate as a
+   field does: a value with no parent field has no id to change. Then a handshake that
+   negotiates versions in place of the build-id check, and guides/frozen_formats.md and AGENTS.md's principle updated.
 
 ## Open questions
 

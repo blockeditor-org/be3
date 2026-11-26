@@ -10,7 +10,8 @@
 //!
 //! The encoding is tagged, as protobuf's is, and made to decode fast rather than to be small
 //! (compression, a layer of its own, wins size back: plans/deferred/compression.md). A message
-//! is fields, each a key (a varint of its id and wire type) and a value: 1, 2, 4 or 8 bytes
+//! is fields, each a key (a varint of its id, the must-understand bit and the wire type:
+//! `id << 4 | critical << 3 | wire`) and a value: 1, 2, 4 or 8 bytes
 //! little-endian, or a 4-byte little-endian length and that many bytes. Lengths are fixed-width
 //! so the encoder writes every byte where it ends up, never moving what it wrote. So:
 //!
@@ -26,6 +27,10 @@
 //! - **Encoding is canonical**: fields by id, a field equal to its default left out, map
 //!   entries sorted, NaN as one bit pattern; the same value is always the same bytes, so
 //!   encoded values can be hashed and signed.
+//! - **A change older builds must not skip is marked so.** A `#[schema(critical)]` field or
+//!   variant sets the key's must-understand bit: a reader that does not know it refuses the
+//!   value (`Error::NotUnderstood`) rather than skipping or keeping it, so an older build never
+//!   reads a broken change as a default, nor writes back a stale copy beside its own edit.
 //! - **Decoding borrows where it can**: `&'de str` and `&'de [u8]` point into the input.
 //! - **Untrusted input is safe to decode**: values nest at most `MAX_DEPTH` deep, so a
 //!   recursive type cannot be made to overflow the stack, and no length is trusted before the
@@ -67,6 +72,29 @@ pub enum Wire {
     Fixed64 = 3,
     /// A 4-byte little-endian length, then that many bytes.
     Len = 4,
+}
+
+/// A field's id and whether a reader that does not know it must refuse the value rather than
+/// skip it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Key {
+    pub id: u32,
+    pub critical: bool,
+}
+
+impl Key {
+    /// Field `id`, which a reader that does not know it may skip.
+    pub const fn new(id: u32) -> Self {
+        Key {
+            id,
+            critical: false,
+        }
+    }
+
+    /// Field `id`, which a reader that does not know it must refuse.
+    pub const fn critical(id: u32) -> Self {
+        Key { id, critical: true }
+    }
 }
 
 /// A length-prefixed value's bytes, and how many levels may still nest below it.
@@ -163,6 +191,9 @@ pub enum Error {
     NotOneVariant,
     /// A variant this enum does not know and has no `#[schema(unknown)]` case for.
     UnknownVariant(u32),
+    /// A field or variant marked must-understand that this type does not know, by id: data
+    /// from a newer build that changed in a way this one cannot read.
+    NotUnderstood(u32),
     /// A bool or char that is not one, or an array of the wrong length.
     OutOfRange,
     Utf8,
@@ -193,10 +224,10 @@ pub trait Encode {
         false
     }
 
-    /// The value as field `id` of a message: left out when absent.
-    fn encode_field(&self, id: u32, out: &mut Vec<u8>) {
+    /// The value as the field `key` names: left out when absent.
+    fn encode_field(&self, key: Key, out: &mut Vec<u8>) {
         if !self.is_absent() {
-            write_field(id, self, out);
+            write_field(key, self, out);
         }
     }
 
@@ -275,8 +306,11 @@ pub fn write_varint(mut value: u64, out: &mut Vec<u8>) {
     out.push(value as u8);
 }
 
-pub fn write_key(id: u32, wire: Wire, out: &mut Vec<u8>) {
-    write_varint((u64::from(id) << 3) | wire as u64, out);
+pub fn write_key(key: Key, wire: Wire, out: &mut Vec<u8>) {
+    write_varint(
+        (u64::from(key.id) << 4) | (u64::from(key.critical) << 3) | wire as u64,
+        out,
+    );
 }
 
 /// Writes a length, runs `body`, then sets the length to what it wrote.
@@ -299,15 +333,16 @@ pub fn write_value<T: Encode + ?Sized>(value: &T, out: &mut Vec<u8>) {
     }
 }
 
-/// `value` as field `id`, even when it is absent (an enum's variant, or what `Some` holds).
-pub fn write_field<T: Encode + ?Sized>(id: u32, value: &T, out: &mut Vec<u8>) {
-    write_key(id, T::WIRE, out);
+/// `value` as the field `key` names, even when it is absent (an enum's variant, or what `Some`
+/// holds).
+pub fn write_field<T: Encode + ?Sized>(key: Key, value: &T, out: &mut Vec<u8>) {
+    write_key(key, T::WIRE, out);
     write_value(value, out);
 }
 
-/// Field `id` holding nothing: a unit variant.
-pub fn write_empty(id: u32, out: &mut Vec<u8>) {
-    write_key(id, Wire::Len, out);
+/// The field `key` names, holding nothing: a unit variant.
+pub fn write_empty(key: Key, out: &mut Vec<u8>) {
+    write_key(key, Wire::Len, out);
     out.extend_from_slice(&[0; 4]);
 }
 
@@ -362,7 +397,7 @@ impl<'de> Reader<'de> {
 
     fn key(&mut self) -> Result<u64, Error> {
         let mut key = 0u64;
-        for shift in (0..35).step_by(7) {
+        for shift in (0..42).step_by(7) {
             let byte = *self.bytes.get(self.at).ok_or(Error::Truncated)?;
             self.at += 1;
             key |= u64::from(byte & 0x7f) << shift;
@@ -389,8 +424,8 @@ impl<'de> Reader<'de> {
         })
     }
 
-    /// The next field of a message: its id and value.
-    pub fn field(&mut self) -> Result<(u32, Value<'de>), Error> {
+    /// The next field of a message: its key and value.
+    pub fn field(&mut self) -> Result<(Key, Value<'de>), Error> {
         let key = self.key()?;
         let wire = match key & 7 {
             0 => Wire::Fixed8,
@@ -400,11 +435,15 @@ impl<'de> Reader<'de> {
             4 => Wire::Len,
             _ => return Err(Error::BadKey),
         };
-        let id = u32::try_from(key >> 3).map_err(|_| Error::BadKey)?;
+        let id = u32::try_from(key >> 4).map_err(|_| Error::BadKey)?;
         if id == 0 {
             return Err(Error::BadKey);
         }
-        Ok((id, self.value(wire)?))
+        let key = Key {
+            id,
+            critical: key & 8 != 0,
+        };
+        Ok((key, self.value(wire)?))
     }
 }
 
@@ -430,12 +469,13 @@ impl Raw {
     }
 
     fn write_field(&self, id: u32, out: &mut Vec<u8>) {
+        let key = Key::new(id);
         match self {
-            Raw::Fixed8(value) => write_field(id, value, out),
-            Raw::Fixed16(value) => write_field(id, value, out),
-            Raw::Fixed32(value) => write_field(id, value, out),
-            Raw::Fixed64(value) => write_field(id, value, out),
-            Raw::Len(bytes) => write_field(id, bytes.as_slice(), out),
+            Raw::Fixed8(value) => write_field(key, value, out),
+            Raw::Fixed16(value) => write_field(key, value, out),
+            Raw::Fixed32(value) => write_field(key, value, out),
+            Raw::Fixed64(value) => write_field(key, value, out),
+            Raw::Len(bytes) => write_field(key, bytes.as_slice(), out),
         }
     }
 }
@@ -457,8 +497,10 @@ impl Unknown {
         self.fields.iter().map(|(id, _)| *id)
     }
 
-    /// Keeps field `id`, which the type does not know.
-    pub fn keep(&mut self, id: u32, value: Value<'_>) -> Result<(), Error> {
+    /// Keeps the field `key` names, which the type does not know, unless it is marked
+    /// must-understand.
+    pub fn keep(&mut self, key: Key, value: Value<'_>) -> Result<(), Error> {
+        let id = understood(key)?;
         match self.fields.binary_search_by_key(&id, |(id, _)| *id) {
             Ok(_) => Err(Error::Repeated(id)),
             Err(at) => {
@@ -481,6 +523,15 @@ impl Unknown {
     }
 }
 
+/// A field or variant a type does not know: its id, unless it is marked must-understand.
+pub fn understood(key: Key) -> Result<u32, Error> {
+    if key.critical {
+        Err(Error::NotUnderstood(key.id))
+    } else {
+        Ok(key.id)
+    }
+}
+
 /// A variant its enum does not know, kept by a `#[schema(unknown)]` case so it can be written
 /// back.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -490,11 +541,12 @@ pub struct UnknownVariant {
 }
 
 impl UnknownVariant {
-    pub fn new(id: u32, value: Value<'_>) -> Self {
-        UnknownVariant {
-            id,
+    /// Keeps the variant `key` names, unless it is marked must-understand.
+    pub fn new(key: Key, value: Value<'_>) -> Result<Self, Error> {
+        Ok(UnknownVariant {
+            id: understood(key)?,
             value: Raw::of(value),
-        }
+        })
     }
 
     pub fn write(&self, out: &mut Vec<u8>) {
@@ -502,8 +554,8 @@ impl UnknownVariant {
     }
 }
 
-/// The one field of an enum's message: the variant's id and value.
-pub fn variant(value: Value<'_>) -> Result<(u32, Value<'_>), Error> {
+/// The one field of an enum's message: the variant's key and value.
+pub fn variant(value: Value<'_>) -> Result<(Key, Value<'_>), Error> {
     let mut reader = Reader::of(value)?;
     if reader.is_empty() {
         return Err(Error::NotOneVariant);
@@ -867,8 +919,8 @@ impl<T: Encode + ?Sized> Encode for Box<T> {
         (**self).is_absent()
     }
 
-    fn encode_field(&self, id: u32, out: &mut Vec<u8>) {
-        (**self).encode_field(id, out);
+    fn encode_field(&self, key: Key, out: &mut Vec<u8>) {
+        (**self).encode_field(key, out);
     }
 }
 
@@ -895,7 +947,7 @@ impl<T: Encode> Encode for Option<T> {
 
     fn encode(&self, out: &mut Vec<u8>) {
         if let Some(value) = self {
-            write_field(1, value, out);
+            write_field(Key::new(1), value, out);
         }
     }
 
@@ -903,9 +955,9 @@ impl<T: Encode> Encode for Option<T> {
         self.is_none()
     }
 
-    fn encode_field(&self, id: u32, out: &mut Vec<u8>) {
+    fn encode_field(&self, key: Key, out: &mut Vec<u8>) {
         if let Some(value) = self {
-            write_field(id, value, out);
+            write_field(key, value, out);
         }
     }
 }
@@ -917,9 +969,11 @@ impl<'de, T: Decode<'de>> Decode<'de> for Option<T> {
         let mut reader = Reader::of(value)?;
         let mut held = None;
         while !reader.is_empty() {
-            let (id, value) = reader.field()?;
-            if id == 1 {
-                once(&mut held, id, value)?;
+            let (key, value) = reader.field()?;
+            if key.id == 1 {
+                once(&mut held, 1, value)?;
+            } else {
+                understood(key)?;
             }
         }
         held.map(T::decode).transpose()
@@ -936,8 +990,8 @@ impl<'de, T: Decode<'de>> Decode<'de> for Option<T> {
 
 fn write_entry<K: Encode, V: Encode>(key: &K, value: &V, out: &mut Vec<u8>) {
     with_length(out, |out| {
-        key.encode_field(1, out);
-        value.encode_field(2, out);
+        key.encode_field(Key::new(1), out);
+        value.encode_field(Key::new(2), out);
     });
 }
 
@@ -951,9 +1005,11 @@ fn read_entries<'de, K: Decode<'de>, V: Decode<'de>>(
         let (mut key, mut value) = (None, None);
         while !entry.is_empty() {
             match entry.field()? {
-                (1, found) => once(&mut key, 1, found)?,
-                (2, found) => once(&mut value, 2, found)?,
-                _ => {}
+                (Key { id: 1, .. }, found) => once(&mut key, 1, found)?,
+                (Key { id: 2, .. }, found) => once(&mut value, 2, found)?,
+                (other, _) => {
+                    understood(other)?;
+                }
             }
         }
         let key = K::decode_field(key, "map key")?;

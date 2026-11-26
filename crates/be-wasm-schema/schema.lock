@@ -80,6 +80,15 @@ struct Holder
 
 newtype Id: u64
 
+enum ModeV1
+  open
+  1 Off
+
+enum ModeV2
+  1 Off
+  2 On
+  3 Strict(u8)
+
 struct Nothing
 
 struct Opt
@@ -99,6 +108,16 @@ struct PersonV2
   2 age: u32
   3 email: Option<String>
   4 tags: Vec<String>
+
+struct SettingKeeping
+  1 name: String
+
+struct SettingV1
+  1 name: String
+
+struct SettingV2
+  1 name: String
+  2 unit: u32
 
 enum ShapeV1
   open
