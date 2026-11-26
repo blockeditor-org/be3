@@ -549,6 +549,7 @@ async fn assert_unheld(peer: &Peer<MemoryStore>, another: &Peer<MemoryStore>, bl
     let part = writer
         .finish()
         .expect("sealed")
+        .part()
         .expect("a byte was written");
     assert!(
         another.read_part(part, 0, part.length()).await.is_err(),
@@ -565,8 +566,9 @@ async fn put_part<S: be_block_store::ObjectStore>(
 ) -> Result<be_block_store::PartRef, ClientError> {
     let mut writer = peer.part_writer(block).await?;
     writer.write(bytes)?;
-    let part = writer
-        .finish()?
+    let written = writer.finish()?;
+    let part = written
+        .part()
         .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
     peer.hold_part(block, part).await?;
     Ok(part)
