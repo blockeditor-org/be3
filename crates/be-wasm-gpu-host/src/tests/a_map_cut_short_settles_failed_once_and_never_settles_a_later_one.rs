@@ -1,46 +1,49 @@
+use super::web::*;
 use super::*;
 
 #[test]
 fn a_map_cut_short_settles_failed_once_and_never_settles_a_later_one() {
     let mut gpu = gpu();
-    let buffer = gpu
-        .create_buffer(abi::BufferDescriptor {
-            label: None,
+    let device = device(&mut gpu, Vec::new()).unwrap();
+    let buffer = gpu.gpu_device_create_buffer(
+        device,
+        GpuBufferDescriptor {
             size: 8,
-            usage: wgpu::BufferUsages::MAP_READ.bits() | wgpu::BufferUsages::COPY_DST.bits(),
-            mapped_at_creation: false,
-        })
-        .unwrap();
-
-    let first = gpu.buffer_map_async(buffer, abi::MapMode::Read, 0, 8);
-    gpu.buffer_unmap(buffer);
+            usage: GpuBufferUsage::MAP_READ | GpuBufferUsage::COPY_DST,
+            mapped_at_creation: None,
+            label: None,
+        },
+    );
+    let map = |gpu: &mut Gpu, ticket| {
+        gpu.gpu_buffer_map_async(
+            GpuBuffer(buffer.0),
+            GpuMapMode::READ,
+            None,
+            None,
+            be_wasm_ops::local::Promise::new(ticket),
+        )
+    };
+    map(&mut gpu, 1);
+    gpu.gpu_buffer_unmap(GpuBuffer(buffer.0)).unwrap();
+    let first: Result<(), MapAsyncError> = settled(&mut gpu, 1);
     assert_eq!(
-        gpu.poll(false).maps,
-        [(first, false)],
+        first.map_err(|error| error.kind),
+        Err(MapAsyncErrorKind::AbortError),
         "a map unmapped before it settled fails"
     );
 
-    let second = gpu.buffer_map_async(buffer, abi::MapMode::Read, 0, 8);
-    assert_ne!(second, first);
-    assert_eq!(
-        gpu.poll(true).maps,
-        [(second, true)],
-        "the first map's late callback settles nothing"
-    );
-    assert_eq!(
-        gpu.poll(true).maps,
-        Vec::<(u64, bool)>::new(),
+    map(&mut gpu, 2);
+    let second: Result<(), MapAsyncError> = settled(&mut gpu, 2);
+    assert!(second.is_ok(), "the first map's late callback settles nothing of the second");
+    assert!(
+        gpu.settle(false).is_empty(),
         "each ticket is answered once"
     );
-    gpu.buffer_unmap(buffer);
+    gpu.gpu_buffer_unmap(GpuBuffer(buffer.0)).unwrap();
 
-    let third = gpu.buffer_map_async(buffer, abi::MapMode::Read, 0, 8);
-    gpu.destroy_device();
-    let settled = gpu.poll(false);
-    assert_eq!(settled.maps, [(third, false)]);
-    assert_eq!(
-        settled.lost.map(|lost| lost.reason),
-        Some(abi::DeviceLostReason::Destroyed)
-    );
-    assert_eq!(gpu.take_error(), None);
+    map(&mut gpu, 3);
+    gpu.gpu_device_destroy(device);
+    let third: Result<(), MapAsyncError> = settled(&mut gpu, 3);
+    assert!(third.is_err(), "destroying the device fails its pending map");
+    assert!(gpu.take_logged().is_empty());
 }

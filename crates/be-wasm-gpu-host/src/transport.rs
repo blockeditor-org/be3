@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use be_wasm_gpu_abi::embed::device::Caller;
+use be_wasm_gpu_abi::embed::host::Caller;
 
 #[derive(Default)]
 pub struct Transport {

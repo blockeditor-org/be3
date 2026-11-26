@@ -22,12 +22,11 @@ draw with it too. The HTML core is unaffected.
   layers are unimplemented in vello_gpu 0.4). A punch is a destination-out layer.
 - Damaged regions are cleared to transparent by Vello and the window's background is the scene's
   first fill. A punch after a drawing erases nothing drawn before it in the frame.
-- Vello writes sRGB-encoded values, so it draws into each target's non-sRGB view: every target
-  lists it in `view_formats`, and be3:gpu's `surface-configuration` carries an app surface's.
-  Blending is in sRGB everywhere, as the paintings rasterize it. Under wasi:webgpu
-  (plans/be3_gpu_is_wasi_webgpu.md) an app's surface is the linear format itself, with its sRGB
-  twin in `view-formats`, and the compositor samples it through the linear view, so the encoded
-  values reach the window unchanged.
+- Vello writes sRGB-encoded values, so it draws into each target's non-sRGB view: a target of
+  an sRGB format lists it in `view_formats`. Blending is in sRGB everywhere, as the paintings
+  rasterize it. An app's surface is a wasi:webgpu canvas, whose format is the linear one
+  itself (decisions/be3_gpu_is_wasi_webgpu.md), and the compositor samples it as it is, so the
+  encoded values reach the window unchanged.
 - The filter's blur is Vello's (decisions/beui_filter_blur_is_vellos_gaussian.md).
 - A lost device stops the renderer before Vello is called (`Lost`); overlays keep wgpu's and
   vello_gpu's uploads from panicking on a device lost mid-frame.

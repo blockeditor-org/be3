@@ -1,22 +1,21 @@
+use super::web::*;
 use super::*;
 
 #[test]
 fn destroying_the_apps_device_leaves_the_hosts_device_working() {
     let mut gpu = gpu();
-    let buffer = gpu.create_buffer(buffer_descriptor()).unwrap();
-    gpu.destroy_device();
-    let lost = gpu.poll(false).lost.expect("the app's device is lost");
-    assert_eq!(lost.reason, abi::DeviceLostReason::Destroyed);
-    gpu.write_buffer(buffer, 0, &[1; 4]);
-    let encoder = gpu
-        .create_command_encoder(abi::CommandEncoderDescriptor { label: None })
-        .expect("a destroyed device still answers a handle");
-    gpu.command_encoder_clear_buffer(encoder, buffer, 0, None);
-    let commands = gpu.command_encoder_finish(encoder).unwrap();
-    gpu.submit(&[commands]);
-    assert_eq!(
-        gpu.take_error(),
-        None,
+    let device = device(&mut gpu, Vec::new()).unwrap();
+    let queue = gpu.gpu_device_queue(device);
+    let buffer = gpu.gpu_device_create_buffer(device, web::buffer(GpuBufferUsage::COPY_DST));
+    gpu.gpu_device_destroy(device);
+    gpu.gpu_queue_write_buffer_with_copy(queue, GpuBuffer(buffer.0), 0, &[1; 4], None, None)
+        .unwrap();
+    let encoder = gpu.gpu_device_create_command_encoder(device, None);
+    gpu.gpu_command_encoder_clear_buffer(encoder, GpuBuffer(buffer.0), None, None);
+    let commands = gpu.gpu_command_encoder_finish(encoder, None);
+    gpu.gpu_queue_submit(queue, &[commands]);
+    assert!(
+        gpu.take_logged().is_empty(),
         "what a destroyed device is asked is dropped without errors"
     );
 
@@ -28,11 +27,14 @@ fn destroying_the_apps_device_leaves_the_hosts_device_working() {
         mapped_at_creation: false,
     });
     gpu.queue().write_buffer(&shared, 0, &[1; 4]);
-    assert_eq!(caught(scope.pop()), None, "the host's device still works");
+    assert_eq!(crate::caught(scope.pop()), None, "the host's device still works");
 
-    gpu.request_device();
-    assert_eq!(gpu.poll(false).lost, None);
-    let buffer = gpu.create_buffer(buffer_descriptor()).unwrap();
-    gpu.write_buffer(buffer, 0, &[1; 4]);
-    assert_eq!(gpu.take_error(), None);
+    let again = web::device(&mut gpu, Vec::new()).unwrap();
+    let queue = gpu.gpu_device_queue(again);
+    let buffer = gpu.gpu_device_create_buffer(again, web::buffer(GpuBufferUsage::COPY_DST));
+    let written = scoped(&mut gpu, again, |gpu| {
+        gpu.gpu_queue_write_buffer_with_copy(queue, GpuBuffer(buffer.0), 0, &[1; 4], None, None)
+            .unwrap()
+    });
+    assert_eq!(written, None, "a device asked for again works");
 }
