@@ -120,9 +120,11 @@ It queues with `beui_types::input::enqueue`, the same rules an app's host
 merges batches by: scrolls and zooms fold into the last of a run, and each
 pointer is heard once per frame at its latest move, but an event between two
 moves keeps both, so a click lands where it was made. An `Interactive` with
-`every_sample` (the canvas pen during a stroke) sets
+`every_sample` (the canvas's pen tool) sets
 `WindowRequests::every_sample`, and then every move is kept and `on_drag` runs
-per sample.
+per sample. The window asks with a frame's output, so the moves queued with the
+press that turns it on are still merged: a component that must keep those asks
+before the press.
 
 Each pointer is named by a `PointerId`: `Mouse`, each `Touch` finger (an XR controller's
 laser is a touch, `is_controller`), `Pen`, and two the platforms never report: `Keyboard`, a

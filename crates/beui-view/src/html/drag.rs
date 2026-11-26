@@ -14,9 +14,9 @@ impl Space for Measured {
         beui_core_html::measure::rect(node)
     }
 
-    /// The page is one window.
-    fn window(&self, _: NodeId) -> Option<WindowId> {
-        Some(WindowId::MAIN)
+    /// The page is one window, holding every node the core holds.
+    fn window(&self, node: NodeId) -> Option<WindowId> {
+        beui_core_html::document::contains(node).then_some(WindowId::MAIN)
     }
 }
 

@@ -87,6 +87,9 @@ pub fn Fixture(name: String) -> Root {
         "interactive" => view! {
             <InteractiveFixture />
         },
+        "threshold" => view! {
+            <ThresholdFixture />
+        },
         "host" => view! {
             <HostFixture />
         },
@@ -746,6 +749,43 @@ fn InteractiveFixture() -> NodeId {
                 <Frame width=160.0 height=30.0 fill={BLUE} />
             </Interactive>
             <Text color={INK}>{order}</Text>
+        </List>
+    }
+}
+
+/// The drag threshold: a press moved less than it and let go only clicks, and one moved past
+/// it drags first at the point that crossed it.
+#[component]
+fn ThresholdFixture() -> NodeId {
+    let clicks = create_signal(0_u32);
+    let drags = create_signal(0_u32);
+    let first = create_signal(None::<beui::Pos2>);
+    let report = create_memo(move || {
+        let first = first
+            .get()
+            .map_or_else(|| "nowhere".to_owned(), |at| format!("{:.0},{:.0}", at.x, at.y));
+        format!(
+            "Clicked {}, dragged {}, first at {first}",
+            clicks.get(),
+            drags.get()
+        )
+    });
+    view! {
+        <List spacing=12.0>
+            <Interactive
+                @test_id="threshold.pad"
+                on_press={move |_: beui::PointerPress| first.set(None)}
+                on_click={move || clicks.set(clicks.get_untracked() + 1)}
+                on_drag={move |press: beui::PointerPress| {
+                    drags.set(drags.get_untracked() + 1);
+                    if first.get_untracked().is_none() {
+                        first.set(Some(press.local));
+                    }
+                }}
+            >
+                <Frame width=200.0 height=100.0 fill={BLUE} />
+            </Interactive>
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }

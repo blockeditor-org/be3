@@ -168,7 +168,9 @@ reads; edits read `stored`), with lines bound to it following.
 
 - Pen: in the pen tool the pen draws and, once a pen has been seen, a finger
   selects (`tool_for`). The eraser end erases; the barrel button opens the
-  context menu.
+  context menu. The surface's `every_sample` is on while the pen tool waits
+  for a press and through a stroke (off for any other gesture), so the host
+  already keeps every sample in the frame a stroke starts in.
 - Touch: the dock's Ignore touch button is the this-device display setting
   `canvas_touch` (decisions/touch_off_toggle_instead_of_palm_rejection.md). A
   long press opens the context menu.

@@ -734,6 +734,13 @@ impl beui::native::Program for RootShell {
         }
     }
 
+    fn holdable(&self) -> Vec<String> {
+        be_host_runtime::running()
+            .into_iter()
+            .map(|status| status.app_id)
+            .collect()
+    }
+
     fn exiting(&mut self) {
         // Stops the root and every instance it spawned first, which draw on the window's device
         // and are served by the host; then the desktop host and be-host's own apps, as be-host's
