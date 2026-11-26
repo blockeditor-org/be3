@@ -21,7 +21,10 @@ mod two_sites_that_float_when_far_leave_the_item_to_the_near_ones_place;
 
 /// Nodes where tests put them, at scale 1, in the main window unless a test moves them.
 #[derive(Default)]
-struct Flat(RefCell<HashMap<NodeId, Rect>>, RefCell<HashMap<NodeId, WindowId>>);
+struct Flat(
+    RefCell<HashMap<NodeId, Rect>>,
+    RefCell<HashMap<NodeId, WindowId>>,
+);
 
 impl Space for Flat {
     fn placed(&self, node: NodeId) -> Option<(Rect, f32)> {

@@ -9,11 +9,12 @@ use crate::node::{NodeOf, Rects};
 use beui_types::Direction;
 use beui_types::NodeId;
 use beui_types::WindowId;
-use beui_types::{Modifiers, Pen, PointerButton, TouchId};
 use beui_types::{
-    PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress, PointerSample, PointerStage,
-    DRAG_THRESHOLD, ScrollGesture, TOUCH_DRAG_THRESHOLD, TouchpadGesture, WheelInput, ZoomGesture,
+    DRAG_THRESHOLD, PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress,
+    PointerSample, PointerStage, ScrollGesture, TOUCH_DRAG_THRESHOLD, TouchpadGesture, WheelInput,
+    ZoomGesture,
 };
+use beui_types::{Modifiers, Pen, PointerButton, TouchId};
 use beui_types::{Pos2, Rect, Vec2, vec2};
 
 use super::forward;

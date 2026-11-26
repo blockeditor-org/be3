@@ -10,7 +10,6 @@ use beui_view::types::KeyPhase;
 use beui_view::types::Pos2;
 use beui_view::types::{CursorIcon, Key, PointerPress};
 
-
 #[derive(Clone, Copy, PartialEq)]
 pub enum NumberDrag {
     Off,
