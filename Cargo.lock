@@ -1591,6 +1591,7 @@ dependencies = [
  "be-block-protocol",
  "be-block-session",
  "be-block-type-host",
+ "be-host-audio",
  "be-host-base",
  "be-host-desktop",
  "be-host-runtime",
@@ -1649,6 +1650,19 @@ version = "0.1.0"
 dependencies = [
  "sha2 0.10.9",
  "zstd",
+]
+
+[[package]]
+name = "be-host-audio"
+version = "0.1.0"
+dependencies = [
+ "be-host-runtime",
+ "be-sdk-api",
+ "cpal",
+ "js-sys",
+ "rodio",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -1781,11 +1795,9 @@ dependencies = [
  "beui-font-skrifa",
  "beui-layer-drive",
  "beui-renderer-wgpu",
- "cpal",
  "image",
  "js-sys",
  "pollster",
- "rodio",
  "serde",
  "serde_json",
  "uuid",

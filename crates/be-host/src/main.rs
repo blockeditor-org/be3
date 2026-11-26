@@ -429,7 +429,7 @@ impl beui::native::Program for Shell {
         let waker = setup.waker.clone();
         host::install_waker(move || waker.wake());
         host::install_clock(beui::reactive::now);
-        be_host_runtime::install(setup);
+        be_host_runtime::install(setup, be_host_audio::open);
         if self.core.desktop {
             Host::start(setup);
         }

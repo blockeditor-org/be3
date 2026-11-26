@@ -693,8 +693,10 @@ and the app asks for a frame through `request_repaint` or a
 ## Headless
 
 `be_host_runtime::Headless` runs the same runtime with no beui: no window, no
-presenter and no gpu (`install_headless`, so an app that asks for the device
-is told there is none). It steps when something wakes the host, or when the
+presenter, no gpu and no audio output (`install_headless`, so an app that asks for the
+device is told there is none, and one that plays hears an error in its `AudioStatus`).
+be-host hands `be_host_runtime::install` its audio output (`be_host_audio::open`, which plays
+through rodio); the runtime links none, so `be` needs no ALSA. It steps when something wakes the host, or when the
 runtime asked to step again, rather than when a display wants a frame: a step
 starts the host frame (`begin_host_frame`, which be-host's beui frame calls
 too), then `begin_frame`, `poll`, `flush` and `settle`, as be-host's frame

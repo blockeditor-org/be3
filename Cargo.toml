@@ -92,6 +92,7 @@ members = [
     "crates/beui-web-input",
     "crates/be-root-accounts-ui",
     "crates/be-host",
+    "crates/be-host-audio",
     "crates/be-host-base",
     "crates/be-host-desktop",
     "crates/be-host-runtime",
