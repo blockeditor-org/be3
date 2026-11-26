@@ -1215,18 +1215,41 @@ impl Generator {
         if tickets {
             externs.push(quote! {
                 #[link_name = "[poll]"]
-                pub fn settle(wait: u32, pointer: u32, capacity: u32) -> u32;
+                pub fn settle(wait: u32, dropped: u32, dropped_length: u32, pointer: u32, capacity: u32) -> u32;
             });
             stubs.push(quote! {
-                pub unsafe fn settle(wait: u32, pointer: u32, capacity: u32) -> u32 {
-                    let _ = (wait, pointer, capacity);
+                pub unsafe fn settle(wait: u32, dropped: u32, dropped_length: u32, pointer: u32, capacity: u32) -> u32 {
+                    let _ = (wait, dropped, dropped_length, pointer, capacity);
                     ::core::unreachable!("[poll] is only callable from wasm")
                 }
             });
             glue.push(quote! {
-                pub fn settle<C: super::Caller>(caller: &mut C, wait: u32, pointer: u32, capacity: u32) -> u32 {
+                pub fn settle<C: super::Caller>(
+                    caller: &mut C,
+                    wait: u32,
+                    dropped: u32,
+                    dropped_length: u32,
+                    pointer: u32,
+                    capacity: u32,
+                ) -> u32 {
+                    let dropped: ::std::vec::Vec<u32> = match dropped_length {
+                        0 => ::std::vec::Vec::new(),
+                        length => {
+                            let decoded = caller.read(dropped, length).and_then(|bytes| {
+                                ::be_wasm_ops::wire::decode::<::be_wasm_ops::wire::Plain, ::std::vec::Vec<u32>>(&bytes)
+                                    .ok_or_else(|| "the dropped tickets do not decode".to_owned())
+                            });
+                            match decoded {
+                                ::core::result::Result::Ok(dropped) => dropped,
+                                ::core::result::Result::Err(message) => {
+                                    caller.refuse(::std::format!("[poll]: {message}"));
+                                    return 0;
+                                }
+                            }
+                        }
+                    };
                     let ::core::option::Option::Some(settled) =
-                        caller.host("[poll]", |host| host.settle(wait != 0))
+                        caller.host("[poll]", |host| host.settle(wait != 0, &dropped))
                     else {
                         return 0;
                     };
@@ -1246,14 +1269,16 @@ impl Generator {
             let export = format!("{id}#[poll]");
             entries.push(quote! {
                 #dollar crate::embed::#module::glue::settle,
-                #id, "[poll]", #export, (a0: u32, a1: u32, a2: u32) -> u32;
+                #id, "[poll]", #export, (a0: u32, a1: u32, a2: u32, a3: u32, a4: u32) -> u32;
             });
             host_settle = quote! {
                 /// What settled since the last call: the values of async funcs and futures,
-                /// and the items and ends of streams. With `wait`, where the host can block, it
+                /// and the items and ends of streams. `dropped` are the tickets the guest gave
+                /// up since then: the host settles none of them again and lets go of what it
+                /// held for them, before it waits. With `wait`, where the host can block, it
                 /// blocks until at least one thing has settled, or nothing pending could settle
                 /// (no async func or future is unsettled; streams alone never hold it).
-                fn settle(&mut self, wait: bool) -> ::std::vec::Vec<::be_wasm_ops::local::Settled>;
+                fn settle(&mut self, wait: bool, dropped: &[u32]) -> ::std::vec::Vec<::be_wasm_ops::local::Settled>;
             };
             caller_ticket = quote! {
                 /// A ticket no earlier call of the interface was answered with, never
@@ -1267,14 +1292,28 @@ impl Generator {
                 }
 
                 /// Takes what settled since the last call and wakes the futures and streams
-                /// waiting for it. With `wait`, where the host can block, it blocks until at
-                /// least one thing has settled, or nothing pending could. A host with nothing
-                /// to answer with (no gpu) answers nothing.
+                /// waiting for it, first telling the host which tickets were dropped. With
+                /// `wait`, where the host can block, it blocks until at least one thing has
+                /// settled, or nothing pending could. A host with nothing to answer with (no
+                /// gpu) answers nothing.
                 pub fn settle(wait: bool) {
+                    let dropped = SETTLING.with(|settling| settling.take_dropped());
+                    let dropped = match dropped.is_empty() {
+                        true => ::std::vec::Vec::new(),
+                        false => ::be_wasm_ops::wire::encode::<::be_wasm_ops::wire::Plain, _>(&dropped),
+                    };
                     let settled = returned_or::<::be_wasm_ops::wire::Plain, ::std::vec::Vec<::be_wasm_ops::local::Settled>>(
                         "[poll]",
                         ::std::vec::Vec::new(),
-                        |pointer, capacity| unsafe { imports::settle(wait as u32, pointer, capacity) },
+                        |pointer, capacity| unsafe {
+                            imports::settle(
+                                wait as u32,
+                                dropped.as_ptr() as u32,
+                                dropped.len() as u32,
+                                pointer,
+                                capacity,
+                            )
+                        },
                     );
                     SETTLING.with(|settling| settling.settle(settled));
                 }

@@ -224,6 +224,9 @@ pub(crate) struct Web {
     compiling: Vec<(Compiling, Promise<web::GpuCompilationInfo>)>,
     /// Pipelines being made off the app's thread (`create-*-pipeline-async`).
     pipelines: pipelines::Pipelines,
+    /// Tickets the app gave up on whose promises the host still settles, for what settling
+    /// them does (a map maps its buffer): their answers are not sent.
+    forgotten: HashSet<u32>,
     wraps: Vec<Wrap>,
     scopes: u64,
     settled: Vec<Settled>,
@@ -282,6 +285,7 @@ impl Web {
                 .making
                 .iter()
                 .any(|making| making.ticket == ticket)
+            || self.forgotten.contains(&ticket)
             || self.devices.values().any(|device| {
                 device
                     .losing
@@ -543,10 +547,10 @@ impl Gpu {
             .partition(|scope| scope.pending == 0);
         state.popped = waiting;
         for scope in ready {
-            let error = scope
-                .error
-                .map(|failure| web::GpuError(self.web.errors.insert(failure)));
             if let Some(promise) = scope.popped {
+                let error = scope
+                    .error
+                    .map(|failure| web::GpuError(self.web.errors.insert(failure)));
                 self.web.settled.push(promise.settle(&Ok(error)));
             }
         }
@@ -639,6 +643,50 @@ impl Gpu {
         }
     }
 
+    /// Lets go of what the host holds for tickets the app dropped: they settle nothing, and
+    /// a waiting poll does not wait for them. Maps and work done still finish, unheard, since
+    /// a dropped map still maps its buffer, as WebGPU's does.
+    pub(crate) fn let_go(&mut self, dropped: &[u32]) {
+        if dropped.is_empty() {
+            return;
+        }
+        let dropped: HashSet<u32> = dropped.iter().copied().collect();
+        let web = &mut self.web;
+        web.settled.retain(|settled| !dropped.contains(&settled.ticket));
+        web.compiling
+            .retain(|(_, promise)| !dropped.contains(&promise.ticket()));
+        web.pipelines
+            .making
+            .retain(|making| !dropped.contains(&making.ticket));
+        for (_, promise) in web.maps.values() {
+            if dropped.contains(&promise.ticket()) {
+                web.forgotten.insert(promise.ticket());
+            }
+        }
+        for promise in web.work.values() {
+            if dropped.contains(&promise.ticket()) {
+                web.forgotten.insert(promise.ticket());
+            }
+        }
+        for device in web.devices.values_mut() {
+            device
+                .losing
+                .retain(|promise| !dropped.contains(&promise.ticket()));
+            device
+                .uncaptured
+                .retain(|sender| !dropped.contains(&sender.ticket()));
+            for scope in &mut device.popped {
+                if scope
+                    .popped
+                    .as_ref()
+                    .is_some_and(|promise| dropped.contains(&promise.ticket()))
+                {
+                    scope.popped = None;
+                }
+            }
+        }
+    }
+
     pub(crate) fn settle_web(&mut self, wait: bool) -> Vec<Settled> {
         // Something settled already answers a waiting poll.
         let wait = wait && self.web.settled.is_empty();
@@ -687,7 +735,12 @@ impl Gpu {
         self.settle_pipelines(wait && self.web.settled.is_empty());
         self.settle_wraps();
         self.settle_losses();
-        std::mem::take(&mut self.web.settled)
+        let mut settled = std::mem::take(&mut self.web.settled);
+        if !self.web.forgotten.is_empty() {
+            let forgotten = &mut self.web.forgotten;
+            settled.retain(|settled| !forgotten.remove(&settled.ticket));
+        }
+        settled
     }
 
     fn compilation_info(&mut self, info: &wgpu::CompilationInfo) -> web::GpuCompilationInfo {

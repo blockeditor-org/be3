@@ -4,6 +4,7 @@ use super::*;
 
 mod a_call_too_wide_to_pass_flat_is_encoded;
 mod a_dropped_ticket_no_longer_waits;
+mod a_ticket_dropped_before_it_settles_is_named_to_the_host_once;
 mod a_fallible_call_answers_its_error_only_when_it_fails;
 mod a_refused_ticket_stops_the_guest;
 mod a_resource_of_another_package_is_one_handle;
@@ -42,8 +43,17 @@ impl Caller {
         &self.memory[pointer as usize..(pointer + length) as usize]
     }
 
-    fn settled(&mut self) -> Vec<Settled> {
-        let length = embed::shapes::glue::settle(self, 0, 1024, 2048);
+    /// What settled, polled as the generated `settle` polls: naming the tickets `dropped`, put
+    /// in memory at 3072.
+    fn settled(&mut self, dropped: &[u32]) -> Vec<Settled> {
+        let length = match dropped {
+            [] => 0,
+            dropped => {
+                let bytes = be_wasm_ops::wire::encode::<be_wasm_ops::wire::Plain, _>(&dropped.to_vec());
+                self.put(3072, &bytes) - 3072
+            }
+        };
+        let length = embed::shapes::glue::settle(self, 0, 3072, length, 1024, 2048);
         be_wasm_ops::decode(self.bytes(1024, length)).expect("what settled decodes")
     }
 }
@@ -65,6 +75,7 @@ struct Host {
     lost: Vec<Promise<String>>,
     errors: Vec<Sender<shapes::shapes::Failed>>,
     settled: Vec<Settled>,
+    dropped: Vec<u32>,
 }
 
 impl embed::shapes::Host for Host {
@@ -116,7 +127,8 @@ impl embed::shapes::Host for Host {
         self.errors.push(settle);
     }
 
-    fn settle(&mut self, _wait: bool) -> Vec<Settled> {
+    fn settle(&mut self, _wait: bool, dropped: &[u32]) -> Vec<Settled> {
+        self.dropped.extend_from_slice(dropped);
         std::mem::take(&mut self.settled)
     }
 }
@@ -195,6 +207,6 @@ caller!(frames, shapes with ticket);
 
 /// Hands what the host settled to a guest's tickets, as the generated `settle` does.
 fn settle(caller: &mut Caller, settling: &Settling) {
-    let settled = caller.settled();
+    let settled = caller.settled(&settling.take_dropped());
     settling.settle(settled);
 }
