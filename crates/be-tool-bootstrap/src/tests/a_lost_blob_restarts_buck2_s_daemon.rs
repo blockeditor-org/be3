@@ -45,7 +45,10 @@ fn drive(directory: &std::path::Path, buck2: &std::path::Path) -> (i32, Vec<Stri
         },
     )
     .unwrap();
-    assert_eq!(configured, 0, "only an infrastructure error configures again");
+    assert_eq!(
+        configured, 0,
+        "only an infrastructure error configures again"
+    );
     let calls = std::fs::read_to_string(directory.join("calls")).unwrap();
     (status, calls.lines().map(str::to_owned).collect())
 }
