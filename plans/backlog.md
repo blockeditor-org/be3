@@ -182,16 +182,6 @@ Fixed items are removed as they land.
   not hung. None failed in 120 runs under `stress` on a 4-core VM. A wait now names such a
   stop (guides/testing_a_gui.md, 6). Done: the build server runs host tests no more at once
   than its memory holds, and a full verify passes with none of them stopped.
-- **A reopened canvas writes its default bars over its saved ones.**
-  `the_canvas_zoom_bar_floats_at_any_corner_and_stays_there` failed 2 in 40
-  under `stress` while editor frames reached the editor a host frame late; each
-  failing log has the canvas's view block drop a child from its references
-  ("dropped out of its parent's references, set by its open replica's report").
-  Frames now go as they are handed over, which hides it, but any latency (a
-  slow worker, the real network) brings it back. A suspect: `LayeredSettings`'s
-  `ready` (be-sdk-beui `src/layered_settings.rs`) counts a layer block it
-  doesn't know yet as loaded. Done: the race found and fixed in the app, with
-  frames delayed a frame in a test to show it.
 - **A stack test, under a full suite's load.**
   `discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept`
   failed once in a full `./scripts/test //crates/be-host-stack:test`, and once in

@@ -21,10 +21,12 @@ struct SavedDock {
     keys: Vec<(u64, String)>,
 }
 
+/// What a dock's layout keeper last saw kept, and the bars its last restore placed, while the
+/// dock has yet to report them there.
 #[derive(Default)]
 pub(super) struct Saving {
     seen: RefCell<Option<String>>,
-    stale: RefCell<Option<Option<String>>>,
+    landing: RefCell<Option<Vec<api::DockPlacedBar>>>,
 }
 
 trait Kept {
@@ -101,6 +103,7 @@ fn keep_layout<T: Kept + 'static>(
         };
         if !declared.get() {
             kept.saving().seen.replace(None);
+            kept.saving().landing.replace(None);
             return;
         }
         let saved = saved.get();
@@ -152,24 +155,33 @@ fn follow_saved(kept: &impl Kept, saved: Option<String>) {
         let key = old.get(&path.tab).filter(|_| path.is_own())?;
         current.get(key).copied()
     });
-    saving.stale.replace(Some(encoded(kept)));
+    saving
+        .landing
+        .replace(Some(spec_to_layout(&spec, &own_path).bars));
     kept.restore(spec);
+}
+
+/// Whether `layout` has every bar the restore placed where it placed it. A joined dock's host
+/// takes a restore some frames after it is asked, and what it reports meanwhile (as many
+/// layouts as the declaration changed in that time, each with the bars where the declaration
+/// puts them) is not the person's to keep.
+fn landed(layout: &api::DockLayout, restored: &[api::DockPlacedBar]) -> bool {
+    restored.iter().all(|bar| {
+        layout.bars.iter().any(|hosted| {
+            hosted.bar == bar.bar && hosted.placement == bar.placement && hosted.hidden == bar.hidden
+        })
+    })
 }
 
 fn changed_layout(kept: &impl Kept) -> Option<String> {
     let saving = kept.saving();
     let encoded = encoded(kept)?;
-    let stale = saving.stale.borrow().clone();
-    match stale {
-        Some(Some(stale)) if stale == encoded => return None,
-        Some(None) => {
-            saving.stale.replace(Some(Some(encoded)));
+    let landing = saving.landing.borrow().clone();
+    if let Some(restored) = landing {
+        if !kept.layout().is_some_and(|layout| landed(&layout, &restored)) {
             return None;
         }
-        Some(Some(_)) => {
-            saving.stale.replace(None);
-        }
-        None => {}
+        saving.landing.replace(None);
     }
     if saving.seen.borrow().as_ref() == Some(&encoded) {
         return None;
