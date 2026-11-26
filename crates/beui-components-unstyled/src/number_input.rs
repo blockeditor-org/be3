@@ -10,7 +10,6 @@ use beui_view::types::KeyPhase;
 use beui_view::types::Pos2;
 use beui_view::types::{CursorIcon, Key, PointerPress};
 
-const DRAG_THRESHOLD: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NumberDrag {
@@ -116,9 +115,6 @@ pub fn NumberInput(
             return;
         };
         let points = at.pos.x - origin.x;
-        if !moved && points.abs() < DRAG_THRESHOLD {
-            return;
-        }
         let Some(next) = drag.applied(start, f64::from(points)) else {
             return;
         };

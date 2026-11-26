@@ -12,7 +12,7 @@ use beui_types::WindowId;
 use beui_types::{Modifiers, Pen, PointerButton, TouchId};
 use beui_types::{
     PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress, PointerSample, PointerStage,
-    ScrollGesture, TOUCH_DRAG_THRESHOLD, TouchpadGesture, WheelInput, ZoomGesture,
+    DRAG_THRESHOLD, ScrollGesture, TOUCH_DRAG_THRESHOLD, TouchpadGesture, WheelInput, ZoomGesture,
 };
 use beui_types::{Pos2, Rect, Vec2, vec2};
 
@@ -814,7 +814,11 @@ fn drag(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
         let Some(rect) = rect_of(doc, frame.rects, owner) else {
             continue;
         };
-        if let Some(node) = interactive(doc, owner) {
+        // An owner that keeps every sample (a pen's stroke) hears the moves short of the
+        // threshold too, so a short stroke keeps every point.
+        if let Some(node) = interactive(doc, owner)
+            && (session.dragged || node.every_sample)
+        {
             node.on_drag.clone().call(session.press(rect, pos));
         }
     }
@@ -953,18 +957,36 @@ fn follow(
     offer(doc, frame, session, stage, pos, settles);
     session.pos = pos;
     if session.role == Role::Press && !session.cancelled && session.last_drag != Some(pos) {
+        // A press drags once it has moved the threshold from where it was pressed (a finger
+        // settles at it, above), and its first drag is at the point that crossed it, so it
+        // moves by the whole distance from the press.
+        if !session.dragged && !session.kind.settles && past_threshold(session, pos) {
+            session.dragged = true;
+        }
         drag(doc, frame, session, pos);
     }
+}
+
+/// How far a press moves before it drags: a click's or a tap's jitter is no drag.
+fn drag_threshold(kind: Kind) -> f32 {
+    match kind.finger {
+        true => TOUCH_DRAG_THRESHOLD,
+        false => DRAG_THRESHOLD,
+    }
+}
+
+fn past_threshold(session: &Session, pos: Pos2) -> bool {
+    (pos - session.origin).length() >= drag_threshold(session.kind)
 }
 
 fn settle(session: &mut Session, pos: Pos2) -> Option<Direction> {
     if session.cancelled || session.axis.is_some() {
         return None;
     }
-    let movement = pos - session.origin;
-    if movement.x.hypot(movement.y) < TOUCH_DRAG_THRESHOLD {
+    if !past_threshold(session, pos) {
         return None;
     }
+    let movement = pos - session.origin;
     session.dragged = true;
     session.long_press = None;
     let axis = match movement.y.abs() >= movement.x.abs() {
@@ -1597,14 +1619,11 @@ fn wheel_sink(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) ->
 fn frame_drags(doc: &mut Document, frame: &Frame) {
     for index in 0..doc.pointers.sessions.len() {
         let session = &doc.pointers.sessions[index];
-        if session.role != Role::Press || session.cancelled || session.dragged_this_frame {
-            continue;
-        }
-        if session.last_drag.is_none() {
-            with_session(doc, index, |doc, session| {
-                let pos = session.pos;
-                drag(doc, frame, session, pos);
-            });
+        if session.role != Role::Press
+            || session.cancelled
+            || session.dragged_this_frame
+            || !session.dragged
+        {
             continue;
         }
         let pos = session.pos;

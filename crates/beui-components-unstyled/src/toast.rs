@@ -15,7 +15,7 @@ use beui_view::types::{LayerLevel, LayerPolicy};
 use crate::floating::Edge;
 use crate::gestures;
 use crate::scroll::{Scroll, ScrollStyle};
-use beui_view::types::{DRAG_THRESHOLD, Direction, DragGesture, PointerPress, Velocity};
+use beui_view::types::{Direction, DragGesture, PointerPress, Velocity};
 use beui_view::types::{Extent, Sides, vec2};
 
 pub const TOAST_DURATION: Duration = Duration::from_secs(8);
@@ -412,11 +412,9 @@ impl Motion {
                 return;
             };
             grip.velocity.sample(press.time, press.pos);
-            // A click's jitter is no drag.
-            grip.moved |= (press.pos.x - grip.from).abs() > DRAG_THRESHOLD;
-            if !grip.moved {
-                return;
-            }
+            // The core drags a press only once it has moved the drag threshold: a click's
+            // jitter is no drag.
+            grip.moved = true;
             grip.start + press.pos.x - grip.from
         };
         self.offset.set(offset);
