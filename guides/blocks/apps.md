@@ -306,8 +306,10 @@ Presence is what a peer shows while it is there (a cursor, a selection), never
 saved. `SessionMessage::Presence { kind, value }` carries one kind, sealed like
 every session message. A replica sends a value only when it changed, keys
 others' by `ClientId` and kind, and on hearing of a new participant shows it
-what it is showing, so a late joiner sees everyone at once. Editors get
-`ToEditor::Presence` and send `FromEditor::ShowPresence`; `editor.peers` and
+what it is showing followed by `SessionMessage::Shown`, so a late joiner sees everyone at
+once and can tell a peer that shows nothing from one whose presence is late. Editors get
+`ToEditor::Presence { peers, heard }`, `heard` listing the peers whose `Shown` arrived
+(`EditorMirror::heard`), and send `FromEditor::ShowPresence`; `editor.peers` and
 `editor.on_peer_message` send `Resend` once, so an editor that never reads its
 content still hears its peers. On the app side: `editor.show(Some(&value))` and
 `editor.peers::<P>()` over a `PresenceKind` (`be_block_content::presence`). The

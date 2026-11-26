@@ -750,6 +750,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// edits: how many the head holds once a seal holds them.
     own_numbered: VecDeque<(u64, u64)>,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
+    /// The peers whose presence has arrived in full (`SessionMessage::Shown`), whatever it
+    /// holds.
+    heard: BTreeSet<ClientId>,
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
     channel: Vec<PeerMessage>,
@@ -1210,6 +1213,7 @@ where
             own_through: 0,
             own_numbered: VecDeque::new(),
             presence: BTreeMap::new(),
+            heard: BTreeSet::new(),
             shown: BTreeMap::new(),
             presence_changed: false,
             channel: Vec::new(),
@@ -2293,6 +2297,11 @@ where
                     None => self.presence.remove(&(from, kind)).is_some(),
                 };
                 self.presence_changed |= changed;
+            }
+            SessionMessage::Shown => {
+                if from != self.client {
+                    self.presence_changed |= self.heard.insert(from);
+                }
             }
             SessionMessage::Channel { channel, payload } => {
                 if from != self.client {
@@ -4913,9 +4922,9 @@ where
         if first {
             self.journal(Journaled::Replaced, None);
         }
-        if !self.presence.is_empty() {
+        if !self.presence.is_empty() || !self.heard.is_empty() {
             let presence = self.peer_presence();
-            self.tell_editor(editor, &ToEditor::Presence(presence));
+            self.tell_editor(editor, &presence);
         }
     }
 
@@ -5008,15 +5017,19 @@ where
         });
     }
 
-    fn peer_presence(&self) -> Vec<PeerPresence> {
-        self.presence
-            .iter()
-            .map(|((client, kind), value)| PeerPresence {
-                client: *client,
-                kind: *kind,
-                value: value.clone(),
-            })
-            .collect()
+    fn peer_presence(&self) -> ToEditor {
+        ToEditor::Presence {
+            peers: self
+                .presence
+                .iter()
+                .map(|((client, kind), value)| PeerPresence {
+                    client: *client,
+                    kind: *kind,
+                    value: value.clone(),
+                })
+                .collect(),
+            heard: self.heard.iter().copied().collect(),
+        }
     }
 
     fn flush_editors(&mut self) {
@@ -5073,7 +5086,7 @@ where
         if std::mem::take(&mut self.presence_changed) && !editors.is_empty() {
             let presence = self.peer_presence();
             for editor in &editors {
-                self.tell_editor(*editor, &ToEditor::Presence(presence.clone()));
+                self.tell_editor(*editor, &presence);
             }
         }
         let channel = std::mem::take(&mut self.channel);
@@ -5244,6 +5257,7 @@ where
                 },
             );
         }
+        self.send(Some(client), &SessionMessage::Shown);
     }
 
     fn broadcast(&mut self, message: &SessionMessage) {
@@ -5296,6 +5310,9 @@ where
         let before = self.presence.len();
         self.presence.retain(|(client, _), _| state.has(*client));
         self.presence_changed |= self.presence.len() != before;
+        let before = self.heard.len();
+        self.heard.retain(|client| state.has(*client));
+        self.presence_changed |= self.heard.len() != before;
         let was_holder = self.is_holder();
         self.state = state;
         self.check_build();

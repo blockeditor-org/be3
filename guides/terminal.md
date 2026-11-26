@@ -35,8 +35,10 @@ any lease holder (guides/type_modules.md). Viewers just render the document.
 
 Who writes is decided by the live session's lease: a host writes only while its replica holds the
 lease, stands by while another `TerminalHost` holds it, and otherwise claims every few seconds
-(`CLAIM_INTERVAL`). A claim takes the lease at once, so a host first waits that long on a new
-holder: its presence, which says whether it is another host, may not have arrived yet. A host that becomes the writer and finds a shell in the document that isn't
+(`CLAIM_INTERVAL`). A claim takes the lease at once, so a host first waits on a new holder's
+presence, which says whether it is another host: it decides once the replica says that
+holder's presence has arrived (`Session::heard`), and claims anyway only after
+`UNHEARD_HOLDER` for a holder never heard from. A host that becomes the writer and finds a shell in the document that isn't
 its own restores: the old screen goes into history behind a faint `Restored session: <date>`
 line and a new shell starts. After the shell exits, the next key starts another.
 

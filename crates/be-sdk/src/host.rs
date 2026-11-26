@@ -1555,7 +1555,7 @@ impl EditorHost {
 
     pub fn receive_from_replica(&self, block: Option<Uuid>, message: ToEditor) {
         match message {
-            ToEditor::Presence(peers) => self.set_peers(
+            ToEditor::Presence { peers, .. } => self.set_peers(
                 block,
                 peers
                     .into_iter()
